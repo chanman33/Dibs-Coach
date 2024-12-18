@@ -163,4 +163,4 @@ function RealtorDashboard() {
   )
 }
 
-export default withRole(RealtorDashboard, [ROLES.REALTOR, ROLES.ADMIN])
+export default withRole(RealtorDashboard, [ROLES.REALTOR])

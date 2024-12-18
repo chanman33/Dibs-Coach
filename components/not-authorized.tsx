@@ -23,12 +23,12 @@ export default function Unauthorized() {
             You don't have access to this page
           </p>
           <p className="text-sm text-muted-foreground">
-            It looks like you haven't subscribed yet. To access this content, please upgrade to our premium service.
+            Please try reaching out to your administrator if you believe this is an error.
           </p>
         </CardContent>
         <CardFooter>
           <Button asChild className="w-full">
-            <Link href="/">Upgrade Now</Link>
+            <Link href="/">Home</Link>
           </Button>
         </CardFooter>
       </Card>
