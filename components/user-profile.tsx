@@ -19,7 +19,8 @@ import {
     CreditCard,
     LogOut,
     Settings,
-    User
+    User,
+    UserCircle
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -43,18 +44,25 @@ export function UserProfile() {
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
+                    <Link href="/dashboard/realtor/profile">
+                        <DropdownMenuItem>
+                            <UserCircle className="mr-2 h-4 w-4" />
+                            <span>Public Profile</span>
+                            {/* <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut> */}
+                        </DropdownMenuItem>
+                    </Link>
                     <Link href="/user-profile">
                         <DropdownMenuItem>
                             <User className="mr-2 h-4 w-4" />
-                            <span>Profile</span>
-                            <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
+                            <span>Account</span>
+                            {/* <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut> */}
                         </DropdownMenuItem>
                     </Link>
                     <Link href="/dashboard/settings">
                         <DropdownMenuItem>
                             <Settings className="mr-2 h-4 w-4" />
                             <span>Settings</span>
-                            <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
+                            {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
                         </DropdownMenuItem>
                     </Link>
                 </DropdownMenuGroup>
@@ -62,7 +70,7 @@ export function UserProfile() {
                     <DropdownMenuItem>
                         <LogOut className="mr-2 h-4 w-4" />
                         <span>Log out</span>
-                        <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut>
+                        {/* <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut> */}
                     </DropdownMenuItem>
                 </SignOutButton>
             </DropdownMenuContent>

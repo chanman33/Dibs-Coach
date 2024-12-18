@@ -47,3 +47,31 @@ const userUpdateSchema = z.object({
     .describe("user profile image URL"),
   user_id: z.string().describe("user ID"),
 });
+
+export const realtorProfileSchema = z.object({
+  userId: z.number(),
+  companyName: z.string().nullable(),
+  licenseNumber: z.string().nullable(),
+  phoneNumber: z.string().nullable(),
+  bio: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const userSchema = z.object({
+  id: z.number(),
+  email: z.string().email(),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
+  gender: z.string().nullable(),
+  profileImageUrl: z.string().nullable(),
+  userId: z.string(),
+  subscription: z.string().nullable(),
+  role: z.enum(["realtor", "coach", "admin"]),
+  status: z.string(),
+  brokerId: z.number().nullable(),
+  teamId: z.number().nullable(),
+  realtorProfile: realtorProfileSchema.nullable(),
+});
+
+export type User = z.infer<typeof userSchema>;
