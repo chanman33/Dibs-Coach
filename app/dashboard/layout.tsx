@@ -40,7 +40,6 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     }
   }
 
-  // Render the layout without nesting another grid
   return (
     <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
       {children}

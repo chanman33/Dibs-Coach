@@ -1,18 +1,31 @@
 "use client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { withRole } from "@/components/wrapper/with-role"
 import { ROLES } from "@/utils/roles/roles"
-import { Users, Target, Clock, TrendingUp } from "lucide-react"
+import { Users, Target, Clock, TrendingUp, ArrowUpRight } from "lucide-react"
+import Link from 'next/link'
 
 function CoachDashboard() {
   return (
-    <div className="flex-1 space-y-4 p-4 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Coach Dashboard</h2>
-      </div>
-      
-      {/* Stats Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className='flex flex-col justify-center items-start flex-wrap px-4 pt-4 gap-4'>
+      <Card className='w-[20rem]'>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">
+            Coach Overview
+          </CardTitle>
+          <Target className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">24</div>
+          <p className="text-xs text-muted-foreground">
+            Active Clients
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 w-full">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
@@ -58,39 +71,64 @@ function CoachDashboard() {
         </Card>
       </div>
 
-      {/* Recent Activity */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Upcoming Sessions</CardTitle>
+      <div className='grid md:grid-cols-2 sm:grid-cols-1 w-full gap-3'>
+        <Card>
+          <CardHeader className="flex flex-row items-center">
+            <div className="grid gap-2">
+              <CardTitle>Upcoming Sessions</CardTitle>
+              <CardDescription>
+                Your scheduled coaching sessions
+              </CardDescription>
+            </div>
+            <Button asChild size="sm" className="ml-auto gap-1">
+              <Link href="/dashboard-coach/sessions">
+                View All
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="space-y-8">
-              <div className="flex items-center">
-                <div className="ml-4 space-y-1">
-                  <p className="text-sm font-medium leading-none">John Smith</p>
-                  <p className="text-sm text-muted-foreground">Today at 2:00 PM</p>
+            <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+              <div className="space-y-8">
+                <div className="flex items-center">
+                  <div className="ml-4 space-y-1">
+                    <p className="text-sm font-medium leading-none">John Smith</p>
+                    <p className="text-sm text-muted-foreground">Today at 2:00 PM</p>
+                  </div>
+                  <div className="ml-auto font-medium">Career Planning</div>
                 </div>
-                <div className="ml-auto font-medium">Career Planning</div>
+                {/* Add more sessions... */}
               </div>
-              {/* Add more sessions... */}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Recent Goals Achieved</CardTitle>
+        <Card>
+          <CardHeader className="flex flex-row items-center">
+            <div className="grid gap-2">
+              <CardTitle>Recent Goals</CardTitle>
+              <CardDescription>
+                Recently achieved client goals
+              </CardDescription>
+            </div>
+            <Button asChild size="sm" className="ml-auto gap-1">
+              <Link href="/dashboard-coach/goals">
+                View All
+                <ArrowUpRight className="h-4 w-4" />
+              </Link>
+            </Button>
           </CardHeader>
           <CardContent>
-            <div className="space-y-8">
-              <div className="flex items-center">
-                <div className="ml-4 space-y-1">
-                  <p className="text-sm font-medium leading-none">Sarah Johnson</p>
-                  <p className="text-sm text-muted-foreground">Leadership Milestone Reached</p>
+            <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+              <div className="space-y-8">
+                <div className="flex items-center">
+                  <div className="ml-4 space-y-1">
+                    <p className="text-sm font-medium leading-none">Sarah Johnson</p>
+                    <p className="text-sm text-muted-foreground">Leadership Milestone Reached</p>
+                  </div>
                 </div>
+                {/* Add more achievements... */}
               </div>
-              {/* Add more achievements... */}
             </div>
           </CardContent>
         </Card>
@@ -99,4 +137,4 @@ function CoachDashboard() {
   )
 }
 
-export default withRole(CoachDashboard, [ROLES.COACH, ROLES.ADMIN]);
+export default withRole(CoachDashboard, [ROLES.COACH, ROLES.ADMIN])

@@ -3,11 +3,11 @@ import RealtorSidebar from "./_components/realtor-sidebar"
 
 export default function RealtorLayout({ children }: { children: ReactNode }) {
   return (
-    <>
+    <div className="flex h-screen">
       <RealtorSidebar />
-      <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
+      <main className="flex-1 overflow-y-auto">
         {children}
       </main>
-    </>
+    </div>
   )
 } 
