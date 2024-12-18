@@ -6,7 +6,7 @@ import config from '@/config';
 export async function getUserRole(userId: string): Promise<UserRole> {
   // If roles are disabled, return ADMIN role for development
   if (!config.roles.enabled) {
-    return ROLES.ADMIN;
+    return ROLES.REALTOR;
   }
 
   const cookieStore = await cookies();

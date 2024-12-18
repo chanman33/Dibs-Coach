@@ -10,6 +10,7 @@ export const userCreate = async ({
   last_name,
   profile_image_url,
   user_id,
+  role,
 }: userCreateProps) => {
   const cookieStore = await cookies();
 
@@ -26,25 +27,38 @@ export const userCreate = async ({
   );
 
   try {
+    // console.log("Attempting to create user:", {
+    //   email,
+    //   firstName: first_name,
+    //   lastName: last_name,
+    //   profileImageUrl: profile_image_url,
+    //   userId: user_id,
+    //   role,
+    // });
+
     const { data, error } = await supabase
-      .from("user")
+      .from("User")
       .insert([
         {
           email,
-          first_name,
-          last_name,
-          profile_image_url,
-          user_id,
+          firstName: first_name,
+          lastName: last_name,
+          profileImageUrl: profile_image_url,
+          userId: user_id,
+          role,
+          status: "active",
+          updatedAt: new Date().toISOString(),
         },
       ])
       .select();
 
-    console.log("data", data);
-    console.log("error", error);
-
-    if (error?.code) return error;
+    if (error) {
+      console.error("Error creating user:", error);
+      return error;
+    }
     return data;
   } catch (error: any) {
+    console.error("Exception creating user:", error);
     throw new Error(error.message);
   }
 };
