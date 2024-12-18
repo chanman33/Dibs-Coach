@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ROLES } from "./roles/roles";
 
 export type userCreateProps = z.infer<typeof userCreateSchema>;
 
@@ -20,6 +21,7 @@ const userCreateSchema = z.object({
     .optional()
     .describe("user profile image URL"),
   user_id: z.string().describe("user ID"),
+  role: z.enum([ROLES.REALTOR, ROLES.COACH, ROLES.ADMIN]).describe("user role"),
 });
 
 export type userUpdateProps = z.infer<typeof userUpdateSchema>;

@@ -8,66 +8,414 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model user {
-  id                Int      @id @default(autoincrement())
-  created_time      DateTime @default(now())
-  email             String   @unique
-  first_name        String?
-  last_name         String?
-  gender            String?
-  profile_image_url String?
-  user_id           String   @unique
-  subscription      String?
+enum UserRole {
+  realtor
+  coach
+  admin
 }
 
-model payments {
-  id               Int      @id @default(autoincrement())
-  created_time     DateTime @default(now())
-  stripe_id        String
-  email            String
-  amount           String
-  payment_time     String
-  payment_date     String
-  currency         String
-  user_id          String
-  customer_details String
-  payment_intent   String
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  refunded
 }
 
-model subscriptions {
-  id                        Int      @id @default(autoincrement())
-  created_time              DateTime @default(now())
-  subscription_id           String
-  stripe_user_id            String
-  status                    String
-  start_date                String
-  end_date                  String?
-  plan_id                   String
-  default_payment_method_id String?
-  email                     String
-  user_id                   String
+enum TicketStatus {
+  open
+  in_progress
+  closed
 }
 
-model subscriptions_plans {
-  id           Int      @id @default(autoincrement())
-  created_time DateTime @default(now())
-  plan_id      String
-  name         String
-  description  String
-  amount       String
-  currency     String
-  interval     String
-}
-
-model invoices {
+// Models
+model User {
   id              Int      @id @default(autoincrement())
-  created_time    DateTime @default(now())
-  invoice_id      String
-  subscription_id String
-  amount_paid     String
-  amount_due      String?
-  currency        String
-  status          String
-  email           String
-  user_id         String?
+  email           String   @unique
+  firstName       String?
+  lastName        String?
+  gender          String?
+  profileImageUrl String?
+  userId          String   @unique
+  subscription    String?
+  role            UserRole @default(realtor)
+  status          String   @default("active")
+
+  brokerId Int?
+  teamId   Int?
+
+  broker Broker? @relation(fields: [brokerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  realtorProfile RealtorProfile?
+  coachProfile   CoachProfile?
+
+  sessionsAsCoach   Session[] @relation("CoachSessions")
+  sessionsAsRealtor Session[] @relation("RealtorSessions")
+
+  paymentsMade      Payment[]       @relation("PayerPayments")
+  paymentsReceived  Payment[]       @relation("PayeePayments")
+  payouts           Payout[]
+  reviewsGiven      Review[]        @relation("ReviewerReviews")
+  reviewsReceived   Review[]        @relation("RevieweeReviews")
+  messagesSent      Message[]       @relation("SenderMessages")
+  messagesReceived  Message[]       @relation("RecipientMessages")
+  referralsMade     Referral[]      @relation("ReferrerReferrals")
+  referralsReceived Referral[]      @relation("RefereeReferrals")
+  applications      Application[]
+  notesCreated      Note[]          @relation("AuthorNotes")
+  notesRelated      Note[]          @relation("RelatedUserNotes")
+  reminders         Reminder[]
+  supportTickets    SupportTicket[] @relation("UserSupportTickets")
+  subscriptions     Subscription[]
+  invoices          Invoice[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brokerId])
+  @@index([teamId])
+}
+
+model Broker {
+  id          Int     @id @default(autoincrement())
+  name        String
+  description String?
+
+  teams Team[]
+  users User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Team {
+  id       Int    @id @default(autoincrement())
+  name     String
+  brokerId Int
+
+  broker Broker @relation(fields: [brokerId], references: [id], onDelete: Cascade)
+  users  User[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([brokerId])
+}
+
+model RealtorProfile {
+  userId        Int     @id
+  companyName   String?
+  licenseNumber String? @unique
+  phoneNumber   String?
+  bio           String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CoachProfile {
+  userId            Int      @id
+  specialties       String?
+  yearsOfExperience Int?
+  hourlyRate        Decimal?
+  bio               String?
+  oneTimeCallPrice  Decimal?
+  bundlePrice       Decimal?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Session {
+  id              Int     @id @default(autoincrement())
+  coachId         Int
+  realtorId       Int
+  calendlyEventId String?
+  durationMinutes Int
+  status          String  @default("scheduled")
+
+  coach   User @relation("CoachSessions", fields: [coachId], references: [id], onDelete: Cascade)
+  realtor User @relation("RealtorSessions", fields: [realtorId], references: [id], onDelete: Cascade)
+
+  notes     Note[]
+  reminders Reminder[]
+  reviews   Review[]
+  payments  Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([coachId])
+  @@index([realtorId])
+}
+
+model Payment {
+  id                   Int           @id @default(autoincrement())
+  sessionId            Int?
+  payerId              Int
+  payeeId              Int
+  stripeChargeId       String        @unique
+  amount               Decimal       @default(0.00)
+  currency             String        @default("USD")
+  processingFee        Decimal       @default(0.00)
+  platformFee          Decimal       @default(0.00)
+  paymentMethod        String
+  status               PaymentStatus @default(pending)
+  transactionReference String?
+
+  session     Session?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  payer       User         @relation("PayerPayments", fields: [payerId], references: [id], onDelete: Cascade)
+  payee       User         @relation("PayeePayments", fields: [payeeId], references: [id], onDelete: Cascade)
+  disputes    Dispute[]
+  chargebacks Chargeback[]
+  refunds     Refund[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sessionId])
+  @@index([payerId])
+  @@index([payeeId])
+}
+
+model Payout {
+  id               Int       @id @default(autoincrement())
+  payeeId          Int
+  amount           Decimal   @default(0.00)
+  currency         String    @default("USD")
+  stripeTransferId String?
+  status           String    @default("pending")
+  scheduledDate    DateTime
+  processedAt      DateTime?
+
+  payee User @relation(fields: [payeeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([payeeId])
+}
+
+model Review {
+  id         Int     @id @default(autoincrement())
+  reviewerId Int
+  revieweeId Int
+  sessionId  Int?
+  rating     Int
+  comment    String?
+
+  reviewer User     @relation("ReviewerReviews", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewee User     @relation("RevieweeReviews", fields: [revieweeId], references: [id], onDelete: Cascade)
+  session  Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([reviewerId])
+  @@index([revieweeId])
+  @@index([sessionId])
+}
+
+model Message {
+  id          Int      @id @default(autoincrement())
+  senderId    Int
+  recipientId Int
+  content     String
+  readStatus  String   @default("unread")
+  sentAt      DateTime @default(now())
+
+  sender    User @relation("SenderMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient User @relation("RecipientMessages", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([recipientId])
+}
+
+model Referral {
+  id           Int    @id @default(autoincrement())
+  referrerId   Int
+  refereeId    Int
+  referralCode String @unique
+  status       String @default("pending")
+
+  referrer User @relation("ReferrerReferrals", fields: [referrerId], references: [id], onDelete: Cascade)
+  referee  User @relation("RefereeReferrals", fields: [refereeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([referrerId])
+  @@index([refereeId])
+}
+
+model Application {
+  id              Int     @id @default(autoincrement())
+  userId          Int
+  programName     String
+  status          String  @default("submitted")
+  applicationData String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Note {
+  id            Int    @id @default(autoincrement())
+  userId        Int
+  relatedUserId Int?
+  sessionId     Int?
+  content       String
+  visibility    String @default("private")
+
+  author      User     @relation("AuthorNotes", fields: [userId], references: [id], onDelete: Cascade)
+  relatedUser User?    @relation("RelatedUserNotes", fields: [relatedUserId], references: [id], onDelete: SetNull)
+  session     Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([relatedUserId])
+  @@index([sessionId])
+}
+
+model Reminder {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  sessionId Int?
+  message   String
+  remindAt  DateTime
+  status    String   @default("pending")
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([sessionId])
+}
+
+model SupportTicket {
+  id          Int          @id @default(autoincrement())
+  userId      Int
+  title       String
+  description String
+  status      TicketStatus @default(open)
+
+  user User @relation("UserSupportTickets", fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Dispute {
+  id        Int     @id @default(autoincrement())
+  paymentId Int
+  reason    String?
+  status    String  @default("open")
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paymentId])
+}
+
+model Chargeback {
+  id        Int     @id @default(autoincrement())
+  paymentId Int
+  reason    String?
+  status    String  @default("open")
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paymentId])
+}
+
+model Refund {
+  id        Int     @id @default(autoincrement())
+  paymentId Int
+  reason    String?
+  status    String  @default("pending")
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paymentId])
+}
+
+model Subscription {
+  id                     Int       @id @default(autoincrement())
+  subscriptionId         String    @unique
+  stripeUserId           String
+  status                 String
+  startDate              DateTime
+  endDate                DateTime?
+  planId                 String
+  defaultPaymentMethodId String?
+  email                  String
+  userId                 Int
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+  plan     SubscriptionPlan @relation(fields: [planId], references: [planId], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([planId])
+  @@index([userId])
+}
+
+model SubscriptionPlan {
+  id          Int     @id @default(autoincrement())
+  planId      String  @unique
+  name        String
+  description String
+  amount      Decimal @default(0.00)
+  currency    String  @default("USD")
+  interval    String
+
+  subscriptions Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Invoice {
+  id             Int      @id @default(autoincrement())
+  invoiceId      String   @unique
+  subscriptionId String
+  amountPaid     Decimal  @default(0.00)
+  amountDue      Decimal? @default(0.00)
+  currency       String   @default("USD")
+  status         String
+  email          String
+  userId         Int?
+
+  subscription Subscription? @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: SetNull)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([subscriptionId])
+  @@index([userId])
 }

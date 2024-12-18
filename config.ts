@@ -5,6 +5,9 @@ const config = {
   payments: {
     enabled: true,
   },
+  roles: {
+    enabled: false,
+  },
 };
 
 export default config;

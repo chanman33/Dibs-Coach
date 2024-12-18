@@ -58,6 +58,10 @@
    npx prisma migrate dev
    ```
 
+   Here's the prisma schema visualized: [prisma-visualized.txt](prisma/prisma-visualized.txt)
+   or png [prisma-visualized.png](prisma/prisma-visualized.png)
+   
+
 6. Start the development server:
    ```
    yarn dev

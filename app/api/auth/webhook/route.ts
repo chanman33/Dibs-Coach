@@ -4,6 +4,7 @@ import { WebhookEvent } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { Webhook } from "svix";
+import { ROLES } from "@/utils/roles/roles";
 
 export async function POST(req: Request) {
   // You can find this in the Clerk Dashboard -> Webhooks -> choose the webhook
@@ -65,6 +66,7 @@ export async function POST(req: Request) {
           last_name: payload?.data?.last_name,
           profile_image_url: payload?.data?.profile_image_url,
           user_id: payload?.data?.id,
+          role: ROLES.REALTOR,
         });
 
         return NextResponse.json({

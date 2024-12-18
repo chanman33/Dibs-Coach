@@ -26,21 +26,20 @@ export const userUpdate = async ({
 
   try {
     const { data, error } = await supabase
-      .from("user")
+      .from("User")
       .update([
         {
           email,
-          first_name,
-          last_name,
-          profile_image_url,
-          user_id,
+          firstName: first_name,
+          lastName: last_name,
+          profileImageUrl: profile_image_url,
+          userId: user_id,
         },
       ])
       .eq("email", email)
       .select();
 
     if (data) return data;
-
     if (error) return error;
   } catch (error: any) {
     throw new Error(error.message);

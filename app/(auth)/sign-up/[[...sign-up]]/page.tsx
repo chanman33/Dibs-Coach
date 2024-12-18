@@ -1,21 +1,24 @@
-"use client"
-import PageWrapper from "@/components/wrapper/page-wrapper";
-import config from "@/config";
 import { SignUp } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
+import { redirect } from "next/navigation";
+import config from "@/config";
 
 export default function SignUpPage() {
-    const router = useRouter()
-
     if (!config?.auth?.enabled) {
-        router.back()
+        redirect('/');
     }
 
     return (
-        <PageWrapper >
-            <div className="flex min-w-screen justify-center my-[5rem]">
-                <SignUp fallbackRedirectUrl="/" signInFallbackRedirectUrl="/dashboard" />
-            </div>
-        </PageWrapper>
+        <div className="flex min-h-screen justify-center items-center p-4">
+            <SignUp 
+                appearance={{
+                    elements: {
+                        rootBox: "mx-auto",
+                        card: "shadow-none"
+                    }
+                }}
+                fallbackRedirectUrl="/" 
+                signInFallbackRedirectUrl="/dashboard" 
+            />
+        </div>
     );
 }
