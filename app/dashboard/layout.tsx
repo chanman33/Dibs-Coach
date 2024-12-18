@@ -1,25 +1,49 @@
 import { ReactNode } from "react"
-import DashboardSideBar from "./_components/dashboard-side-bar"
-import DashboardTopNav from "./_components/dashbord-top-nav"
 import { isAuthorized } from "@/utils/data/user/isAuthorized"
-import { redirect } from "next/dist/server/api-utils"
+import { redirect } from "next/navigation"
 import { currentUser } from "@clerk/nextjs/server"
+import { getUserRole } from "@/utils/roles/checkUserRole"
+import { ROLES } from "@/utils/roles/roles"
+import NotAuthorized from "@/components/not-authorized"
+import { headers } from "next/headers"
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-
   const user = await currentUser()
-  const { authorized, message } = await isAuthorized(user?.id!)
-  if (!authorized) {
-    console.log('authorized check fired')
+  
+  if (!user?.id) {
+    redirect('/sign-in')
   }
+
+  const { authorized, message } = await isAuthorized(user.id)
+  if (!authorized) {
+    return <NotAuthorized />
+  }
+
+  // Get user role and redirect to appropriate dashboard
+  const role = await getUserRole(user?.id!)
+  
+  // Get the current path
+  const headersList = await headers()
+  const path = headersList.get("x-invoke-path") || "/dashboard"
+  
+  // Only redirect if exactly at /dashboard, not any sub-paths
+  if (path === '/dashboard') {
+    switch (role) {
+      case ROLES.REALTOR:
+        return redirect('/dashboard-realtor')
+      case ROLES.COACH:
+        return redirect('/dashboard-coach')
+      case ROLES.ADMIN:
+        return redirect('/dashboard-admin')
+      default:
+        return redirect('/dashboard')
+    }
+  }
+
+  // Render the layout without nesting another grid
   return (
     <div className="grid min-h-screen w-full lg:grid-cols-[280px_1fr]">
-      <DashboardSideBar />
-      <DashboardTopNav >
-        <main className="flex flex-col gap-4 p-4 lg:gap-6">
-          {children}
-        </main>
-      </DashboardTopNav>
+      {children}
     </div>
   )
 }

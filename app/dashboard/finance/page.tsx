@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { withRole } from "@/components/wrapper/with-role";
+import { ROLES } from "@/utils/roles/roles";
 
 const FormSchema = z.object({
   category: z.string(),
 })
 
-export default function Category() {
-
+function Finance() {
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
@@ -21,15 +22,12 @@ export default function Category() {
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     try {
-
-
       form.reset()
       return
     } catch (error) {
       return error
     }
   }
-
 
   return (
     <main className="flex min-w-screen p-4 flex-col items-center justify-between ">
@@ -64,3 +62,5 @@ export default function Category() {
     </main>
   )
 }
+
+export default withRole(Finance, [ROLES.COACH, ROLES.ADMIN]);

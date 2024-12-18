@@ -18,6 +18,7 @@ model user {
   profile_image_url String?
   user_id           String   @unique
   subscription      String?
+  role              String   @default("realtor")
 }
 
 model payments {

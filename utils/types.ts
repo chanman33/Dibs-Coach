@@ -20,6 +20,7 @@ const userCreateSchema = z.object({
     .optional()
     .describe("user profile image URL"),
   user_id: z.string().describe("user ID"),
+  role: z.string().describe("user role"),
 });
 
 export type userUpdateProps = z.infer<typeof userUpdateSchema>;
