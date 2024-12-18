@@ -2,12 +2,17 @@ import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { ROLES, type UserRole } from "@/utils/roles/roles";
 import NotAuthorized from "../not-authorized";
+import config from '@/config';
 
 export function withRole(
   WrappedComponent: React.ComponentType,
   requiredRole: UserRole[]
 ) {
   return function WithRoleWrapper(props: any) {
+    if (!config.roles.enabled) {
+      return <WrappedComponent {...props} />;
+    }
+
     const { user } = useUser();
     const [userRole, setUserRole] = useState<UserRole | null>(null);
     const [loading, setLoading] = useState(true);

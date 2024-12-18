@@ -1,9 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { ROLES, type UserRole, rolePermissions, type Permission } from "./roles";
+import config from '@/config';
 
 export async function getUserRole(userId: string): Promise<UserRole> {
-  const cookieStore = await cookies(); // added await because of the error, cookies() returns a promise per chatgpt
+  // If roles are disabled, return ADMIN role for development
+  if (!config.roles.enabled) {
+    return ROLES.ADMIN;
+  }
+
+  const cookieStore = await cookies();
   
   const supabase = createServerClient(
     process.env.SUPABASE_URL!,
@@ -29,7 +35,7 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     return (data?.role || ROLES.REALTOR) as UserRole;
   } catch (error) {
     console.error("Error fetching user role:", error);
-    return ROLES.REALTOR; // Default to realtor if there's an error
+    return ROLES.REALTOR;
   }
 }
 
