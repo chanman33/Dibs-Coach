@@ -1,72 +1,123 @@
 "use client"
 
 import ModeToggle from '@/components/mode-toggle'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogClose } from '@/components/ui/dialog'
-import { Separator } from '@/components/ui/separator'
-import { SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { UserProfile } from '@/components/user-profile'
 import config from '@/config'
 import { HamburgerMenuIcon } from '@radix-ui/react-icons'
-import { Banknote, Folder, HomeIcon, Settings } from 'lucide-react'
-import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { ReactNode } from 'react'
+import Image from 'next/image'
+import Link from 'next/link'
+
+// Import the sidebar components
+import RealtorSidebar from '@/app/dashboard/realtor/_components/realtor-sidebar'
+import CoachSidebar from '@/app/dashboard/coach/_components/coach-sidebar'
+import AdminSidebar from '@/app/dashboard/admin/_components/admin-sidebar'
 
 export default function DashboardTopNav({ children }: { children: ReactNode }) {
+  const pathname = usePathname()
+
+  // Function to determine which sidebar to show
+  const getSidebarContent = () => {
+    if (pathname.startsWith('/dashboard/realtor')) {
+      return <RealtorSidebar />
+    }
+    if (pathname.startsWith('/dashboard/coach')) {
+      return <CoachSidebar />
+    }
+    if (pathname.startsWith('/dashboard/admin')) {
+      return <AdminSidebar />
+    }
+    return null
+  }
+
+  // Function to get the portal title
+  const getPortalTitle = () => {
+    if (pathname.startsWith('/dashboard/realtor')) {
+      return 'Realtor Portal'
+    }
+    if (pathname.startsWith('/dashboard/coach')) {
+      return 'Coach Portal'
+    }
+    return 'Dashboard'
+  }
+
   return (
     <div className="flex flex-col">
       <header className="flex h-14 lg:h-[55px] items-center gap-4 border-b px-3">
-        <Dialog>
-          <SheetTrigger className="min-[1024px]:hidden p-2 transition">
-            <HamburgerMenuIcon />
+        {/* Mobile View */}
+        <div className="flex items-center lg:hidden w-full">
+          {/* Left side - Hamburger */}
+          <Sheet>
+            <SheetTrigger className="p-2 transition">
+              <HamburgerMenuIcon />
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[300px] p-0">
+              <SheetHeader className="flex h-[55px] items-center border-b px-6">
+                <SheetTitle>{getPortalTitle()}</SheetTitle>
+              </SheetHeader>
+              <div className="flex-1 overflow-auto">
+                <div className="block [&>div]:block [&>div]:border-0">
+                  {getSidebarContent()}
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+
+          {/* Centered Logo - Using absolute positioning */}
+          <div className="absolute left-1/2 transform -translate-x-1/2">
             <Link href="/dashboard">
-              <span className="sr-only">Home</span>
+              <Image
+                src="https://utfs.io/f/vsxOYx8jne165wyeoiHgeTEz7hN19sBwDyrvKxioc2kQLnp3"
+                alt="Logo"
+                width={80}
+                height={20}
+                className="object-contain dark:hidden"
+                priority
+              />
+              <Image
+                src="https://utfs.io/f/vsxOYx8jne16qkQqNfjFkTQhZ97v4VpUzm85MASd0nWRBi3J"
+                alt="Logo"
+                width={80}
+                height={20}
+                className="object-contain hidden dark:block"
+                priority
+              />
             </Link>
-          </SheetTrigger>
-          <SheetContent side="left">
-            <SheetHeader>
-              <Link href="/">
-                <SheetTitle>Nextjs Starter Kit</SheetTitle>
-              </Link>
-            </SheetHeader>
-            <div className="flex flex-col space-y-3 mt-[1rem]">
-              <DialogClose asChild>
-                <Link href="/dashboard">
-                  <Button variant="outline" className="w-full">
-                    <HomeIcon className="mr-2 h-4 w-4" />
-                    Home
-                  </Button>
-                </Link>
-              </DialogClose>
-              <DialogClose asChild>
-                <Link href="/dashboard/projects">
-                  <Button variant="outline" className="w-full">
-                    <Folder className="mr-2 h-4 w-4" />
-                    Projects
-                  </Button>
-                </Link>
-              </DialogClose>
-              <DialogClose asChild>
-                <Link href="/dashboard/finance">
-                  <Button variant="outline" className="w-full">
-                    <Banknote className="mr-2 h-4 w-4" />
-                    Finance
-                  </Button>
-                </Link>
-              </DialogClose>
-              <Separator className="my-3" />
-              <DialogClose asChild>
-                <Link href="/dashboard/settings">
-                  <Button variant="outline" className="w-full">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </Button>
-                </Link>
-              </DialogClose>
-            </div>
-          </SheetContent>
-        </Dialog>
-        <div className="flex justify-center items-center gap-2 ml-auto">
+          </div>
+
+          {/* Right side items */}
+          <div className="flex justify-end items-center gap-2 ml-auto">
+            {config?.auth?.enabled && <UserProfile />}
+            <ModeToggle />
+          </div>
+        </div>
+
+        {/* Desktop View - Logo on left */}
+        <div className="hidden lg:flex items-center">
+          <Link href="/dashboard">
+            <Image
+              src="https://utfs.io/f/vsxOYx8jne165wyeoiHgeTEz7hN19sBwDyrvKxioc2kQLnp3"
+              alt="Logo"
+              width={80}
+              height={20}
+              className="object-contain dark:hidden"
+              priority
+            />
+            <Image
+              src="https://utfs.io/f/vsxOYx8jne16qkQqNfjFkTQhZ97v4VpUzm85MASd0nWRBi3J"
+              alt="Logo"
+              width={80}
+              height={20}
+              className="object-contain hidden dark:block"
+              priority
+            />
+          </Link>
+        </div>
+
+        {/* Desktop Right side items */}
+        <div className="hidden lg:flex justify-center items-center gap-2 ml-auto">
           {config?.auth?.enabled && <UserProfile />}
           <ModeToggle />
         </div>
