@@ -21,7 +21,13 @@ const userCreateSchema = z.object({
     .optional()
     .describe("user profile image URL"),
   user_id: z.string().describe("user ID"),
-  role: z.enum([ROLES.REALTOR, ROLES.COACH, ROLES.ADMIN]).describe("user role"),
+  role: z.enum([
+    ROLES.REALTOR, 
+    ROLES.LOAN_OFFICER, 
+    ROLES.REALTOR_COACH, 
+    ROLES.LOAN_OFFICER_COACH,
+    ROLES.ADMIN
+  ]).describe("user role"),
 });
 
 export type userUpdateProps = z.infer<typeof userUpdateSchema>;
@@ -67,7 +73,13 @@ export const userSchema = z.object({
   profileImageUrl: z.string().nullable(),
   userId: z.string(),
   subscription: z.string().nullable(),
-  role: z.enum(["realtor", "coach", "admin"]),
+  role: z.enum([
+    "realtor", 
+    "loan_officer", 
+    "realtor_coach", 
+    "loan_officer_coach",
+    "admin"
+  ]),
   status: z.string(),
   brokerId: z.number().nullable(),
   teamId: z.number().nullable(),

@@ -14,6 +14,7 @@ enum UserRole {
   loan_officer
   realtor_coach
   loan_officer_coach
+  admin
 }
 
 enum PaymentStatus {

@@ -1,6 +1,8 @@
 export const ROLES = {
   REALTOR: 'realtor',
-  COACH: 'coach',
+  LOAN_OFFICER: 'loan_officer',
+  REALTOR_COACH: 'realtor_coach',
+  LOAN_OFFICER_COACH: 'loan_officer_coach',
   ADMIN: 'admin'
 } as const;
 
@@ -13,12 +15,25 @@ export const rolePermissions = {
     canAccessFinance: true,
     canAccessSettings: true,
   },
-  [ROLES.COACH]: {
+  [ROLES.LOAN_OFFICER]: {
+    canAccessDashboard: true,
+    canAccessProjects: true,
+    canAccessFinance: true,
+    canAccessSettings: true,
+  },
+  [ROLES.REALTOR_COACH]: {
     canAccessDashboard: true,
     canAccessProjects: true,
     canAccessFinance: true,
     canAccessSettings: true,
     canManageRealtors: true,
+  },
+  [ROLES.LOAN_OFFICER_COACH]: {
+    canAccessDashboard: true,
+    canAccessProjects: true,
+    canAccessFinance: true,
+    canAccessSettings: true,
+    canManageLoanOfficers: true,
   },
   [ROLES.ADMIN]: {
     canAccessDashboard: true,
@@ -26,6 +41,7 @@ export const rolePermissions = {
     canAccessFinance: true,
     canAccessSettings: true,
     canManageRealtors: true,
+    canManageLoanOfficers: true,
     canManageCoaches: true,
     canManageRoles: true,
   },

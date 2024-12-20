@@ -10,12 +10,16 @@ export default async function DashboardPage() {
   }
 
   const role = await getUserRole(user.id)
-  
+
   const redirectPath = (() => {
     switch (role) {
       case ROLES.REALTOR:
         return '/dashboard/realtor'
-      case ROLES.COACH:
+      case ROLES.LOAN_OFFICER:
+        return '/dashboard/loan-officer'
+      case ROLES.REALTOR_COACH:
+        return '/dashboard/coach'
+      case ROLES.LOAN_OFFICER_COACH:
         return '/dashboard/coach'
       case ROLES.ADMIN:
         return '/dashboard/admin'
