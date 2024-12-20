@@ -75,3 +75,7 @@ export const userSchema = z.object({
 });
 
 export type User = z.infer<typeof userSchema>;
+
+export const reviewSchema = z.object({
+  rating: z.number().min(1).max(5),
+});

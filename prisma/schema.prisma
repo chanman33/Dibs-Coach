@@ -8,10 +8,12 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// Enums
 enum UserRole {
   realtor
-  coach
-  admin
+  loan_officer
+  realtor_coach
+  loan_officer_coach
 }
 
 enum PaymentStatus {
@@ -27,18 +29,69 @@ enum TicketStatus {
   closed
 }
 
+enum UserStatus {
+  active
+  inactive
+  suspended
+}
+
+enum SessionStatus {
+  scheduled
+  completed
+  cancelled
+  no_show
+}
+
+enum Currency {
+  USD
+  EUR
+  GBP
+}
+
+enum PaymentMethod {
+  credit_card
+  debit_card
+  bank_transfer
+}
+
+enum PayoutStatus {
+  pending
+  processed
+  failed
+}
+
+enum RefundStatus {
+  pending
+  completed
+  failed
+}
+
+enum DisputeStatus {
+  open
+  resolved
+  rejected
+}
+
 // Models
 model User {
-  id              Int      @id @default(autoincrement())
-  email           String   @unique
+  id              Int        @id @default(autoincrement())
+  email           String     @unique
   firstName       String?
   lastName        String?
   gender          String?
   profileImageUrl String?
-  userId          String   @unique
+  userId          String     @unique
   subscription    String?
-  role            UserRole @default(realtor)
-  status          String   @default("active")
+  role            UserRole   @default(realtor)
+  status          UserStatus @default(active)
+  deletedAt       DateTime?
+
+  // Relationships
+  baseProfile           BaseProfile?
+  realtorProfile        RealtorProfile?
+  loanOfficerProfile    LoanOfficerProfile?
+  realtorCoachProfile   RealtorCoachProfile?
+  loanOfficerCoachProfile LoanOfficerCoachProfile?
 
   brokerId Int?
   teamId   Int?
@@ -46,11 +99,8 @@ model User {
   broker Broker? @relation(fields: [brokerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   team   Team?   @relation(fields: [teamId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
-  realtorProfile RealtorProfile?
-  coachProfile   CoachProfile?
-
-  sessionsAsCoach   Session[] @relation("CoachSessions")
-  sessionsAsRealtor Session[] @relation("RealtorSessions")
+  sessionsAsCoach      Session[] @relation("CoachSessions")
+  sessionsAsMentee     Session[] @relation("MenteeSessions")
 
   paymentsMade      Payment[]       @relation("PayerPayments")
   paymentsReceived  Payment[]       @relation("PayeePayments")
@@ -74,6 +124,77 @@ model User {
 
   @@index([brokerId])
   @@index([teamId])
+}
+model BaseProfile {
+  userId        Int     @id
+  bio           String?
+  careerStage   String?
+  goals         String?
+  availability  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RealtorProfile {
+  userId        Int     @id
+  companyName   String?
+  licenseNumber String? @unique
+  phoneNumber   String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  realtorCoachProfile RealtorCoachProfile?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LoanOfficerProfile {
+  userId        Int     @id
+  companyName   String?
+  licenseNumber String? @unique
+  phoneNumber   String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loanOfficerCoachProfile LoanOfficerCoachProfile?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model RealtorCoachProfile {
+  userId            Int      @id
+  specialties       String?
+  yearsOfExperience Int?
+  hourlyRate        Decimal? @db.Decimal(10,2)
+  bio               String?
+  oneTimeCallPrice  Decimal? @db.Decimal(10,2)
+  bundlePrice       Decimal? @db.Decimal(10,2)
+
+  realtorProfile RealtorProfile @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "RealtorCoachProfile_realtorProfile_fkey")
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "RealtorCoachProfile_user_fkey")
+
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LoanOfficerCoachProfile {
+  userId            Int      @id
+  specialties       String?
+  yearsOfExperience Int?
+  hourlyRate        Decimal? @db.Decimal(10,2)
+  bio               String?
+  oneTimeCallPrice  Decimal? @db.Decimal(10,2)
+  bundlePrice       Decimal? @db.Decimal(10,2)
+
+  loanOfficerProfile LoanOfficerProfile @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "LoanOfficerCoachProfile_loanOfficerProfile_fkey")
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade, map: "LoanOfficerCoachProfile_user_fkey")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Broker {
@@ -102,44 +223,18 @@ model Team {
   @@index([brokerId])
 }
 
-model RealtorProfile {
-  userId        Int     @id
-  companyName   String?
-  licenseNumber String? @unique
-  phoneNumber   String?
-  bio           String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model CoachProfile {
-  userId            Int      @id
-  specialties       String?
-  yearsOfExperience Int?
-  hourlyRate        Decimal?
-  bio               String?
-  oneTimeCallPrice  Decimal?
-  bundlePrice       Decimal?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
 
 model Session {
-  id              Int     @id @default(autoincrement())
-  coachId         Int
-  realtorId       Int
+  id              Int           @id @default(autoincrement())
+  coachId         Int?
+  menteeId        Int?
   calendlyEventId String?
   durationMinutes Int
-  status          String  @default("scheduled")
+  status          SessionStatus @default(scheduled)
+  deletedAt       DateTime?
 
-  coach   User @relation("CoachSessions", fields: [coachId], references: [id], onDelete: Cascade)
-  realtor User @relation("RealtorSessions", fields: [realtorId], references: [id], onDelete: Cascade)
+  coach    User? @relation("CoachSessions", fields: [coachId], references: [id], onDelete: SetNull)
+  mentee   User? @relation("MenteeSessions", fields: [menteeId], references: [id], onDelete: SetNull)
 
   notes     Note[]
   reminders Reminder[]
@@ -150,7 +245,9 @@ model Session {
   updatedAt DateTime @updatedAt
 
   @@index([coachId])
-  @@index([realtorId])
+  @@index([menteeId])
+  @@index([coachId, status])
+  @@index([menteeId, status])
 }
 
 model Payment {
@@ -159,13 +256,14 @@ model Payment {
   payerId              Int
   payeeId              Int
   stripeChargeId       String        @unique
-  amount               Decimal       @default(0.00)
-  currency             String        @default("USD")
-  processingFee        Decimal       @default(0.00)
-  platformFee          Decimal       @default(0.00)
-  paymentMethod        String
+  amount               Decimal       @db.Decimal(10,2) @default(0.00)
+  currency             Currency      @default(USD)
+  processingFee        Decimal       @db.Decimal(10,2) @default(0.00)
+  platformFee          Decimal       @db.Decimal(10,2) @default(0.00)
+  paymentMethod        PaymentMethod
   status               PaymentStatus @default(pending)
   transactionReference String?
+  deletedAt            DateTime?
 
   session     Session?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   payer       User         @relation("PayerPayments", fields: [payerId], references: [id], onDelete: Cascade)
@@ -180,15 +278,17 @@ model Payment {
   @@index([sessionId])
   @@index([payerId])
   @@index([payeeId])
+  @@index([payerId, status])
+  @@index([payeeId, status])
 }
 
 model Payout {
   id               Int       @id @default(autoincrement())
   payeeId          Int
   amount           Decimal   @default(0.00)
-  currency         String    @default("USD")
+  currency         Currency  @default(USD)
   stripeTransferId String?
-  status           String    @default("pending")
+  status           PayoutStatus @default(pending)
   scheduledDate    DateTime
   processedAt      DateTime?
 
@@ -323,7 +423,7 @@ model Dispute {
   id        Int     @id @default(autoincrement())
   paymentId Int
   reason    String?
-  status    String  @default("open")
+  status    DisputeStatus @default(open)
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
@@ -351,7 +451,7 @@ model Refund {
   id        Int     @id @default(autoincrement())
   paymentId Int
   reason    String?
-  status    String  @default("pending")
+  status    RefundStatus @default(pending)
 
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
@@ -385,13 +485,14 @@ model Subscription {
 }
 
 model SubscriptionPlan {
-  id          Int     @id @default(autoincrement())
-  planId      String  @unique
+  id          Int      @id @default(autoincrement())
+  planId      String   @unique
   name        String
   description String
-  amount      Decimal @default(0.00)
-  currency    String  @default("USD")
+  amount      Decimal  @db.Decimal(10,2) @default(0.00)
+  currency    Currency @default(USD)
   interval    String
+  deletedAt   DateTime?
 
   subscriptions Subscription[]
 
@@ -400,18 +501,19 @@ model SubscriptionPlan {
 }
 
 model Invoice {
-  id             Int      @id @default(autoincrement())
-  invoiceId      String   @unique
+  id             Int       @id @default(autoincrement())
+  invoiceId      String    @unique
   subscriptionId String
-  amountPaid     Decimal  @default(0.00)
-  amountDue      Decimal? @default(0.00)
-  currency       String   @default("USD")
+  amountPaid     Decimal   @db.Decimal(10,2) @default(0.00)
+  amountDue      Decimal?  @db.Decimal(10,2) @default(0.00)
+  currency       Currency  @default(USD)
   status         String
   email          String
   userId         Int?
+  deletedAt      DateTime?
 
   subscription Subscription? @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: SetNull)
-  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
