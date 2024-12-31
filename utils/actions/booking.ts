@@ -1,8 +1,8 @@
 'use server'
 
 import { auth } from '@clerk/nextjs/server'
-import { createScheduledEvent } from '@/lib/calendly-api'
 import { createClient } from '@supabase/supabase-js'
+import { revalidatePath } from 'next/cache'
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -25,31 +25,39 @@ export async function createBooking(data: BookingData) {
   }
 
   try {
-    // Create Calendly event
-    const scheduledEvent = await createScheduledEvent(data.eventTypeUrl, {
-      start_time: data.scheduledTime,
-      email: data.inviteeEmail,
-      event_memberships: [{ user: userId }],
-    })
+    // Get the coach's user ID using a more flexible name search
+    const { data: coachData, error: coachError } = await supabase
+      .from('User')
+      .select('id')
+      .or(`firstName.ilike.%${data.coachName}%,lastName.ilike.%${data.coachName}%`)
+      .eq('role', 'realtor_coach')
+      .single()
 
-    // Store booking in database
+    if (coachError || !coachData) {
+      console.error('[BOOKING_ERROR]', coachError)
+      throw new Error(`Coach "${data.coachName}" not found`)
+    }
+
+    // Store in Supabase Session table
     const { error } = await supabase
-      .from('bookings')
+      .from('Session')
       .insert({
-        user_id: userId,
-        event_id: scheduledEvent.id,
-        event_uri: data.eventUri,
-        coach_name: data.coachName,
-        start_time: data.scheduledTime,
-        invitee_email: data.inviteeEmail,
-        status: 'confirmed'
+        coachId: coachData.id,
+        menteeId: userId,
+        calendlyEventId: data.eventUri,
+        durationMinutes: 60, // Default to 1 hour, can be made dynamic if needed
+        status: 'scheduled'
       })
 
-    if (error) throw error
+    if (error) {
+      console.error('[BOOKING_ERROR]', error)
+      throw new Error(error.message || 'Failed to create session')
+    }
 
-    return scheduledEvent
-  } catch (error) {
-    console.error('Error creating booking:', error)
-    throw error
+    revalidatePath('/dashboard/realtor/coaches')
+    return { success: true }
+  } catch (error: any) {
+    console.error('[BOOKING_ERROR]', error)
+    throw new Error(error.message || 'Failed to create session')
   }
 }

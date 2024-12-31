@@ -10,7 +10,7 @@ import { CoachProfileModal } from '@/components/CoachProfileModal'
 interface CoachData {
   id: string
   name: string
-  specialty: string
+  strength: string
   imageUrl: string
   rating: number
   reviewCount: number
@@ -46,7 +46,7 @@ export default function CoachesPage() {
         {
           id: '1',
           name: 'John Doe',
-          specialty: 'Sales Strategy',
+          strength: 'Sales Strategy',
           imageUrl: '/placeholder.svg?height=200&width=200',
           rating: 4.8,
           reviewCount: 124,
@@ -63,7 +63,7 @@ export default function CoachesPage() {
         {
           id: '2',
           name: 'Jane Smith',
-          specialty: 'Marketing for Realtors',
+          strength: 'Marketing for Realtors',
           imageUrl: '/placeholder.svg?height=200&width=200',
           rating: 4.6,
           reviewCount: 98,
@@ -80,7 +80,7 @@ export default function CoachesPage() {
         {
           id: '3',
           name: 'Bob Johnson',
-          specialty: 'Real Estate Leadership',
+          strength: 'Real Estate Leadership',
           imageUrl: '/placeholder.svg?height=200&width=200',
           rating: 4.9,
           reviewCount: 156,
@@ -97,7 +97,7 @@ export default function CoachesPage() {
         {
           id: '4',
           name: 'Alice Brown',
-          specialty: 'Negotiation Skills',
+          strength: 'Negotiation Skills',
           imageUrl: '/placeholder.svg?height=200&width=200',
           rating: 4.7,
           reviewCount: 112,
@@ -114,7 +114,7 @@ export default function CoachesPage() {
         {
           id: '5',
           name: 'Sarah Chen',
-          specialty: 'Digital Marketing',
+          strength: 'Digital Marketing',
           imageUrl: '/placeholder.svg?height=200&width=200',
           rating: 4.8,
           reviewCount: 143,
@@ -131,7 +131,7 @@ export default function CoachesPage() {
         {
           id: '6',
           name: 'Michael Torres',
-          specialty: 'Luxury Real Estate',
+          strength: 'Luxury Real Estate',
           imageUrl: '/placeholder.svg?height=200&width=200',
           rating: 4.9,
           reviewCount: 167,
@@ -148,7 +148,7 @@ export default function CoachesPage() {
         {
           id: '7',
           name: 'Rachel Foster',
-          specialty: 'Business Development',
+          strength: 'Business Development',
           imageUrl: '/placeholder.svg?height=200&width=200',
           rating: 4.7,
           reviewCount: 132,
@@ -165,7 +165,7 @@ export default function CoachesPage() {
         {
           id: '8',
           name: 'David Kim',
-          specialty: 'Technology Integration',
+          strength: 'Technology Integration',
           imageUrl: '/placeholder.svg?height=200&width=200',
           rating: 4.6,
           reviewCount: 89,
@@ -204,8 +204,8 @@ export default function CoachesPage() {
   const filterCoaches = (term: string, specialty: string) => {
     const filterFunction = (coach: CoachData) =>
       (coach.name.toLowerCase().includes(term.toLowerCase()) ||
-       coach.specialty.toLowerCase().includes(term.toLowerCase())) &&
-      (specialty === 'all' || coach.specialty === specialty)
+       coach.strength.toLowerCase().includes(term.toLowerCase())) &&
+      (specialty === 'all' || coach.strength === specialty)
 
     setFilteredBookedCoaches(bookedCoaches.filter(filterFunction))
     setFilteredRecommendedCoaches(recommendedCoaches.filter(filterFunction))
@@ -216,7 +216,7 @@ export default function CoachesPage() {
     setIsModalOpen(true)
   }
 
-  const allSpecialties = Array.from(new Set([...bookedCoaches, ...recommendedCoaches].map(coach => coach.specialty)))
+  const allSpecialties = Array.from(new Set([...bookedCoaches, ...recommendedCoaches].map(coach => coach.strength)))
 
   const renderCoaches = (coaches: CoachData[], isBooked: boolean = false) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -224,6 +224,7 @@ export default function CoachesPage() {
         <Coach
           key={coach.id}
           {...coach}
+          specialty={coach.strength}
           isBooked={isBooked}
           onProfileClick={() => handleCoachClick(coach)}
         />
@@ -277,7 +278,10 @@ export default function CoachesPage() {
         <CoachProfileModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          coach={selectedCoach}
+          coach={{
+            ...selectedCoach,
+            specialty: selectedCoach.strength
+          }}
         />
       )}
     </div>

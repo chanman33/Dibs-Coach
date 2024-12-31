@@ -13,13 +13,13 @@ interface BookingModalProps {
   coachName: string
   calendlyUrl: string
   eventTypeUrl: string
-  rate?: number // Add this prop to Coach component
+  rate?: number
 }
 
-export function BookingModal({ 
-  isOpen, 
-  onClose, 
-  coachName, 
+export function BookingModal({
+  isOpen,
+  onClose,
+  coachName,
   calendlyUrl,
   eventTypeUrl,
   rate = 150
@@ -35,20 +35,20 @@ export function BookingModal({
         setIsLoading(true)
         try {
           await loadCalendlyScript()
-          console.log('Calendly script loaded') // Debug log
-          
+          console.log('Calendly script loaded')
+
           // Add a small delay to ensure the DOM element exists
           setTimeout(() => {
             const element = document.querySelector('.calendly-inline-widget')
-            console.log('Calendly element:', element) // Debug log
-            
+            console.log('Calendly element:', element)
+
             if (window.Calendly && element) {
               window.Calendly.initInlineWidget({
                 url: calendlyUrl,
                 parentElement: element,
                 prefill: {},
               })
-              console.log('Calendly widget initialized') // Debug log
+              console.log('Calendly widget initialized')
             }
           }, 100)
         } catch (error) {
@@ -77,9 +77,9 @@ export function BookingModal({
         const scheduledTime = e.data.payload.event.start_time
         const inviteeEmail = e.data.payload.invitee.email
         const eventUri = e.data.payload.event.uri
-        
+
         setSelectedTime(scheduledTime)
-        
+
         // Create booking with all required data
         await createBooking({
           eventTypeUrl,
@@ -88,7 +88,7 @@ export function BookingModal({
           eventUri,
           coachName
         })
-        
+
         setStep(1)
         toast.success('Meeting scheduled successfully!')
       } catch (error) {
@@ -109,16 +109,20 @@ export function BookingModal({
     switch (step) {
       case 0:
         return (
-          <div className="h-[600px] w-full">
+          <div className="w-full h-full">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-8 w-8 animate-spin" />
+                <Loader2 className="h-8 w-8 animate-spin" data-testid="loading-spinner" />
               </div>
             ) : (
-              <div 
-                className="calendly-inline-widget" 
+              <div
+                className="calendly-inline-widget w-full h-full"
                 data-url={calendlyUrl}
-                style={{ minWidth: '320px', height: '600px' }}
+                style={{ 
+                  minWidth: '320px',
+                  height: '100%',
+                  overflow: 'hidden'
+                }}
               />
             )}
           </div>
@@ -187,40 +191,36 @@ export function BookingModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[800px] h-[800px] max-h-[90vh]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[800px] h-[800px] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-none">
           <DialogTitle>Book a Call with {coachName}</DialogTitle>
         </DialogHeader>
-        
-        <div className="flex-1 overflow-y-auto py-4">
-          <div className="flex items-center justify-center space-x-2 mb-6">
-            {steps.map((s, i) => (
-              <div key={i} className="flex items-center">
-                <div className={`
-                  h-8 w-8 rounded-full flex items-center justify-center
-                  ${i === step ? 'bg-primary text-white' : 
-                    i < step ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}
-                `}>
-                  {i < step ? '✓' : i + 1}
-                </div>
-                {i < steps.length - 1 && (
-                  <div className={`w-10 h-1 mx-2 ${i < step ? 'bg-green-100' : 'bg-gray-100'}`} />
-                )}
+
+        <div className="flex-none flex items-center justify-center space-x-2 mb-6">
+          {steps.map((s, i) => (
+            <div key={i} className="flex items-center">
+              <div className={`
+                h-8 w-8 rounded-full flex items-center justify-center
+                ${i === step ? 'bg-primary text-white' :
+                  i < step ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}
+              `}>
+                {i < step ? '✓' : i + 1}
               </div>
-            ))}
-          </div>
-          <div className="h-full">
-            {renderStepContent()}
-          </div>
+              {i < steps.length - 1 && (
+                <div className={`w-10 h-1 mx-2 ${i < step ? 'bg-green-100' : 'bg-gray-100'}`} />
+              )}
+            </div>
+          ))}
         </div>
-        
-        <div className="flex justify-between mt-4">
+
+        <div className="flex-1 min-h-0">
+          {renderStepContent()}
+        </div>
+
+        <div className="flex-none flex justify-between mt-4 pt-4 border-t">
           {step > 0 && <Button onClick={handleBack}>Back</Button>}
           {step < steps.length - 1 && step !== 0 && (
-            <Button 
-              onClick={handleNext} 
-              disabled={isSubmitting}
-            >
+            <Button onClick={handleNext} disabled={isSubmitting}>
               {isSubmitting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : step === 1 ? (

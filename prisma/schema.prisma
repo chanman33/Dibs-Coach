@@ -123,6 +123,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  calendlyIntegration CalendlyIntegration?
+
   @@index([brokerId])
   @@index([teamId])
 }
@@ -167,16 +169,22 @@ model LoanOfficerProfile {
 
 model RealtorCoachProfile {
   userId            Int      @id
-  specialties       String?
-  yearsOfExperience Int?
-  hourlyRate        Decimal? @db.Decimal(10,2)
+  specialty         String?
   bio               String?
-  oneTimeCallPrice  Decimal? @db.Decimal(10,2)
-  bundlePrice       Decimal? @db.Decimal(10,2)
+  experience        String?
+  certifications    String[] @default([])
+  availability      String?
+  sessionLength     String?
+  specialties       String   @default("[]") // Stored as JSON string
+  calendlyUrl       String?
+  eventTypeUrl      String?
+  hourlyRate        Decimal  @db.Decimal(10,2)
+  rating            Decimal  @db.Decimal(2,1) @default(0.0)
+  reviewCount       Int      @default(0)
+  imageUrl          String?
 
   realtorProfile RealtorProfile @relation(fields: [userId], references: [userId], onDelete: Cascade, map: "RealtorCoachProfile_realtorProfile_fkey")
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "RealtorCoachProfile_user_fkey")
-
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -520,5 +528,22 @@ model Invoice {
   updatedAt DateTime @updatedAt
 
   @@index([subscriptionId])
+  @@index([userId])
+}
+
+model CalendlyIntegration {
+  id                Int      @id @default(autoincrement())
+  userId            Int      @unique
+  accessToken       String
+  refreshToken      String
+  scope            String
+  organizationUrl   String
+  schedulingUrl     String
+  expiresAt         DateTime
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
   @@index([userId])
 }

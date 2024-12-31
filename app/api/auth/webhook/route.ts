@@ -60,7 +60,13 @@ export async function POST(req: Request) {
   switch (eventType) {
     case "user.created":
       try {
-        await userCreate({
+        console.log("[WEBHOOK] Processing user.created event:", {
+          id,
+          email: payload?.data?.email_addresses?.[0]?.email_address,
+          user_id: payload?.data?.id,
+        });
+
+        const result = await userCreate({
           email: payload?.data?.email_addresses?.[0]?.email_address,
           first_name: payload?.data?.first_name,
           last_name: payload?.data?.last_name,
@@ -69,21 +75,31 @@ export async function POST(req: Request) {
           role: ROLES.REALTOR,
         });
 
+        console.log("[WEBHOOK] User creation completed:", result);
+
         return NextResponse.json({
           status: 200,
           message: "User info inserted",
+          data: result
         });
       } catch (error: any) {
+        console.error("[WEBHOOK] Error in user.created handler:", error);
         return NextResponse.json({
           status: 400,
           message: error.message,
-        });
+          error: error
+        }, { status: 400 });
       }
-      break;
 
     case "user.updated":
       try {
-        await userUpdate({
+        console.log("[WEBHOOK] Processing user.updated event:", {
+          id,
+          email: payload?.data?.email_addresses?.[0]?.email_address,
+          user_id: payload?.data?.id,
+        });
+
+        const result = await userUpdate({
           email: payload?.data?.email_addresses?.[0]?.email_address,
           first_name: payload?.data?.first_name,
           last_name: payload?.data?.last_name,
@@ -91,20 +107,25 @@ export async function POST(req: Request) {
           user_id: payload?.data?.id,
         });
 
+        console.log("[WEBHOOK] User update completed:", result);
+
         return NextResponse.json({
           status: 200,
           message: "User info updated",
+          data: result
         });
       } catch (error: any) {
+        console.error("[WEBHOOK] Error in user.updated handler:", error);
         return NextResponse.json({
           status: 400,
           message: error.message,
-        });
+          error: error
+        }, { status: 400 });
       }
-      break;
 
     default:
-      return new Response("Error occured -- unhandeled event type", {
+      console.warn("[WEBHOOK] Unhandled event type:", eventType);
+      return new Response(`Unhandled webhook event type: ${eventType}`, {
         status: 400,
       });
   }
