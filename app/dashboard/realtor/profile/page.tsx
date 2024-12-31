@@ -59,32 +59,53 @@ export default function RealtorProfilePage() {
   const onSubmit = async (data: RealtorProfileFormData) => {
     setLoading(true)
     try {
-      console.log('[PROFILE_UPDATE] Sending data:', data)
+      console.log('[PROFILE_UPDATE] Form data:', {
+        companyName: data.companyName || null,
+        licenseNumber: data.licenseNumber || null,
+        phoneNumber: data.phoneNumber || null,
+        bio: data.bio || null
+      })
+
       const response = await fetch('/api/user/realtor', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...data,
-          brokerId: null,
-          teamId: null
+          companyName: data.companyName || null,
+          licenseNumber: data.licenseNumber || null,
+          phoneNumber: data.phoneNumber || null,
+          bio: data.bio || null
         }),
       })
 
       console.log('[PROFILE_UPDATE] Response status:', response.status)
       
-      const responseData = await response.json()
-      console.log('[PROFILE_UPDATE] Response data:', responseData)
+      const rawResponse = await response.text()
+      console.log('[PROFILE_UPDATE] Raw response:', rawResponse)
+
+      let responseData
+      try {
+        responseData = JSON.parse(rawResponse)
+        console.log('[PROFILE_UPDATE] Parsed response data:', responseData)
+      } catch (parseError) {
+        console.error('[PROFILE_UPDATE] Failed to parse response:', parseError)
+        throw new Error('Invalid server response')
+      }
 
       if (!response.ok) {
-        throw new Error(responseData?.error || 'Failed to update profile')
+        console.error('[PROFILE_UPDATE] Server error:', responseData)
+        throw new Error(responseData.message || responseData.error || 'Failed to update profile')
       }
       
-      toast.success('Profile updated successfully')
+      toast.success(responseData.message || 'Profile updated successfully')
     } catch (error) {
       console.error('[PROFILE_UPDATE_ERROR] Full error:', error)
-      toast.error('Error updating profile: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      toast.error(error instanceof Error 
+        ? `Error updating profile: ${error.message}` 
+        : 'An unexpected error occurred'
+      )
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (
