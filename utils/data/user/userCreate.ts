@@ -26,6 +26,16 @@ export const userCreate = async ({
     }
   );
 
+  console.log('[USER_CREATE] Environment check:', {
+    supabaseUrl: !!process.env.SUPABASE_URL,
+    supabaseKey: !!process.env.SUPABASE_SERVICE_KEY
+  });
+
+  console.log('[USER_CREATE] Supabase client initialized:', {
+    client: !!supabase,
+    cookies: !!cookieStore
+  });
+
   try {
     console.log("[USER_CREATE] Starting user creation:", {
       email,
@@ -72,6 +82,19 @@ export const userCreate = async ({
       console.error("[USER_CREATE] Error creating user:", error);
       throw new Error(`Failed to create user: ${error.message}`);
     }
+
+    console.log('[USER_CREATE] Insert operation result:', {
+      data,
+      error,
+      insertedData: {
+        email,
+        firstName: first_name,
+        lastName: last_name,
+        profileImageUrl: profile_image_url,
+        userId: user_id,
+        role
+      }
+    });
 
     console.log("[USER_CREATE] Successfully created user:", data);
     return data;
