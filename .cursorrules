@@ -24,6 +24,27 @@ database:
   prisma:
     allowed_for: "schema management and migrations only"
     forbidden: "direct database operations"
+  seeding:
+    location: "prisma/seed.js"
+    format: "CommonJS format with require() statements"
+    structure:
+      - "Mock data arrays at the top"
+      - "Supabase client initialization"
+      - "Main seeding function with try-catch"
+    required_fields:
+      - "updatedAt for all table inserts"
+      - "JSON.stringify for array/object fields"
+    execution: "yarn prisma db seed"
+    configuration:
+      package_json:
+        prisma:
+          seed: "node prisma/seed.js"
+    error_handling:
+      format: "console.error('Seed error:', error)"
+      required: "Proper error throwing and process exit"
+    dependencies:
+      - "@supabase/supabase-js"
+      - "dotenv"
 
 # API Implementation
 api_structure:
@@ -222,4 +243,69 @@ types:
       - "AttendeeInfo"
     enums:
       - "MeetingStatus"
-      - "SchedulingProvider" 
+      - "SchedulingProvider"
+
+# Database Actions
+database_actions:
+  location: "utils/actions"
+  structure:
+    - "'use server' directive required"
+    - "Separate file per resource type"
+    - "Named exports for each action"
+  supabase_client:
+    initialization:
+      import: "import { createServerClient } from '@supabase/ssr'"
+      cookies: "await cookies() from next/headers"
+      config:
+        url: "process.env.SUPABASE_URL"
+        key: "process.env.SUPABASE_SERVICE_KEY"
+  type_safety:
+    required: true
+    location: "utils/types"
+    format: "Explicit interface definitions"
+  error_handling:
+    try_catch: required
+    logging: "console.error('[RESOURCE_ERROR]', error)"
+    return_format: "{ data: T | null, error: Error | null }"
+  naming_convention:
+    prefix: "fetch" | "create" | "update" | "delete"
+    resource: "PascalCase resource name"
+    example: "fetchUsers, createPost, updateProfile"
+  client_usage:
+    forbidden: "Direct database access in components"
+    required: "Server actions for all database operations"
+
+# Action vs API Route Placement
+action_vs_api:
+  utils_actions:
+    location: "utils/actions"
+    use_when:
+      - "Direct database operations (CRUD)"
+      - "Reusable server-side logic"
+      - "Internal service functions"
+      - "Functions called from multiple components"
+    characteristics:
+      - "'use server' directive required"
+      - "Typed parameters and returns"
+      - "Direct Supabase client usage"
+    example_cases:
+      - "createBooking"
+      - "userCreate"
+      - "userUpdate"
+
+  api_routes:
+    location: "app/api"
+    use_when:
+      - "External API endpoints needed"
+      - "Webhook handlers"
+      - "OAuth flows"
+      - "Complex request/response handling"
+    characteristics:
+      - "Uses NextResponse"
+      - "HTTP method handlers (GET, POST, etc.)"
+      - "Request body/query parsing"
+      - "Status code management"
+    example_cases:
+      - "auth/webhook"
+      - "payments/webhook"
+      - "calendly/oauth" 
