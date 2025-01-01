@@ -15,6 +15,8 @@ interface RealtorProfileFormData {
   licenseNumber: string
   phoneNumber: string
   bio: string
+  careerStage: string
+  goals: string
   brokerId?: string | null
   teamId?: string | null
 }
@@ -40,11 +42,24 @@ export default function RealtorProfilePage() {
         }
         const profileData = await profileResponse.json()
 
+        console.log('[PROFILE_FETCH] Received profile data:', profileData)
+
         if (profileData) {
           setValue('companyName', profileData.companyName || '')
           setValue('licenseNumber', profileData.licenseNumber || '')
           setValue('phoneNumber', profileData.phoneNumber || '')
           setValue('bio', profileData.bio || '')
+          setValue('careerStage', profileData.careerStage || '')
+          setValue('goals', profileData.goals || '')
+          
+          console.log('[PROFILE_FETCH] Form values set:', {
+            companyName: profileData.companyName,
+            licenseNumber: profileData.licenseNumber,
+            phoneNumber: profileData.phoneNumber,
+            bio: profileData.bio,
+            careerStage: profileData.careerStage,
+            goals: profileData.goals
+          })
         }
       } catch (error) {
         console.error('[PROFILE_FETCH_ERROR]', error)
@@ -63,7 +78,9 @@ export default function RealtorProfilePage() {
         companyName: data.companyName || null,
         licenseNumber: data.licenseNumber || null,
         phoneNumber: data.phoneNumber || null,
-        bio: data.bio || null
+        bio: data.bio || null,
+        careerStage: data.careerStage || null,
+        goals: data.goals || null
       })
 
       const response = await fetch('/api/user/realtor', {
@@ -73,7 +90,9 @@ export default function RealtorProfilePage() {
           companyName: data.companyName || null,
           licenseNumber: data.licenseNumber || null,
           phoneNumber: data.phoneNumber || null,
-          bio: data.bio || null
+          bio: data.bio || null,
+          careerStage: data.careerStage || null,
+          goals: data.goals || null
         }),
       })
 
@@ -153,6 +172,24 @@ export default function RealtorProfilePage() {
               <div className="space-y-2">
                 <Label htmlFor="bio">Bio</Label>
                 <Textarea id="bio" {...register('bio')} />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="careerStage">Career Stage</Label>
+                <Input 
+                  id="careerStage" 
+                  placeholder="e.g., Beginner, Intermediate, Expert"
+                  {...register('careerStage')} 
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="goals">Professional Goals</Label>
+                <Textarea 
+                  id="goals" 
+                  placeholder="What are your professional goals?"
+                  {...register('goals')} 
+                />
               </div>
 
               <Button type="submit" className="w-full" disabled={loading}>

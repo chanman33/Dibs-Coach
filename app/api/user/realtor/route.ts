@@ -113,7 +113,9 @@ export async function GET() {
       phoneNumber: user?.RealtorProfile?.phoneNumber ?? null,
       brokerId: user?.brokerId ?? null,
       teamId: user?.teamId ?? null,
-      bio: user?.BaseProfile?.bio ?? null
+      bio: user?.BaseProfile?.bio ?? null,
+      careerStage: user?.BaseProfile?.careerStage ?? null,
+      goals: user?.BaseProfile?.goals ?? null
     }
 
     console.log('[REALTOR_PROFILE_GET] Sending response:', response)
@@ -171,7 +173,31 @@ export async function PUT(req: Request) {
 
     console.log('[REALTOR_PROFILE_PUT] Found user:', userData)
 
-    // Try to update the realtor profile
+    // First update the base profile since it's referenced by the realtor profile
+    const { data: baseProfile, error: baseError } = await supabase
+      .from('BaseProfile')
+      .upsert({
+        userId: userData.id,
+        bio: body.bio,
+        careerStage: body.careerStage,
+        goals: body.goals,
+        updatedAt: new Date().toISOString()
+      })
+      .select()
+      .single()
+
+    if (baseError) {
+      console.error('[BASE_PROFILE_PUT_ERROR] Base profile update:', baseError)
+      return NextResponse.json(
+        { 
+          message: 'Failed to update base profile',
+          error: baseError.message 
+        },
+        { status: 500 }
+      )
+    }
+
+    // Then update the realtor profile
     const { data: realtorProfile, error: realtorError } = await supabase
       .from('RealtorProfile')
       .upsert({
@@ -198,31 +224,12 @@ export async function PUT(req: Request) {
       )
     }
 
-    // Try to update the base profile
-    const { data: baseProfile, error: baseError } = await supabase
-      .from('BaseProfile')
-      .upsert({
-        userId: userData.id,
-        bio: body.bio,
-        updatedAt: new Date().toISOString()
-      })
-      .select()
-      .single()
-
-    if (baseError) {
-      console.error('[BASE_PROFILE_PUT_ERROR] Base profile update:', baseError)
-      return NextResponse.json(
-        { 
-          message: 'Failed to update base profile',
-          error: baseError.message 
-        },
-        { status: 500 }
-      )
-    }
-
     return NextResponse.json({ 
       message: 'Profile updated successfully',
-      data: realtorProfile 
+      data: {
+        baseProfile,
+        realtorProfile
+      }
     })
 
   } catch (error) {
