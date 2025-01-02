@@ -9,6 +9,8 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
+import CoachApplicationForm from '@/components/CoachApplicationForm'
+import { getCoachApplication } from '@/utils/actions/coach-application'
 
 interface RealtorProfileFormData {
   companyName: string
@@ -24,6 +26,8 @@ interface RealtorProfileFormData {
 export default function RealtorProfilePage() {
   const [loading, setLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [userRole, setUserRole] = useState<string | null>(null)
+  const [coachApplication, setCoachApplication] = useState<any>(null)
   const { 
     register, 
     handleSubmit, 
@@ -36,30 +40,31 @@ export default function RealtorProfilePage() {
       try {
         setIsLoading(true)
         const profileResponse = await fetch('/api/user/realtor')
+
         if (!profileResponse.ok) {
           const errorData = await profileResponse.json().catch(() => ({}))
           throw new Error(errorData?.message || 'Failed to fetch profile')
         }
         const profileData = await profileResponse.json()
 
-        console.log('[PROFILE_FETCH] Received profile data:', profileData)
+        // Set form values from flattened response
+        setValue('companyName', profileData.companyName || '')
+        setValue('licenseNumber', profileData.licenseNumber || '')
+        setValue('phoneNumber', profileData.phoneNumber || '')
+        setValue('bio', profileData.bio || '')
+        setValue('careerStage', profileData.careerStage || '')
+        setValue('goals', profileData.goals || '')
+        setUserRole(profileData.role || 'realtor') // Default to realtor if not specified
 
-        if (profileData) {
-          setValue('companyName', profileData.companyName || '')
-          setValue('licenseNumber', profileData.licenseNumber || '')
-          setValue('phoneNumber', profileData.phoneNumber || '')
-          setValue('bio', profileData.bio || '')
-          setValue('careerStage', profileData.careerStage || '')
-          setValue('goals', profileData.goals || '')
-          
-          console.log('[PROFILE_FETCH] Form values set:', {
-            companyName: profileData.companyName,
-            licenseNumber: profileData.licenseNumber,
-            phoneNumber: profileData.phoneNumber,
-            bio: profileData.bio,
-            careerStage: profileData.careerStage,
-            goals: profileData.goals
-          })
+        // Only fetch coach application if user is not already a coach
+        if (profileData.role === 'realtor') {
+          try {
+            const applicationData = await getCoachApplication()
+            setCoachApplication(applicationData?.[0]) // Get the first application if exists
+          } catch (error) {
+            // Ignore coach application errors for non-coaches
+            console.log('No coach application found')
+          }
         }
       } catch (error) {
         console.error('[PROFILE_FETCH_ERROR]', error)
@@ -74,15 +79,6 @@ export default function RealtorProfilePage() {
   const onSubmit = async (data: RealtorProfileFormData) => {
     setLoading(true)
     try {
-      console.log('[PROFILE_UPDATE] Form data:', {
-        companyName: data.companyName || null,
-        licenseNumber: data.licenseNumber || null,
-        phoneNumber: data.phoneNumber || null,
-        bio: data.bio || null,
-        careerStage: data.careerStage || null,
-        goals: data.goals || null
-      })
-
       const response = await fetch('/api/user/realtor', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -96,28 +92,15 @@ export default function RealtorProfilePage() {
         }),
       })
 
-      console.log('[PROFILE_UPDATE] Response status:', response.status)
-      
-      const rawResponse = await response.text()
-      console.log('[PROFILE_UPDATE] Raw response:', rawResponse)
-
-      let responseData
-      try {
-        responseData = JSON.parse(rawResponse)
-        console.log('[PROFILE_UPDATE] Parsed response data:', responseData)
-      } catch (parseError) {
-        console.error('[PROFILE_UPDATE] Failed to parse response:', parseError)
-        throw new Error('Invalid server response')
-      }
-
       if (!response.ok) {
-        console.error('[PROFILE_UPDATE] Server error:', responseData)
-        throw new Error(responseData.message || responseData.error || 'Failed to update profile')
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || errorData.error || 'Failed to update profile')
       }
       
+      const responseData = await response.json()
       toast.success(responseData.message || 'Profile updated successfully')
     } catch (error) {
-      console.error('[PROFILE_UPDATE_ERROR] Full error:', error)
+      console.error('[PROFILE_UPDATE_ERROR]', error)
       toast.error(error instanceof Error 
         ? `Error updating profile: ${error.message}` 
         : 'An unexpected error occurred'
@@ -128,7 +111,7 @@ export default function RealtorProfilePage() {
   }
 
   return (
-    <div className="container max-w-2xl py-8">
+    <div className="container max-w-2xl py-8 space-y-8">
       <Card>
         <CardHeader>
           <h2 className="text-2xl font-bold">Realtor Profile</h2>
@@ -199,6 +182,22 @@ export default function RealtorProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {!isLoading && userRole === 'realtor' && (
+        <CoachApplicationForm existingApplication={coachApplication} />
+      )}
+
+      {!isLoading && userRole === 'realtor_coach' && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-2xl font-bold">Coach Profile</h2>
+          </CardHeader>
+          <CardContent>
+            {/* TODO: Add coach profile management UI */}
+            <p>Coach profile management coming soon...</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

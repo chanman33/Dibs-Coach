@@ -5,10 +5,10 @@ import { cookies } from "next/headers";
 
 export const userUpdate = async ({
   email,
-  first_name,
-  last_name,
-  profile_image_url,
-  user_id,
+  firstName,
+  lastName,
+  profileImageUrl,
+  userId,
 }: userUpdateProps) => {
   const cookieStore = await cookies();
 
@@ -25,23 +25,35 @@ export const userUpdate = async ({
   );
 
   try {
+    console.log("[USER_UPDATE] Starting user update:", {
+      email,
+      firstName,
+      lastName,
+      userId,
+    });
+
     const { data, error } = await supabase
       .from("User")
-      .update([
-        {
-          email,
-          firstName: first_name,
-          lastName: last_name,
-          profileImageUrl: profile_image_url,
-          userId: user_id,
-        },
-      ])
-      .eq("email", email)
+      .update({
+        email,
+        firstName,
+        lastName,
+        profileImageUrl,
+        userId,
+        updatedAt: new Date().toISOString(),
+      })
+      .eq("userId", userId)
       .select();
 
-    if (data) return data;
-    if (error) return error;
+    if (error) {
+      console.error("[USER_UPDATE] Error updating user:", error);
+      throw new Error(`Failed to update user: ${error.message}`);
+    }
+
+    console.log("[USER_UPDATE] Successfully updated user:", data);
+    return data;
   } catch (error: any) {
-    throw new Error(error.message);
+    console.error("[USER_UPDATE] Exception updating user:", error);
+    throw new Error(`User update failed: ${error.message}`);
   }
 };

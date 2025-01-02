@@ -40,9 +40,33 @@ database:
       config:
         url: "process.env.SUPABASE_URL"
         key: "process.env.SUPABASE_SERVICE_KEY"
+    table_naming:
+      format: "PascalCase (e.g., User, BaseProfile, RealtorProfile)"
+      examples: 
+        - "User not users"
+        - "CoachApplication not coach_applications"
+        - "RealtorProfile not realtor_profile"
+    id_types:
+      clerk: "userId: string (e.g., user_2r0JFaVbINR4TBRNFzcwIsyEXV0)"
+      database: "id: number (auto-incrementing integer)"
+      usage:
+        - "Use userId (string) when querying by Clerk ID"
+        - "Use id (number) for all database relationships"
+        - "Never use Clerk IDs in foreign key relationships"
     relationships:
       user_references: "Must use database user_id (bigint), never clerk_id"
       foreign_keys: "All foreign keys must be bigint type"
+      multiple_relations:
+        - "When a table has multiple relationships to the same table, specify the exact relationship in joins"
+        - "Example: User!CoachApplication_userId_fkey for applicant, User!CoachApplication_reviewedBy_fkey for reviewer"
+    required_fields:
+      timestamps:
+        - "updatedAt: DateTime required in all tables"
+        - "Must be included in all insert/update operations"
+        - "Format: new Date().toISOString()"
+      audit:
+        - "createdAt: DateTime @default(now())"
+        - "updatedAt: DateTime @updatedAt"
   
   prisma:
     allowed_for: "schema management and migrations only"

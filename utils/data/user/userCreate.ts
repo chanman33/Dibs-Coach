@@ -6,14 +6,13 @@ import { userCreateProps } from "@/utils/types";
 
 export const userCreate = async ({
   email,
-  first_name,
-  last_name,
-  profile_image_url,
-  user_id,
+  firstName,
+  lastName,
+  profileImageUrl,
+  userId,
   role,
 }: userCreateProps) => {
   const cookieStore = await cookies();
-
   const supabase = createServerClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_KEY!,
@@ -26,30 +25,12 @@ export const userCreate = async ({
     }
   );
 
-  console.log('[USER_CREATE] Environment check:', {
-    supabaseUrl: !!process.env.SUPABASE_URL,
-    supabaseKey: !!process.env.SUPABASE_SERVICE_KEY
-  });
-
-  console.log('[USER_CREATE] Supabase client initialized:', {
-    client: !!supabase,
-    cookies: !!cookieStore
-  });
-
   try {
-    console.log("[USER_CREATE] Starting user creation:", {
-      email,
-      firstName: first_name,
-      lastName: last_name,
-      userId: user_id,
-      role,
-    });
-
     // First check if user already exists
     const { data: existingUser, error: lookupError } = await supabase
       .from("User")
       .select()
-      .eq("userId", user_id)
+      .eq("userId", userId)
       .single();
 
     if (lookupError && lookupError.code !== "PGRST116") {
@@ -58,7 +39,6 @@ export const userCreate = async ({
     }
 
     if (existingUser) {
-      console.log("[USER_CREATE] User already exists:", existingUser);
       return existingUser;
     }
 
@@ -67,36 +47,28 @@ export const userCreate = async ({
       .insert([
         {
           email,
-          firstName: first_name,
-          lastName: last_name,
-          profileImageUrl: profile_image_url,
-          userId: user_id,
+          firstName,
+          lastName,
+          profileImageUrl,
+          userId,
           role,
           status: "active",
           updatedAt: new Date().toISOString(),
         },
       ])
-      .select();
+      .select()
+      .single();
 
     if (error) {
       console.error("[USER_CREATE] Error creating user:", error);
       throw new Error(`Failed to create user: ${error.message}`);
     }
 
-    console.log('[USER_CREATE] Insert operation result:', {
-      data,
-      error,
-      insertedData: {
-        email,
-        firstName: first_name,
-        lastName: last_name,
-        profileImageUrl: profile_image_url,
-        userId: user_id,
-        role
-      }
-    });
+    if (!data) {
+      console.error("[USER_CREATE] No data returned after insert");
+      throw new Error("Failed to create user: No data returned");
+    }
 
-    console.log("[USER_CREATE] Successfully created user:", data);
     return data;
   } catch (error: any) {
     console.error("[USER_CREATE] Exception creating user:", error);

@@ -7,17 +7,8 @@ import { Webhook } from "svix";
 import { ROLES } from "@/utils/roles/roles";
 
 export async function POST(req: Request) {
-  console.log('[WEBHOOK] Starting webhook processing');
-  
   const CLERK_WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
   
-  console.log('[WEBHOOK] Environment check:', {
-    hasSecret: !!CLERK_WEBHOOK_SECRET,
-    envVars: {
-      hasClerkSecret: !!process.env.CLERK_WEBHOOK_SECRET
-    }
-  });
-
   if (!CLERK_WEBHOOK_SECRET) {
     console.error('[WEBHOOK] Missing CLERK_WEBHOOK_SECRET');
     throw new Error("Please add CLERK_WEBHOOK_SECRET from Clerk Dashboard to .env or .env.local");
@@ -28,12 +19,6 @@ export async function POST(req: Request) {
   const svix_id = headerPayload.get("svix-id");
   const svix_timestamp = headerPayload.get("svix-timestamp");
   const svix_signature = headerPayload.get("svix-signature");
-
-  console.log('[WEBHOOK] Headers received:', {
-    hasSvixId: !!svix_id,
-    hasSvixTimestamp: !!svix_timestamp,
-    hasSvixSignature: !!svix_signature,
-  });
 
   // If there are no headers, error out
   if (!svix_id || !svix_timestamp || !svix_signature) {
@@ -46,12 +31,6 @@ export async function POST(req: Request) {
   // Get the body
   const payload = await req.json();
   const body = JSON.stringify(payload);
-
-  console.log('[WEBHOOK] Received payload:', {
-    type: payload?.type,
-    userId: payload?.data?.id,
-    email: payload?.data?.email_addresses?.[0]?.email_address
-  });
 
   // Create a new SVIX instance with your secret.
   const wh = new Webhook(CLERK_WEBHOOK_SECRET);
@@ -72,40 +51,22 @@ export async function POST(req: Request) {
     });
   }
 
-  // Get the ID and type
   const { id } = evt.data;
   const eventType = evt.type;
-
-  console.log('[WEBHOOK] Verified event:', { id, eventType });
 
   switch (eventType) {
     case "user.created":
       try {
-        console.log("[WEBHOOK] Processing user.created event:", {
-          id,
-          email: payload?.data?.email_addresses?.[0]?.email_address,
-          user_id: payload?.data?.id,
-          firstName: payload?.data?.first_name,
-          lastName: payload?.data?.last_name,
-          profileImage: payload?.data?.profile_image_url,
-        });
-
         const result = await userCreate({
           email: payload?.data?.email_addresses?.[0]?.email_address,
-          first_name: payload?.data?.first_name,
-          last_name: payload?.data?.last_name,
-          profile_image_url: payload?.data?.profile_image_url,
-          user_id: payload?.data?.id,
+          firstName: payload?.data?.first_name,
+          lastName: payload?.data?.last_name,
+          profileImageUrl: payload?.data?.profile_image_url,
+          userId: payload?.data?.id,
           role: ROLES.REALTOR,
         });
 
-        console.log("[WEBHOOK] User creation completed:", result);
-
-        return NextResponse.json({
-          status: 200,
-          message: "User info inserted",
-          data: result
-        });
+        return NextResponse.json({ status: 200, message: "User created", data: result });
       } catch (error: any) {
         console.error("[WEBHOOK] Error in user.created handler:", error);
         return NextResponse.json({
@@ -117,27 +78,15 @@ export async function POST(req: Request) {
 
     case "user.updated":
       try {
-        console.log("[WEBHOOK] Processing user.updated event:", {
-          id,
-          email: payload?.data?.email_addresses?.[0]?.email_address,
-          user_id: payload?.data?.id,
-        });
-
         const result = await userUpdate({
           email: payload?.data?.email_addresses?.[0]?.email_address,
-          first_name: payload?.data?.first_name,
-          last_name: payload?.data?.last_name,
-          profile_image_url: payload?.data?.profile_image_url,
-          user_id: payload?.data?.id,
+          firstName: payload?.data?.first_name,
+          lastName: payload?.data?.last_name,
+          profileImageUrl: payload?.data?.profile_image_url,
+          userId: payload?.data?.id,
         });
 
-        console.log("[WEBHOOK] User update completed:", result);
-
-        return NextResponse.json({
-          status: 200,
-          message: "User info updated",
-          data: result
-        });
+        return NextResponse.json({ status: 200, message: "User updated", data: result });
       } catch (error: any) {
         console.error("[WEBHOOK] Error in user.updated handler:", error);
         return NextResponse.json({
@@ -148,7 +97,6 @@ export async function POST(req: Request) {
       }
 
     default:
-      console.warn("[WEBHOOK] Unhandled event type:", eventType);
       return new Response(`Unhandled webhook event type: ${eventType}`, {
         status: 400,
       });

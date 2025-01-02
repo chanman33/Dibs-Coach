@@ -18,24 +18,23 @@ interface RealtorProfile {
 
 interface UserWithProfiles {
   id: number
+  role: string
   brokerId: number | null
   teamId: number | null
-  BaseProfile: BaseProfile | null
-  RealtorProfile: RealtorProfile | null
+  baseProfile: BaseProfile
+  realtorProfile: RealtorProfile
 }
 
 export async function GET() {
   try {
     // Auth check
-    const { userId } = await auth()
-    if (!userId) {
-      console.log('[REALTOR_PROFILE_GET] No userId found')
+    const { userId: clerkUserId } = await auth()
+    if (!clerkUserId) {
       return NextResponse.json(
         { message: 'Unauthorized' }, 
         { status: 401 }
       )
     }
-    console.log('[REALTOR_PROFILE_GET] userId:', userId)
 
     // Initialize Supabase client
     const cookieStore = await cookies()
@@ -51,55 +50,44 @@ export async function GET() {
       }
     )
 
-    // First get the User record to get the database id
-    const { data: userRecord, error: userError } = await supabase
-      .from('User')
-      .select('id')
-      .eq('userId', userId)
-      .single()
-
-    if (userError || !userRecord) {
-      console.error('[REALTOR_PROFILE_GET] User lookup error:', userError)
-      return NextResponse.json(
-        { message: 'User not found' },
-        { status: 404 }
-      )
-    }
-
-    // Then get the realtor profile using the database id
+    // Get user with all related profiles in a single query
     const { data: user, error } = await supabase
       .from('User')
       .select(`
         id,
+        role,
         brokerId,
         teamId,
-        BaseProfile (
+        baseProfile:BaseProfile!left (
           bio,
           careerStage,
           goals,
           availability
         ),
-        RealtorProfile (
+        realtorProfile:RealtorProfile!left (
           companyName,
           licenseNumber,
           phoneNumber
         )
       `)
-      .eq('id', userRecord.id)
-      .single() as { data: UserWithProfiles | null, error: any }
-
-    console.log('[REALTOR_PROFILE_GET] Query result:', { user, error })
+      .eq('userId', clerkUserId)
+      .single() as unknown as { data: UserWithProfiles, error: any };
 
     if (error) {
-      console.error('[REALTOR_PROFILE_GET_ERROR]', error.message)
+      if (error.code === 'PGRST116') {
+        return NextResponse.json(
+          { message: 'User not found' },
+          { status: 404 }
+        );
+      }
+      console.error('[REALTOR_PROFILE_ERROR]', error.message);
       return NextResponse.json(
         { message: `Database error: ${error.message}` },
         { status: 500 }
-      )
+      );
     }
 
     if (!user) {
-      console.log('[REALTOR_PROFILE_GET] No user found')
       return NextResponse.json(
         { message: 'User not found' },
         { status: 404 }
@@ -108,20 +96,20 @@ export async function GET() {
 
     // Return the profile data
     const response = {
-      companyName: user?.RealtorProfile?.companyName ?? null,
-      licenseNumber: user?.RealtorProfile?.licenseNumber ?? null,
-      phoneNumber: user?.RealtorProfile?.phoneNumber ?? null,
-      brokerId: user?.brokerId ?? null,
-      teamId: user?.teamId ?? null,
-      bio: user?.BaseProfile?.bio ?? null,
-      careerStage: user?.BaseProfile?.careerStage ?? null,
-      goals: user?.BaseProfile?.goals ?? null
+      role: user.role,
+      companyName: user.realtorProfile?.companyName ?? null,
+      licenseNumber: user.realtorProfile?.licenseNumber ?? null,
+      phoneNumber: user.realtorProfile?.phoneNumber ?? null,
+      brokerId: user.brokerId ?? null,
+      teamId: user.teamId ?? null,
+      bio: user.baseProfile?.bio ?? null,
+      careerStage: user.baseProfile?.careerStage ?? null,
+      goals: user.baseProfile?.goals ?? null
     }
 
-    console.log('[REALTOR_PROFILE_GET] Sending response:', response)
     return NextResponse.json(response)
   } catch (error) {
-    console.error('[REALTOR_PROFILE_GET] Unexpected error:', error)
+    console.error('[REALTOR_PROFILE_ERROR]', error)
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
@@ -131,8 +119,8 @@ export async function GET() {
 
 export async function PUT(req: Request) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
+    const { userId: clerkUserId } = await auth()
+    if (!clerkUserId) {
       return NextResponse.json(
         { message: 'Unauthorized' }, 
         { status: 401 }
@@ -160,7 +148,7 @@ export async function PUT(req: Request) {
     const { data: userData, error: userDataError } = await supabase
       .from('User')
       .select('id')
-      .eq('userId', userId)
+      .eq('userId', clerkUserId)
       .single()
 
     if (userDataError || !userData) {
@@ -173,7 +161,7 @@ export async function PUT(req: Request) {
 
     console.log('[REALTOR_PROFILE_PUT] Found user:', userData)
 
-    // First update the base profile since it's referenced by the realtor profile
+    // First update the base profile
     const { data: baseProfile, error: baseError } = await supabase
       .from('BaseProfile')
       .upsert({

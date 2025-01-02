@@ -120,6 +120,10 @@ model User {
   subscriptions     Subscription[]
   invoices          Invoice[]
 
+  // Add new coach application relations
+  coachApplications        CoachApplication[] @relation("userCoachApplications")
+  reviewedCoachApplications CoachApplication[] @relation("reviewerCoachApplications")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -373,6 +377,27 @@ model Application {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+model CoachApplication {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  status          String   @default("pending")
+  experience      String
+  specialties     String[] @default([])
+  applicationDate DateTime @default(now())
+  reviewedBy      Int?
+  reviewDate      DateTime?
+  notes           String?
+
+  user      User  @relation("userCoachApplications", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer  User? @relation("reviewerCoachApplications", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([reviewedBy])
 }
 
 model Note {
