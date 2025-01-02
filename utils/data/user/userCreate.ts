@@ -39,6 +39,13 @@ export const userCreate = async ({
     }
 
     if (existingUser) {
+      console.info("[USER_CREATE] User already exists - This is expected behavior in scenarios like:", {
+        scenario1: "Multiple webhook deliveries from Clerk (retry mechanism)",
+        scenario2: "User re-authenticating after session expiry",
+        scenario3: "User signing up with an existing email",
+        userId,
+        email
+      });
       return existingUser;
     }
 
@@ -58,6 +65,22 @@ export const userCreate = async ({
       ])
       .select()
       .single();
+
+    if (error?.code === "23505") { // Unique constraint violation
+      console.info("[USER_CREATE] Concurrent user creation detected - This is expected behavior when:", {
+        scenario1: "Multiple webhook handlers process the same event simultaneously",
+        scenario2: "Race condition between authentication and webhook processing",
+        email,
+        error: "User already exists in database"
+      });
+      // Fetch and return the existing user instead
+      const { data: existingUser } = await supabase
+        .from("User")
+        .select()
+        .eq("email", email)
+        .single();
+      return existingUser;
+    }
 
     if (error) {
       console.error("[USER_CREATE] Error creating user:", error);
