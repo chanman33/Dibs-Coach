@@ -1,311 +1,145 @@
 # Project Implementation Rules
 version: 1.0
 
-# Directory Structure
-directories:
-  lib: "Core API configurations & base implementations"
-  app/api: "API routes & endpoints"
-  utils: "Helpers, types, & server actions"
-  components: "UI components & client-side logic"
+# Core Configuration
+core:
+  directories:
+    lib: "Core API configurations & base implementations"
+    app/api: "API routes & endpoints"
+    utils: "Helpers, types, & server actions"
+    components: "UI components & client-side logic"
+  
+  env_vars:
+    server_side: "direct process.env access"
+    client_side: "NEXT_PUBLIC_ prefix required"
+    validation: "type-safe with runtime checks"
+  
+  security:
+    forbidden: ["Exposed API keys", "Unvalidated inputs", "Missing CORS headers"]
+    required: ["Rate limiting", "Security event logging", "Input sanitization", "Authentication checks"]
 
-# Authentication Rules
+# Authentication & Database
 auth:
   clerk:
-    correct_import: "@clerk/nextjs/server"
-    required_usage: "await auth()"
-    forbidden_usage: "@clerk/nextjs without server"
-    middleware: "must be implemented in middleware.ts"
-
-# Database Rules
-database:
-  supabase:
-    required: true
-    usage: "All data operations must use Supabase client"
-  prisma:
-    allowed_for: "schema management and migrations only"
-    forbidden: "direct database operations"
-  seeding:
-    location: "prisma/seed.js"
-    format: "CommonJS format with require() statements"
-    structure:
-      - "Mock data arrays at the top"
-      - "Supabase client initialization"
-      - "Main seeding function with try-catch"
-    required_fields:
-      - "updatedAt for all table inserts"
-      - "JSON.stringify for array/object fields"
-    execution: "yarn prisma db seed"
-    configuration:
-      package_json:
-        prisma:
-          seed: "node prisma/seed.js"
-    error_handling:
-      format: "console.error('Seed error:', error)"
-      required: "Proper error throwing and process exit"
-    dependencies:
-      - "@supabase/supabase-js"
-      - "dotenv"
-
-# API Implementation
-api_structure:
-  required_steps:
-    - "Authentication check"
-    - "Data validation"
-    - "Database operation"
-    - "Error handling"
-    - "Response formatting"
-  error_handling:
-    logging: "console.error('[CONTEXT_ERROR]', error)"
-    response: "NextResponse with appropriate status code"
-
-# Server Components
-server_components:
-  directives:
-    - "'use server'"
-    - "authentication check"
-    - "try-catch blocks"
-    - "error logging"
-
-# Type Safety
-types:
-  location: "utils/types.ts"
-  validation: "Zod schemas"
-  exports: "shared types must be exported"
-
-# Environment Variables
-env_vars:
-  server_side: "direct process.env access"
-  client_side: "NEXT_PUBLIC_ prefix required"
-  validation: "type-safe with runtime checks"
-
-# Response Format
-response_format:
-  success: "NextResponse.json({ data })"
-  error: "new NextResponse('message', { status: code })"
-
-# Third-Party Integrations
-integrations:
-  stripe:
+    import: "import { auth } from '@clerk/nextjs/server'"
     rules:
-      - "Secret key server-side only"
-      - "Implement all webhook handlers"
-      - "Store records in Supabase"
-      - "Proper error handling"
-  clerk:
-    rules:
+      - "await auth() required"
       - "Server-side auth checks"
       - "Webhook event handling"
       - "Supabase user sync"
       - "Protected routes in middleware"
+      - "No @clerk/nextjs without server"
 
-# File Organization
-file_organization:
-  lib: "API configurations"
-  app/api: "Route handlers"
-  utils/actions: "Server actions"
-  utils/data: "Helper functions"
-  utils/types: "Type definitions"
-
-# Security
-security:
-  forbidden:
-    - "Exposed API keys"
-    - "Unvalidated inputs"
-    - "Missing CORS headers"
-  required:
-    - "Rate limiting"
-    - "Security event logging"
-    - "Input sanitization"
-    - "Authentication checks"
-
-# Error Logging
-logging:
-  format: "[CONTEXT_ERROR] error_details"
-  required_contexts:
-    - "API_ERROR"
-    - "AUTH_ERROR"
-    - "DB_ERROR"
-    - "PAYMENT_ERROR"
-    - "WEBHOOK_ERROR"
-
-# Code Style
-code_style:
-  imports:
-    clerk: "import { auth } from '@clerk/nextjs/server'"
-    supabase: "import { createServerClient } from '@supabase/ssr'"
-  async_handling:
-    required: "try-catch with proper error handling"
-  type_annotations:
+database:
+  supabase:
     required: true
-    format: "explicit return types on exported functions"
-
-# Video Conferencing & Scheduling
-integrations:
-  calendly:
-    lib_structure:
-      - "Base configuration in lib/calendly-api.ts"
-      - "Client initialization in lib/calendly.ts"
-    required_implementation:
-      - "Server-side API calls for event creation"
-      - "Client-side widget loading"
-      - "Webhook handling for event updates"
-    data_storage:
-      - "Store event details in Supabase"
-      - "Link events to user profiles"
-    error_handling:
-      format: "console.error('[CALENDLY_ERROR]', error)"
-    type_safety:
-      location: "utils/types/calendly.ts"
-      required_types:
-        - "CalendlyEvent"
-        - "CalendlyConfig"
-        - "SchedulingResponse"
-
-  zoom:
-    lib_structure:
-      - "Base configuration in lib/zoom-api.ts"
-      - "OAuth handling in app/api/zoom/auth/"
-    required_implementation:
-      - "Server-side meeting creation"
-      - "JWT authentication flow"
-      - "Webhook processing for meeting updates"
-    data_storage:
-      - "Store meeting details in Supabase"
-      - "Link meetings to calendar events"
-    security:
-      - "Store zoom credentials server-side only"
-      - "Implement proper OAuth flow"
-      - "Validate meeting tokens"
-    error_handling:
-      format: "console.error('[ZOOM_ERROR]', error)"
-
-# Meeting Integration Rules
-meeting_scheduling:
-  data_flow:
-    - "Calendly event creation"
-    - "Zoom meeting generation"
-    - "Database record creation"
-    - "Notification dispatch"
-  required_fields:
-    event:
-      - "start_time"
-      - "end_time"
-      - "attendees"
-      - "meeting_link"
-    storage:
-      - "event_id"
-      - "meeting_id"
-      - "user_id"
-      - "status"
-  error_states:
-    handle:
-      - "Double booking conflicts"
-      - "API service failures"
-      - "User timezone mismatches"
-      - "Meeting creation failures"
-
-# API Routes Structure
-api_routes:
-  calendly:
-    endpoints:
-      - "POST /api/scheduling/create"
-      - "GET /api/scheduling/available-slots"
-      - "POST /api/scheduling/webhook"
-  zoom:
-    endpoints:
-      - "POST /api/meetings/create"
-      - "GET /api/meetings/[id]"
-      - "POST /api/meetings/webhook"
-
-# Component Implementation
-components:
-  scheduling:
-    required_features:
-      - "Date/time selection"
-      - "Timezone handling"
-      - "Duration selection"
-      - "Attendee input"
-    error_states:
-      - "Loading states"
-      - "Error messages"
-      - "Validation feedback"
-    accessibility:
-      - "Keyboard navigation"
-      - "Screen reader support"
-      - "ARIA labels"
-
-# Type Definitions
-types:
-  scheduling:
-    interfaces:
-      - "MeetingDetails"
-      - "SchedulingConfig"
-      - "AttendeeInfo"
-    enums:
-      - "MeetingStatus"
-      - "SchedulingProvider"
-
-# Database Actions
-database_actions:
-  location: "utils/actions"
-  structure:
-    - "'use server' directive required"
-    - "Separate file per resource type"
-    - "Named exports for each action"
-  supabase_client:
-    initialization:
+    usage: "All data operations must use Supabase client"
+    client_init:
       import: "import { createServerClient } from '@supabase/ssr'"
       cookies: "await cookies() from next/headers"
       config:
         url: "process.env.SUPABASE_URL"
         key: "process.env.SUPABASE_SERVICE_KEY"
-  type_safety:
-    required: true
-    location: "utils/types"
-    format: "Explicit interface definitions"
-  error_handling:
-    try_catch: required
-    logging: "console.error('[RESOURCE_ERROR]', error)"
-    return_format: "{ data: T | null, error: Error | null }"
-  naming_convention:
-    prefix: "fetch" | "create" | "update" | "delete"
-    resource: "PascalCase resource name"
-    example: "fetchUsers, createPost, updateProfile"
-  client_usage:
-    forbidden: "Direct database access in components"
-    required: "Server actions for all database operations"
+    relationships:
+      user_references: "Must use database user_id (bigint), never clerk_id"
+      foreign_keys: "All foreign keys must be bigint type"
+  
+  prisma:
+    allowed_for: "schema management and migrations only"
+    forbidden: "direct database operations"
+    seeding:
+      location: "prisma/seed.js"
+      format: "CommonJS format with require() statements"
+      dependencies: ["@supabase/supabase-js", "dotenv"]
+      required_fields: ["updatedAt", "JSON.stringify for arrays/objects"]
+      error_handling: "console.error('Seed error:', error)"
 
-# Action vs API Route Placement
-action_vs_api:
-  utils_actions:
+# Server-Side Implementation
+server:
+  components:
+    directives: ["'use server'", "authentication check", "try-catch blocks", "error logging"]
+  
+  actions:
     location: "utils/actions"
-    use_when:
-      - "Direct database operations (CRUD)"
-      - "Reusable server-side logic"
-      - "Internal service functions"
-      - "Functions called from multiple components"
-    characteristics:
+    structure:
       - "'use server' directive required"
-      - "Typed parameters and returns"
-      - "Direct Supabase client usage"
-    example_cases:
-      - "createBooking"
-      - "userCreate"
-      - "userUpdate"
+      - "Separate file per resource type"
+      - "Named exports for each action"
+      - "User ID resolution before operations"
+    naming:
+      prefix: ["fetch", "create", "update", "delete"]
+      format: "prefixResourceName (e.g., fetchUsers, createPost)"
+  
+  api:
+    required_steps:
+      - "Authentication check"
+      - "Database user ID lookup"
+      - "Data validation"
+      - "Database operation"
+      - "Error handling"
+      - "Response formatting"
+    response_format:
+      success: "NextResponse.json({ data })"
+      error: "new NextResponse('message', { status: code })"
 
-  api_routes:
-    location: "app/api"
-    use_when:
-      - "External API endpoints needed"
-      - "Webhook handlers"
-      - "OAuth flows"
-      - "Complex request/response handling"
-    characteristics:
-      - "Uses NextResponse"
-      - "HTTP method handlers (GET, POST, etc.)"
-      - "Request body/query parsing"
-      - "Status code management"
-    example_cases:
-      - "auth/webhook"
-      - "payments/webhook"
-      - "calendly/oauth" 
+# Type System
+types:
+  base_location: "utils/types.ts"
+  validation: "Zod schemas"
+  required_types:
+    base: ["DatabaseUser", "UserRelation"]
+    user:
+      clerk_id: "string"
+      database_id: "number"
+      relationships: "number (foreign keys)"
+  schema_enforcement:
+    models:
+      user:
+        primary_key: "id Int @id @default(autoincrement())"
+        auth_field: "userId String @unique"
+        required_fields: ["email", "role", "status"]
+    validation:
+      zod_schemas:
+        naming: "modelNameSchema"
+        required: ["email", "ids", "dates"]
+
+# Error Handling
+errors:
+  logging:
+    format: "console.error('[CONTEXT_ERROR]', error)"
+    contexts: ["API", "AUTH", "DB", "PAYMENT", "WEBHOOK", "TYPE", "VALIDATION"]
+  return_format: "{ data: T | null, error: Error | null }"
+
+# Integrations
+integrations:
+  stripe:
+    rules: ["Secret key server-side only", "Webhook handlers", "Supabase storage", "Error handling"]
+  
+  calendly:
+    structure:
+      lib: ["lib/calendly-api.ts", "lib/calendly.ts"]
+      features: ["Server-side API calls", "Client widget", "Webhook handling"]
+      storage: ["Supabase event storage", "User profile linking"]
+  
+  zoom:
+    structure:
+      lib: ["lib/zoom-api.ts", "app/api/zoom/auth/"]
+      features: ["Server-side creation", "JWT auth", "Webhook processing"]
+      security: ["Server-side credentials", "OAuth flow", "Token validation"]
+
+# Meeting Scheduling
+scheduling:
+  flow: ["Calendly event", "Zoom meeting", "Database record", "Notification"]
+  required_fields:
+    event: ["start_time", "end_time", "attendees", "meeting_link"]
+    storage: ["event_id", "meeting_id", "user_id", "status"]
+  error_handling: ["Double booking", "API failures", "Timezone issues", "Creation failures"]
+
+# Documentation
+documentation:
+  required_comments: ["Complex types", "Schema relationships", "Validation rules"]
+  jsdoc_format: |
+    /**
+     * @description Type description
+     * @property {type} name - Property description
+     */ 

@@ -6,7 +6,7 @@ import Image from "next/image"
 import { BookingModal } from "@/app/dashboard/realtor/coaches/_components/BookingModal"
 
 interface CoachProps {
-  id: string
+  id: number
   name: string
   specialty: string
   imageUrl: string
@@ -77,6 +77,7 @@ export function Coach({ id, name, specialty, imageUrl, isBooked, rating, reviewC
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
         coachName={name}
+        coachId={id}
         calendlyUrl={calendlyUrl}
         eventTypeUrl={eventTypeUrl}
       />

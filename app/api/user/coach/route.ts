@@ -21,6 +21,7 @@ interface RealtorCoachProfile {
 
 interface CoachData {
   id: number
+  userId: string
   firstName: string
   lastName: string
   RealtorCoachProfile: RealtorCoachProfile
@@ -46,6 +47,7 @@ export async function fetchCoaches() {
       .from('User')
       .select<string, CoachData>(`
         id,
+        userId,
         firstName,
         lastName,
         RealtorCoachProfile (

@@ -9,7 +9,8 @@ import { CoachProfileModal } from '@/components/CoachProfileModal'
 import { fetchCoaches } from '../../../api/user/coach/route'
 
 interface CoachData {
-  id: string
+  id: number
+  userId: string
   name: string
   strength: string
   imageUrl: string
@@ -69,7 +70,8 @@ export default function CoachesPage() {
 
         if (coachesData) {
           const formattedCoaches: CoachData[] = coachesData.map(coach => ({
-            id: coach.id.toString(),
+            id: coach.id,
+            userId: coach.userId,
             name: `${coach.firstName} ${coach.lastName}`,
             strength: coach.RealtorCoachProfile.specialty,
             imageUrl: coach.RealtorCoachProfile.imageUrl,
@@ -190,7 +192,9 @@ export default function CoachesPage() {
           onClose={() => setIsModalOpen(false)}
           coach={{
             ...selectedCoach,
-            specialty: selectedCoach.strength
+            specialty: selectedCoach.strength,
+            calendlyUrl: selectedCoach.calendlyUrl,
+            eventTypeUrl: selectedCoach.eventTypeUrl
           }}
         />
       )}
