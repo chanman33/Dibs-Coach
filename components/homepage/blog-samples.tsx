@@ -1,26 +1,29 @@
 import { TITLE_TAILWIND_CLASS } from '@/utils/constants'
 import Image from 'next/image'
 import Link from "next/link"
-export default function BlogSample() {
 
+export default function BlogSample() {
   const articles = [
     {
       id: 1,
-      image: "https://seo-heist.s3.amazonaws.com/user_2cxTR5I0BjOLeNCnee3qUze0LUo/1af01aca-6ce1-4a3f-8e54-e945e3104889.png",
-      title: "The Importance of Storytelling in Modern Branding",
-      date: "2024-04-15 21:16:04.765648-05"
+      image: "/placeholder.svg",
+      title: "7 Proven Lead Generation Strategies for Real Estate Success",
+      description: "Learn the most effective techniques to generate and nurture quality leads in today's competitive market.",
+      date: "2024-01-15"
     },
     {
       id: 2,
-      image: "https://seo-heist.s3.amazonaws.com/user_2cxTR5I0BjOLeNCnee3qUze0LUo/96bf3bb0-9e15-4745-b966-91d719651429.png",
-      title: "How to Choose the Right Dog for Your Lifestyle",
-      date: "2024-04-16 08:29:32.188999-05"
+      image: "/placeholder.svg",
+      title: "Breaking Into the Luxury Real Estate Market: A Complete Guide",
+      description: "Expert insights on how to establish yourself in the high-end property market and close bigger deals.",
+      date: "2024-01-22"
     },
     {
       id: 3,
-      image: "https://seo-heist.s3.amazonaws.com/user_2cxTR5I0BjOLeNCnee3qUze0LUo/36292d36-cfae-4106-8d59-ace222f4bc82.png",
-      title: "Top Automation Testing Suites for Seamless Software Testing",
-      date: "2024-04-16 15:20:52.368844-05"
+      image: "/placeholder.svg",
+      title: "Digital Marketing Essentials for Modern Real Estate Agents",
+      description: "Master social media, content marketing, and online presence to attract more clients and grow your business.",
+      date: "2024-01-29"
     }
   ]
 
@@ -29,43 +32,55 @@ export default function BlogSample() {
       <div className='flex flex-col items-center p-3 w-full'>
         <div className='flex flex-col justify-start items-center gap-2 w-full'>
           <div className='flex gap-3 justify-start items-center w-full'>
-            <h1 className={`${TITLE_TAILWIND_CLASS} mt-2 font-semibold tracking-tight dark:text-white text-gray-900`}>
-              Some Sample Blog Cards
-            </h1>
+            <h2 className={`${TITLE_TAILWIND_CLASS} mt-2 font-semibold tracking-tight dark:text-white text-gray-900`}>
+              Latest Insights from Top Real Estate Coaches
+            </h2>
           </div>
           <div className='flex gap-3 justify-start items-center w-full border-b pb-4'>
             <p className="text-gray-600 dark:text-gray-400">
-              All these articles were generated using Sample Articles AI
+              Expert advice and strategies to help you excel in your real estate career
             </p>
           </div>
         </div>
       </div>
-      <div className='flex flex-col items-start'>
-        <div className="grid gap-5 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 mt-5">
+      <div className='flex flex-col items-start w-full'>
+        <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 mt-5 w-full">
           {articles?.map((article) => (
-            <Link href={"/"} key={article?.id}>
-              <article
-                className="flex flex-col space-y-2 p-4 rounded-md border dark:bg-black"
-              >
-                <Image
-                  src={article?.image!}
-                  alt={"blog image"}
-                  width={804}
-                  height={452}
-                  className="rounded-md border bg-muted transition-colors"
-                />
-                <div className='flex lg:flex-row w-full justify-between items-center'>
-                  <h2 className="text-md lg:text-lg font-bold">{article?.title}</h2>
+            <Link href={"/blog/" + article.id} key={article?.id}>
+              <article className="flex flex-col space-y-3 p-4 rounded-lg border hover:border-blue-500 transition-colors dark:bg-black h-full">
+                <div className="aspect-video relative rounded-md border bg-muted overflow-hidden">
+                  <Image
+                    src={article?.image}
+                    alt={article.title}
+                    fill
+                    className="object-cover"
+                  />
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {new Date(article?.date!)?.toLocaleDateString()}
+                <div className='flex flex-col gap-2'>
+                  <h3 className="text-lg font-bold line-clamp-2 hover:text-blue-600 transition-colors">
+                    {article?.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                    {article.description}
+                  </p>
+                </div>
+                <p className="text-sm text-muted-foreground mt-auto">
+                  {new Date(article?.date).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
                 </p>
               </article>
             </Link>
           ))}
         </div>
+        <div className="w-full text-center mt-8">
+          <Link href="/blog" className="text-blue-600 hover:text-blue-700 font-semibold">
+            View All Articles →
+          </Link>
+        </div>
       </div>
     </div>
-
   )
 }

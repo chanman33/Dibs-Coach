@@ -60,6 +60,8 @@ const PricingSwitch = ({ onSwitch }: PricingSwitchProps) => (
 
 const PricingCard = ({ user, handleCheckout, isYearly, title, priceIdMonthly, priceIdYearly, monthlyPrice, yearlyPrice, description, features, actionLabel, popular, exclusive }: PricingCardProps) => {
   const router = useRouter();
+  const annualSavings = monthlyPrice ? Math.round(monthlyPrice * 12 * 0.1) : 0; // Calculate 10% savings
+
   return (
     <Card
       className={cn(`w-72 flex flex-col justify-between py-1 ${popular ? "border-rose-400" : "border-zinc-700"} mx-auto sm:mx-0`, {
@@ -69,22 +71,31 @@ const PricingCard = ({ user, handleCheckout, isYearly, title, priceIdMonthly, pr
       <div>
         <CardHeader className="pb-8 pt-4">
           {isYearly && yearlyPrice && monthlyPrice ? (
-            <div className="flex justify-between">
+            <div className="flex justify-between items-start">
               <CardTitle className="text-zinc-700 dark:text-zinc-300 text-lg">{title}</CardTitle>
               <div
                 className={cn("px-2.5 rounded-xl h-fit text-sm py-1 bg-zinc-200 text-black dark:bg-zinc-800 dark:text-white", {
-                  "bg-gradient-to-r from-orange-400 to-rose-400 dark:text-black ": popular,
+                  "bg-gradient-to-r from-orange-400 to-rose-400 dark:text-black": popular,
                 })}>
-                Save ${monthlyPrice * 12 - yearlyPrice}
+                Save ${annualSavings}
               </div>
             </div>
           ) : (
             <CardTitle className="text-zinc-700 dark:text-zinc-300 text-lg">{title}</CardTitle>
           )}
           <div className="flex gap-0.5">
-            <h2 className="text-3xl font-bold">{yearlyPrice && isYearly ? "$" + yearlyPrice : monthlyPrice ? "$" + monthlyPrice : "Custom"}</h2>
-            <span className="flex flex-col justify-end text-sm mb-1">{yearlyPrice && isYearly ? "/year" : monthlyPrice ? "/month" : null}</span>
+            <h2 className="text-3xl font-bold">
+              {yearlyPrice && isYearly ? "$" + Math.round(yearlyPrice / 12) : monthlyPrice ? "$" + monthlyPrice : "Custom"}
+            </h2>
+            <span className="flex flex-col justify-end text-sm mb-1">
+              /month
+            </span>
           </div>
+          {isYearly && yearlyPrice && (
+            <div className="text-sm text-gray-500 mt-1">
+              ${yearlyPrice?.toLocaleString()}/year (10% off, billed annually)
+            </div>
+          )}
           <CardDescription className="pt-1.5 h-12">{description}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
@@ -139,18 +150,15 @@ export default function Pricing() {
   }, [])
 
   const handleCheckout = async (priceId: string, subscription: boolean) => {
-
     try {
       const { data } = await axios.post(`/api/payments/create-checkout-session`,
         { userId: user?.id, email: user?.emailAddresses?.[0]?.emailAddress, priceId, subscription });
 
       if (data.sessionId) {
         const stripe = await stripePromise;
-
         const response = await stripe?.redirectToCheckout({
           sessionId: data.sessionId,
         });
-
         return response
       } else {
         console.error('Failed to create checkout session');
@@ -166,32 +174,74 @@ export default function Pricing() {
 
   const plans = [
     {
-      title: "Basic",
-      monthlyPrice: 10,
-      yearlyPrice: 100,
-      description: "Essential features you need to get started",
-      features: ["Example Feature Number 1", "Example Feature Number 2", "Example Feature Number 3"],
+      title: "Free",
+      description: "Get started with pay-as-you-go coaching sessions",
+      features: [
+        "Book individual sessions ($149/session)",
+        "Pay per session pricing",
+        "Basic coach profiles access",
+        "Session scheduling system",
+        "Post-session feedback",
+        "Limited AI listing generator (3/month)"
+      ],
+      actionLabel: "Sign Up Free",
       priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
       priceIdYearly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
-      actionLabel: "Get Started",
     },
     {
-      title: "Pro",
-      monthlyPrice: 25,
-      yearlyPrice: 250,
-      description: "Perfect for owners of small & medium businessess",
-      features: ["Example Feature Number 1", "Example Feature Number 2", "Example Feature Number 3"],
-      actionLabel: "Get Started",
+      title: "Starter Agent",
+      monthlyPrice: 199,
+      yearlyPrice: 2148,
+      description: "Perfect for new real estate agents looking to build their foundation",
+      features: [
+        "1 coaching session per month ($129/session)",
+        "Unlimited AI listing generator",
+        "Basic AI email assistant",
+        "Basic sales strategy guidance",
+        "Email support",
+        "Access to resource library",
+        "Monthly group Q&A sessions"
+      ],
+      priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
+      priceIdYearly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
+      actionLabel: "Start Your Journey",
+    },
+    {
+      title: "Growth Pro",
+      monthlyPrice: 599,
+      yearlyPrice: 6469,
+      description: "For agents ready to scale their business to the next level",
+      features: [
+        "4 coaching sessions per month ($119/session)",
+        "Advanced AI listing generator",
+        "Advanced AI email assistant",
+        "AI voicemail bot",
+        "AI social media machine",
+        "Marketing strategy development",
+        "Priority email & chat support",
+        "Weekly group mastermind calls",
+        "Personalized growth plan"
+      ],
+      actionLabel: "Accelerate Growth",
       priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
       priceIdYearly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
       popular: true,
     },
     {
-      title: "Enterprise",
-      price: "Custom",
-      description: "Dedicated support and infrastructure to fit your needs",
-      features: ["Example Feature Number 1", "Example Feature Number 2", "Example Feature Number 3", "Super Exclusive Feature"],
-      actionLabel: "Contact Sales",
+      title: "Elite Brokerage",
+      description: "Enterprise solution for teams and brokerages",
+      features: [
+        "Custom coaching program for teams",
+        "Volume-based session pricing",
+        "White-labeled AI tools suite",
+        "Multi-agent AI automation",
+        "Custom AI workflow integration",
+        "Team performance analytics",
+        "Custom training materials",
+        "Recruitment & retention strategies",
+        "Brokerage growth consulting"
+      ],
+      actionLabel: "Contact for Team Pricing",
       priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
       priceIdYearly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
       exclusive: true,
@@ -199,8 +249,11 @@ export default function Pricing() {
   ]
 
   return (
-    <div>
-      <PricingHeader title="Sample Pricing Plans" subtitle="Use these sample pricing cards in your SAAS" />
+    <div className="py-12">
+      <PricingHeader 
+        title="Invest in Your Real Estate Success" 
+        subtitle="Choose the perfect coaching plan to elevate your real estate career" 
+      />
       <PricingSwitch onSwitch={togglePricingPeriod} />
       <section className="flex flex-col sm:flex-row sm:flex-wrap justify-center gap-8 mt-8">
         {plans.map((plan) => {
