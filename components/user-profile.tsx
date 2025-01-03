@@ -20,7 +20,8 @@ import {
     LogOut,
     Settings,
     User,
-    UserCircle
+    UserCircle,
+    LayoutDashboard
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -44,33 +45,36 @@ export function UserProfile() {
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                    <Link href="/dashboard/realtor/profile">
+                    <Link href="/dashboard">
                         <DropdownMenuItem>
-                            <UserCircle className="mr-2 h-4 w-4" />
-                            <span>Public Profile</span>
-                            {/* <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut> */}
+                            <LayoutDashboard className="mr-2 h-4 w-4" />
+                            <span>Dashboard</span>
                         </DropdownMenuItem>
                     </Link>
                     <Link href="/user-profile">
                         <DropdownMenuItem>
                             <User className="mr-2 h-4 w-4" />
-                            <span>Account</span>
-                            {/* <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut> */}
+                            <span>My Account</span>
+                        </DropdownMenuItem>
+                    </Link>
+                    <Link href="/dashboard/realtor/profile">
+                        <DropdownMenuItem>
+                            <UserCircle className="mr-2 h-4 w-4" />
+                            <span>Public Profile</span>
                         </DropdownMenuItem>
                     </Link>
                     <Link href="/dashboard/settings">
                         <DropdownMenuItem>
                             <Settings className="mr-2 h-4 w-4" />
                             <span>Settings</span>
-                            {/* <DropdownMenuShortcut>⌘S</DropdownMenuShortcut> */}
                         </DropdownMenuItem>
                     </Link>
                 </DropdownMenuGroup>
+                <DropdownMenuSeparator />
                 <SignOutButton>
                     <DropdownMenuItem>
                         <LogOut className="mr-2 h-4 w-4" />
                         <span>Log out</span>
-                        {/* <DropdownMenuShortcut>⇧⌘Q</DropdownMenuShortcut> */}
                     </DropdownMenuItem>
                 </SignOutButton>
             </DropdownMenuContent>
