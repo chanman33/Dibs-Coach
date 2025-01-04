@@ -146,15 +146,6 @@ function RealtorDashboard() {
                   </div>
                 </div>
               </main>
-              {/* If has appointments */}
-              {/* <div className="space-y-8">
-                <div className="flex items-center">
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">Property Showing</p>
-                    <p className="text-sm text-muted-foreground">Tomorrow at 2:00 PM</p>
-                  </div>
-                </div>
-              </div> */}
             </div>
           </CardContent>
         </Card>

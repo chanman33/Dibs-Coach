@@ -36,12 +36,12 @@ export function UserProfile() {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild className="w-[2.25rem] h-[2.25rem]">
-                <Avatar >
+                <Avatar>
                     <AvatarImage src={user?.imageUrl} alt="User Profile" />
                     <AvatarFallback></AvatarFallback>
                 </Avatar>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56">
+            <DropdownMenuContent className="w-56 border rounded-lg bg-card [&.cl-internal-17dpwu0]:!shadow-none [&.cl-internal-17dpwu0]:!shadow-sm">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
@@ -51,16 +51,10 @@ export function UserProfile() {
                             <span>Dashboard</span>
                         </DropdownMenuItem>
                     </Link>
-                    <Link href="/user-profile">
-                        <DropdownMenuItem>
-                            <User className="mr-2 h-4 w-4" />
-                            <span>My Account</span>
-                        </DropdownMenuItem>
-                    </Link>
                     <Link href="/dashboard/realtor/profile">
                         <DropdownMenuItem>
                             <UserCircle className="mr-2 h-4 w-4" />
-                            <span>Public Profile</span>
+                            <span>Profile</span>
                         </DropdownMenuItem>
                     </Link>
                     <Link href="/dashboard/settings">
