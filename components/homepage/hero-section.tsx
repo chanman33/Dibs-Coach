@@ -21,7 +21,7 @@ export default function HeroSection() {
                     </Button>
                 </Link>
 
-                <Link href="/dashboard" className="mt-5">
+                <Link href="/sign-in?forceRedirectUrl=/apply-coach" className="mt-5">
                     <Button variant="outline" className="flex gap-1">
                         Become a Coach
                         <ArrowRight className='w-4 h-4' aria-hidden="true" />

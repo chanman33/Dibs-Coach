@@ -1,23 +1,15 @@
 import { SignIn } from "@clerk/nextjs";
-import { redirect } from "next/navigation";
-import config from "@/config";
 
-export default function SignInPage() {
-    if (!config?.auth?.enabled) {
-        redirect('/');
-    }
-
+export default function SignInPage({
+    searchParams: { forceRedirectUrl }
+}: {
+    searchParams: { forceRedirectUrl?: string }
+}) {
     return (
-        <div className="flex min-h-screen justify-center items-center p-4">
+        <div className="flex min-h-screen items-center justify-center">
             <SignIn 
-                appearance={{
-                    elements: {
-                        rootBox: "mx-auto",
-                        card: "shadow-none"
-                    }
-                }}
-                fallbackRedirectUrl="/" 
-                signUpFallbackRedirectUrl="/dashboard" 
+                afterSignInUrl={forceRedirectUrl || '/dashboard'}
+                redirectUrl={forceRedirectUrl}
             />
         </div>
     );

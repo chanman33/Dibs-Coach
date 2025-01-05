@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { submitCoachApplication } from '@/utils/actions/coach-application';
 import { COACH_APPLICATION_STATUS } from '@/utils/types';
+import { useRouter } from 'next/navigation';
 
 interface CoachApplicationFormData {
   experience: string;
@@ -26,6 +27,8 @@ interface CoachApplicationFormProps {
 
 export default function CoachApplicationForm({ existingApplication }: CoachApplicationFormProps) {
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const router = useRouter();
   const { register, handleSubmit, formState: { errors } } = useForm<CoachApplicationFormData>({
     defaultValues: existingApplication ? {
       experience: existingApplication.experience,
@@ -41,6 +44,7 @@ export default function CoachApplicationForm({ existingApplication }: CoachAppli
         specialties: data.specialties.split(',').map(s => s.trim()).filter(Boolean)
       });
       toast.success('Application submitted successfully');
+      setSubmitted(true);
     } catch (error) {
       console.error('[COACH_APPLICATION_ERROR]', error);
       toast.error('Failed to submit application');
@@ -48,6 +52,38 @@ export default function CoachApplicationForm({ existingApplication }: CoachAppli
       setLoading(false);
     }
   };
+
+  const handleReturnToDashboard = () => {
+    router.push('/dashboard/realtor');
+  };
+
+  if (submitted) {
+    return (
+      <Card>
+        <CardHeader>
+          <h2 className="text-2xl font-bold">Application Submitted Successfully</h2>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <Label>Status</Label>
+              <p className="mt-1 text-lg font-medium">Pending Review</p>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400">
+              Thank you for applying to become a coach. Your application is now under review by our team. 
+              We will notify you once a decision has been made.
+            </p>
+            <Button 
+              onClick={handleReturnToDashboard}
+              className="w-full mt-4"
+            >
+              Return to Dashboard
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (existingApplication) {
     return (
@@ -71,6 +107,12 @@ export default function CoachApplicationForm({ existingApplication }: CoachAppli
               <Label>Specialties</Label>
               <p className="mt-1">{existingApplication.specialties.join(', ')}</p>
             </div>
+            <Button 
+              onClick={handleReturnToDashboard}
+              className="w-full mt-4"
+            >
+              Return to Dashboard
+            </Button>
           </div>
         </CardContent>
       </Card>
