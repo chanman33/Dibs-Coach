@@ -6,14 +6,7 @@ module.exports = {
   },
   testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/'],
   transform: {
-    '^.+\\.(js|jsx|ts|tsx)$': ['babel-jest', { presets: ['next/babel'] }],
+    '^.+\\.(js|jsx|ts|tsx)$': ['@swc/jest'],
   },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
-  collectCoverage: true,
-  coverageDirectory: 'coverage',
-  coveragePathIgnorePatterns: [
-    '<rootDir>/node_modules/',
-    '<rootDir>/.next/',
-    '<rootDir>/coverage/',
-  ],
-} 
+}; 

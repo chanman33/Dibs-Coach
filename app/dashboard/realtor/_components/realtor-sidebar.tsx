@@ -84,6 +84,18 @@ export default function RealtorSidebar() {
               <MessageSquare className="h-4 w-4" />
               Messages
             </Link>
+            <Link
+              href="/dashboard/realtor/ai-listings"
+              className={clsx(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                pathname === "/dashboard/realtor/ai-listings" && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
+              )}
+            >
+              <div className="border rounded-lg dark:bg-black dark:border-gray-800 border-gray-400 p-1 bg-white">
+                <Building2 className="h-3 w-3" />
+              </div>
+              AI Listing Generator
+            </Link>
             <Separator className="my-3" />
 
           </nav>
