@@ -123,7 +123,7 @@ export default function RealtorProfilePage() {
         if (profileData.role === 'realtor_coach') {
           try {
             setCoachLoading(true);
-            const coachResponse = await fetch('/api/user/coach');
+            const coachResponse = await fetch('/api/user/coach/profile');
             if (!coachResponse.ok) {
               const errorData = await coachResponse.json();
               throw new Error(errorData.error || 'Failed to load coach profile');
@@ -136,31 +136,11 @@ export default function RealtorProfilePage() {
             setCoachValue('specialty', coachData.specialty || '');
             setCoachValue('bio', coachData.bio || '');
             setCoachValue('experience', coachData.experience || '');
-            
-            // Handle specialties - could be string array, JSON string, or null
-            const specialties = coachData.specialties ? (
-              typeof coachData.specialties === 'string' 
-                ? JSON.parse(coachData.specialties)
-                : coachData.specialties
-            ) : [];
-            
-            // Handle certifications/skills - could be string array, JSON string, or null
-            const certifications = coachData.certifications ? (
-              typeof coachData.certifications === 'string'
-                ? JSON.parse(coachData.certifications)
-                : coachData.certifications
-            ) : [];
-            
-            console.log('[DEBUG] Parsed arrays:', {
-              specialties,
-              certifications
-            });
-            
-            setCoachValue('specialties', Array.isArray(specialties) 
-              ? specialties.join(', ')
+            setCoachValue('specialties', Array.isArray(coachData.specialties) 
+              ? coachData.specialties.join(', ')
               : '');
-            setCoachValue('skills', Array.isArray(certifications)
-              ? certifications.join(', ')
+            setCoachValue('skills', Array.isArray(coachData.certifications)
+              ? coachData.certifications.join(', ')
               : '');
           } catch (error) {
             console.error('[COACH_PROFILE_FETCH_ERROR]', error);
@@ -266,7 +246,7 @@ export default function RealtorProfilePage() {
       // Convert comma-separated skills string to array, with type safety
       const skills: string[] = data.skills.split(',').map((s: string) => s.trim()).filter(Boolean)
       
-      const response = await fetch('/api/user/coach', {
+      const response = await fetch('/api/user/coach/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

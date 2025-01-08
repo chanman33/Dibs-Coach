@@ -16,8 +16,8 @@ interface BookingModalProps {
   onClose: () => void
   coachName: string
   coachId: number
-  calendlyUrl: string
-  eventTypeUrl: string
+  calendlyUrl: string | null
+  eventTypeUrl: string | null
 }
 
 export function BookingModal({
@@ -32,7 +32,7 @@ export function BookingModal({
 
   // Load Calendly script and initialize widget
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !calendlyUrl) return;
     setIsLoading(true);
 
     const loadCalendlyScript = () => {
@@ -101,6 +101,10 @@ export function BookingModal({
     
     if (e.data.event === 'calendly.event_scheduled') {
       try {
+        if (!eventTypeUrl) {
+          throw new Error('Booking URL not configured');
+        }
+
         const scheduledTime = e.data.payload.event.start_time;
         const inviteeEmail = e.data.payload.invitee.email;
         const eventUri = e.data.payload.event.uri;

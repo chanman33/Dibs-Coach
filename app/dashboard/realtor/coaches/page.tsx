@@ -13,25 +13,20 @@ interface CoachData {
   userId: string
   name: string
   strength: string
-  imageUrl: string
-  rating: number
-  reviewCount: number
-  bio: string
-  experience: string
-  certifications: string[]
-  availability: string
-  sessionLength: string
+  imageUrl: string | null
+  bio: string | null
+  experience: string | null
+  certifications: string[] | null
+  availability: string | null
+  sessionLength: string | null
   specialties: string[]
-  calendlyUrl: string
-  eventTypeUrl: string
-  rate: number
+  calendlyUrl: string | null
+  eventTypeUrl: string | null
+  rate: number | null
 }
 
 interface RealtorCoachProfile {
   specialty: string
-  imageUrl: string
-  rating: number
-  reviewCount: number
   bio: string
   experience: string
   certifications: string[]
@@ -64,29 +59,51 @@ export default function CoachesPage() {
   useEffect(() => {
     const getCoaches = async () => {
       try {
+        console.log('[DEBUG] Fetching coaches...')
         const { data: coachesData, error } = await fetchCoaches()
         
-        if (error) throw error
+        if (error) {
+          console.error('[FETCH_COACHES_ERROR]', error)
+          throw error
+        }
+
+        console.log('[DEBUG] Raw coaches data:', coachesData)
 
         if (coachesData) {
-          const formattedCoaches: CoachData[] = coachesData.map(coach => ({
-            id: coach.id,
-            userId: coach.userId,
-            name: `${coach.firstName} ${coach.lastName}`,
-            strength: coach.RealtorCoachProfile.specialty,
-            imageUrl: coach.RealtorCoachProfile.imageUrl,
-            rating: coach.RealtorCoachProfile.rating,
-            reviewCount: coach.RealtorCoachProfile.reviewCount,
-            bio: coach.RealtorCoachProfile.bio,
-            experience: coach.RealtorCoachProfile.experience,
-            certifications: coach.RealtorCoachProfile.certifications,
-            availability: coach.RealtorCoachProfile.availability,
-            sessionLength: coach.RealtorCoachProfile.sessionLength,
-            specialties: JSON.parse(coach.RealtorCoachProfile.specialties),
-            calendlyUrl: coach.RealtorCoachProfile.calendlyUrl,
-            eventTypeUrl: coach.RealtorCoachProfile.eventTypeUrl,
-            rate: parseFloat(coach.RealtorCoachProfile.hourlyRate.toString())
-          }))
+          const formattedCoaches: CoachData[] = coachesData.map(coach => {
+            console.log('[DEBUG] Processing coach:', coach.id, {
+              firstName: coach.firstName,
+              lastName: coach.lastName,
+              profile: coach.RealtorCoachProfile
+            })
+
+            // Get the profile data (it comes as an array with one item)
+            const profile = Array.isArray(coach.RealtorCoachProfile) 
+              ? coach.RealtorCoachProfile[0] 
+              : coach.RealtorCoachProfile
+
+            const formattedCoach = {
+              id: coach.id,
+              userId: coach.userId,
+              name: `${coach.firstName || ''} ${coach.lastName || ''}`.trim(),
+              strength: profile?.specialty || 'General Coach',
+              imageUrl: coach.profileImageUrl,
+              bio: profile?.bio,
+              experience: profile?.experience,
+              certifications: profile?.certifications || [],
+              availability: profile?.availability,
+              sessionLength: profile?.sessionLength,
+              specialties: profile?.specialties ? JSON.parse(profile.specialties) : [],
+              calendlyUrl: profile?.calendlyUrl,
+              eventTypeUrl: profile?.eventTypeUrl,
+              rate: profile?.hourlyRate ? parseFloat(profile.hourlyRate.toString()) : null
+            }
+
+            console.log('[DEBUG] Formatted coach data:', formattedCoach)
+            return formattedCoach
+          })
+
+          console.log('[DEBUG] All formatted coaches:', formattedCoaches)
 
           setBookedCoaches(formattedCoaches.slice(0, 2))
           setRecommendedCoaches(formattedCoaches.slice(2))

@@ -8,9 +8,6 @@ import { auth } from '@clerk/nextjs/server'
 
 interface RealtorCoachProfile {
   specialty: string | null
-  imageUrl: string | null
-  rating: number | null
-  reviewCount: number | null
   bio: string | null
   experience: string | null
   certifications: string[] | null
@@ -27,10 +24,12 @@ interface CoachData {
   userId: string
   firstName: string | null
   lastName: string | null
+  profileImageUrl: string | null
   RealtorCoachProfile: RealtorCoachProfile
 }
 
 export async function fetchCoaches() {
+  console.log('[DEBUG] Starting fetchCoaches...')
   const cookieStore = await cookies()
   
   const supabase = createServerClient(
@@ -46,6 +45,7 @@ export async function fetchCoaches() {
   )
 
   try {
+    console.log('[DEBUG] Executing Supabase query...')
     const { data: coachesData, error } = await supabase
       .from('User')
       .select<string, CoachData>(`
@@ -53,11 +53,9 @@ export async function fetchCoaches() {
         userId,
         firstName,
         lastName,
-        RealtorCoachProfile (
+        profileImageUrl,
+        RealtorCoachProfile!inner (
           specialty,
-          imageUrl,
-          rating,
-          reviewCount,
           bio,
           experience,
           certifications,
@@ -73,18 +71,31 @@ export async function fetchCoaches() {
       .not('RealtorCoachProfile', 'is', null)
 
     if (error) {
-      console.error('[FETCH_COACHES_ERROR]', error)
+      console.error('[FETCH_COACHES_ERROR] Database error:', error)
       throw error
     }
 
+    console.log('[DEBUG] Raw coaches data from DB:', JSON.stringify(coachesData, null, 2))
+
     if (!coachesData?.length) {
-      console.log('[FETCH_COACHES_INFO] No coaches found')
+      console.log('[FETCH_COACHES_INFO] No coaches found in database')
       return { data: [], error: null }
     }
 
+    // Log each coach's profile data and image URL
+    coachesData.forEach(coach => {
+      console.log(`[DEBUG] Coach ${coach.id} profile:`, {
+        name: `${coach.firstName} ${coach.lastName}`,
+        hasProfile: !!coach.RealtorCoachProfile,
+        profileData: coach.RealtorCoachProfile,
+        imageUrl: coach.profileImageUrl // This should already be in the correct format from Clerk
+      })
+    })
+
+    // The profileImageUrl from the database should already be in the correct format
     return { data: coachesData, error: null }
   } catch (error) {
-    console.error('[FETCH_COACHES_ERROR]', error)
+    console.error('[FETCH_COACHES_ERROR] Unexpected error:', error)
     return { data: null, error }
   }
 }
@@ -117,11 +128,9 @@ export async function fetchCoachByClerkId(clerkId: string): Promise<{ data: Coac
         userId,
         firstName,
         lastName,
+        profileImageUrl,
         RealtorCoachProfile (
           specialty,
-          imageUrl,
-          rating,
-          reviewCount,
           bio,
           experience,
           certifications,
@@ -369,7 +378,6 @@ export async function GET(req: Request) {
         : []
     };
 
-    console.log('[DEBUG] Found coach profile:', formattedData);
     return NextResponse.json(formattedData || {
       specialty: null,
       bio: null,
@@ -390,4 +398,4 @@ export async function GET(req: Request) {
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-} 
+}

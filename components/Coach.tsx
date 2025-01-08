@@ -9,21 +9,25 @@ interface CoachProps {
   id: number
   name: string
   specialty: string
-  imageUrl: string
+  imageUrl: string | null
   isBooked?: boolean
-  rating: number
-  reviewCount: number
-  calendlyUrl: string
-  rate: number
-  eventTypeUrl: string
+  calendlyUrl: string | null
+  rate: number | null
+  eventTypeUrl: string | null
   onProfileClick: () => void
 }
 
 const DEFAULT_IMAGE_URL = '/placeholder.svg'
 
-export function Coach({ id, name, specialty, imageUrl, isBooked, rating, reviewCount, calendlyUrl, rate, eventTypeUrl, onProfileClick }: CoachProps) {
+const getImageUrl = (url: string | null) => {
+  if (!url) return DEFAULT_IMAGE_URL
+  return url
+}
+
+export function Coach({ id, name, specialty, imageUrl, isBooked, calendlyUrl, rate, eventTypeUrl, onProfileClick }: CoachProps) {
   const [isFavorite, setIsFavorite] = useState(false)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [imgError, setImgError] = useState(false)
 
   const toggleFavorite = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -35,16 +39,19 @@ export function Coach({ id, name, specialty, imageUrl, isBooked, rating, reviewC
     setIsBookingModalOpen(true)
   }
 
+  const finalImageUrl = imgError ? DEFAULT_IMAGE_URL : getImageUrl(imageUrl)
+
   return (
     <>
       <Card className="w-[250px] cursor-pointer" onClick={onProfileClick}>
         <CardContent className="pt-4">
           <div className="aspect-square relative mb-2">
             <Image
-              src={imageUrl || DEFAULT_IMAGE_URL}
+              src={finalImageUrl}
               alt={name}
               fill
               className="object-cover rounded-md"
+              onError={() => setImgError(true)}
             />
             <Button
               variant="ghost"
@@ -58,10 +65,7 @@ export function Coach({ id, name, specialty, imageUrl, isBooked, rating, reviewC
           <h3 className="font-semibold text-lg">{name}</h3>
           <p className="text-sm text-muted-foreground">{specialty}</p>
           <div className="flex items-center mt-2">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className={`h-4 w-4 ${i < Math.round(rating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
-            ))}
-            <span className="ml-2 text-sm text-muted-foreground">({reviewCount})</span>
+            <span className="text-sm text-muted-foreground">{rate ? `$${rate}/hr` : 'Rate not set'}</span>
           </div>
         </CardContent>
         <CardFooter>
@@ -69,8 +73,9 @@ export function Coach({ id, name, specialty, imageUrl, isBooked, rating, reviewC
             className="w-full" 
             variant={isBooked ? "secondary" : "default"}
             onClick={handleBooking}
+            disabled={!calendlyUrl}
           >
-            {isBooked ? "Book Again" : "Book Call"}
+            {isBooked ? "Book Again" : calendlyUrl ? "Book Call" : "Booking Unavailable"}
           </Button>
         </CardFooter>
       </Card>

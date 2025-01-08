@@ -5,22 +5,28 @@ import { Star, Calendar, Clock, Award } from 'lucide-react'
 import Image from "next/image"
 import { BookingModal } from "@/app/dashboard/realtor/coaches/_components/BookingModal"
 
+const DEFAULT_IMAGE_URL = '/placeholder.svg'
+
+const getImageUrl = (url: string | null) => {
+  if (!url) return DEFAULT_IMAGE_URL
+  // No transformation needed, use the URL directly
+  return url
+}
+
 interface Coach {
   id: number
   userId: string
   name: string
   specialty: string
-  imageUrl: string
-  rating: number
-  reviewCount: number
-  bio: string
-  experience: string
-  certifications: string[]
-  availability: string
-  sessionLength: string
+  imageUrl: string | null
+  bio: string | null
+  experience: string | null
+  certifications: string[] | null
+  availability: string | null
+  sessionLength: string | null
   specialties: string[]
-  calendlyUrl: string
-  eventTypeUrl: string
+  calendlyUrl: string | null
+  eventTypeUrl: string | null
 }
 
 interface CoachProfileModalProps {
@@ -31,11 +37,14 @@ interface CoachProfileModalProps {
 
 export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalProps) {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [imgError, setImgError] = useState(false)
 
   const handleBookNowClick = () => {
     setIsBookingModalOpen(true)
     onClose() // Close the profile modal
   }
+
+  const finalImageUrl = imgError ? DEFAULT_IMAGE_URL : getImageUrl(coach.imageUrl)
 
   return (
     <>
@@ -47,22 +56,23 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="flex items-center gap-4">
-              <Image src={coach.imageUrl} alt={coach.name} width={100} height={100} className="rounded-full" />
+              <Image 
+                src={finalImageUrl}
+                alt={coach.name} 
+                width={100} 
+                height={100} 
+                className="rounded-full"
+                onError={() => setImgError(true)}
+              />
               <div>
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className={`h-5 w-5 ${i < Math.round(coach.rating) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} />
-                  ))}
-                  <span className="ml-2 text-sm text-muted-foreground">({coach.reviewCount} reviews)</span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">{coach.experience} of experience</p>
+                <p className="text-sm text-muted-foreground mt-1">{coach.experience || 'Experience information not available'}</p>
               </div>
             </div>
-            <p className="text-sm">{coach.bio}</p>
+            <p className="text-sm">{coach.bio || 'No bio available'}</p>
             <div>
               <h4 className="font-semibold mb-2">Certifications</h4>
               <ul className="list-disc list-inside text-sm">
-                {coach.certifications.map((cert, index) => (
+                {(coach.certifications || []).map((cert, index) => (
                   <li key={index}>{cert}</li>
                 ))}
               </ul>
@@ -83,16 +93,21 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Calendar className="h-4 w-4" />
-              <span>Availability: {coach.availability}</span>
+              <span>Availability: {coach.availability || 'Not specified'}</span>
             </div>
             <div className="flex items-center gap-2 text-sm">
               <Clock className="h-4 w-4" />
-              <span>Session Length: {coach.sessionLength}</span>
+              <span>Session Length: {coach.sessionLength || 'Not specified'}</span>
             </div>
           </div>
           <div className="flex justify-between">
             <Button variant="outline" onClick={onClose}>Close</Button>
-            <Button onClick={handleBookNowClick}>Book Now</Button>
+            <Button 
+              onClick={handleBookNowClick}
+              disabled={!coach.calendlyUrl}
+            >
+              {coach.calendlyUrl ? "Book Now" : "Booking Unavailable"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -32,6 +32,16 @@ const nextConfig: NextConfig = {
       hostname: 'res.cloudinary.com',
       port: '',
       pathname: '/**'
+    }, {
+      protocol: 'https',
+      hostname: 'images.clerk.dev',
+      port: '',
+      pathname: '/**'
+    }, {
+      protocol: 'https',
+      hostname: 'img.clerk.com',
+      port: '',
+      pathname: '/**'
     }]
   }
 };
