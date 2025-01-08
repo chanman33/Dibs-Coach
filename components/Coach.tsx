@@ -19,6 +19,8 @@ interface CoachProps {
   onProfileClick: () => void
 }
 
+const DEFAULT_IMAGE_URL = '/placeholder.svg'
+
 export function Coach({ id, name, specialty, imageUrl, isBooked, rating, reviewCount, calendlyUrl, rate, eventTypeUrl, onProfileClick }: CoachProps) {
   const [isFavorite, setIsFavorite] = useState(false)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
@@ -39,7 +41,7 @@ export function Coach({ id, name, specialty, imageUrl, isBooked, rating, reviewC
         <CardContent className="pt-4">
           <div className="aspect-square relative mb-2">
             <Image
-              src={imageUrl}
+              src={imageUrl || DEFAULT_IMAGE_URL}
               alt={name}
               fill
               className="object-cover rounded-md"
