@@ -10,7 +10,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "seed": "yarn ts-node --transpile-only prisma/seed.ts"
+    "seed": "tsx prisma/seed.ts"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -42,7 +42,7 @@
     "@stripe/stripe-js": "^3.4.0",
     "@supabase/auth-helpers-nextjs": "^0.8.1",
     "@supabase/ssr": "^0.3.0",
-    "@supabase/supabase-js": "^2.43.3",
+    "@supabase/supabase-js": "^2.47.12",
     "@tabler/icons-react": "^2.46.0",
     "@tanstack/react-query": "^5.0.1",
     "@tanstack/react-query-devtools": "^5.0.1",
@@ -92,6 +92,7 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "autoprefixer": "latest",
+    "dotenv": "^16.4.7",
     "eslint": "latest",
     "eslint-config-next": "latest",
     "jest": "^29.7.0",
