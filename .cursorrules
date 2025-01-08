@@ -167,3 +167,58 @@ documentation:
      * @description Type description
      * @property {type} name - Property description
      */ 
+
+# Database Rules
+database:
+  id_conventions:
+    auth:
+      clerk_id: "userId: String (e.g., user_2r0JFaVbINR4TBRNFzcwIsyEXV0)"
+      location: "Only stored in User table"
+    database:
+      internal_id: "id: Int (auto-incrementing)"
+      foreign_key: "userDbId: Int (references User.id)"
+    usage:
+      - "Use userId (string) when querying by Clerk ID in User table only"
+      - "Use id/userDbId (number) for all database relationships"
+      - "Never use Clerk IDs in foreign key relationships"
+
+  relationships:
+    naming:
+      primary_keys: "id: Int @id @default(autoincrement())"
+      foreign_keys: "entityDbId: Int (e.g., userDbId, coachDbId, menteeDbId)"
+      examples:
+        - "userDbId in profile tables"
+        - "coachDbId and menteeDbId in Session"
+        - "payerDbId and payeeDbId in Payment"
+    
+    constraints:
+      - "All foreign keys must reference internal database IDs"
+      - "All foreign keys should have appropriate indexes"
+      - "Use descriptive names for relationship fields"
+      - "Add map parameter for duplicate constraint names"
+
+  required_fields:
+    timestamps:
+      - "createdAt: DateTime @default(now())"
+      - "updatedAt: DateTime @updatedAt"
+    indexes:
+      - "Add @@index([foreignKeyField]) for all foreign keys"
+      - "Add @unique where appropriate for one-to-one relationships"
+
+  best_practices:
+    auth:
+      - "Convert Clerk ID to database ID early in API routes"
+      - "Use database IDs for all internal operations"
+      - "Keep auth logic separate from database logic"
+    
+    naming:
+      - "Use descriptive suffixes: DbId, Id, Code"
+      - "Be explicit about ID types in field names"
+      - "Use consistent naming across related tables"
+
+  migrations:
+    rules:
+      - "Always include both up and down migrations"
+      - "Test migrations on development before production"
+      - "Back up data before running migrations"
+      - "Use descriptive migration names" 

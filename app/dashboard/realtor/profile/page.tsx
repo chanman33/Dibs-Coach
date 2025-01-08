@@ -19,9 +19,6 @@ interface RealtorProfileFormData {
   companyName: string
   licenseNumber: string
   phoneNumber: string
-  bio: string
-  careerStage: string
-  goals: string
   brokerId?: string | null
   teamId?: string | null
 }
@@ -63,7 +60,13 @@ export default function RealtorProfilePage() {
     handleSubmit, 
     setValue,
     formState: { errors }
-  } = useForm<RealtorProfileFormData>()
+  } = useForm<RealtorProfileFormData>({
+    defaultValues: {
+      companyName: '',
+      licenseNumber: '',
+      phoneNumber: ''
+    }
+  })
 
   const {
     register: registerCoach,
@@ -76,24 +79,35 @@ export default function RealtorProfilePage() {
     const fetchData = async () => {
       try {
         setIsLoading(true)
+        console.log('[PROFILE_PAGE] Starting profile fetch')
         const profileResponse = await fetch('/api/user/realtor')
 
         if (!profileResponse.ok) {
           const errorData = await profileResponse.json().catch(() => ({}))
           throw new Error(errorData?.message || 'Failed to fetch profile')
         }
-        const profileData = await profileResponse.json()
-        console.log('[DEBUG] Profile Response:', profileData)
-        console.log('[DEBUG] Current User Clerk ID:', userId)
 
-        // Set form values from flattened response
+        const profileData = await profileResponse.json()
+        console.log('[PROFILE_PAGE] Raw profile data:', profileData)
+
+        // Set form values from response
+        console.log('[PROFILE_PAGE] Setting form values:', {
+          companyName: profileData.companyName,
+          licenseNumber: profileData.licenseNumber,
+          phoneNumber: profileData.phoneNumber
+        })
+
         setValue('companyName', profileData.companyName || '')
         setValue('licenseNumber', profileData.licenseNumber || '')
         setValue('phoneNumber', profileData.phoneNumber || '')
-        setValue('bio', profileData.bio || '')
-        setValue('careerStage', profileData.careerStage || '')
-        setValue('goals', profileData.goals || '')
         setUserRole(profileData.role || 'realtor') // Default to realtor if not specified
+
+        // Verify form values were set
+        console.log('[PROFILE_PAGE] Form values after setting:', {
+          companyName: (document.getElementById('companyName') as HTMLInputElement)?.value,
+          licenseNumber: (document.getElementById('licenseNumber') as HTMLInputElement)?.value,
+          phoneNumber: (document.getElementById('phoneNumber') as HTMLInputElement)?.value
+        })
 
         // Only fetch coach application if user is not already a coach
         if (profileData.role === 'realtor') {
@@ -174,9 +188,8 @@ export default function RealtorProfilePage() {
           companyName: data.companyName || null,
           licenseNumber: data.licenseNumber || null,
           phoneNumber: data.phoneNumber || null,
-          bio: data.bio || null,
-          careerStage: data.careerStage || null,
-          goals: data.goals || null
+          brokerId: data.brokerId || null,
+          teamId: data.teamId || null
         }),
       })
 
@@ -275,6 +288,7 @@ export default function RealtorProfilePage() {
                     id="companyName" 
                     {...register('companyName')}
                     className={errors.companyName ? 'border-red-500' : ''}
+                    onChange={(e) => console.log('Company name changed:', e.target.value)}
                   />
                   {errors.companyName && (
                     <p className="text-sm text-red-500">{errors.companyName.message}</p>
@@ -287,6 +301,7 @@ export default function RealtorProfilePage() {
                     id="licenseNumber" 
                     {...register('licenseNumber', { required: 'License number is required' })}
                     className={errors.licenseNumber ? 'border-red-500' : ''}
+                    onChange={(e) => console.log('License number changed:', e.target.value)}
                   />
                   {errors.licenseNumber && (
                     <p className="text-sm text-red-500">{errors.licenseNumber.message}</p>
@@ -295,29 +310,10 @@ export default function RealtorProfilePage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="phoneNumber">Phone Number</Label>
-                  <Input id="phoneNumber" {...register('phoneNumber')} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="bio">Bio</Label>
-                  <Textarea id="bio" {...register('bio')} />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="careerStage">Career Stage</Label>
                   <Input 
-                    id="careerStage" 
-                    placeholder="e.g., Beginner, Intermediate, Expert"
-                    {...register('careerStage')} 
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="goals">Professional Goals</Label>
-                  <Textarea 
-                    id="goals" 
-                    placeholder="What are your professional goals?"
-                    {...register('goals')} 
+                    id="phoneNumber" 
+                    {...register('phoneNumber')}
+                    onChange={(e) => console.log('Phone number changed:', e.target.value)}
                   />
                 </div>
 

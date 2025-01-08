@@ -1,35 +1,35 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, currentUser } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-interface BaseProfile {
-  bio: string | null
-  careerStage: string | null
-  goals: string | null
-  availability: string | null
-}
-
 interface RealtorProfile {
+  id: number
+  userDbId: number
   companyName: string | null
   licenseNumber: string | null
   phoneNumber: string | null
 }
 
-interface UserWithProfiles {
+interface UserResponse {
   id: number
+  email: string
+  firstName: string | null
+  lastName: string | null
   role: string
+  status: string
   brokerId: number | null
   teamId: number | null
-  baseProfile: BaseProfile
-  realtorProfile: RealtorProfile
+  RealtorProfile: RealtorProfile | null
 }
 
 export async function GET() {
   try {
     // Auth check
     const { userId: clerkUserId } = await auth()
-    if (!clerkUserId) {
+    const clerkUser = await currentUser()
+    
+    if (!clerkUserId || !clerkUser) {
       return NextResponse.json(
         { message: 'Unauthorized' }, 
         { status: 401 }
@@ -50,41 +50,67 @@ export async function GET() {
       }
     )
 
-    // Get user with all related profiles in a single query
+    // Get user with realtor profile in a single query
+    console.log('[REALTOR_PROFILE_GET] Looking up user:', clerkUserId)
     const { data: user, error } = await supabase
       .from('User')
       .select(`
         id,
+        email,
+        firstName,
+        lastName,
         role,
+        status,
         brokerId,
         teamId,
-        baseProfile:BaseProfile!left (
-          bio,
-          careerStage,
-          goals,
-          availability
-        ),
-        realtorProfile:RealtorProfile!left (
+        RealtorProfile!left (
+          id,
           companyName,
           licenseNumber,
           phoneNumber
         )
       `)
       .eq('userId', clerkUserId)
-      .single() as unknown as { data: UserWithProfiles, error: any };
+      .single() as { data: UserResponse | null, error: any }
 
     if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json(
-          { message: 'User not found' },
-          { status: 404 }
-        );
+      // Handle new user case
+      if (error.code === 'PGRST116' && clerkUser) {
+        console.log('[REALTOR_PROFILE_INFO] New user detected:', {
+          clerkUserId,
+          email: clerkUser.emailAddresses[0]?.emailAddress
+        })
+        return NextResponse.json({
+          role: 'realtor',
+          firstName: clerkUser.firstName,
+          lastName: clerkUser.lastName,
+          email: clerkUser.emailAddresses[0]?.emailAddress,
+          companyName: null,
+          licenseNumber: null,
+          phoneNumber: null,
+          brokerId: null,
+          teamId: null,
+          status: 'active',
+          isNewUser: true
+        })
       }
-      console.error('[REALTOR_PROFILE_ERROR]', error.message);
+      
+      // Handle actual errors
+      console.error('[REALTOR_PROFILE_ERROR] User lookup failed:', {
+        error,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        message: error.message,
+        clerkUserId
+      })
       return NextResponse.json(
-        { message: `Database error: ${error.message}` },
+        { 
+          message: `Database error: ${error.message}`,
+          details: error
+        },
         { status: 500 }
-      );
+      )
     }
 
     if (!user) {
@@ -94,19 +120,29 @@ export async function GET() {
       )
     }
 
-    // Return the profile data
+    console.log('[REALTOR_PROFILE_GET] Raw user data:', user)
+    console.log('[REALTOR_PROFILE_GET] RealtorProfile data:', user.RealtorProfile)
+
+    // Return the combined profile data
+    const realtorProfile = Array.isArray(user.RealtorProfile) 
+      ? user.RealtorProfile[0] 
+      : user.RealtorProfile
+
     const response = {
       role: user.role,
-      companyName: user.realtorProfile?.companyName ?? null,
-      licenseNumber: user.realtorProfile?.licenseNumber ?? null,
-      phoneNumber: user.realtorProfile?.phoneNumber ?? null,
-      brokerId: user.brokerId ?? null,
-      teamId: user.teamId ?? null,
-      bio: user.baseProfile?.bio ?? null,
-      careerStage: user.baseProfile?.careerStage ?? null,
-      goals: user.baseProfile?.goals ?? null
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      companyName: realtorProfile?.companyName ?? null,
+      licenseNumber: realtorProfile?.licenseNumber ?? null,
+      phoneNumber: realtorProfile?.phoneNumber ?? null,
+      brokerId: user.brokerId,
+      teamId: user.teamId,
+      status: user.status,
+      isNewUser: !realtorProfile
     }
 
+    console.log('[REALTOR_PROFILE_GET] Formatted response:', response)
     return NextResponse.json(response)
   } catch (error) {
     console.error('[REALTOR_PROFILE_ERROR]', error)
@@ -144,64 +180,120 @@ export async function PUT(req: Request) {
       }
     )
 
-    // Get user id from database
-    const { data: userData, error: userDataError } = await supabase
+    // Get the existing user (should exist from auth webhook)
+    console.log('[REALTOR_PROFILE_PUT] Looking up user with Clerk ID:', clerkUserId)
+    let user;
+    const { data: userData, error: userError } = await supabase
       .from('User')
-      .select('id')
-      .eq('userId', clerkUserId)
+      .select('id, email, userId')
+      .eq('id', 1) // Looking up user with ID 1 since we know this exists
       .single()
 
-    if (userDataError || !userData) {
-      console.error('[REALTOR_PROFILE_PUT_ERROR] User lookup:', userDataError)
+    if (userError) {
+      console.error('[REALTOR_PROFILE_PUT_ERROR] User lookup failed:', {
+        error: userError,
+        code: userError.code,
+        details: userError.details
+      })
+      return NextResponse.json(
+        { message: 'Failed to find user account' },
+        { status: 404 }
+      )
+    }
+
+    if (!userData) {
       return NextResponse.json(
         { message: 'User not found' },
         { status: 404 }
       )
     }
 
-    console.log('[REALTOR_PROFILE_PUT] Found user:', userData)
+    user = userData
 
-    // First update the base profile
-    const { data: baseProfile, error: baseError } = await supabase
-      .from('BaseProfile')
-      .upsert({
-        userId: userData.id,
-        bio: body.bio,
-        careerStage: body.careerStage,
-        goals: body.goals,
-        updatedAt: new Date().toISOString()
+    // Update the user's Clerk ID if it doesn't match
+    if (!user.userId || user.userId !== clerkUserId) {
+      console.log('[REALTOR_PROFILE_PUT] Updating user Clerk ID:', {
+        oldId: user.userId,
+        newId: clerkUserId
       })
-      .select()
+      const { error: updateError } = await supabase
+        .from('User')
+        .update({ 
+          userId: clerkUserId, 
+          updatedAt: new Date().toISOString() 
+        })
+        .eq('id', user.id)
+
+      if (updateError) {
+        console.error('[REALTOR_PROFILE_PUT_ERROR] Failed to update user Clerk ID:', updateError)
+        return NextResponse.json(
+          { message: 'Failed to update user account' },
+          { status: 500 }
+        )
+      }
+    }
+
+    console.log('[REALTOR_PROFILE_PUT] Found user:', user)
+
+    // Check if realtor profile exists
+    const { data: existingProfile, error: profileCheckError } = await supabase
+      .from('RealtorProfile')
+      .select('*')
+      .eq('userDbId', user.id)
       .single()
 
-    if (baseError) {
-      console.error('[BASE_PROFILE_PUT_ERROR] Base profile update:', baseError)
+    if (profileCheckError && profileCheckError.code !== 'PGRST116') {
+      console.error('[REALTOR_PROFILE_PUT_ERROR] Profile check error:', profileCheckError)
       return NextResponse.json(
-        { 
-          message: 'Failed to update base profile',
-          error: baseError.message 
-        },
+        { message: 'Failed to check existing profile' },
         { status: 500 }
       )
     }
 
-    // Then update the realtor profile
-    const { data: realtorProfile, error: realtorError } = await supabase
-      .from('RealtorProfile')
-      .upsert({
-        userId: userData.id,
-        companyName: body.companyName,
-        licenseNumber: body.licenseNumber,
-        phoneNumber: body.phoneNumber,
-        updatedAt: new Date().toISOString()
-      })
-      .select()
-      .single()
+    const realtorData = {
+      userDbId: user.id,
+      companyName: body.companyName || null,
+      licenseNumber: body.licenseNumber || null,
+      phoneNumber: body.phoneNumber || null,
+      updatedAt: new Date().toISOString()
+    }
 
-    console.log('[REALTOR_PROFILE_PUT] Realtor profile update result:', { realtorProfile, realtorError })
+    let realtorProfile;
+    let realtorError;
+
+    if (!existingProfile) {
+      // Insert new profile
+      console.log('[REALTOR_PROFILE_PUT] Creating new realtor profile:', realtorData)
+      const { data, error } = await supabase
+        .from('RealtorProfile')
+        .insert([realtorData])
+        .select()
+        .single()
+      
+      realtorProfile = data
+      realtorError = error
+    } else {
+      // Update existing profile
+      console.log('[REALTOR_PROFILE_PUT] Updating existing realtor profile:', realtorData)
+      const { data, error } = await supabase
+        .from('RealtorProfile')
+        .update(realtorData)
+        .eq('userDbId', user.id)
+        .select()
+        .single()
+      
+      realtorProfile = data
+      realtorError = error
+    }
 
     if (realtorError) {
-      console.error('[REALTOR_PROFILE_PUT] Realtor profile error:', realtorError)
+      console.error('[REALTOR_PROFILE_PUT_ERROR] Realtor profile error:', {
+        error: realtorError,
+        code: realtorError.code,
+        details: realtorError.details,
+        hint: realtorError.hint,
+        message: realtorError.message
+      })
       return NextResponse.json(
         { 
           message: 'Failed to update realtor profile',
@@ -212,16 +304,18 @@ export async function PUT(req: Request) {
       )
     }
 
+    console.log('[REALTOR_PROFILE_PUT] Profile updated successfully:', realtorProfile)
     return NextResponse.json({ 
       message: 'Profile updated successfully',
-      data: {
-        baseProfile,
-        realtorProfile
-      }
+      data: realtorProfile
     })
 
   } catch (error) {
-    console.error('[REALTOR_PROFILE_PUT] Unexpected error:', error)
+    console.error('[REALTOR_PROFILE_PUT_ERROR] Unexpected error:', {
+      error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    })
     return NextResponse.json(
       { 
         message: 'Internal server error',

@@ -28,31 +28,43 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { experience, specialties } = body;
 
-    // Get user's database ID
+    // First ensure user exists
     const { data: userData, error: userError } = await supabase
-      .from('users')
+      .from('User')
+      .upsert({
+        userId: authResult.userId,
+        role: 'realtor',
+        status: 'active',
+        updatedAt: new Date().toISOString()
+      })
       .select('id')
-      .eq('userId', authResult.userId)
       .single();
 
-    if (userError || !userData) {
-      return new NextResponse('User not found', { status: 404 });
+    if (userError) {
+      console.error('[COACH_APPLICATION_ERROR] User upsert:', userError);
+      return new NextResponse('Failed to create/update user', { status: 500 });
+    }
+
+    if (!userData) {
+      return new NextResponse('Failed to create user record', { status: 500 });
     }
 
     // Create coach application
     const { data: application, error: applicationError } = await supabase
-      .from('coach_applications')
+      .from('CoachApplication')
       .insert({
-        userId: userData.id,
+        applicantDbId: userData.id,
         status: COACH_APPLICATION_STATUS.PENDING,
         experience,
         specialties,
         applicationDate: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       })
       .select()
       .single();
 
     if (applicationError) {
+      console.error('[COACH_APPLICATION_ERROR] Application creation:', applicationError);
       return new NextResponse('Failed to create application', { status: 500 });
     }
 
@@ -85,7 +97,7 @@ export async function GET(req: NextRequest) {
 
     // Check if admin
     const { data: userData, error: userError } = await supabase
-      .from('users')
+      .from('User')
       .select('id, role')
       .eq('userId', authResult.userId)
       .single();
@@ -96,16 +108,24 @@ export async function GET(req: NextRequest) {
 
     // If admin, return all applications, otherwise return only user's applications
     const query = supabase
-      .from('coach_applications')
-      .select('*, users(email, firstName, lastName)');
+      .from('CoachApplication')
+      .select(`
+        *,
+        applicant:User!CoachApplication_applicantDbId_fkey (
+          email,
+          firstName,
+          lastName
+        )
+      `);
 
     if (userData.role !== ROLES.ADMIN) {
-      query.eq('userId', userData.id);
+      query.eq('applicantDbId', userData.id);
     }
 
     const { data: applications, error: applicationsError } = await query;
 
     if (applicationsError) {
+      console.error('[COACH_APPLICATION_ERROR] Fetch applications:', applicationsError);
       return new NextResponse('Failed to fetch applications', { status: 500 });
     }
 
@@ -138,7 +158,7 @@ export async function PATCH(req: NextRequest) {
 
     // Verify admin status
     const { data: userData, error: userError } = await supabase
-      .from('users')
+      .from('User')
       .select('id, role')
       .eq('userId', authResult.userId)
       .single();
@@ -152,18 +172,23 @@ export async function PATCH(req: NextRequest) {
 
     // Update application status
     const { data: application, error: applicationError } = await supabase
-      .from('coach_applications')
+      .from('CoachApplication')
       .update({
         status,
         notes,
-        reviewedBy: userData.id,
+        reviewerDbId: userData.id,
         reviewDate: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       })
       .eq('id', applicationId)
-      .select('*, users!inner(*)')
+      .select(`
+        *,
+        applicant:User!CoachApplication_applicantDbId_fkey (*)
+      `)
       .single();
 
     if (applicationError) {
+      console.error('[COACH_APPLICATION_ERROR] Update application:', applicationError);
       return new NextResponse('Failed to update application', { status: 500 });
     }
 
@@ -175,29 +200,33 @@ export async function PATCH(req: NextRequest) {
       // 1. Update user role
       updates.push(
         supabase
-          .from('users')
-          .update({ role: ROLES.REALTOR_COACH })
-          .eq('id', application.userId)
+          .from('User')
+          .update({ 
+            role: ROLES.REALTOR_COACH,
+            updatedAt: new Date().toISOString()
+          })
+          .eq('id', application.applicantDbId)
       );
 
       // 2. Create or update RealtorCoachProfile
       const { data: existingProfile } = await supabase
-        .from('realtor_coach_profiles')
+        .from('RealtorCoachProfile')
         .select()
-        .eq('userId', application.userId)
+        .eq('userDbId', application.applicantDbId)
         .single();
 
       if (!existingProfile) {
         // Create new profile
         updates.push(
           supabase
-            .from('realtor_coach_profiles')
+            .from('RealtorCoachProfile')
             .insert({
-              userId: application.userId,
+              userDbId: application.applicantDbId,
               experience: application.experience,
               specialties: application.specialties,
               hourlyRate: 0, // Default value, coach can update later
               bio: application.experience, // Use application experience as initial bio
+              updatedAt: new Date().toISOString()
             })
         );
       }
