@@ -67,8 +67,8 @@ export async function createBooking(data: BookingData) {
     // Verify coach profile exists
     const { data: coachProfile, error: profileError } = await supabase
       .from('RealtorCoachProfile')
-      .select('userId')
-      .eq('userId', coachData.id)
+      .select('userDbId')
+      .eq('userDbId', coachData.id)
       .single()
 
     if (profileError || !coachProfile) {
@@ -80,8 +80,8 @@ export async function createBooking(data: BookingData) {
     const { error } = await supabase
       .from('Session')
       .insert({
-        coachId: coachData.id,
-        menteeId: menteeData.id,
+        coachDbId: coachData.id,
+        menteeDbId: menteeData.id,
         calendlyEventId: data.eventUri,
         durationMinutes: 60,
         status: 'scheduled',
