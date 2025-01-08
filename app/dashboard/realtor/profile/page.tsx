@@ -335,7 +335,6 @@ export default function RealtorProfilePage() {
                     id="companyName" 
                     {...register('companyName')}
                     className={errors.companyName ? 'border-red-500' : ''}
-                    onChange={(e) => console.log('Company name changed:', e.target.value)}
                   />
                   {errors.companyName && (
                     <p className="text-sm text-red-500">{errors.companyName.message}</p>
@@ -348,7 +347,6 @@ export default function RealtorProfilePage() {
                     id="licenseNumber" 
                     {...register('licenseNumber', { required: 'License number is required' })}
                     className={errors.licenseNumber ? 'border-red-500' : ''}
-                    onChange={(e) => console.log('License number changed:', e.target.value)}
                   />
                   {errors.licenseNumber && (
                     <p className="text-sm text-red-500">{errors.licenseNumber.message}</p>
@@ -360,7 +358,6 @@ export default function RealtorProfilePage() {
                   <Input 
                     id="phoneNumber" 
                     {...register('phoneNumber')}
-                    onChange={(e) => console.log('Phone number changed:', e.target.value)}
                   />
                 </div>
 

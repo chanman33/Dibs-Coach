@@ -187,24 +187,33 @@ export async function PUT(req: Request) {
     const { data: userData, error: userError } = await supabase
       .from('User')
       .select('id, email, userId')
-      .eq('id', 1) // Looking up user with ID 1 since we know this exists
+      .eq('userId', clerkUserId)
       .single()
 
     if (userError) {
       console.error('[REALTOR_PROFILE_PUT_ERROR] User lookup failed:', {
         error: userError,
         code: userError.code,
-        details: userError.details
+        details: userError.details,
+        clerkUserId,
+        message: userError.message
       })
       return NextResponse.json(
-        { message: 'Failed to find user account' },
+        { 
+          message: 'Failed to find user account',
+          details: userError.message 
+        },
         { status: 404 }
       )
     }
 
     if (!userData) {
+      console.error('[REALTOR_PROFILE_PUT_ERROR] No user found for Clerk ID:', clerkUserId)
       return NextResponse.json(
-        { message: 'User not found' },
+        { 
+          message: 'User not found',
+          details: 'No user record exists for this Clerk ID'
+        },
         { status: 404 }
       )
     }
