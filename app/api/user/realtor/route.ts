@@ -129,6 +129,7 @@ export async function GET() {
       : user.RealtorProfile
 
     const response = {
+      id: user.id,
       role: user.role,
       firstName: user.firstName,
       lastName: user.lastName,

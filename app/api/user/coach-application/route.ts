@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
 
     // Let's verify the data exists in the table first
     const { data: countCheck, error: countError } = await supabase
-      .from('coach_application')
+      .from('CoachApplication')
       .select('*', { count: 'exact' });
 
     console.log('[DEBUG] Table count check:', {
@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
     
     // Try the query without the join first
     const { data: rawApplications, error: rawError } = await supabase
-      .from('coach_application')
+      .from('CoachApplication')
       .select('*');
 
     console.log('[DEBUG] Raw applications (no join):', {
@@ -148,10 +148,10 @@ export async function GET(req: NextRequest) {
 
     // Now try with the join
     const { data: applications, error: applicationsError } = await supabase
-      .from('coach_application')
+      .from('CoachApplication')
       .select(`
         *,
-        applicant:user (
+        applicant:User (
           id,
           email,
           firstName,

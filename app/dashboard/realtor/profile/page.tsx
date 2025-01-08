@@ -48,13 +48,39 @@ interface CoachData {
   RealtorCoachProfile: RealtorCoachProfile
 }
 
+interface CoachApplication {
+  id: number;
+  applicantDbId: number;
+  status: string;
+  experience: string;
+  specialties: string[];
+  applicationDate: string;
+  reviewerDbId: number | null;
+  reviewDate: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  applicant: {
+    id: number;
+    email: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+  reviewer: {
+    id: number;
+    email: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+}
+
 export default function RealtorProfilePage() {
   const { userId } = useAuth()
   const [loading, setLoading] = useState(false)
   const [coachLoading, setCoachLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [userRole, setUserRole] = useState<string | null>(null)
-  const [coachApplication, setCoachApplication] = useState<any>(null)
+  const [coachApplication, setCoachApplication] = useState<CoachApplication | null>(null)
   const { 
     register, 
     handleSubmit, 
@@ -79,105 +105,74 @@ export default function RealtorProfilePage() {
     const fetchData = async () => {
       try {
         setIsLoading(true)
-        console.log('[PROFILE_PAGE] Starting profile fetch')
         const profileResponse = await fetch('/api/user/realtor')
-
-        if (!profileResponse.ok) {
-          const errorData = await profileResponse.json().catch(() => ({}))
-          throw new Error(errorData?.message || 'Failed to fetch profile')
-        }
-
         const profileData = await profileResponse.json()
-        console.log('[PROFILE_PAGE] Raw profile data:', profileData)
-
-        // Set form values from response
-        console.log('[PROFILE_PAGE] Setting form values:', {
+        
+        // Populate the form with profile data
+        console.log('[DEBUG] Setting form values:', {
           companyName: profileData.companyName,
           licenseNumber: profileData.licenseNumber,
           phoneNumber: profileData.phoneNumber
-        })
-
-        setValue('companyName', profileData.companyName || '')
-        setValue('licenseNumber', profileData.licenseNumber || '')
-        setValue('phoneNumber', profileData.phoneNumber || '')
-        setUserRole(profileData.role || 'realtor') // Default to realtor if not specified
-
-        // Show coach application for both realtors and admins, but only fetch their own application
-        if (profileData.role === 'realtor' || profileData.role === 'admin') {
-          try {
-            // Force fetch only the current user's application
-            const applicationData = await getCoachApplication();
-            console.log('[DEBUG] Current user coach application:', {
-              userId: profileData.id,
-              applicationData
+        });
+        
+        setValue('companyName', profileData.companyName || '');
+        setValue('licenseNumber', profileData.licenseNumber || '');
+        setValue('phoneNumber', profileData.phoneNumber || '');
+        
+        try {
+          const applicationData = await getCoachApplication();
+          console.log('[DEBUG] All applications:', applicationData);
+          console.log('[DEBUG] Current user:', { 
+            clerkId: userId,
+            dbId: profileData.id,
+            role: profileData.role
+          });
+          
+          // For admin users, we don't want to show any application in their profile
+          if (profileData.role === 'admin') {
+            console.log('[DEBUG] Admin user, setting application to null');
+            setCoachApplication(null);
+          } else {
+            // For non-admin users, find their application
+            console.log('[DEBUG] Looking for application with applicantDbId:', profileData.id);
+            const userApplication = applicationData?.find(
+              (app: CoachApplication) => {
+                console.log('[DEBUG] Comparing application:', {
+                  applicationId: app.applicantDbId,
+                  userId: profileData.id,
+                  matches: app.applicantDbId === profileData.id
+                });
+                return app.applicantDbId === profileData.id;
+              }
+            );
+            
+            console.log('[DEBUG] Application lookup result:', {
+              profileId: profileData.id,
+              foundApplication: !!userApplication,
+              applicationDetails: userApplication
             });
             
-            // Filter to only get the current user's application
-            const userApplication = applicationData?.find(app => app.applicantDbId === profileData.id);
-            setCoachApplication(userApplication);
-          } catch (error) {
-            // Ignore coach application errors
-            console.log('No coach application found for current user');
+            if (userApplication) {
+              console.log('[DEBUG] Setting coach application state:', {
+                ...userApplication,
+                specialties: userApplication.specialties
+              });
+              setCoachApplication(userApplication);
+            }
           }
+        } catch (error) {
+          console.error('[COACH_APPLICATION_ERROR]', error);
         }
 
-        // Only fetch coach profile if user is a coach
-        if (profileData.role === 'realtor_coach' && userId) {
-          try {
-            console.log('[DEBUG] Fetching coach profile for realtor_coach...')
-            console.log('[DEBUG] Current user - Clerk ID:', userId)
-            
-            const { data: coachData, error } = await fetchCoachByClerkId(userId)
-            
-            if (error) {
-              console.error('[DEBUG] API returned error:', error)
-              throw error
-            }
-
-            console.log('[DEBUG] Coach Data:', coachData)
-            
-            if (!coachData) {
-              console.error('[DEBUG] No coach profile found for current user')
-              throw new Error('No coach profile found for current user')
-            }
-
-            const coachProfile = coachData.RealtorCoachProfile
-            console.log('[DEBUG] Current User Coach Profile:', coachProfile)
-            
-            if (!coachProfile) {
-              console.error('[DEBUG] Coach found but no RealtorCoachProfile exists')
-              throw new Error('Coach profile data not found')
-            }
-            
-            // Set coach profile form values
-            setCoachValue('specialty', coachProfile.specialty || '')
-            setCoachValue('bio', coachProfile.bio || '')
-            setCoachValue('experience', coachProfile.experience || '')
-            // Convert array to comma-separated string for the input field
-            setCoachValue('specialties', Array.isArray(coachProfile.specialties) ? coachProfile.specialties.join(', ') : '')
-            setCoachValue('skills', Array.isArray(coachProfile.certifications) ? coachProfile.certifications.join(', ') : '')
-            
-            console.log('[DEBUG] Form values set successfully')
-          } catch (error) {
-            console.error('[COACH_PROFILE_FETCH_ERROR] Detailed error:', {
-              error,
-              message: error instanceof Error ? error.message : 'Unknown error',
-              stack: error instanceof Error ? error.stack : undefined,
-              clerkId: userId
-            })
-            toast.error('Error loading coach profile: ' + 
-              (error instanceof Error ? error.message : 'Unknown error'))
-          }
-        }
+        setUserRole(profileData.role || 'realtor')
       } catch (error) {
         console.error('[PROFILE_FETCH_ERROR]', error)
-        toast.error('Error loading profile data: ' + (error instanceof Error ? error.message : 'Unknown error'))
       } finally {
         setIsLoading(false)
       }
     }
     fetchData()
-  }, [setValue, userId])
+  }, [userId])
 
   const onSubmit = async (data: RealtorProfileFormData) => {
     setLoading(true)
@@ -327,8 +322,58 @@ export default function RealtorProfilePage() {
         </Card>
 
         <div className="space-y-8">
-          {!isLoading && (userRole === 'realtor' || userRole === 'admin') && (
-            <CoachApplicationForm existingApplication={coachApplication} />
+          {!isLoading && (
+            <Card>
+              <CardHeader>
+                <h2 className="text-2xl font-bold">Coach Application</h2>
+              </CardHeader>
+              <CardContent>
+                {coachApplication ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Status</Label>
+                      <p className="mt-1 text-muted-foreground capitalize font-medium">
+                        {coachApplication.status.toLowerCase()}
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Experience</Label>
+                      <p className="mt-1 text-muted-foreground whitespace-pre-wrap">
+                        {coachApplication.experience}
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Specialties</Label>
+                      <p className="mt-1 text-muted-foreground">
+                        {Array.isArray(coachApplication.specialties) 
+                          ? coachApplication.specialties.join(', ')
+                          : 'No specialties listed'}
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Application Date</Label>
+                      <p className="mt-1 text-muted-foreground">
+                        {new Date(coachApplication.applicationDate).toLocaleDateString(undefined, {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                    {coachApplication.notes && (
+                      <div>
+                        <Label>Admin Notes</Label>
+                        <p className="mt-1 text-muted-foreground whitespace-pre-wrap">
+                          {coachApplication.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <CoachApplicationForm />
+                )}
+              </CardContent>
+            </Card>
           )}
 
           {!isLoading && userRole === 'realtor_coach' && (
