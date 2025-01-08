@@ -11,6 +11,9 @@ import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
 import CoachApplicationForm from '@/components/CoachApplicationForm'
 import { getCoachApplication } from '@/utils/actions/coach-application'
+import { fetchCoaches } from '@/app/api/user/coach/route'
+import { useAuth } from '@clerk/nextjs'
+import { fetchCoachByClerkId } from '@/app/api/user/coach/route'
 
 interface RealtorProfileFormData {
   companyName: string
@@ -24,13 +27,32 @@ interface RealtorProfileFormData {
 }
 
 interface CoachProfileFormData {
-  coachBio: string
+  specialty: string
+  bio: string
   experience: string
   specialties: string
-  certification: string
+  skills: string
+}
+
+interface RealtorCoachProfile {
+  id: number
+  specialty: string | null
+  bio: string | null
+  experience: string | null
+  specialties: string[] | null
+  certifications: string[] | null
+}
+
+interface CoachData {
+  id: number
+  userId: string
+  firstName: string | null
+  lastName: string | null
+  RealtorCoachProfile: RealtorCoachProfile
 }
 
 export default function RealtorProfilePage() {
+  const { userId } = useAuth()
   const [loading, setLoading] = useState(false)
   const [coachLoading, setCoachLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -61,6 +83,8 @@ export default function RealtorProfilePage() {
           throw new Error(errorData?.message || 'Failed to fetch profile')
         }
         const profileData = await profileResponse.json()
+        console.log('[DEBUG] Profile Response:', profileData)
+        console.log('[DEBUG] Current User Clerk ID:', userId)
 
         // Set form values from flattened response
         setValue('companyName', profileData.companyName || '')
@@ -83,19 +107,51 @@ export default function RealtorProfilePage() {
         }
 
         // Only fetch coach profile if user is a coach
-        if (profileData.role === 'realtor_coach') {
+        if (profileData.role === 'realtor_coach' && userId) {
           try {
-            const coachResponse = await fetch('/api/user/coach')
-            if (coachResponse.ok) {
-              const coachData = await coachResponse.json()
-              setCoachValue('coachBio', coachData.bio || '')
-              setCoachValue('experience', coachData.experience || '')
-              setCoachValue('specialties', coachData.specialties || '')
-              setCoachValue('certification', coachData.certification || '')
+            console.log('[DEBUG] Fetching coach profile for realtor_coach...')
+            console.log('[DEBUG] Current user - Clerk ID:', userId)
+            
+            const { data: coachData, error } = await fetchCoachByClerkId(userId)
+            
+            if (error) {
+              console.error('[DEBUG] API returned error:', error)
+              throw error
             }
+
+            console.log('[DEBUG] Coach Data:', coachData)
+            
+            if (!coachData) {
+              console.error('[DEBUG] No coach profile found for current user')
+              throw new Error('No coach profile found for current user')
+            }
+
+            const coachProfile = coachData.RealtorCoachProfile
+            console.log('[DEBUG] Current User Coach Profile:', coachProfile)
+            
+            if (!coachProfile) {
+              console.error('[DEBUG] Coach found but no RealtorCoachProfile exists')
+              throw new Error('Coach profile data not found')
+            }
+            
+            // Set coach profile form values
+            setCoachValue('specialty', coachProfile.specialty || '')
+            setCoachValue('bio', coachProfile.bio || '')
+            setCoachValue('experience', coachProfile.experience || '')
+            // Convert array to comma-separated string for the input field
+            setCoachValue('specialties', Array.isArray(coachProfile.specialties) ? coachProfile.specialties.join(', ') : '')
+            setCoachValue('skills', Array.isArray(coachProfile.certifications) ? coachProfile.certifications.join(', ') : '')
+            
+            console.log('[DEBUG] Form values set successfully')
           } catch (error) {
-            console.error('[COACH_PROFILE_FETCH_ERROR]', error)
-            toast.error('Error loading coach profile')
+            console.error('[COACH_PROFILE_FETCH_ERROR] Detailed error:', {
+              error,
+              message: error instanceof Error ? error.message : 'Unknown error',
+              stack: error instanceof Error ? error.stack : undefined,
+              clerkId: userId
+            })
+            toast.error('Error loading coach profile: ' + 
+              (error instanceof Error ? error.message : 'Unknown error'))
           }
         }
       } catch (error) {
@@ -106,7 +162,7 @@ export default function RealtorProfilePage() {
       }
     }
     fetchData()
-  }, [setValue])
+  }, [setValue, userId])
 
   const onSubmit = async (data: RealtorProfileFormData) => {
     setLoading(true)
@@ -145,26 +201,51 @@ export default function RealtorProfilePage() {
   const onCoachSubmit = async (data: CoachProfileFormData) => {
     setCoachLoading(true)
     try {
+      console.log('[DEBUG] Submitting coach profile update:', data)
+      
+      // Convert comma-separated skills string to array, with type safety
+      const skills: string[] = data.skills.split(',').map((s: string) => s.trim()).filter(Boolean)
+      
       const response = await fetch('/api/user/coach', {
-        method: 'PUT',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          bio: data.coachBio || null,
-          experience: data.experience || null,
-          specialties: data.specialties || null,
-          certification: data.certification || null
+          specialty: data.specialty || '',
+          bio: data.bio || '',
+          experience: data.experience || '',
+          specialties: data.specialties.split(',').map((s: string) => s.trim()).filter(Boolean),
+          certifications: skills
         }),
       })
 
+      console.log('[DEBUG] Update Response Status:', response.status)
+      
+      // Log raw response for debugging
+      const rawResponse = await response.text()
+      console.log('[DEBUG] Raw Update Response:', rawResponse)
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || errorData.error || 'Failed to update coach profile')
+        console.error('[DEBUG] Update failed with status:', response.status)
+        throw new Error('Failed to update coach profile: ' + rawResponse)
       }
       
-      const responseData = await response.json()
+      // Try to parse the response
+      let responseData
+      try {
+        responseData = JSON.parse(rawResponse)
+        console.log('[DEBUG] Parsed Update Response:', responseData)
+      } catch (parseError) {
+        console.error('[DEBUG] Failed to parse update response:', parseError)
+        throw new Error('Invalid JSON response from server')
+      }
+      
       toast.success(responseData.message || 'Coach profile updated successfully')
     } catch (error) {
-      console.error('[COACH_PROFILE_UPDATE_ERROR]', error)
+      console.error('[COACH_PROFILE_UPDATE_ERROR] Detailed error:', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      })
       toast.error(error instanceof Error 
         ? `Error updating coach profile: ${error.message}` 
         : 'An unexpected error occurred'
@@ -261,16 +342,23 @@ export default function RealtorProfilePage() {
               <CardContent>
                 <form onSubmit={handleCoachSubmit(onCoachSubmit)} className="space-y-6">
                   <div className="space-y-2">
-                    <Label htmlFor="coachBio">Bio</Label>
-                    <Textarea 
-                      id="coachBio" 
-                      placeholder="Share your background and coaching philosophy"
-                      {...registerCoach('coachBio')}
-                      className={coachErrors.coachBio ? 'border-red-500' : ''}
+                    <Label htmlFor="specialty">Primary Specialty</Label>
+                    <Input
+                      id="specialty"
+                      placeholder="Your main coaching specialty"
+                      {...registerCoach('specialty')}
+                      className={coachErrors.specialty ? 'border-red-500' : ''}
                     />
-                    {coachErrors.coachBio && (
-                      <p className="text-sm text-red-500">{coachErrors.coachBio.message}</p>
-                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Textarea 
+                      id="bio" 
+                      placeholder="Share your background and coaching philosophy"
+                      {...registerCoach('bio')}
+                      className={coachErrors.bio ? 'border-red-500' : ''}
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -281,9 +369,6 @@ export default function RealtorProfilePage() {
                       {...registerCoach('experience')}
                       className={coachErrors.experience ? 'border-red-500' : ''}
                     />
-                    {coachErrors.experience && (
-                      <p className="text-sm text-red-500">{coachErrors.experience.message}</p>
-                    )}
                   </div>
 
                   <div className="space-y-2">
@@ -294,22 +379,16 @@ export default function RealtorProfilePage() {
                       {...registerCoach('specialties')}
                       className={coachErrors.specialties ? 'border-red-500' : ''}
                     />
-                    {coachErrors.specialties && (
-                      <p className="text-sm text-red-500">{coachErrors.specialties.message}</p>
-                    )}
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="certification">Certification</Label>
+                    <Label htmlFor="skills">Skills</Label>
                     <Input 
-                      id="certification" 
-                      placeholder="Enter your coaching certifications"
-                      {...registerCoach('certification')}
-                      className={coachErrors.certification ? 'border-red-500' : ''}
+                      id="skills" 
+                      placeholder="Enter your key skills (comma-separated)"
+                      {...registerCoach('skills')}
+                      className={coachErrors.skills ? 'border-red-500' : ''}
                     />
-                    {coachErrors.certification && (
-                      <p className="text-sm text-red-500">{coachErrors.certification.message}</p>
-                    )}
                   </div>
 
                   <Button type="submit" className="w-full" disabled={coachLoading}>

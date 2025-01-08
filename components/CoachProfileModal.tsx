@@ -70,9 +70,15 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
             <div>
               <h4 className="font-semibold mb-2">Specialties</h4>
               <div className="flex flex-wrap gap-2">
-                {coach.specialties.map((specialty, index) => (
-                  <span key={index} className="bg-primary/10 text-primary text-xs py-1 px-2 rounded-full">{specialty}</span>
-                ))}
+                {Array.isArray(coach.specialties) && coach.specialties.length > 0 ? (
+                  coach.specialties.map((specialty, index) => (
+                    <span key={index} className="bg-primary/10 text-primary text-xs py-1 px-2 rounded-full">
+                      {specialty}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-muted-foreground text-sm">No specialties listed</span>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 text-sm">
