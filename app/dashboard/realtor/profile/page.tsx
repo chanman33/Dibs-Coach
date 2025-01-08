@@ -28,7 +28,7 @@ interface CoachProfileFormData {
   bio: string
   experience: string
   specialties: string
-  skills: string
+  skills: string  // maps to certifications
 }
 
 interface RealtorCoachProfile {
@@ -108,8 +108,8 @@ export default function RealtorProfilePage() {
         const profileResponse = await fetch('/api/user/realtor')
         const profileData = await profileResponse.json()
         
-        // Populate the form with profile data
-        console.log('[DEBUG] Setting form values:', {
+        // Populate the realtor form with profile data
+        console.log('[DEBUG] Setting realtor form values:', {
           companyName: profileData.companyName,
           licenseNumber: profileData.licenseNumber,
           phoneNumber: profileData.phoneNumber
@@ -118,6 +118,57 @@ export default function RealtorProfilePage() {
         setValue('companyName', profileData.companyName || '');
         setValue('licenseNumber', profileData.licenseNumber || '');
         setValue('phoneNumber', profileData.phoneNumber || '');
+        
+        // If user is a coach, fetch their coach profile
+        if (profileData.role === 'realtor_coach') {
+          try {
+            setCoachLoading(true);
+            const coachResponse = await fetch('/api/user/coach');
+            if (!coachResponse.ok) {
+              const errorData = await coachResponse.json();
+              throw new Error(errorData.error || 'Failed to load coach profile');
+            }
+            const coachData = await coachResponse.json();
+            
+            console.log('[DEBUG] Setting coach form values:', coachData);
+            
+            // Populate the coach form
+            setCoachValue('specialty', coachData.specialty || '');
+            setCoachValue('bio', coachData.bio || '');
+            setCoachValue('experience', coachData.experience || '');
+            
+            // Handle specialties - could be string array, JSON string, or null
+            const specialties = coachData.specialties ? (
+              typeof coachData.specialties === 'string' 
+                ? JSON.parse(coachData.specialties)
+                : coachData.specialties
+            ) : [];
+            
+            // Handle certifications/skills - could be string array, JSON string, or null
+            const certifications = coachData.certifications ? (
+              typeof coachData.certifications === 'string'
+                ? JSON.parse(coachData.certifications)
+                : coachData.certifications
+            ) : [];
+            
+            console.log('[DEBUG] Parsed arrays:', {
+              specialties,
+              certifications
+            });
+            
+            setCoachValue('specialties', Array.isArray(specialties) 
+              ? specialties.join(', ')
+              : '');
+            setCoachValue('skills', Array.isArray(certifications)
+              ? certifications.join(', ')
+              : '');
+          } catch (error) {
+            console.error('[COACH_PROFILE_FETCH_ERROR]', error);
+            toast.error(error instanceof Error ? error.message : 'Failed to load coach profile');
+          } finally {
+            setCoachLoading(false);
+          }
+        }
         
         try {
           const applicationData = await getCoachApplication();
@@ -322,10 +373,77 @@ export default function RealtorProfilePage() {
         </Card>
 
         <div className="space-y-8">
+          {!isLoading && userRole === 'realtor_coach' && (
+            <Card>
+              <CardHeader>
+                <h2 className="text-2xl font-bold">Coach Profile</h2>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCoachSubmit(onCoachSubmit)} className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="specialty">Primary Specialty</Label>
+                    <Input
+                      id="specialty"
+                      placeholder="Your main coaching specialty"
+                      {...registerCoach('specialty')}
+                      className={coachErrors.specialty ? 'border-red-500' : ''}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="bio">Bio</Label>
+                    <Textarea 
+                      id="bio" 
+                      placeholder="Share your background and coaching philosophy"
+                      {...registerCoach('bio')}
+                      className={coachErrors.bio ? 'border-red-500' : ''}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="experience">Experience</Label>
+                    <Textarea 
+                      id="experience" 
+                      placeholder="Describe your real estate and coaching experience"
+                      {...registerCoach('experience')}
+                      className={coachErrors.experience ? 'border-red-500' : ''}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="specialties">Specialties</Label>
+                    <Textarea 
+                      id="specialties" 
+                      placeholder="List your coaching specialties (comma-separated)"
+                      {...registerCoach('specialties')}
+                      className={coachErrors.specialties ? 'border-red-500' : ''}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="skills">Certifications & Skills</Label>
+                    <Input 
+                      id="skills" 
+                      placeholder="Enter your certifications (comma-separated)"
+                      {...registerCoach('skills')}
+                      className={coachErrors.skills ? 'border-red-500' : ''}
+                    />
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={coachLoading}>
+                    {coachLoading ? 'Saving...' : 'Save Coach Profile'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+
           {!isLoading && (
             <Card>
               <CardHeader>
-                <h2 className="text-2xl font-bold">Coach Application</h2>
+                <h2 className="text-2xl font-bold">
+                  {coachApplication ? 'Coach Application' : 'Coach Profile'}
+                </h2>
               </CardHeader>
               <CardContent>
                 {coachApplication ? (
@@ -372,71 +490,6 @@ export default function RealtorProfilePage() {
                 ) : (
                   <CoachApplicationForm />
                 )}
-              </CardContent>
-            </Card>
-          )}
-
-          {!isLoading && userRole === 'realtor_coach' && (
-            <Card>
-              <CardHeader>
-                <h2 className="text-2xl font-bold">Coach Profile</h2>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleCoachSubmit(onCoachSubmit)} className="space-y-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="specialty">Primary Specialty</Label>
-                    <Input
-                      id="specialty"
-                      placeholder="Your main coaching specialty"
-                      {...registerCoach('specialty')}
-                      className={coachErrors.specialty ? 'border-red-500' : ''}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="bio">Bio</Label>
-                    <Textarea 
-                      id="bio" 
-                      placeholder="Share your background and coaching philosophy"
-                      {...registerCoach('bio')}
-                      className={coachErrors.bio ? 'border-red-500' : ''}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="experience">Experience</Label>
-                    <Textarea 
-                      id="experience" 
-                      placeholder="Describe your real estate and coaching experience"
-                      {...registerCoach('experience')}
-                      className={coachErrors.experience ? 'border-red-500' : ''}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="specialties">Specialties</Label>
-                    <Textarea 
-                      id="specialties" 
-                      placeholder="List your coaching specialties (e.g., New Agents, Luxury Market, Team Building)"
-                      {...registerCoach('specialties')}
-                      className={coachErrors.specialties ? 'border-red-500' : ''}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="skills">Skills</Label>
-                    <Input 
-                      id="skills" 
-                      placeholder="Enter your key skills (comma-separated)"
-                      {...registerCoach('skills')}
-                      className={coachErrors.skills ? 'border-red-500' : ''}
-                    />
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={coachLoading}>
-                    {coachLoading ? 'Saving...' : 'Save Coach Profile'}
-                  </Button>
-                </form>
               </CardContent>
             </Card>
           )}
