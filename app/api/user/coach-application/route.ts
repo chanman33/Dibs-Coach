@@ -97,37 +97,85 @@ export async function GET(req: NextRequest) {
 
     // Check if admin
     const { data: userData, error: userError } = await supabase
-      .from('User')
+      .from('user')
       .select('id, role')
       .eq('userId', authResult.userId)
       .single();
 
+    console.log('[DEBUG] Auth check:', {
+      clerkUserId: authResult.userId,
+      userData,
+      userError
+    });
+
     if (userError || !userData) {
+      console.error('[COACH_APPLICATION_ERROR] User fetch:', userError);
       return new NextResponse('User not found', { status: 404 });
     }
 
-    // If admin, return all applications, otherwise return only user's applications
-    const query = supabase
-      .from('CoachApplication')
+    console.log('[DEBUG] Detailed role check:', {
+      userRole: userData.role,
+      roleType: typeof userData.role,
+      expectedAdminRole: ROLES.ADMIN,
+      expectedRoleType: typeof ROLES.ADMIN,
+      isExactMatch: userData.role === ROLES.ADMIN,
+      allRoles: ROLES,
+      userData
+    });
+
+    // Let's verify the data exists in the table first
+    const { data: countCheck, error: countError } = await supabase
+      .from('coach_application')
+      .select('*', { count: 'exact' });
+
+    console.log('[DEBUG] Table count check:', {
+      count: countCheck?.length,
+      error: countError
+    });
+
+    // For admin, we want to fetch ALL applications
+    console.log('[DEBUG] Starting query construction');
+    
+    // Try the query without the join first
+    const { data: rawApplications, error: rawError } = await supabase
+      .from('coach_application')
+      .select('*');
+
+    console.log('[DEBUG] Raw applications (no join):', {
+      data: rawApplications,
+      error: rawError
+    });
+
+    // Now try with the join
+    const { data: applications, error: applicationsError } = await supabase
+      .from('coach_application')
       .select(`
         *,
-        applicant:User!CoachApplication_applicantDbId_fkey (
+        applicant:user (
+          id,
           email,
           firstName,
-          lastName
+          lastName,
+          role
         )
       `);
 
-    if (userData.role !== ROLES.ADMIN) {
-      query.eq('applicantDbId', userData.id);
-    }
-
-    const { data: applications, error: applicationsError } = await query;
+    console.log('[DEBUG] Full query result:', { 
+      data: applications, 
+      error: applicationsError,
+      firstApplication: applications?.[0]
+    });
 
     if (applicationsError) {
       console.error('[COACH_APPLICATION_ERROR] Fetch applications:', applicationsError);
       return new NextResponse('Failed to fetch applications', { status: 500 });
     }
+
+    // Log the final response
+    console.log('[DEBUG] Returning applications:', {
+      count: applications?.length,
+      applications: applications
+    });
 
     return NextResponse.json(applications);
   } catch (error) {

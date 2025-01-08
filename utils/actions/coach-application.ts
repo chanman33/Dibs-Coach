@@ -35,34 +35,60 @@ export async function submitCoachApplication(formData: {
   try {
     const supabase = await getSupabaseClient();
 
-    // First ensure user exists
-    const { data: userData, error: userError } = await supabase
+    // First check if user exists
+    const { data: existingUser, error: fetchError } = await supabase
       .from('User')
-      .upsert(
-        {
+      .select('id, role')
+      .eq('userId', clerkUserId)
+      .single();
+
+    let userData;
+
+    if (existingUser) {
+      // Update user while preserving their role
+      const { data: updatedUser, error: updateError } = await supabase
+        .from('User')
+        .update({
+          email: clerkUser.emailAddresses[0]?.emailAddress,
+          firstName: clerkUser.firstName,
+          lastName: clerkUser.lastName,
+          status: 'active',
+          updatedAt: new Date().toISOString()
+        })
+        .eq('userId', clerkUserId)
+        .select('id')
+        .single();
+
+      if (updateError) {
+        console.error('[SUBMIT_COACH_APPLICATION_ERROR] User update:', updateError);
+        throw new Error('Failed to update user');
+      }
+      userData = updatedUser;
+    } else {
+      // Create new user with default realtor role
+      const { data: newUser, error: createError } = await supabase
+        .from('User')
+        .insert({
           userId: clerkUserId,
           email: clerkUser.emailAddresses[0]?.emailAddress,
           firstName: clerkUser.firstName,
           lastName: clerkUser.lastName,
-          role: 'realtor',
+          role: 'realtor', // Only set realtor role for new users
           status: 'active',
           updatedAt: new Date().toISOString()
-        },
-        {
-          onConflict: 'userId',
-          ignoreDuplicates: false
-        }
-      )
-      .select('id')
-      .single();
+        })
+        .select('id')
+        .single();
 
-    if (userError) {
-      console.error('[SUBMIT_COACH_APPLICATION_ERROR] User upsert:', userError);
-      throw new Error('Failed to create/update user');
+      if (createError) {
+        console.error('[SUBMIT_COACH_APPLICATION_ERROR] User creation:', createError);
+        throw new Error('Failed to create user');
+      }
+      userData = newUser;
     }
 
     if (!userData) {
-      throw new Error('Failed to create user record');
+      throw new Error('Failed to create/update user record');
     }
 
     // Create coach application
@@ -103,35 +129,47 @@ export async function getCoachApplication() {
   try {
     const supabase = await getSupabaseClient();
 
-    // First ensure user exists
-    const { data: userData, error: userError } = await supabase
+    // First get the existing user
+    let { data: userData, error: existingUserError } = await supabase
       .from('User')
-      .upsert(
-        {
+      .select('id, role')
+      .eq('userId', clerkUserId)
+      .single();
+
+    if (existingUserError) {
+      console.error('[GET_COACH_APPLICATION_ERROR] User fetch:', existingUserError);
+      return [];
+    }
+
+    // If user doesn't exist, create them
+    if (!userData) {
+      const { data: newUser, error: createError } = await supabase
+        .from('User')
+        .insert({
           userId: clerkUserId,
           email: clerkUser.emailAddresses[0]?.emailAddress,
           firstName: clerkUser.firstName,
           lastName: clerkUser.lastName,
-          role: 'realtor',
+          role: 'realtor', // Default role for new users
           status: 'active',
           updatedAt: new Date().toISOString()
-        },
-        {
-          onConflict: 'userId',
-          ignoreDuplicates: false
-        }
-      )
-      .select('id, role')
-      .single();
+        })
+        .select('id, role')
+        .single();
 
-    if (userError) {
-      console.error('[GET_COACH_APPLICATION_ERROR] User upsert:', userError);
-      return []; // Return empty array instead of throwing error
+      if (createError || !newUser) {
+        console.error('[GET_COACH_APPLICATION_ERROR] User creation:', createError);
+        return [];
+      }
+
+      userData = newUser;
     }
 
-    if (!userData) {
-      return []; // Return empty array if no user
-    }
+    console.log('[DEBUG] User role check in getCoachApplication:', {
+      userId: userData.id,
+      role: userData.role,
+      isAdmin: userData.role === 'admin'
+    });
 
     // If admin, return all applications, otherwise return only user's applications
     const query = supabase
@@ -158,13 +196,20 @@ export async function getCoachApplication() {
 
     if (applicationsError) {
       console.error('[GET_COACH_APPLICATION_ERROR] Query error:', applicationsError);
-      return []; // Return empty array instead of throwing error
+      return [];
     }
 
-    return applications || []; // Ensure we always return an array
+    console.log('[DEBUG] Applications query result:', {
+      userRole: userData.role,
+      isAdmin: userData.role === 'admin',
+      applicationCount: applications?.length,
+      applications
+    });
+
+    return applications || [];
   } catch (error) {
     console.error('[GET_COACH_APPLICATION_ERROR]', error);
-    return []; // Return empty array for any other errors
+    return [];
   }
 }
 

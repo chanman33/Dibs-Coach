@@ -19,7 +19,13 @@ export default function CoachApplicationsPage() {
   useEffect(() => {
     const fetchApplications = async () => {
       try {
+        console.log('[DEBUG] Fetching applications...');
         const data = await getCoachApplication();
+        console.log('[DEBUG] Received applications:', {
+          data,
+          count: data?.length,
+          firstApp: data?.[0]
+        });
         setApplications(data);
       } catch (error) {
         console.error('[FETCH_APPLICATIONS_ERROR]', error);
@@ -84,7 +90,7 @@ export default function CoachApplicationsPage() {
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <h2 className="text-2xl font-bold">
-                    {application.user.firstName} {application.user.lastName}
+                    {application.applicant.firstName} {application.applicant.lastName}
                   </h2>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium ${
                     application.status === COACH_APPLICATION_STATUS.PENDING
@@ -96,7 +102,7 @@ export default function CoachApplicationsPage() {
                     {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                   </span>
                 </div>
-                <p className="text-gray-500">{application.user.email}</p>
+                <p className="text-gray-500">{application.applicant.email}</p>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div>

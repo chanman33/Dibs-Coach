@@ -102,21 +102,22 @@ export default function RealtorProfilePage() {
         setValue('phoneNumber', profileData.phoneNumber || '')
         setUserRole(profileData.role || 'realtor') // Default to realtor if not specified
 
-        // Verify form values were set
-        console.log('[PROFILE_PAGE] Form values after setting:', {
-          companyName: (document.getElementById('companyName') as HTMLInputElement)?.value,
-          licenseNumber: (document.getElementById('licenseNumber') as HTMLInputElement)?.value,
-          phoneNumber: (document.getElementById('phoneNumber') as HTMLInputElement)?.value
-        })
-
-        // Only fetch coach application if user is not already a coach
-        if (profileData.role === 'realtor') {
+        // Show coach application for both realtors and admins, but only fetch their own application
+        if (profileData.role === 'realtor' || profileData.role === 'admin') {
           try {
-            const applicationData = await getCoachApplication()
-            setCoachApplication(applicationData?.[0]) // Get the first application if exists
+            // Force fetch only the current user's application
+            const applicationData = await getCoachApplication();
+            console.log('[DEBUG] Current user coach application:', {
+              userId: profileData.id,
+              applicationData
+            });
+            
+            // Filter to only get the current user's application
+            const userApplication = applicationData?.find(app => app.applicantDbId === profileData.id);
+            setCoachApplication(userApplication);
           } catch (error) {
-            // Ignore coach application errors for non-coaches
-            console.log('No coach application found')
+            // Ignore coach application errors
+            console.log('No coach application found for current user');
           }
         }
 
@@ -326,7 +327,7 @@ export default function RealtorProfilePage() {
         </Card>
 
         <div className="space-y-8">
-          {!isLoading && userRole === 'realtor' && (
+          {!isLoading && (userRole === 'realtor' || userRole === 'admin') && (
             <CoachApplicationForm existingApplication={coachApplication} />
           )}
 
