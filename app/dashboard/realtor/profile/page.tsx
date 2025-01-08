@@ -207,7 +207,7 @@ export default function RealtorProfilePage() {
       const skills: string[] = data.skills.split(',').map((s: string) => s.trim()).filter(Boolean)
       
       const response = await fetch('/api/user/coach', {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           specialty: data.specialty || '',

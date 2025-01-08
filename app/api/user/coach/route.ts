@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 
 interface RealtorCoachProfile {
   specialty: string | null
@@ -155,5 +156,71 @@ export async function fetchCoachByClerkId(clerkId: string): Promise<{ data: Coac
   } catch (error) {
     console.error('[FETCH_COACH_ERROR]', error)
     return { data: null, error }
+  }
+}
+
+export async function PUT(request: Request) {
+  const cookieStore = await cookies()
+  const { userId } = await auth()
+
+  if (!userId) {
+    return new NextResponse('Unauthorized', { status: 401 })
+  }
+
+  const supabase = createServerClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
+    }
+  )
+
+  try {
+    const data = await request.json()
+    console.log('[DEBUG] Updating coach profile with data:', data)
+
+    // First, get the user's database ID using their Clerk ID
+    const { data: userData, error: userError } = await supabase
+      .from('User')
+      .select('id')
+      .eq('userId', userId)
+      .single()
+
+    if (userError || !userData) {
+      console.error('[UPDATE_COACH_ERROR] User not found:', userError)
+      return new NextResponse('User not found', { status: 404 })
+    }
+
+    // Update the RealtorCoachProfile
+    const { data: updatedProfile, error: updateError } = await supabase
+      .from('RealtorCoachProfile')
+      .update({
+        specialty: data.specialty || null,
+        bio: data.bio || null,
+        experience: data.experience || null,
+        specialties: data.specialties || null,
+        certifications: data.certifications || null,
+        updatedAt: new Date().toISOString()
+      })
+      .eq('userId', userData.id)
+      .select()
+
+    if (updateError) {
+      console.error('[UPDATE_COACH_ERROR]', updateError)
+      return new NextResponse('Failed to update coach profile', { status: 500 })
+    }
+
+    return NextResponse.json({ 
+      message: 'Coach profile updated successfully',
+      data: updatedProfile 
+    })
+
+  } catch (error) {
+    console.error('[UPDATE_COACH_ERROR]', error)
+    return new NextResponse('Internal Server Error', { status: 500 })
   }
 } 
