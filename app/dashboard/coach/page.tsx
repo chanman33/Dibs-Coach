@@ -137,4 +137,4 @@ function CoachDashboard() {
   )
 }
 
-export default withRole(CoachDashboard, [ROLES.COACH])
+export default withRole(CoachDashboard, [ROLES.REALTOR_COACH])
