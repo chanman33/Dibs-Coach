@@ -146,7 +146,13 @@ export default function Pricing() {
   const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null)
 
   useEffect(() => {
-    setStripePromise(loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY!))
+    const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY;
+    if (!stripeKey) {
+      console.error('Stripe public key is missing');
+      toast.error('Payment system configuration error');
+      return;
+    }
+    setStripePromise(loadStripe(stripeKey));
   }, [])
 
   const handleCheckout = async (priceId: string, subscription: boolean) => {
