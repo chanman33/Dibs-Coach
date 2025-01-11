@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { generateVideoToken } from '@/utils/zoom-token';
+import { generateZoomSignature } from '@/utils/zoom-token';
 
 export async function GET() {
   try {
@@ -26,7 +26,7 @@ export async function GET() {
     const sessionPasscode = Math.random().toString(36).slice(-8); // Generate random passcode
 
     // Generate the token on the server side
-    const token = await generateVideoToken(sessionName);
+    const token = await generateZoomSignature(sessionName, 1); // 1 for host role
 
     return NextResponse.json({
       success: true,
@@ -34,7 +34,7 @@ export async function GET() {
         sessionName,
         sessionPasscode,
         userName: userId, // You might want to fetch the actual user name from your database
-        token, // Include the token in the response
+        token,
       }
     });
   } catch (error) {
