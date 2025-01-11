@@ -3339,6 +3339,16 @@
     loupe "^3.1.2"
     tinyrainbow "^1.2.0"
 
+"@zoom/videosdk-ui-toolkit@^1.12.1-1":
+  version "1.12.1-1"
+  resolved "https://registry.yarnpkg.com/@zoom/videosdk-ui-toolkit/-/videosdk-ui-toolkit-1.12.1-1.tgz#ebca023669c68b075505bdc650c27fb265a06d7f"
+  integrity sha512-6C5EnC62cn5zSK5QoTr46BilKDaitaOq02vX3M3a5nVaJiMobSGFOUywSA1IDTwtdKMRnx5u6QY+maBgV7pMQw==
+
+"@zoom/videosdk@2.1.0":
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/@zoom/videosdk/-/videosdk-2.1.0.tgz#eaaa34bf3f5f95aa2d70ced504cf3a1e78850a91"
+  integrity sha512-yN1P1UxC40UocUO7LV20OF/9NxIUlMyfCKtjqAdCJ1LeDSoQi4X2GtAlXlZLf1Pm7hA5cHTgTD+OVXMufVx7+w==
+
 JSONStream@^1.3.5:
   version "1.3.5"
   resolved "https://registry.yarnpkg.com/JSONStream/-/JSONStream-1.3.5.tgz#3208c1f08d3a4d99261ab64f92302bc15e111ca0"
