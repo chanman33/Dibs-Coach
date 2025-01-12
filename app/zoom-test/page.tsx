@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { getZoomToken } from '@/utils/zoom-token';
 import { Button } from '@/components/ui/button';
@@ -63,6 +63,11 @@ export default function ZoomTestPage() {
     const [stream, setStream] = useState<any>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [currentCameraIndex, setCurrentCameraIndex] = useState(0);
+    const [isVideoMuted, setIsVideoMuted] = useState(false);
+    const [isAudioMuted, setIsAudioMuted] = useState(true);
+    const videoContainerRef = useRef<HTMLDivElement | null>(null);
+    const [awaitingVerification, setAwaitingVerification] = useState<string | null>(null);
+    const [verificationResolver, setVerificationResolver] = useState<((value: boolean) => void) | null>(null);
 
     // Test Cases
     const getTestCases = (sdk: any): TestCase[] => [
@@ -109,213 +114,213 @@ export default function ZoomTestPage() {
                     token
                 });
 
-                await sdk.startVideo(stream);
-                const videoStatus = await stream.isCapturingVideo();
-                if (!videoStatus) throw new Error('Failed to initialize video stream');
+                try {
+                    // Create proper container structure
+                    const container = document.createElement('div');
+                    container.className = 'video-list';
+                    container.style.width = '100%';
+                    container.style.height = '100%';
+                    document.body.appendChild(container);
 
-                // Clean up
-                await sdk.stopVideo(stream);
-                await sdk.leaveSession(client);
-                return stream;
+                    // Start video
+                    await stream.startVideo();
+                    const currentUser = client.getCurrentUserInfo();
+                    
+                    // Create video cell structure
+                    const listItem = document.createElement('div');
+                    listItem.style.width = '100%';
+                    listItem.style.height = '100%';
+                    listItem.style.minHeight = '300px';
+                    
+                    const videoCell = document.createElement('video-player-container');
+                    videoCell.className = 'video-cell';
+                    videoCell.style.width = '100%';
+                    videoCell.style.height = '100%';
+                    
+                    // Attach video
+                    const videoElement = await stream.attachVideo(currentUser.userId, { width: 1280, height: 720 });
+                    if (!videoElement) throw new Error('Failed to create video element');
+                    
+                    // Verify video element structure
+                    if (!(videoElement instanceof Element)) {
+                        throw new Error('Video element not created correctly');
+                    }
+                    
+                    if (videoElement.tagName.toLowerCase() !== 'video-player') {
+                        throw new Error('Incorrect video element type: ' + videoElement.tagName);
+                    }
+                    
+                    // Assemble structure
+                    videoCell.appendChild(videoElement);
+                    listItem.appendChild(videoCell);
+                    container.appendChild(listItem);
+                    
+                    // Wait for video to initialize
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // Verify video is capturing
+                    const isCapturing = await stream.isCapturingVideo();
+                    if (!isCapturing) {
+                        throw new Error('Video is not capturing after initialization');
+                    }
+                    
+                    // Verify DOM structure
+                    const finalStructure = container.querySelector('video-player-container > video-player');
+                    if (!finalStructure) {
+                        throw new Error('Invalid video element structure');
+                    }
+
+                    // Clean up
+                    await stream.stopVideo();
+                    await sdk.leaveSession(client);
+                    container.remove();
+                    
+                    return true;
+                } catch (error) {
+                    // Clean up on error
+                    try {
+                        await stream.stopVideo();
+                    } catch {}
+                    await sdk.leaveSession(client);
+                    const container = document.querySelector('.video-list');
+                    if (container) container.remove();
+                    throw error;
+                }
             }
         },
         {
-            name: 'Video Attachment Test',
+            name: 'Video Attachment Structure',
             test: async () => {
-                const sessionName = 'test-session-video-attach-' + Date.now();
+                const sessionName = 'test-session-structure-' + Date.now();
                 const token = await getZoomToken(sessionName);
 
-                let client, stream;
+                const { client, stream } = await sdk.joinZoomSession({
+                    sessionName,
+                    userName: 'Structure Test User',
+                    sessionPasscode: 'test123',
+                    token
+                });
+
                 try {
-                    console.log('Starting Video Attachment Test...');
+                    // Create container structure exactly like manual test
+                    const mainContainer = document.createElement('div');
+                    mainContainer.className = 'mt-4';
+                    mainContainer.style.marginBottom = '400px'; // Space for the modal below
 
-                    // Join session
-                    const session = await sdk.joinZoomSession({
-                        sessionName,
-                        userName: 'Video Attachment Test',
-                        sessionPasscode: 'test123',
-                        token
-                    });
-                    client = session.client;
-                    stream = session.stream;
-                    console.log('Session joined successfully');
+                    const videoContainer = document.createElement('div');
+                    videoContainer.className = 'video-player-container';
+                    videoContainer.style.minHeight = '700px';
+                    videoContainer.style.border = '1px solid var(--border-color)';
+                    videoContainer.style.borderRadius = '5px';
+                    videoContainer.style.padding = '0.5rem';
+                    videoContainer.style.position = 'relative';
+                    videoContainer.style.display = 'block';
+                    videoContainer.style.backgroundColor = '#f0f0f0';
 
-                    // Create video container elements
-                    const videoContainer = document.createElement('video-player-container');
-                    videoContainer.id = 'test-video-container';
-                    videoContainer.style.width = '100%';
-                    videoContainer.style.height = '360px';
+                    const focusedWrapper = document.createElement('div');
+                    focusedWrapper.className = 'focused-users-wrapper';
+                    focusedWrapper.style.height = '100%';
 
-                    const videoPlayerElement = document.createElement('video-player');
-                    videoPlayerElement.id = 'test-video';
-                    videoPlayerElement.style.width = '100%';
-                    videoPlayerElement.style.height = 'auto';
-                    videoPlayerElement.style.aspectRatio = '16/9';
+                    const videoList = document.createElement('ul');
+                    videoList.className = 'video-list';
+                    videoList.style.display = 'grid';
+                    videoList.style.gridTemplateColumns = 'repeat(2, 1fr)';
+                    videoList.style.gap = '16px';
+                    videoList.style.padding = '0';
+                    videoList.style.margin = '0';
+                    videoList.style.listStyle = 'none';
+                    videoList.style.height = '100%';
+                    videoList.style.minHeight = '600px';
 
-                    // Append elements
-                    videoContainer.appendChild(videoPlayerElement);
-                    document.body.appendChild(videoContainer);
-
-                    console.log('Video elements created with dimensions:', {
-                        containerWidth: videoContainer.style.width,
-                        containerHeight: videoContainer.style.height,
-                        playerWidth: videoPlayerElement.style.width,
-                        playerAspectRatio: videoPlayerElement.style.aspectRatio
-                    });
+                    // Assemble container structure
+                    focusedWrapper.appendChild(videoList);
+                    videoContainer.appendChild(focusedWrapper);
+                    mainContainer.appendChild(videoContainer);
+                    document.body.appendChild(mainContainer);
 
                     // Start video
-                    console.log('Starting video stream...');
-                    await sdk.startVideo(stream);
-                    console.log('Video stream started');
+                    await stream.startVideo();
+                    const currentUser = client.getCurrentUserInfo();
 
-                    // Wait for video to initialize
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    // Create video element structure exactly like manual test
+                    const listItem = document.createElement('div');
+                    listItem.style.width = '100%';
+                    listItem.style.height = '100%';
+                    listItem.style.minHeight = '300px';
+                    
+                    const videoCell = document.createElement('video-player-container');
+                    videoCell.className = 'video-cell';
+                    videoCell.style.width = '100%';
+                    videoCell.style.height = '100%';
+                    videoCell.style.position = 'relative';
+                    videoCell.style.display = 'flex';
+                    videoCell.style.flexDirection = 'column';
+                    
+                    // Create username span
+                    const userName = document.createElement('span');
+                    userName.className = 'user-name';
+                    userName.textContent = client?.getCurrentUserInfo()?.userName || 'User';
+                    userName.style.position = 'absolute';
+                    userName.style.bottom = '8px';
+                    userName.style.left = '8px';
+                    userName.style.color = 'white';
+                    userName.style.zIndex = '1';
+                    userName.style.padding = '4px 8px';
+                    userName.style.borderRadius = '4px';
+                    userName.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
 
-                    // Verify video is capturing and sending
-                    const isCapturing = await stream.isCapturingVideo();
-                    console.log('Video capture state:', { isCapturing });
-                    if (!isCapturing) {
-                        throw new Error('Video is not capturing');
+                    // Attach video
+                    const videoElement = await stream.attachVideo(currentUser.userId, { width: 1280, height: 720 });
+                    if (!videoElement) throw new Error('Failed to create video element');
+
+                    // Verify video element
+                    if (!(videoElement instanceof Element)) {
+                        throw new Error('Video element not created correctly');
+                    }
+                    
+                    if (videoElement.tagName.toLowerCase() !== 'video-player') {
+                        throw new Error('Incorrect video element type: ' + videoElement.tagName);
                     }
 
-                    // Wait for video to start sending (up to 10 seconds)
-                    console.log('Waiting for video to stabilize...');
-                    let isStable = false;
-                    for (let i = 0; i < 10; i++) {
-                        try {
-                            // Check if video is ready
-                            const isCapturing = await stream.isCapturingVideo();
-                            console.log(`Video status check ${i + 1}:`, { isCapturing });
+                    // Style video element
+                    (videoElement as HTMLElement).style.width = '100%';
+                    (videoElement as HTMLElement).style.height = '100%';
+                    (videoElement as HTMLElement).style.objectFit = 'cover';
 
-                            if (isCapturing) {
-                                // Wait a bit to ensure video is stable
-                                await new Promise(resolve => setTimeout(resolve, 500));
-                                const isStillCapturing = await stream.isCapturingVideo();
+                    // Assemble video structure
+                    videoCell.appendChild(videoElement);
+                    videoCell.appendChild(userName);
+                    listItem.appendChild(videoCell);
+                    videoList.appendChild(listItem);
 
-                                if (isStillCapturing) {
-                                    isStable = true;
-                                    break;
-                                }
-                            }
+                    // Wait for user verification
+                    setAwaitingVerification('Video Attachment Structure');
+                    const isVideoWorking = await new Promise<boolean>((resolve) => {
+                        setVerificationResolver(() => resolve);
+                    });
+                    setAwaitingVerification(null);
+                    setVerificationResolver(null);
 
-                            // Wait before next check
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        } catch (error) {
-                            console.error('Error checking video status:', error);
-                        }
+                    if (!isVideoWorking) {
+                        throw new Error('User reported video not functioning correctly');
                     }
-
-                    if (!isStable) {
-                        throw new Error('Video failed to stabilize after 10 seconds');
-                    }
-
-                    console.log('Video is now stable, proceeding with attachment...');
-
-                    // Get session info
-                    const sessionInfo = client.getSessionInfo();
-                    console.log('Session info:', sessionInfo);
-                    if (!sessionInfo?.userId) {
-                        throw new Error('Failed to get session info');
-                    }
-
-                    // Test attachment with retry mechanism
-                    console.log('Attempting video attachment...');
-                    let attachError;
-                    for (let attempt = 1; attempt <= 3; attempt++) {
-                        try {
-                            console.log(`Video attachment attempt ${attempt}...`);
-
-                            // Get current user info
-                            const currentUser = client.getCurrentUserInfo();
-                            console.log('Current user info:', currentUser);
-
-                            // Attach video using documented method
-                            console.log('Attaching video for user:', currentUser.userId);
-                            const RESOLUTION: { width: number; height: number } = { width: 1280, height: 720 };
-                            const userVideo = await stream.attachVideo(currentUser.userId, RESOLUTION);
-
-                            // Clear existing content and append the new video element
-                            const existingPlayer = document.getElementById('test-video');
-                            if (existingPlayer) {
-                                existingPlayer.innerHTML = '';
-                                existingPlayer.appendChild(userVideo);
-                            }
-
-                            console.log(`Video attached successfully on attempt ${attempt}`);
-                            attachError = null;
-                            break;
-                        } catch (error: any) {
-                            console.error(`Attachment attempt ${attempt} failed:`, {
-                                error,
-                                message: error?.message,
-                                type: error?.type,
-                                reason: error?.reason
-                            });
-                            attachError = error;
-                            if (attempt < 3) {
-                                await new Promise(resolve => setTimeout(resolve, 1000));
-                            }
-                        }
-                    }
-
-                    if (attachError) {
-                        throw new Error(`Video attachment failed after 3 attempts: ${attachError?.message || 'Unknown error'}`);
-                    }
-
-                    // Wait longer to ensure attachment is stable
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-
-                    // Test detachment
-                    console.log('Attempting video detachment...');
-                    const playerToDetach = document.getElementById('test-video');
-                    if (playerToDetach) {
-                        playerToDetach.innerHTML = '';
-                    }
-                    console.log('Video detached successfully');
 
                     // Clean up
-                    console.log('Starting cleanup...');
-                    const containerToRemove = document.getElementById('test-video-container');
-                    if (containerToRemove) {
-                        document.body.removeChild(containerToRemove);
-                    }
-                    await sdk.stopVideo(stream);
+                    await stream.stopVideo();
                     await sdk.leaveSession(client);
-                    console.log('Cleanup completed');
-
+                    mainContainer.remove();
+                    
                     return true;
-                } catch (error: any) {
-                    console.error('Video attachment test error details:', {
-                        error,
-                        errorMessage: error?.message,
-                        errorStack: error?.stack,
-                        errorType: error?.type,
-                        errorReason: error?.reason,
-                        streamState: stream ? 'exists' : 'null',
-                        clientState: client ? 'exists' : 'null'
-                    });
-
+                } catch (error) {
                     // Clean up on error
                     try {
-                        console.log('Starting error cleanup...');
-                        const testVideo = document.getElementById('test-video');
-                        if (testVideo) {
-                            document.body.removeChild(testVideo);
-                            console.log('Video element removed');
-                        }
-                        if (stream) {
-                            await sdk.stopVideo(stream);
-                            console.log('Video stopped');
-                        }
-                        if (client) {
-                            await sdk.leaveSession(client);
-                            console.log('Session left');
-                        }
-                        console.log('Error cleanup completed');
-                    } catch (cleanupError: any) {
-                        console.error('Cleanup after error failed:', cleanupError);
-                    }
-
+                        await stream.stopVideo();
+                    } catch {}
+                    await sdk.leaveSession(client);
+                    const container = document.querySelector('.mt-4');
+                    if (container) container.remove();
+                    setAwaitingVerification(null);
+                    setVerificationResolver(null);
                     throw error;
                 }
             }
@@ -615,49 +620,86 @@ export default function ZoomTestPage() {
                     token
                 });
 
-                // Log session info after connection
-                const sessionInfo = newClient.getSessionInfo();
-                console.log('Manual Test Session Info:', sessionInfo);
-
-                // Check for multiple video support
-                const supportsMultipleVideos = await newStream.isSupportMultipleVideos();
-                console.log('Supports multiple videos:', supportsMultipleVideos);
+                // Initialize audio/video state
+                setIsVideoMuted(!newClient.getCurrentUserInfo()?.bVideoOn);
+                setIsAudioMuted(newClient.getCurrentUserInfo()?.muted ?? true);
 
                 // Add event listener for peer video state changes
                 newClient.on('peer-video-state-change', async (payload: any) => {
                     console.log('Peer video state change:', payload);
-                    const container = document.querySelector('video-player-container');
-                    if (!container) return;
-
-                    if (payload.action === 'Start') {
-                        // A user turned on their video, render it
-                        const userVideo = await newStream.attachVideo(payload.userId, { width: 1280, height: 720 });
-                        container.appendChild(userVideo);
-                    } else if (payload.action === 'Stop') {
-                        // A user turned off their video, stop rendering it
-                        await newStream.detachVideo(payload.userId);
-                    }
+                    await renderVideo(newStream, payload);
                 });
-
-                // Check for existing participants with video on
-                const users = newClient.getAllUser();
-                console.log('Existing users:', users);
-                
-                const container = document.querySelector('video-player-container');
-                if (container) {
-                    for (const user of users) {
-                        if (user.bVideoOn) {
-                            const userVideo = await newStream.attachVideo(user.userId, { width: 1280, height: 720 });
-                            container.appendChild(userVideo);
-                        }
-                    }
-                }
 
                 setClient(newClient);
                 setStream(newStream);
                 setIsConnected(true);
             } catch (error: any) {
                 console.error('Connection failed:', error?.message || 'Unknown error');
+            }
+        };
+
+        const renderVideo = async (mediaStream: any, event: { action: 'Start' | 'Stop'; userId: number }) => {
+            const container = document.querySelector('.video-list');
+            if (!container) return;
+
+            if (event.action === 'Stop') {
+                // Remove the entire video cell for this user
+                const videoCell = document.querySelector(`[data-userid="${event.userId}"]`)?.closest('.video-cell');
+                if (videoCell) {
+                    videoCell.remove();
+                }
+                await mediaStream.detachVideo(event.userId);
+            } else {
+                try {
+                    // Create the list item wrapper
+                    const listItem = document.createElement('div');
+                    listItem.style.width = '100%';
+                    listItem.style.height = '100%';
+                    listItem.style.minHeight = '300px';
+                    
+                    // Create video cell container
+                    const videoCell = document.createElement('video-player-container');
+                    videoCell.className = 'video-cell';
+                    videoCell.style.width = '100%';
+                    videoCell.style.height = '100%';
+                    videoCell.style.position = 'relative';
+                    videoCell.style.display = 'flex';
+                    videoCell.style.flexDirection = 'column';
+                    
+                    // Create username span
+                    const userName = document.createElement('span');
+                    userName.className = 'user-name';
+                    userName.textContent = client?.getCurrentUserInfo()?.userName || 'User';
+                    userName.style.position = 'absolute';
+                    userName.style.bottom = '8px';
+                    userName.style.left = '8px';
+                    userName.style.color = 'white';
+                    userName.style.zIndex = '1';
+                    userName.style.padding = '4px 8px';
+                    userName.style.borderRadius = '4px';
+                    userName.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                    
+                    // Attach video directly to the video-player-container
+                    const videoElement = await mediaStream.attachVideo(event.userId, { width: 1280, height: 720 });
+                    if (videoElement) {
+                        (videoElement as HTMLElement).style.width = '100%';
+                        (videoElement as HTMLElement).style.height = '100%';
+                        (videoElement as HTMLElement).style.objectFit = 'cover';
+                        
+                        // The SDK returns a video-player element, so we just need to append it
+                        videoCell.appendChild(videoElement);
+                        videoCell.appendChild(userName); // Add username after video for proper layering
+                        listItem.appendChild(videoCell);
+                        container.appendChild(listItem);
+                        
+                        console.log('Video element structure created:', {
+                            listItem: listItem.outerHTML,
+                            videoCell: videoCell.outerHTML
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error creating video element:', error);
+                }
             }
         };
 
@@ -690,19 +732,10 @@ export default function ZoomTestPage() {
             }
 
             try {
-                // Start video using the exact pattern from docs
                 await stream.startVideo();
                 const currentUser = client.getCurrentUserInfo();
-                const userVideo = await stream.attachVideo(currentUser.userId, { width: 1280, height: 720 });
-                
-                // Get container and attach video exactly as docs show
-                const container = document.querySelector('video-player-container');
-                if (!container) {
-                    throw new Error('Video container not found');
-                }
-                container.appendChild(userVideo);
-                console.log('Video attached successfully');
-
+                await renderVideo(stream, { action: 'Start', userId: currentUser.userId });
+                setIsVideoMuted(false);
             } catch (error: any) {
                 console.error('Failed to start video:', error);
                 try {
@@ -721,9 +754,9 @@ export default function ZoomTestPage() {
                 try {
                     const currentUser = client.getCurrentUserInfo();
                     if (currentUser) {
-                        // Detach video first, then stop
-                        await stream.detachVideo(currentUser.userId);
+                        await renderVideo(stream, { action: 'Stop', userId: currentUser.userId });
                         await stream.stopVideo();
+                        setIsVideoMuted(true);
                         console.log('Video stopped successfully');
                     }
                 } catch (error: any) {
@@ -734,7 +767,16 @@ export default function ZoomTestPage() {
 
         const handleToggleAudio = async (mute: boolean) => {
             if (stream) {
-                await sdk.toggleAudio(stream, mute);
+                try {
+                    if (mute) {
+                        await stream.muteAudio();
+                    } else {
+                        await stream.unmuteAudio();
+                    }
+                    setIsAudioMuted(mute);
+                } catch (error) {
+                    console.error('Failed to toggle audio:', error);
+                }
             }
         };
 
@@ -874,31 +916,59 @@ export default function ZoomTestPage() {
                         {/* Video Display */}
                         {isConnected && (
                             <div className="mt-4">
-                                {/* @ts-ignore */}
-                                <video-player-container
-                                    id="zoom-video-container"
+                                <div className="video-player-container"
                                     style={{
-                                        width: '100%',
-                                        height: '1000px'
-                                    }}
-                                >
-                                    {/* @ts-ignore */}
-                                    <video-player
-                                        id="zoom-video"
-                                        style={{
-                                            width: '100%',
-                                            height: 'auto',
-                                            aspectRatio: '16/9'
-                                        }}
-                                    >
-                                    {/* @ts-ignore */}
-                                    </video-player>
-                                {/* @ts-ignore */}
-                                </video-player-container>
+                                        minHeight: '700px',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '5px',
+                                        padding: '0.5rem',
+                                        position: 'relative',
+                                        display: 'block',
+                                        backgroundColor: '#f0f0f0'
+                                    }}>
+                                    <div className="focused-users-wrapper" style={{ height: '100%' }}>
+                                        <ul className="video-list"
+                                            style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: 'repeat(2, 1fr)',
+                                                gap: '16px',
+                                                padding: '0',
+                                                margin: '0',
+                                                listStyle: 'none',
+                                                height: '100%',
+                                                minHeight: '600px'
+                                            }}>
+                                        </ul>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
                 </Card>
+
+                {/* Add verification UI */}
+                {awaitingVerification && (
+                    <div className="fixed bottom-0 left-0 right-0 bg-black bg-opacity-50 p-4 flex items-center justify-center">
+                        <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+                            <h3 className="text-lg font-semibold mb-4">Verify Video Functionality</h3>
+                            <p className="mb-4">Please verify that you can see your video feed clearly above this dialog.</p>
+                            <div className="flex justify-end space-x-4">
+                                <Button
+                                    variant="destructive"
+                                    onClick={() => verificationResolver?.(false)}
+                                >
+                                    Not Working
+                                </Button>
+                                <Button
+                                    variant="default"
+                                    onClick={() => verificationResolver?.(true)}
+                                >
+                                    Working Correctly
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
