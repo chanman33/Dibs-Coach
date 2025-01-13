@@ -11,58 +11,28 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url)
-    const code = searchParams.get('code')
+    const accessToken = searchParams.get('access_token')
     
-    if (!code) {
-      return new NextResponse('Missing authorization code', { status: 400 })
+    if (!accessToken) {
+      return new NextResponse('Missing access token', { status: 400 })
     }
-
-    // Get the code verifier from cookies
-    const cookieStore = await cookies()
-    const codeVerifier = cookieStore.get('calendly_code_verifier')?.value
-
-    if (!codeVerifier) {
-      return new NextResponse('Missing code verifier', { status: 400 })
-    }
-
-    // Exchange the code for tokens
-    const tokenResponse = await fetch('https://auth.calendly.com/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        client_id: process.env.CALENDLY_CLIENT_ID!,
-        client_secret: process.env.CALENDLY_CLIENT_SECRET!,
-        code,
-        redirect_uri: process.env.CALENDLY_REDIRECT_URI!,
-        grant_type: 'authorization_code',
-        code_verifier: codeVerifier
-      }),
-    })
-
-    if (!tokenResponse.ok) {
-      console.error('[CALENDLY_OAUTH_ERROR] Token exchange failed:', await tokenResponse.text())
-      return new NextResponse('Failed to exchange token', { status: 500 })
-    }
-
-    const tokenData = await tokenResponse.json()
 
     // Get user's Calendly information
     const userResponse = await fetch('https://api.calendly.com/users/me', {
       headers: {
-        Authorization: `Bearer ${tokenData.access_token}`,
+        Authorization: `Bearer ${accessToken}`,
       },
     })
 
     if (!userResponse.ok) {
-      console.error('[CALENDLY_OAUTH_ERROR] Failed to fetch user info:', await userResponse.text())
+      console.error('[CALENDLY_AUTH_ERROR] Failed to fetch user info:', await userResponse.text())
       return new NextResponse('Failed to fetch user info', { status: 500 })
     }
 
     const userData = await userResponse.json()
 
     // Initialize Supabase client
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_KEY!,
@@ -97,26 +67,21 @@ export async function GET(request: Request) {
       .from('CalendlyIntegration')
       .upsert({
         userDbId: user.id,
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token,
-        scope: tokenData.scope,
+        accessToken,
         organizationUrl: userData.resource.current_organization,
         schedulingUrl: userData.resource.scheduling_url,
-        expiresAt: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
       })
 
     if (error) {
-      console.error('[CALENDLY_OAUTH_ERROR] Failed to store integration:', error)
+      console.error('[CALENDLY_AUTH_ERROR] Failed to store integration:', error)
       return new NextResponse('Failed to store integration data', { status: 500 })
     }
-
-    // Clean up the code verifier cookie
-    cookieStore.delete('calendly_code_verifier')
 
     // Redirect to success page
     return NextResponse.redirect(`${process.env.FRONTEND_URL}/dashboard/settings/calendly?calendly=success`)
   } catch (error) {
-    console.error('[CALENDLY_OAUTH_ERROR]', error)
+    console.error('[CALENDLY_AUTH_ERROR]', error)
     return new NextResponse('Internal Server Error', { status: 500 })
   }
 } 
