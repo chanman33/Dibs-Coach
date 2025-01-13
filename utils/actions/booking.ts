@@ -1,13 +1,9 @@
 'use server'
 
 import { auth } from '@clerk/nextjs/server'
-import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-)
 
 interface BookingData {
   eventTypeUrl: string
@@ -18,50 +14,45 @@ interface BookingData {
 }
 
 export async function createBooking(data: BookingData) {
-  console.log('[DEBUG] Booking data:', data)
-  const { userId: clerkUserId } = await auth()
-  
-  if (!clerkUserId) {
-    throw new Error('Unauthorized')
-  }
-
   try {
-    // Get the database user ID for the mentee (current user)
+    const { userId } = await auth()
+    if (!userId) throw new Error('Unauthorized')
+
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
+
+    // Get mentee's database ID
     const { data: menteeData, error: menteeError } = await supabase
       .from('User')
-      .select('id, role')
-      .eq('userId', clerkUserId)
+      .select('id')
+      .eq('userId', userId)
       .single()
 
     if (menteeError || !menteeData) {
       console.error('[BOOKING_ERROR]', menteeError)
-      throw new Error('Failed to find user')
+      throw new Error('User not found')
     }
 
-    console.log('[DEBUG] Found mentee:', menteeData)
-
-    // Verify the mentee is a realtor
-    if (menteeData.role !== 'realtor') {
-      throw new Error('Only realtors can book coaching sessions')
-    }
-
-    // Get the coach data to verify they exist and are a coach
+    // Get coach's database ID
     const { data: coachData, error: coachError } = await supabase
       .from('User')
-      .select('id, role')
+      .select('id')
       .eq('id', data.coachId)
       .single()
 
-    console.log('[DEBUG] Coach lookup result:', { coachData, coachError })
-
     if (coachError || !coachData) {
       console.error('[BOOKING_ERROR]', coachError)
-      throw new Error('Failed to find coach')
-    }
-
-    // Verify the user is actually a coach
-    if (coachData.role !== 'realtor_coach') {
-      throw new Error('Invalid coach selected')
+      throw new Error('Coach not found')
     }
 
     // Verify coach profile exists
@@ -76,6 +67,18 @@ export async function createBooking(data: BookingData) {
       throw new Error('Coach profile not found')
     }
 
+    // Get event details from Calendly
+    const calendlyEvent = await fetch(data.eventUri, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.CALENDLY_API_KEY}`
+      }
+    }).then(res => res.json())
+
+    const startTime = new Date(calendlyEvent.resource.start_time)
+    const endTime = new Date(calendlyEvent.resource.end_time)
+    const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60))
+
     // Store in Supabase Session table
     const { error } = await supabase
       .from('Session')
@@ -83,8 +86,10 @@ export async function createBooking(data: BookingData) {
         coachDbId: coachData.id,
         menteeDbId: menteeData.id,
         calendlyEventId: data.eventUri,
-        durationMinutes: 60,
+        durationMinutes,
         status: 'scheduled',
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       })
