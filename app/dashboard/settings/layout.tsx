@@ -1,7 +1,7 @@
 "use client"
 
 import { ReactNode } from "react"
-import { Settings, Bell, CreditCard } from "lucide-react"
+import { Settings, Bell, CreditCard, Calendar } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import clsx from "clsx"
@@ -12,7 +12,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   const links = [
     {
       href: "/dashboard/settings",
-      label: "Account",
+      label: "Account", 
       icon: Settings
     },
     {
@@ -21,9 +21,14 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
       icon: Bell
     },
     {
-      href: "/dashboard/settings/subscription",
+      href: "/dashboard/settings/subscription", 
       label: "Subscription",
       icon: CreditCard
+    },
+    {
+      href: "/dashboard/settings/calendly",
+      label: "Calendly",
+      icon: Calendar
     }
   ]
 

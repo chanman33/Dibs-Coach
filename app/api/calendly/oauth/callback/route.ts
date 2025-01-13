@@ -17,6 +17,14 @@ export async function GET(request: Request) {
       return new NextResponse('Missing authorization code', { status: 400 })
     }
 
+    // Get the code verifier from cookies
+    const cookieStore = await cookies()
+    const codeVerifier = cookieStore.get('calendly_code_verifier')?.value
+
+    if (!codeVerifier) {
+      return new NextResponse('Missing code verifier', { status: 400 })
+    }
+
     // Exchange the code for tokens
     const tokenResponse = await fetch('https://auth.calendly.com/oauth/token', {
       method: 'POST',
@@ -29,6 +37,7 @@ export async function GET(request: Request) {
         code,
         redirect_uri: process.env.CALENDLY_REDIRECT_URI!,
         grant_type: 'authorization_code',
+        code_verifier: codeVerifier
       }),
     })
 
@@ -54,7 +63,6 @@ export async function GET(request: Request) {
     const userData = await userResponse.json()
 
     // Initialize Supabase client
-    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_KEY!,
@@ -73,17 +81,28 @@ export async function GET(request: Request) {
       }
     )
 
+    // Get user's database ID
+    const { data: user, error: userError } = await supabase
+      .from('User')
+      .select('id')
+      .eq('userId', userId)
+      .single()
+
+    if (userError || !user) {
+      return new NextResponse('User not found', { status: 404 })
+    }
+
     // Store the integration data
     const { error } = await supabase
-      .from('calendly_integration')
+      .from('CalendlyIntegration')
       .upsert({
-        user_id: userId,
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
+        userDbId: user.id,
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
         scope: tokenData.scope,
-        organization_url: userData.resource.current_organization,
-        scheduling_url: userData.resource.scheduling_url,
-        expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+        organizationUrl: userData.resource.current_organization,
+        schedulingUrl: userData.resource.scheduling_url,
+        expiresAt: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
       })
 
     if (error) {
@@ -91,8 +110,11 @@ export async function GET(request: Request) {
       return new NextResponse('Failed to store integration data', { status: 500 })
     }
 
+    // Clean up the code verifier cookie
+    cookieStore.delete('calendly_code_verifier')
+
     // Redirect to success page
-    return NextResponse.redirect(`${process.env.FRONTEND_URL}/dashboard/settings?calendly=success`)
+    return NextResponse.redirect(`${process.env.FRONTEND_URL}/dashboard/settings/calendly?calendly=success`)
   } catch (error) {
     console.error('[CALENDLY_OAUTH_ERROR]', error)
     return new NextResponse('Internal Server Error', { status: 500 })

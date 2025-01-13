@@ -2,6 +2,9 @@ import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { getCalendlyConfig } from '@/lib/calendly-api'
+
+const CALENDLY_API_BASE = 'https://api.calendly.com/v2'
 
 export async function GET() {
   try {
@@ -10,7 +13,7 @@ export async function GET() {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    // Get user's database ID first
+    // Initialize Supabase client
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL!,
@@ -30,24 +33,11 @@ export async function GET() {
       }
     )
 
-    // First get the user's database ID
-    const { data: user, error: userError } = await supabase
-      .from('User')
-      .select('id')
-      .eq('userId', userId)
-      .single()
-
-    if (userError || !user) {
-      return NextResponse.json({
-        connected: false
-      })
-    }
-
-    // Then get the Calendly integration using the database ID
+    // Get user's Calendly integration
     const { data: integration, error } = await supabase
       .from('CalendlyIntegration')
       .select('*')
-      .eq('userDbId', user.id)
+      .eq('userDbId', userId)
       .single()
 
     if (error || !integration) {
@@ -56,13 +46,34 @@ export async function GET() {
       })
     }
 
+    // Get Calendly config with valid token
+    const config = await getCalendlyConfig()
+
+    // Fetch user's event types
+    const response = await fetch(
+      `${CALENDLY_API_BASE}/event_types?user=${integration.schedulingUrl}`,
+      { headers: config.headers }
+    )
+
+    if (!response.ok) {
+      console.error('[CALENDLY_ERROR] Failed to fetch event types:', await response.text())
+      throw new Error('Failed to fetch event types')
+    }
+
+    const data = await response.json()
+
     return NextResponse.json({
       connected: true,
       schedulingUrl: integration.schedulingUrl,
-      organizationUrl: integration.organizationUrl
+      eventTypes: data.collection.map((eventType: any) => ({
+        uri: eventType.uri,
+        name: eventType.name,
+        duration: eventType.duration,
+        url: eventType.scheduling_url
+      }))
     })
   } catch (error) {
-    console.error('[CALENDLY_STATUS_ERROR]', error)
+    console.error('[CALENDLY_EVENT_TYPES_ERROR]', error)
     return new NextResponse('Internal Server Error', { status: 500 })
   }
 } 

@@ -213,6 +213,8 @@ model Session {
   calendlyEventId String?
   durationMinutes Int
   status          String   @default("scheduled")
+  startTime       DateTime
+  endTime         DateTime
 
   coach           User     @relation("SessionCoach", fields: [coachDbId], references: [id], onDelete: Cascade)
   mentee          User     @relation("SessionMentee", fields: [menteeDbId], references: [id], onDelete: Cascade)
@@ -226,6 +228,8 @@ model Session {
 
   @@index([coachDbId])
   @@index([menteeDbId])
+  @@index([startTime])
+  @@index([endTime])
 }
 
 model Payment {

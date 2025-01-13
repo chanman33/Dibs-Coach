@@ -28,17 +28,22 @@ import { useRouter } from "next/navigation"
 
 export function UserProfile() {
     const router = useRouter()
+    const { user, isLoaded } = useUser();
 
     if (!config?.auth?.enabled) {
         router.back()
     }
-    const { user } = useUser();
+
+    if (!isLoaded || !user) {
+        return null;
+    }
+
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild className="w-[2.25rem] h-[2.25rem]">
                 <Avatar>
-                    <AvatarImage src={user?.imageUrl} alt="User Profile" />
-                    <AvatarFallback></AvatarFallback>
+                    <AvatarImage src={user.imageUrl} alt={user.fullName || "User Profile"} />
+                    <AvatarFallback>{user.firstName?.[0] || "U"}</AvatarFallback>
                 </Avatar>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56 border rounded-lg bg-card [&.cl-internal-17dpwu0]:!shadow-none [&.cl-internal-17dpwu0]:!shadow-sm">
