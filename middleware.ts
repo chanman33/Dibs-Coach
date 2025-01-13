@@ -17,6 +17,11 @@ const isProtectedRoute = config.auth.enabled
   : () => false;
 
 export default function middleware(req: any) {
+  // Allow Calendly OAuth callback to bypass auth
+  if (req.nextUrl.pathname === '/api/calendly/oauth/callback') {
+    return NextResponse.next();
+  }
+
   if (config.auth.enabled) {
     return clerkMiddleware(async (auth, req) => {
       const resolvedAuth = await auth();

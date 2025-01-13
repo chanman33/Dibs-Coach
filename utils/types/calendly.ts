@@ -34,4 +34,45 @@ export interface BookingData {
   eventUri: string
   coachName: string
   userId: string
+}
+
+export interface CalendlyAvailabilitySchedule {
+  resource: {
+    uri: string
+    name: string
+    user: string
+    default: boolean
+    rules: Array<{
+      type: string
+      wday: number
+      start_time: string
+      end_time: string
+    }>
+    intervals: Array<{
+      from: string
+      to: string
+    }>
+  }
+}
+
+export interface CalendlyBusyTime {
+  resource: {
+    uri: string
+    user: string
+    start_time: string
+    end_time: string
+    calendar_event_details?: {
+      external_id: string
+      title: string
+    }
+  }
+}
+
+export interface CalendlyAvailabilityResponse {
+  availabilitySchedules: {
+    collection: CalendlyAvailabilitySchedule[]
+  }
+  busyTimes: {
+    collection: CalendlyBusyTime[]
+  }
 } 

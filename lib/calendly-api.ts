@@ -139,4 +139,70 @@ export async function createScheduledEvent(data: BookingData) {
     console.error('[CALENDLY_ERROR] Error scheduling:', error)
     throw error
   }
+}
+
+export async function getOrganizationMemberships() {
+  const config = await getCalendlyConfig()
+  
+  try {
+    const response = await fetch(
+      `${CALENDLY_API_BASE}/organization_memberships`,
+      { headers: config.headers }
+    )
+
+    if (!response.ok) {
+      console.error('[CALENDLY_ERROR] Failed to fetch organization memberships:', await response.text())
+      throw new Error('Failed to fetch organization memberships')
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('[CALENDLY_ERROR] Error fetching organization memberships:', error)
+    throw error
+  }
+}
+
+export async function getUserAvailabilitySchedules(userUri: string) {
+  const config = await getCalendlyConfig()
+  
+  try {
+    const response = await fetch(
+      `${CALENDLY_API_BASE}/user_availability_schedules?user=${userUri}`,
+      { headers: config.headers }
+    )
+
+    if (!response.ok) {
+      console.error('[CALENDLY_ERROR] Failed to fetch availability schedules:', await response.text())
+      throw new Error('Failed to fetch availability schedules')
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('[CALENDLY_ERROR] Error fetching availability schedules:', error)
+    throw error
+  }
+}
+
+export async function getUserBusyTimes(userUri: string, startTime: string, endTime: string) {
+  const config = await getCalendlyConfig()
+  
+  try {
+    const response = await fetch(
+      `${CALENDLY_API_BASE}/user_busy_times?` +
+      `user=${userUri}&` +
+      `start_time=${startTime}&` +
+      `end_time=${endTime}`,
+      { headers: config.headers }
+    )
+
+    if (!response.ok) {
+      console.error('[CALENDLY_ERROR] Failed to fetch busy times:', await response.text())
+      throw new Error('Failed to fetch busy times')
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('[CALENDLY_ERROR] Error fetching busy times:', error)
+    throw error
+  }
 } 

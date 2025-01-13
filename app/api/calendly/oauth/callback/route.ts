@@ -1,26 +1,74 @@
-import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+const CALENDLY_AUTH_BASE = 'https://auth.calendly.com'
+
 export async function GET(request: Request) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const { searchParams } = new URL(request.url)
+    const code = searchParams.get('code')
+    const encodedState = searchParams.get('state')
+    
+    if (!code || !encodedState) {
+      return new NextResponse('Invalid authorization response', { status: 400 })
     }
 
-    const { searchParams } = new URL(request.url)
-    const accessToken = searchParams.get('access_token')
-    
-    if (!accessToken) {
-      return new NextResponse('Missing access token', { status: 400 })
+    // Decode and parse state
+    let state;
+    try {
+      const decodedState = Buffer.from(encodedState, 'base64').toString()
+      state = JSON.parse(decodedState)
+      console.log('[CALENDLY_AUTH] Decoded state:', state)
+    } catch (error) {
+      console.error('[CALENDLY_AUTH_ERROR] Failed to decode state:', error)
+      return new NextResponse('Invalid state parameter', { status: 400 })
     }
+
+    const { userId, verifier: codeVerifier } = state
+    if (!userId || !codeVerifier) {
+      return new NextResponse('Invalid state content', { status: 400 })
+    }
+
+    // Exchange code for access token with PKCE
+    console.log('[CALENDLY_AUTH] Sending token request:', {
+      code,
+      code_verifier: codeVerifier,
+      grant_type: 'authorization_code',
+      redirect_uri: process.env.CALENDLY_REDIRECT_URI,
+    })
+
+    // Create Basic Auth header
+    const basicAuth = Buffer.from(
+      `${process.env.CALENDLY_CLIENT_ID}:${process.env.CALENDLY_CLIENT_SECRET}`
+    ).toString('base64')
+
+    const tokenResponse = await fetch(`${CALENDLY_AUTH_BASE}/oauth/token`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${basicAuth}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        code,
+        code_verifier: codeVerifier,
+        grant_type: 'authorization_code',
+        redirect_uri: process.env.CALENDLY_REDIRECT_URI!,
+      }).toString(),
+    })
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text()
+      console.error('[CALENDLY_AUTH_ERROR] Token exchange failed:', errorText)
+      return new NextResponse('Failed to exchange authorization code', { status: 500 })
+    }
+
+    const { access_token, refresh_token, expires_in } = await tokenResponse.json()
 
     // Get user's Calendly information
     const userResponse = await fetch('https://api.calendly.com/users/me', {
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${access_token}`,
       },
     })
 
@@ -42,16 +90,16 @@ export async function GET(request: Request) {
             return cookieStore.get(name)?.value
           },
           set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options })
+            // We don't need to set cookies in this flow anymore
           },
           remove(name: string, options: any) {
-            cookieStore.delete({ name, ...options })
+            // We don't need to remove cookies in this flow anymore
           },
         },
       }
     )
 
-    // Get user's database ID
+    // Get user's database ID using userId from state
     const { data: user, error: userError } = await supabase
       .from('User')
       .select('id')
@@ -67,10 +115,11 @@ export async function GET(request: Request) {
       .from('CalendlyIntegration')
       .upsert({
         userDbId: user.id,
-        accessToken,
+        accessToken: access_token,
+        refreshToken: refresh_token,
         organizationUrl: userData.resource.current_organization,
         schedulingUrl: userData.resource.scheduling_url,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+        expiresAt: new Date(Date.now() + expires_in * 1000).toISOString(),
       })
 
     if (error) {
