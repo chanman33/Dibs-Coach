@@ -146,35 +146,73 @@ export default function Pricing() {
   const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null)
 
   useEffect(() => {
-    const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY;
-    if (!stripeKey) {
-      console.error('Stripe public key is missing');
-      toast.error('Payment system configuration error');
-      return;
-    }
-    setStripePromise(loadStripe(stripeKey));
-  }, [])
+    const initStripe = async () => {
+      try {
+        const stripeKey = process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY;
+        if (!stripeKey) {
+          console.error('Stripe public key is missing');
+          toast.error('Payment system configuration error');
+          return;
+        }
+        
+        console.log('Initializing Stripe with public key:', stripeKey.substring(0, 8) + '...');
+        
+        const stripe = await loadStripe(stripeKey).catch((error: Error) => {
+          console.error('LoadStripe error details:', {
+            message: error.message,
+            stack: error.stack
+          });
+          throw error;
+        });
+        
+        if (!stripe) {
+          throw new Error('Failed to initialize Stripe - stripe object is null');
+        }
+        
+        console.log('Stripe initialized successfully');
+        setStripePromise(Promise.resolve(stripe));
+      } catch (err) {
+        const error = err as Error;
+        console.error('Error initializing Stripe:', {
+          message: error.message,
+          stack: error.stack
+        });
+        toast.error('Failed to initialize payment system. Please try refreshing the page.');
+      }
+    };
+
+    initStripe();
+  }, []);
 
   const handleCheckout = async (priceId: string, subscription: boolean) => {
     try {
-      const { data } = await axios.post(`/api/payments/create-checkout-session`,
-        { userId: user?.id, email: user?.emailAddresses?.[0]?.emailAddress, priceId, subscription });
+      if (!stripePromise) {
+        toast.error('Payment system is not ready');
+        return;
+      }
 
-      if (data.sessionId) {
-        const stripe = await stripePromise;
-        const response = await stripe?.redirectToCheckout({
-          sessionId: data.sessionId,
-        });
-        return response
-      } else {
-        console.error('Failed to create checkout session');
-        toast('Failed to create checkout session')
-        return
+      const { data } = await axios.post('/api/payments/create-checkout-session', {
+        userId: user?.id,
+        email: user?.emailAddresses?.[0]?.emailAddress,
+        priceId,
+        subscription
+      });
+
+      if (!data?.sessionId) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const stripe = await stripePromise;
+      const { error } = await stripe.redirectToCheckout({
+        sessionId: data.sessionId,
+      });
+
+      if (error) {
+        throw error;
       }
     } catch (error) {
       console.error('Error during checkout:', error);
-      toast('Error during checkout')
-      return
+      toast.error('Failed to start checkout process');
     }
   };
 

@@ -42,6 +42,11 @@ const nextConfig: NextConfig = {
       hostname: 'img.clerk.com',
       port: '',
       pathname: '/**'
+    }, {
+      protocol: 'https',
+      hostname: 'js.clerk.dev',
+      port: '',
+      pathname: '/**'
     }]
   },
   async headers() {
@@ -51,7 +56,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp'
+            value: 'credentialless'
           },
           {
             key: 'Cross-Origin-Opener-Policy',

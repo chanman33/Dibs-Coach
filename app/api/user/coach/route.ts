@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
+import { auth, clerkClient } from '@clerk/nextjs/server'
 
 interface RealtorCoachProfile {
   specialty: string | null
@@ -82,18 +82,34 @@ export async function fetchCoaches() {
       return { data: [], error: null }
     }
 
+    // For each coach, try to get their Clerk profile image
+    const updatedCoachesData = await Promise.all(coachesData.map(async (coach) => {
+      if (!coach.userId) return coach;
+
+      try {
+        const clerk = await clerkClient();
+        const clerkUser = await clerk.users.getUser(coach.userId);
+        return {
+          ...coach,
+          profileImageUrl: clerkUser.imageUrl || coach.profileImageUrl
+        };
+      } catch (error) {
+        console.error(`[FETCH_COACHES_ERROR] Failed to get Clerk data for user ${coach.userId}:`, error);
+        return coach;
+      }
+    }));
+
     // Log each coach's profile data and image URL
-    coachesData.forEach(coach => {
+    updatedCoachesData.forEach(coach => {
       console.log(`[DEBUG] Coach ${coach.id} profile:`, {
         name: `${coach.firstName} ${coach.lastName}`,
         hasProfile: !!coach.RealtorCoachProfile,
         profileData: coach.RealtorCoachProfile,
-        imageUrl: coach.profileImageUrl // This should already be in the correct format from Clerk
-      })
-    })
+        imageUrl: coach.profileImageUrl
+      });
+    });
 
-    // The profileImageUrl from the database should already be in the correct format
-    return { data: coachesData, error: null }
+    return { data: updatedCoachesData, error: null };
   } catch (error) {
     console.error('[FETCH_COACHES_ERROR] Unexpected error:', error)
     return { data: null, error }
