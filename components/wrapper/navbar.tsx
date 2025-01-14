@@ -13,11 +13,11 @@ import { useAuth } from "@clerk/nextjs";
 import { Dialog, DialogClose } from "@radix-ui/react-dialog";
 
 export default function NavBar() {
-    let userId = null;
-    /* eslint-disable react-hooks/rules-of-hooks */
-    if (config?.auth?.enabled) {
-        const user = useAuth();
-        userId = user?.userId;
+    const { isLoaded, userId } = config?.auth?.enabled ? useAuth() : { isLoaded: true, userId: null };
+
+    // Don't render anything until auth is loaded
+    if (!isLoaded) {
+        return null;
     }
 
     return (

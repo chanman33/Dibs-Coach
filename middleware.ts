@@ -1,6 +1,21 @@
-import { clerkMiddleware } from '@clerk/nextjs/server'
-import { NextResponse } from 'next/server'
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import { ROLES } from './utils/roles/roles'
+
+// Import config and define its type
+type AppConfig = {
+  auth: {
+    enabled: boolean;
+  };
+  payments: {
+    enabled: boolean;
+  };
+  roles: {
+    enabled: boolean;
+  };
+};
+
+const config: AppConfig = require('./config').default;
 
 // Roles that can access Calendly features
 const CALENDLY_ROLES = [ROLES.REALTOR_COACH, ROLES.LOAN_OFFICER_COACH, ROLES.ADMIN] as const
@@ -8,72 +23,94 @@ type CalendlyRole = typeof CALENDLY_ROLES[number]
 
 // Routes that require Calendly access
 const CALENDLY_ROUTES = [
-  // Event endpoints
   '/api/calendly/events',
   '/api/calendly/events/types',
   '/api/calendly/events/scheduled',
   '/api/calendly/events/cancel',
   '/api/calendly/events/no-shows',
-  // Availability endpoints
   '/api/calendly/availability',
   '/api/calendly/availability/schedules',
   '/api/calendly/availability/busy',
   '/api/calendly/availability/free',
-  // Other endpoints
   '/api/calendly/invitees',
   '/api/calendly/sessions'
 ] as const
 
-// This ensures public routes are properly typed
+// Public routes that don't require auth
 const PUBLIC_ROUTES = [
   '/api/auth/webhook',
   '/api/calendly/webhooks'
 ] as const
 
-export default clerkMiddleware((auth) => {
-  const requestHeaders = new Headers(auth.request.headers)
-  
-  // Check if route is public
-  const isPublicRoute = PUBLIC_ROUTES.some(route => 
-    auth.request.nextUrl.pathname.startsWith(route)
-  )
+let clerkMiddleware: any, createRouteMatcher: any;
 
-  // Handle authentication
-  if (!auth.userId && !isPublicRoute) {
-    return new NextResponse('Unauthorized', { status: 401 })
+if (config.auth.enabled) {
+  try {
+    ({ clerkMiddleware, createRouteMatcher } = require("@clerk/nextjs/server"));
+  } catch (error) {
+    console.warn("Clerk modules not available. Auth will be disabled.");
+    config.auth.enabled = false;
+  }
+}
+
+const isProtectedRoute = config.auth.enabled
+  ? createRouteMatcher(["/dashboard(.*)"])
+  : () => false;
+
+const isCalendlyRoute = (pathname: string) => 
+  CALENDLY_ROUTES.some(route => pathname.startsWith(route));
+
+const isPublicRoute = (pathname: string) =>
+  PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+
+export default function middleware(req: NextRequest) {
+  if (!config.auth.enabled) {
+    return NextResponse.next();
   }
 
-  // Check if trying to access Calendly routes
-  const isCalendlyRoute = CALENDLY_ROUTES.some(route => 
-    auth.request.nextUrl.pathname.startsWith(route)
-  )
+  return clerkMiddleware(async (auth: any) => {
+    const resolvedAuth = await auth();
+    const pathname = req.nextUrl.pathname;
 
-  if (isCalendlyRoute && !isPublicRoute) {
-    const role = auth.sessionClaims?.role as CalendlyRole | undefined
-    const userId = auth.sessionClaims?.userId as string | undefined
-
-    if (!role || !CALENDLY_ROLES.includes(role) || !userId) {
-      return new NextResponse(
-        'Access denied. Required role: coach or admin',
-        { status: 403 }
-      )
+    // Handle public routes
+    if (isPublicRoute(pathname)) {
+      return NextResponse.next();
     }
 
-    // Add auth info to headers for downstream use
-    requestHeaders.set('x-user-role', role)
-    requestHeaders.set('x-user-id', userId)
+    // Handle unauthenticated users
+    if (!resolvedAuth.userId && (isProtectedRoute(req) || isCalendlyRoute(pathname))) {
+      return resolvedAuth.redirectToSignIn();
+    }
 
-    return NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    })
-  }
+    // Handle Calendly routes
+    if (isCalendlyRoute(pathname)) {
+      const role = resolvedAuth.sessionClaims?.role as CalendlyRole | undefined;
+      const userId = resolvedAuth.userId;
 
-  return NextResponse.next()
-})
+      if (!role || !CALENDLY_ROLES.includes(role) || !userId) {
+        return new NextResponse(
+          'Access denied. Required role: coach or admin',
+          { status: 403 }
+        );
+      }
 
-// Configure Middleware Matcher
-export const config = {
-  matcher: ['/((?!.+\\.[\\w]+$|_next).*)', '/', '/(api|trpc)(.*)'],
+      // Add auth info to headers for downstream use
+      const requestHeaders = new Headers(req.headers);
+      requestHeaders.set('x-user-role', role);
+      requestHeaders.set('x-user-id', userId);
+
+      return NextResponse.next({
+        request: {
+          headers: requestHeaders,
+        },
+      });
+    }
+
+    return NextResponse.next();
+  })(req);
 }
+
+// Export middleware config separately to avoid naming conflicts
+export const middlewareConfig = {
+  matcher: ['/((?!.+\\.[\\w]+$|_next).*)', '/', '/(api|trpc)(.*)'],
+};
