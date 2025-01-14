@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Metadata } from 'next'
 import Link from 'next/link'
 import PageWrapper from "@/components/wrapper/page-wrapper";
-import { VideoPlayer } from '@/components/video-player';
+import { VideoPlayer } from '@/components/zoom/video-player';
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://starter.rasmic.xyz"),

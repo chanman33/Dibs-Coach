@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { handleZoomError } from '../middleware/zoom-error-handler';
+import { handleZoomError } from '../../lib/zoom/middleware/zoom-error-handler';
 
 interface ZoomMeetingProps {
   sessionName: string;

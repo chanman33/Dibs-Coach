@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@clerk/nextjs/server';
-import CoachApplicationForm from '@/components/CoachApplicationForm';
+import CoachApplicationForm from '@/components/coach/CoachApplicationForm';
 import { getCoachApplication } from '@/utils/actions/coach-application';
 import { COACH_APPLICATION_STATUS } from '@/utils/types';
 

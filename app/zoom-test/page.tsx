@@ -16,7 +16,7 @@ declare global {
 }
 
 // Dynamically import the Zoom wrapper with no SSR
-const ZoomWrapper = dynamic(() => import('@/components/zoom-wrapper'), {
+const ZoomWrapper = dynamic(() => import('@/components/zoom/zoom-wrapper'), {
     ssr: false,
     loading: () => <div className="container mx-auto p-8">Loading Zoom SDK...</div>
 });

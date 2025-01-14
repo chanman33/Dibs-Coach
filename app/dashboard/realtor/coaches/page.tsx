@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
 import { Coach } from '@/components/Coach'
 import { SearchAndFilter } from '@/components/SearchAndFilter'
-import { CoachProfileModal } from '@/components/CoachProfileModal'
+import { CoachProfileModal } from '@/components/coach/CoachProfileModal'
 import { fetchCoaches } from '../../../api/user/coach/route'
 
 interface CoachData {
