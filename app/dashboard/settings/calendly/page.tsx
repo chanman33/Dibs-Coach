@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
-import { ConnectCalendly } from '@/components/ConnectCalendly'
+import { ConnectCalendly } from '@/components/calendly/ConnectCalendly'
 import { CalendlyEventTypes } from './_components/CalendlyEventTypes'
 import { CalendlyAvailability } from './_components/CalendlyAvailability'
 

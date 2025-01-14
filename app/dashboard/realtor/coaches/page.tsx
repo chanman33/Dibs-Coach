@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
-import { Coach } from '@/components/Coach'
+import { Coach } from '@/components/coach/Coach'
 import { SearchAndFilter } from '@/components/SearchAndFilter'
 import { CoachProfileModal } from '@/components/coach/CoachProfileModal'
 import { fetchCoaches } from '../../../api/user/coach/route'
