@@ -523,3 +523,16 @@ model Invoice {
   @@index([subscriptionId])
   @@index([userDbId])
 }
+
+model CalendlyWebhookEvent {
+  id          Int      @id @default(autoincrement())
+  eventType   String
+  payload     Json
+  processed   Boolean  @default(false)
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([eventType])
+  @@index([processed])
+}

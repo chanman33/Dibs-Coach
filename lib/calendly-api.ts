@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { CalendlyConfig, CalendlyEvent, BookingData } from '@/utils/types/calendly'
 
-const CALENDLY_API_BASE = 'https://api.calendly.com/v2'
+export const CALENDLY_API_BASE = 'https://api.calendly.com/v2'
 
 async function getCalendlyToken(): Promise<string> {
   const { userId } = await auth()
@@ -203,6 +203,188 @@ export async function getUserBusyTimes(userUri: string, startTime: string, endTi
     return await response.json()
   } catch (error) {
     console.error('[CALENDLY_ERROR] Error fetching busy times:', error)
+    throw error
+  }
+}
+
+export async function createWebhookSubscription(webhookUrl: string, scope: 'user' | 'organization' = 'user') {
+  const config = await getCalendlyConfig()
+  const orgMemberships = await getOrganizationMemberships()
+  const organization = orgMemberships.collection[0]?.organization.uri
+  
+  if (!organization) {
+    throw new Error('No organization found')
+  }
+
+  try {
+    const response = await fetch(`${CALENDLY_API_BASE}/webhook_subscriptions`, {
+      method: 'POST',
+      headers: config.headers,
+      body: JSON.stringify({
+        url: webhookUrl,
+        events: ['invitee.created', 'invitee.canceled', 'invitee.rescheduled'],
+        organization,
+        scope,
+      })
+    })
+
+    if (!response.ok) {
+      console.error('[CALENDLY_ERROR] Failed to create webhook:', await response.text())
+      throw new Error('Failed to create webhook subscription')
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('[CALENDLY_ERROR] Error creating webhook:', error)
+    throw error
+  }
+}
+
+export async function listWebhookSubscriptions() {
+  const config = await getCalendlyConfig()
+  
+  try {
+    const response = await fetch(
+      `${CALENDLY_API_BASE}/webhook_subscriptions`,
+      { headers: config.headers }
+    )
+
+    if (!response.ok) {
+      console.error('[CALENDLY_ERROR] Failed to fetch webhooks:', await response.text())
+      throw new Error('Failed to fetch webhook subscriptions')
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('[CALENDLY_ERROR] Error fetching webhooks:', error)
+    throw error
+  }
+}
+
+export async function deleteWebhookSubscription(webhookUuid: string) {
+  const config = await getCalendlyConfig()
+  
+  try {
+    const response = await fetch(
+      `${CALENDLY_API_BASE}/webhook_subscriptions/${webhookUuid}`,
+      { 
+        method: 'DELETE',
+        headers: config.headers 
+      }
+    )
+
+    if (!response.ok) {
+      console.error('[CALENDLY_ERROR] Failed to delete webhook:', await response.text())
+      throw new Error('Failed to delete webhook subscription')
+    }
+
+    return true
+  } catch (error) {
+    console.error('[CALENDLY_ERROR] Error deleting webhook:', error)
+    throw error
+  }
+}
+
+export interface CalendlyEventType {
+  uri: string
+  name: string
+  scheduling_url: string
+  duration: number
+  kind: string
+  pooling_type: string
+  type: string
+  color: string
+  active: boolean
+  description_plain: string
+  description_html: string
+}
+
+export interface CalendlyAvailableTime {
+  start_time: string
+  invitee_count: number
+  status: string
+}
+
+export interface CalendlyEventTypeMember {
+  uri: string
+  name: string
+  email: string
+}
+
+export async function getEventTypes() {
+  const config = await getCalendlyConfig()
+  
+  try {
+    const response = await fetch(
+      `${CALENDLY_API_BASE}/event_types`,
+      { headers: config.headers }
+    )
+
+    if (!response.ok) {
+      console.error('[CALENDLY_ERROR] Failed to fetch event types:', await response.text())
+      throw new Error('Failed to fetch event types')
+    }
+
+    const data = await response.json()
+    return data.collection as CalendlyEventType[]
+  } catch (error) {
+    console.error('[CALENDLY_ERROR] Error fetching event types:', error)
+    throw error
+  }
+}
+
+export async function getEventTypeAvailability(
+  eventTypeUri: string, 
+  startTime: string, 
+  endTime: string
+) {
+  const config = await getCalendlyConfig()
+  
+  try {
+    const response = await fetch(
+      `${CALENDLY_API_BASE}/event_type_available_times?${new URLSearchParams({
+        event_type: eventTypeUri,
+        start_time: startTime,
+        end_time: endTime
+      })}`,
+      { headers: config.headers }
+    )
+
+    if (!response.ok) {
+      console.error('[CALENDLY_ERROR] Failed to fetch availability:', await response.text())
+      throw new Error('Failed to fetch event type availability')
+    }
+
+    const data = await response.json()
+    return data.collection as CalendlyAvailableTime[]
+  } catch (error) {
+    console.error('[CALENDLY_ERROR] Error fetching availability:', error)
+    throw error
+  }
+}
+
+export async function getEventTypeHosts(eventTypeUri: string) {
+  const config = await getCalendlyConfig()
+  
+  try {
+    const response = await fetch(
+      `${CALENDLY_API_BASE}/event_type_memberships?${new URLSearchParams({
+        event_type: eventTypeUri
+      })}`,
+      { headers: config.headers }
+    )
+
+    if (!response.ok) {
+      console.error('[CALENDLY_ERROR] Failed to fetch hosts:', await response.text())
+      throw new Error('Failed to fetch event type hosts')
+    }
+
+    const data = await response.json()
+    return data.collection.map(
+      (membership: any) => membership.member
+    ) as CalendlyEventTypeMember[]
+  } catch (error) {
+    console.error('[CALENDLY_ERROR] Error fetching hosts:', error)
     throw error
   }
 } 

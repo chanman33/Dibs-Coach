@@ -1,45 +1,63 @@
-import { NextResponse } from "next/server";
-import config from "./config";
+import { clerkMiddleware, getAuth } from '@clerk/nextjs/server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-let clerkMiddleware: (arg0: (auth: any, req: any) => any) => { (arg0: any): any; new(): any; }, createRouteMatcher;
+// Roles that can access Calendly features
+const CALENDLY_ROLES = ['coach', 'admin'] as const
+type CalendlyRole = typeof CALENDLY_ROLES[number]
 
-if (config.auth.enabled) {
-  try {
-    ({ clerkMiddleware, createRouteMatcher } = require("@clerk/nextjs/server"));
-  } catch (error) {
-    console.warn("Clerk modules not available. Auth will be disabled.");
-    config.auth.enabled = false;
+// Routes that require Calendly access
+const CALENDLY_ROUTES = [
+  '/api/calendly/event-types',
+  '/api/calendly/scheduled-events',
+  '/api/calendly/availability-schedules',
+  '/api/calendly/busy-times',
+  '/api/calendly/available-times',
+  '/api/calendly/invitees',
+] as const
+
+const middleware = clerkMiddleware((req: NextRequest) => {
+  const auth = getAuth(req)
+  
+  // Handle authentication
+  if (!auth.userId && !auth.isPublicRoute) {
+    return new NextResponse('Unauthorized', { status: 401 })
   }
+
+  // Check if trying to access Calendly routes
+  const isCalendlyRoute = CALENDLY_ROUTES.some(route => 
+    req.nextUrl.pathname.startsWith(route)
+  )
+
+  if (isCalendlyRoute) {
+    // Get user's role from custom Clerk claims
+    const role = auth.sessionClaims?.role as CalendlyRole | undefined
+
+    // Check if user has required role
+    if (!role || !CALENDLY_ROLES.includes(role)) {
+      return new NextResponse(
+        'Access denied. Required role: coach or admin',
+        { status: 403 }
+      )
+    }
+
+    // Add role to headers for downstream use
+    const requestHeaders = new Headers(req.headers)
+    requestHeaders.set('x-user-role', role)
+
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
+  }
+
+  return NextResponse.next()
+})
+
+export default middleware
+
+// Configure Middleware Matcher
+export const config = {
+  matcher: ['/((?!.+\\.[\\w]+$|_next).*)', '/', '/(api|trpc)(.*)'],
 }
-
-const isProtectedRoute = config.auth.enabled
-  ? createRouteMatcher(["/dashboard(.*)", "/apply-coach"])
-  : () => false;
-
-export default function middleware(req: any) {
-  // Allow Calendly OAuth callback to bypass auth
-  if (req.nextUrl.pathname === '/api/calendly/oauth/callback') {
-    return NextResponse.next();
-  }
-
-  if (config.auth.enabled) {
-    return clerkMiddleware(async (auth, req) => {
-      const resolvedAuth = await auth();
-
-      if (!resolvedAuth.userId && isProtectedRoute(req)) {
-        return resolvedAuth.redirectToSignIn();
-      } else {
-        return NextResponse.next();
-      }
-    })(req);
-  } else {
-    return NextResponse.next();
-  }
-}
-
-export const middlewareConfig = {
-  matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/(api|trpc)(.*)",
-  ],
-};

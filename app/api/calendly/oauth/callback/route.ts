@@ -9,6 +9,16 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
     const encodedState = searchParams.get('state')
+    const error = searchParams.get('error')
+    const errorDescription = searchParams.get('error_description')
+    
+    // Handle OAuth errors
+    if (error) {
+      console.error('[CALENDLY_AUTH_ERROR] OAuth error:', error, errorDescription)
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent(errorDescription || error)}`
+      )
+    }
     
     if (!code || !encodedState) {
       return new NextResponse('Invalid authorization response', { status: 400 })
@@ -60,24 +70,44 @@ export async function GET(request: Request) {
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
       console.error('[CALENDLY_AUTH_ERROR] Token exchange failed:', errorText)
-      return new NextResponse('Failed to exchange authorization code', { status: 500 })
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to exchange authorization code')}`
+      )
     }
 
-    const { access_token, refresh_token, expires_in } = await tokenResponse.json()
+    const tokenData = await tokenResponse.json()
+    const { access_token, refresh_token, expires_in, scope } = tokenData
+
+    if (!access_token || !refresh_token) {
+      console.error('[CALENDLY_AUTH_ERROR] Missing tokens in response:', tokenData)
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Invalid token response')}`
+      )
+    }
 
     // Get user's Calendly information
     const userResponse = await fetch('https://api.calendly.com/users/me', {
       headers: {
-        Authorization: `Bearer ${access_token}`,
+        'Authorization': `Bearer ${access_token}`,
+        'Content-Type': 'application/json',
       },
     })
 
     if (!userResponse.ok) {
-      console.error('[CALENDLY_AUTH_ERROR] Failed to fetch user info:', await userResponse.text())
-      return new NextResponse('Failed to fetch user info', { status: 500 })
+      const errorText = await userResponse.text()
+      console.error('[CALENDLY_AUTH_ERROR] Failed to fetch user info:', errorText)
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to fetch user info')}`
+      )
     }
 
     const userData = await userResponse.json()
+    if (!userData.resource) {
+      console.error('[CALENDLY_AUTH_ERROR] Invalid user data:', userData)
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Invalid user data')}`
+      )
+    }
 
     // Initialize Supabase client
     const cookieStore = await cookies()
@@ -107,30 +137,38 @@ export async function GET(request: Request) {
       .single()
 
     if (userError || !user) {
-      return new NextResponse('User not found', { status: 404 })
+      console.error('[CALENDLY_AUTH_ERROR] User not found:', userError)
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('User not found')}`
+      )
     }
 
     // Store the integration data
-    const { error } = await supabase
+    const { error: integrationError } = await supabase
       .from('CalendlyIntegration')
       .upsert({
         userDbId: user.id,
         accessToken: access_token,
         refreshToken: refresh_token,
+        scope: scope || 'default',
         organizationUrl: userData.resource.current_organization,
         schedulingUrl: userData.resource.scheduling_url,
         expiresAt: new Date(Date.now() + expires_in * 1000).toISOString(),
       })
 
-    if (error) {
-      console.error('[CALENDLY_AUTH_ERROR] Failed to store integration:', error)
-      return new NextResponse('Failed to store integration data', { status: 500 })
+    if (integrationError) {
+      console.error('[CALENDLY_AUTH_ERROR] Failed to store integration:', integrationError)
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to store integration data')}`
+      )
     }
 
     // Redirect to success page
     return NextResponse.redirect(`${process.env.FRONTEND_URL}/dashboard/settings/calendly?calendly=success`)
   } catch (error) {
     console.error('[CALENDLY_AUTH_ERROR]', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return NextResponse.redirect(
+      `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Internal Server Error')}`
+    )
   }
 } 

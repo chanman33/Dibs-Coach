@@ -2,34 +2,41 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { 
-  getOrganizationMemberships, 
-  getUserAvailabilitySchedules, 
-  getUserBusyTimes 
-} from '@/lib/calendly-api'
+import { getEventTypes, getEventTypeAvailability } from '@/lib/calendly-api'
+
+const LOW_AVAILABILITY_THRESHOLD = 3 // Configurable threshold for low availability alert
 
 export async function GET(request: Request) {
   try {
-    // Get coach ID from query params
-    const { searchParams } = new URL(request.url)
-    const coachId = searchParams.get('coachId')
-    const startTime = searchParams.get('startTime')
-    const endTime = searchParams.get('endTime')
-
-    if (!coachId || !startTime || !endTime) {
-      return new NextResponse('Missing required parameters', { status: 400 })
+    const { userId } = await auth()
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Validate date range (must be within 7 days)
+    const { searchParams } = new URL(request.url)
+    const startTime = searchParams.get('start_time')
+    const endTime = searchParams.get('end_time')
+
+    if (!startTime || !endTime) {
+      return NextResponse.json(
+        { error: 'start_time and end_time are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate date range (max 7 days as per Calendly's requirements)
     const start = new Date(startTime)
     const end = new Date(endTime)
     const daysDiff = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)
     
     if (daysDiff > 7) {
-      return new NextResponse('Date range cannot exceed 7 days', { status: 400 })
+      return NextResponse.json(
+        { error: 'Date range cannot exceed 7 days' },
+        { status: 400 }
+      )
     }
 
-    // Get coach's Calendly info from database
+    // Get user's database ID
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL!,
@@ -49,28 +56,44 @@ export async function GET(request: Request) {
       }
     )
 
-    const { data: coach, error: coachError } = await supabase
-      .from('User')
-      .select('calendly_uri')
-      .eq('id', coachId)
-      .single()
+    // Get event types
+    const eventTypes = await getEventTypes()
+    
+    // Get availability for each event type
+    const availability = await Promise.all(
+      eventTypes.map(async (eventType) => {
+        const times = await getEventTypeAvailability(
+          eventType.uri,
+          startTime,
+          endTime
+        )
 
-    if (coachError || !coach?.calendly_uri) {
-      return new NextResponse('Coach not found or no Calendly integration', { status: 404 })
-    }
-
-    // Get availability data
-    const [availabilitySchedules, busyTimes] = await Promise.all([
-      getUserAvailabilitySchedules(coach.calendly_uri),
-      getUserBusyTimes(coach.calendly_uri, startTime, endTime)
-    ])
+        return {
+          eventType: {
+            uri: eventType.uri,
+            name: eventType.name,
+            duration: eventType.duration,
+            description: eventType.description_plain,
+            scheduling_url: eventType.scheduling_url,
+          },
+          availableTimes: times,
+          hasLowAvailability: times.length < LOW_AVAILABILITY_THRESHOLD
+        }
+      })
+    )
 
     return NextResponse.json({
-      availabilitySchedules,
-      busyTimes
+      success: true,
+      data: availability
     })
   } catch (error) {
     console.error('[CALENDLY_AVAILABILITY_ERROR]', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return NextResponse.json(
+      { 
+        success: false,
+        error: error instanceof Error ? error.message : 'Internal Server Error'
+      },
+      { status: 500 }
+    )
   }
 } 

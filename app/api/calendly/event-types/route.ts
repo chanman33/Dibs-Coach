@@ -1,79 +1,24 @@
-import { auth } from '@clerk/nextjs/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { getCalendlyConfig } from '@/lib/calendly-api'
+import { CalendlyService } from '@/lib/calendly-service'
 
-const CALENDLY_API_BASE = 'https://api.calendly.com/v2'
-
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
+    const { searchParams } = new URL(request.url)
+    const count = searchParams.get('count')
+    const pageToken = searchParams.get('pageToken')
 
-    // Initialize Supabase client
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options: any) {
-            cookieStore.set({ name, value, ...options })
-          },
-          remove(name: string, options: any) {
-            cookieStore.delete({ name, ...options })
-          },
-        },
-      }
+    const calendly = new CalendlyService()
+    const eventTypes = await calendly.getEventTypes(
+      count ? parseInt(count) : undefined,
+      pageToken || undefined
     )
 
-    // Get user's Calendly integration
-    const { data: integration, error } = await supabase
-      .from('CalendlyIntegration')
-      .select('*')
-      .eq('userDbId', userId)
-      .single()
-
-    if (error || !integration) {
-      return NextResponse.json({
-        connected: false
-      })
-    }
-
-    // Get Calendly config with valid token
-    const config = await getCalendlyConfig()
-
-    // Fetch user's event types
-    const response = await fetch(
-      `${CALENDLY_API_BASE}/event_types?user=${integration.schedulingUrl}`,
-      { headers: config.headers }
-    )
-
-    if (!response.ok) {
-      console.error('[CALENDLY_ERROR] Failed to fetch event types:', await response.text())
-      throw new Error('Failed to fetch event types')
-    }
-
-    const data = await response.json()
-
-    return NextResponse.json({
-      connected: true,
-      schedulingUrl: integration.schedulingUrl,
-      eventTypes: data.collection.map((eventType: any) => ({
-        uri: eventType.uri,
-        name: eventType.name,
-        duration: eventType.duration,
-        url: eventType.scheduling_url
-      }))
-    })
+    return NextResponse.json({ eventTypes })
   } catch (error) {
     console.error('[CALENDLY_EVENT_TYPES_ERROR]', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return NextResponse.json(
+      { error: 'Failed to fetch event types' },
+      { status: 500 }
+    )
   }
 } 
