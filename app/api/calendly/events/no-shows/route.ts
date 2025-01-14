@@ -2,12 +2,31 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { getCalendlyConfig } from '@/lib/calendly-api'
+import { getCalendlyConfig } from '@/lib/calendly/calendly-api'
+import { 
+  ApiResponse,
+  NoShowRequestSchema,
+  CalendlyInvitee,
+  CalendlyInviteeSchema
+} from '@/utils/types/calendly'
 
 export async function POST(request: Request) {
   try {
-    const { invitee } = await request.json()
-    
+    const body = await request.json()
+    const requestResult = NoShowRequestSchema.safeParse(body)
+
+    if (!requestResult.success) {
+      const error = {
+        code: 'INVALID_REQUEST',
+        message: 'Invalid request body',
+        details: requestResult.error.flatten()
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 400 })
+    }
+
     const config = await getCalendlyConfig()
     
     const response = await fetch(
@@ -18,7 +37,7 @@ export async function POST(request: Request) {
           ...config.headers,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ invitee })
+        body: JSON.stringify({ invitee: requestResult.data.inviteeUri })
       }
     )
 
@@ -28,16 +47,27 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json()
-    return NextResponse.json(data)
+    const inviteeResult = CalendlyInviteeSchema.safeParse(data.resource)
+    if (!inviteeResult.success) {
+      console.error('[CALENDLY_ERROR] Invalid invitee data:', inviteeResult.error)
+      throw new Error('Invalid invitee data received from Calendly')
+    }
+
+    return NextResponse.json<ApiResponse<CalendlyInvitee>>({
+      data: inviteeResult.data,
+      error: null
+    })
   } catch (error) {
     console.error('[CALENDLY_NO_SHOW_ERROR]', error)
-    return NextResponse.json(
-      { 
-        success: false,
-        error: error instanceof Error ? error.message : 'Internal Server Error'
-      },
-      { status: 500 }
-    )
+    const apiError = {
+      code: 'NO_SHOW_ERROR',
+      message: 'Failed to create no-show',
+      details: error instanceof Error ? { message: error.message } : undefined
+    }
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: apiError 
+    }, { status: 500 })
   }
 }
 
@@ -46,6 +76,17 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    if (!params.id) {
+      const error = {
+        code: 'MISSING_ID',
+        message: 'No-show ID is required'
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 400 })
+    }
+
     const config = await getCalendlyConfig()
     
     const response = await fetch(
@@ -61,15 +102,20 @@ export async function DELETE(
       throw new Error('Failed to delete no-show')
     }
 
-    return new NextResponse(null, { status: 204 })
+    return NextResponse.json<ApiResponse<{ success: true }>>({
+      data: { success: true },
+      error: null
+    })
   } catch (error) {
     console.error('[CALENDLY_NO_SHOW_DELETE_ERROR]', error)
-    return NextResponse.json(
-      { 
-        success: false,
-        error: error instanceof Error ? error.message : 'Internal Server Error'
-      },
-      { status: 500 }
-    )
+    const apiError = {
+      code: 'NO_SHOW_DELETE_ERROR',
+      message: 'Failed to delete no-show',
+      details: error instanceof Error ? { message: error.message } : undefined
+    }
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: apiError 
+    }, { status: 500 })
   }
 } 

@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { getCalendlyConfig } from '@/lib/calendly-api'
+import { getCalendlyConfig } from '@/lib/calendly/calendly-api'
+import { 
+  ApiResponse,
+  CalendlyScheduledEvent,
+  CalendlyScheduledEventSchema
+} from '@/utils/types/calendly'
 
 export async function GET(
   request: Request,
@@ -24,31 +29,35 @@ export async function GET(
 
     const data = await response.json()
     
-    // Transform the data to match our session format
-    const session = {
-      uri: data.resource.uri,
-      name: data.resource.name,
-      start_time: data.resource.start_time,
-      end_time: data.resource.end_time,
-      date: new Date(data.resource.start_time).toLocaleDateString(),
-      status: data.resource.status,
-      location: data.resource.location,
-      invitees_counter: {
-        active: data.resource.invitees_counter.active,
-        limit: data.resource.invitees_counter.limit
-      },
-      event_guests: data.resource.event_guests || []
+    // Validate response data
+    const sessionResult = CalendlyScheduledEventSchema.safeParse(data.resource)
+    if (!sessionResult.success) {
+      console.error('[CALENDLY_ERROR] Invalid session data:', sessionResult.error)
+      const error = {
+        code: 'INVALID_RESPONSE',
+        message: 'Invalid session data received from Calendly',
+        details: sessionResult.error.flatten()
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 500 })
     }
 
-    return NextResponse.json({ session })
+    return NextResponse.json<ApiResponse<CalendlyScheduledEvent>>({
+      data: sessionResult.data,
+      error: null
+    })
   } catch (error) {
     console.error('[CALENDLY_SESSION_ERROR]', error)
-    return NextResponse.json(
-      { 
-        success: false,
-        error: error instanceof Error ? error.message : 'Internal Server Error'
-      },
-      { status: 500 }
-    )
+    const apiError = {
+      code: 'FETCH_ERROR',
+      message: 'Failed to fetch session details',
+      details: error instanceof Error ? { message: error.message } : undefined
+    }
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: apiError 
+    }, { status: 500 })
   }
 } 

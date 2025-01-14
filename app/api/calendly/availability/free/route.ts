@@ -1,33 +1,49 @@
 import { NextResponse } from 'next/server'
-import { CalendlyService } from '@/lib/calendly-service'
+import { CalendlyService } from '@/lib/calendly/calendly-service'
+import { 
+  ApiResponse,
+  CalendlyAvailableTime,
+  FreeTimesQuerySchema
+} from '@/utils/types/calendly'
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const eventUri = searchParams.get('eventUri')
-    const startTime = searchParams.get('startTime')
-    const endTime = searchParams.get('endTime')
+    const queryResult = FreeTimesQuerySchema.safeParse({
+      eventUri: searchParams.get('eventUri'),
+      startTime: searchParams.get('startTime'),
+      endTime: searchParams.get('endTime')
+    })
 
-    if (!eventUri || !startTime || !endTime) {
-      return NextResponse.json(
-        { error: 'eventUri, startTime, and endTime are required' },
-        { status: 400 }
-      )
+    if (!queryResult.success) {
+      const error = {
+        code: 'INVALID_PARAMETERS',
+        message: 'Invalid query parameters',
+        details: queryResult.error.flatten()
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 400 })
     }
 
     const calendly = new CalendlyService()
-    const availableTimes = await calendly.getEventTypeAvailableTimes({
-      eventUri,
-      startTime,
-      endTime,
-    })
+    const availableTimes = await calendly.getEventTypeAvailableTimes(queryResult.data)
 
-    return NextResponse.json({ availableTimes })
+    return NextResponse.json<ApiResponse<CalendlyAvailableTime[]>>({
+      data: availableTimes,
+      error: null
+    })
   } catch (error) {
     console.error('[CALENDLY_AVAILABLE_TIMES_ERROR]', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch available times' },
-      { status: 500 }
-    )
+    const apiError = {
+      code: 'FETCH_ERROR',
+      message: 'Failed to fetch available times',
+      details: error instanceof Error ? { message: error.message } : undefined
+    }
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: apiError 
+    }, { status: 500 })
   }
 } 
