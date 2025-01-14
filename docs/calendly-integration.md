@@ -26,48 +26,94 @@ This document outlines the implementation of Calendly integration in our Next.js
 
 ### API Routes
 
-1. **Event Types** (`app/api/calendly/event-types/route.ts`)
+#### Event Management
+1. **Event Types** (`app/api/calendly/events/types/route.ts`)
    ```typescript
-   GET /api/calendly/event-types
+   GET /api/calendly/events/types
    Query params: count, pageToken
    ```
 
-2. **Scheduled Events** (`app/api/calendly/scheduled-events/route.ts`)
+2. **Scheduled Events** (`app/api/calendly/events/scheduled/route.ts`)
    ```typescript
-   GET /api/calendly/scheduled-events
+   GET /api/calendly/events/scheduled
    Query params: count, pageToken, status, minStartTime, maxStartTime
    ```
 
-3. **Event Cancellation** (`app/api/calendly/scheduled-events/[uuid]/cancel/route.ts`)
+3. **Event Cancellation** (`app/api/calendly/events/cancel/route.ts`)
    ```typescript
-   POST /api/calendly/scheduled-events/{uuid}/cancel
-   Body: { reason: string }
+   POST /api/calendly/events/cancel
+   Body: { uuid: string, reason: string }
    ```
 
-4. **Availability Schedules** (`app/api/calendly/availability-schedules/route.ts`)
+4. **No Shows** (`app/api/calendly/events/no-shows/route.ts`)
    ```typescript
-   GET /api/calendly/availability-schedules
+   POST /api/calendly/events/no-shows
+   Body: { eventUuid: string, inviteeUuid: string }
+
+   DELETE /api/calendly/events/no-shows/{uuid}
+   ```
+
+5. **Specific Event** (`app/api/calendly/events/[uuid]/route.ts`)
+   ```typescript
+   GET /api/calendly/events/{uuid}
+   DELETE /api/calendly/events/{uuid}
+   PATCH /api/calendly/events/{uuid}
+   ```
+
+#### Availability Management
+1. **General Availability** (`app/api/calendly/availability/route.ts`)
+   ```typescript
+   GET /api/calendly/availability
+   Query params: startTime, endTime
+   ```
+
+2. **Availability Schedules** (`app/api/calendly/availability/schedules/route.ts`)
+   ```typescript
+   GET /api/calendly/availability/schedules
    Query params: userUri
    ```
 
-5. **Busy Times** (`app/api/calendly/busy-times/route.ts`)
+3. **Busy Times** (`app/api/calendly/availability/busy/route.ts`)
    ```typescript
-   GET /api/calendly/busy-times
+   GET /api/calendly/availability/busy
    Query params: userUri, startTime, endTime
    ```
 
-6. **Available Times** (`app/api/calendly/available-times/route.ts`)
+4. **Free Times** (`app/api/calendly/availability/free/route.ts`)
    ```typescript
-   GET /api/calendly/available-times
+   GET /api/calendly/availability/free
    Query params: eventUri, startTime, endTime
    ```
 
-7. **Invitee Management** (`app/api/calendly/invitees/no-show/route.ts`)
+#### Supporting Endpoints
+1. **Invitee Management** (`app/api/calendly/invitees/route.ts`)
    ```typescript
-   POST /api/calendly/invitees/no-show
-   Body: { inviteeUri: string }
+   GET /api/calendly/invitees
+   Query params: eventUuid, status, email
+   ```
 
-   DELETE /api/calendly/invitees/{uuid}/no-show
+2. **Session Management** (`app/api/calendly/sessions/route.ts`)
+   ```typescript
+   GET /api/calendly/sessions
+   POST /api/calendly/sessions
+   ```
+
+3. **Webhooks** (`app/api/calendly/webhooks/route.ts`)
+   ```typescript
+   POST /api/calendly/webhooks
+   Headers: X-Calendly-Hook-ID, X-Calendly-Signature
+   ```
+
+4. **OAuth** (`app/api/calendly/oauth/route.ts`)
+   ```typescript
+   GET /api/calendly/oauth/callback
+   Query params: code, state
+   ```
+
+5. **Status** (`app/api/calendly/status/route.ts`)
+   ```typescript
+   GET /api/calendly/status
+   Response: { connected: boolean, organization: string }
    ```
 
 ### React Hooks
