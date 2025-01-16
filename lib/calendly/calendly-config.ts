@@ -3,21 +3,16 @@ if (!process.env.CALENDLY_CLIENT_ID || !process.env.CALENDLY_CLIENT_SECRET || !p
   throw new Error('Missing required Calendly environment variables')
 }
 
-const MOCK_SERVER_BASE = 'https://stoplight.io/mocks/calendly/api-docs/591407'
-
 // Core configuration
 export const CALENDLY_CONFIG = {
   // API Configuration
   api: {
-    baseUrl: process.env.NODE_ENV === 'development' 
-      ? `${MOCK_SERVER_BASE}`
-      : 'https://api.calendly.com',
+    baseUrl: 'https://api.calendly.com',
     version: 'v2'
   },
 
   // OAuth Configuration  
   oauth: {
-    // Always use real Calendly OAuth endpoints
     baseUrl: 'https://calendly.com',
     authorizePath: '/oauth/authorize',
     tokenPath: '/oauth/token',
@@ -33,12 +28,9 @@ export const CALENDLY_CONFIG = {
 
   // Default Headers
   headers: {
-    'Content-Type': 'application/json',
-    ...(process.env.NODE_ENV === 'development' && {
-      'Prefer': 'code=200, dynamic=true'
-    })
+    'Content-Type': 'application/json'
   }
 }
 
-// Helper to check if we're in development/mock mode
-export const isDevelopment = process.env.NODE_ENV === 'development' 
+// Helper to check if we're in production mode
+export const isProduction = process.env.NODE_ENV === 'production' 

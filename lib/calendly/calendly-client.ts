@@ -1,5 +1,4 @@
-import { CALENDLY_CONFIG, isDevelopment } from './calendly-config'
-import { MOCK_DATA } from './mock/mock-data'
+import { CALENDLY_CONFIG } from './calendly-config'
 
 interface CalendlyRequestOptions {
   method?: string
@@ -11,7 +10,6 @@ interface CalendlyRequestOptions {
 type CalendlyHeaders = {
   'Content-Type': string
   Authorization?: string
-  Prefer?: string
   [key: string]: string | undefined
 }
 
@@ -37,17 +35,6 @@ export class CalendlyClient {
   }
 
   async request<T>(path: string, options: CalendlyRequestOptions = {}): Promise<T> {
-    // Return mock response in development mode
-    if (isDevelopment) {
-      console.log('[CALENDLY_API_DEBUG] Using development mode with mock response for:', path)
-      const mockPath = path.split('?')[0]
-      const mockResponse = MOCK_DATA[mockPath as keyof typeof MOCK_DATA]
-      if (!mockResponse) {
-        throw new Error(`No mock response available for path: ${path}`)
-      }
-      return mockResponse as T
-    }
-
     const {
       method = 'GET',
       body,

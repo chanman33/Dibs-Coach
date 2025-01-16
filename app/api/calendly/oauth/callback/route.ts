@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { CALENDLY_CONFIG, isDevelopment } from '@/lib/calendly/calendly-config'
+import { CALENDLY_CONFIG, isProduction } from '@/lib/calendly/calendly-config'
 
 // Mock response for development mode
 const MOCK_TOKEN_RESPONSE = {
@@ -104,7 +104,7 @@ export async function GET(request: Request) {
     let tokenData;
     let userData;
 
-    if (isDevelopment) {
+    if (!isProduction) {
       console.log('[CALENDLY_AUTH_DEBUG] Using development mode with mock responses')
       tokenData = MOCK_TOKEN_RESPONSE
       userData = MOCK_USER_RESPONSE
