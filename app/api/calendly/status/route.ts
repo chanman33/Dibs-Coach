@@ -63,11 +63,25 @@ export async function GET() {
       .eq('userDbId', user.id)
       .single()
 
-    if (error || !integration) {
+    // If no integration found, return not connected
+    if (error?.code === 'PGRST116' || !integration) {
       return NextResponse.json<ApiResponse<CalendlyStatus>>({
         data: { connected: false },
         error: null
       })
+    }
+
+    // If other database error, return error
+    if (error) {
+      console.error('[CALENDLY_STATUS_ERROR] Database error:', error)
+      const apiError = {
+        code: 'DATABASE_ERROR',
+        message: 'Failed to fetch integration status'
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: apiError 
+      }, { status: 500 })
     }
 
     // Validate integration data
@@ -88,23 +102,35 @@ export async function GET() {
     // Test connection by making a simple API call
     try {
       const calendly = new CalendlyService()
-      await calendly.getUserInfo()
-    } catch (error) {
+      const userInfo = await calendly.getUserInfo()
+      
+      // If we get here, the connection is working
+      return NextResponse.json<ApiResponse<CalendlyStatus>>({
+        data: {
+          connected: true,
+          schedulingUrl: integrationResult.data.schedulingUrl,
+          organizationUrl: integrationResult.data.organizationUrl
+        },
+        error: null
+      })
+    } catch (error: unknown) {
+      // If it's a 401 or 403, the token is invalid/expired
+      if (error instanceof Error && 
+          (error.message.includes('401') || error.message.includes('403'))) {
+        console.error('[CALENDLY_STATUS_ERROR] Authentication failed:', error)
+        return NextResponse.json<ApiResponse<CalendlyStatus>>({
+          data: { connected: false },
+          error: null
+        })
+      }
+
+      // For other API errors, log but don't expose to client
       console.error('[CALENDLY_STATUS_ERROR] API test failed:', error)
       return NextResponse.json<ApiResponse<CalendlyStatus>>({
         data: { connected: false },
         error: null
       })
     }
-
-    return NextResponse.json<ApiResponse<CalendlyStatus>>({
-      data: {
-        connected: true,
-        schedulingUrl: integrationResult.data.schedulingUrl,
-        organizationUrl: integrationResult.data.organizationUrl
-      },
-      error: null
-    })
   } catch (error) {
     console.error('[CALENDLY_STATUS_ERROR]', error)
     const apiError = {

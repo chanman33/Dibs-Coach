@@ -1,4 +1,5 @@
-import { CALENDLY_CONFIG } from './calendly-config'
+import { CALENDLY_CONFIG, isDevelopment } from './calendly-config'
+import { MOCK_DATA } from './mock/mock-data'
 
 interface CalendlyRequestOptions {
   method?: string
@@ -22,11 +23,8 @@ export class CalendlyClient {
   }
 
   private getHeaders(requiresAuth: boolean = true): CalendlyHeaders {
-    const headers: CalendlyHeaders = {
-      ...CALENDLY_CONFIG.DEFAULT_HEADERS,
-      ...(CALENDLY_CONFIG.MOCK_SERVER.enabled ? CALENDLY_CONFIG.MOCK_SERVER.headers : {})
-    }
-
+    const headers: CalendlyHeaders = { ...CALENDLY_CONFIG.headers }
+    
     if (requiresAuth && this.accessToken) {
       headers.Authorization = `Bearer ${this.accessToken}`
     }
@@ -35,12 +33,21 @@ export class CalendlyClient {
   }
 
   private buildUrl(path: string): string {
-    const baseUrl = CALENDLY_CONFIG.API_BASE_URL
-    const version = CALENDLY_CONFIG.API_VERSION
-    return `${baseUrl}/${version}/${path.replace(/^\//, '')}`
+    return `${CALENDLY_CONFIG.api.baseUrl}/${path.replace(/^\//, '')}`
   }
 
   async request<T>(path: string, options: CalendlyRequestOptions = {}): Promise<T> {
+    // Return mock response in development mode
+    if (isDevelopment) {
+      console.log('[CALENDLY_API_DEBUG] Using development mode with mock response for:', path)
+      const mockPath = path.split('?')[0]
+      const mockResponse = MOCK_DATA[mockPath as keyof typeof MOCK_DATA]
+      if (!mockResponse) {
+        throw new Error(`No mock response available for path: ${path}`)
+      }
+      return mockResponse as T
+    }
+
     const {
       method = 'GET',
       body,
@@ -51,16 +58,16 @@ export class CalendlyClient {
     const url = this.buildUrl(path)
     const baseHeaders = this.getHeaders(requiresAuth)
     
-    // Convert headers to Record<string, string> by filtering out undefined values
-    const headers: Record<string, string> = Object.entries({
-      ...baseHeaders,
-      ...extraHeaders
-    }).reduce((acc, [key, value]) => {
+    // Ensure all header values are strings
+    const headers: Record<string, string> = {}
+    Object.entries(baseHeaders).forEach(([key, value]) => {
       if (value !== undefined) {
-        acc[key] = value
+        headers[key] = value
       }
-      return acc
-    }, {} as Record<string, string>)
+    })
+    Object.entries(extraHeaders).forEach(([key, value]) => {
+      headers[key] = String(value)
+    })
 
     try {
       const response = await fetch(url, {
@@ -70,7 +77,8 @@ export class CalendlyClient {
       })
 
       if (!response.ok) {
-        throw new Error(`Calendly API error: ${response.status} ${response.statusText}`)
+        const errorText = await response.text()
+        throw new Error(`Calendly API error: ${response.status} ${response.statusText}\n${errorText}`)
       }
 
       return await response.json()
@@ -80,22 +88,17 @@ export class CalendlyClient {
     }
   }
 
-  // Utility methods for common operations
+  // Common API Methods
   async getUser() {
-    return this.request('/users/me')
+    return this.request('users/me')
   }
 
   async getEventTypes() {
-    return this.request('/event_types')
+    return this.request('event_types')
   }
 
   async getScheduledEvents(params: Record<string, string> = {}) {
     const queryString = new URLSearchParams(params).toString()
-    return this.request(`/scheduled_events${queryString ? `?${queryString}` : ''}`)
-  }
-
-  async getAvailability(params: Record<string, string> = {}) {
-    const queryString = new URLSearchParams(params).toString()
-    return this.request(`/user_availability_schedules${queryString ? `?${queryString}` : ''}`)
+    return this.request(`scheduled_events${queryString ? `?${queryString}` : ''}`)
   }
 } 

@@ -14,6 +14,7 @@ interface AvailabilityStatus {
 export function CalendlyAvailability() {
   const [status, setStatus] = useState<AvailabilityStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isConnecting, setIsConnecting] = useState(false)
 
   const fetchStatus = async () => {
     try {
@@ -28,6 +29,22 @@ export function CalendlyAvailability() {
       toast.error('Failed to check Calendly connection status')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleConnect = async () => {
+    try {
+      setIsConnecting(true)
+      const response = await fetch('/api/calendly/oauth')
+      if (!response.ok) {
+        throw new Error('Failed to initiate Calendly connection')
+      }
+      const { authUrl } = await response.json()
+      window.location.href = authUrl
+    } catch (error) {
+      console.error('[CALENDLY_CONNECT_ERROR]', error)
+      toast.error('Failed to connect to Calendly')
+      setIsConnecting(false)
     }
   }
 
@@ -51,6 +68,19 @@ export function CalendlyAvailability() {
           <p className="text-muted-foreground mb-4">
             You need to connect your Calendly account to manage your availability.
           </p>
+          <Button 
+            onClick={handleConnect}
+            disabled={isConnecting}
+          >
+            {isConnecting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Connecting...
+              </>
+            ) : (
+              'Connect Calendly'
+            )}
+          </Button>
         </div>
       </Card>
     )

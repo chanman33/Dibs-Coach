@@ -2,7 +2,22 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { CALENDLY_CONFIG } from '@/lib/calendly/calendly-config'
+import { CALENDLY_CONFIG, isDevelopment } from '@/lib/calendly/calendly-config'
+
+// Mock response for development mode
+const MOCK_TOKEN_RESPONSE = {
+  access_token: 'mock_access_token',
+  refresh_token: 'mock_refresh_token',
+  expires_in: 7200,
+  scope: 'default'
+}
+
+const MOCK_USER_RESPONSE = {
+  resource: {
+    current_organization: 'https://api.calendly.com/organizations/MOCK-ORG',
+    scheduling_url: 'https://calendly.com/mock-user',
+  }
+}
 
 export async function GET(request: Request) {
   try {
@@ -40,146 +55,140 @@ export async function GET(request: Request) {
       )
     }
 
-    // Validate required environment variables and redirect URI format
-    const redirectUri = 'https://7f3e-172-59-155-40.ngrok-free.app/api/calendly/oauth/callback'
-    
-    // Validate redirect URI format
-    try {
-      const uri = new URL(redirectUri)
-      if (uri.toString().endsWith('/')) {
-        console.error('[CALENDLY_AUTH_ERROR] Redirect URI should not have trailing slash')
-        return NextResponse.redirect(
-          `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Invalid redirect URI format')}`
-        )
+    // Validate required configuration
+    if (!CALENDLY_CONFIG.oauth.clientId || !CALENDLY_CONFIG.oauth.clientSecret || !CALENDLY_CONFIG.oauth.redirectUri) {
+      console.error('[CALENDLY_AUTH_ERROR] Missing required configuration')
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Missing required configuration')}`
+      )
+    }
+
+    // Log the received code and verifier
+    console.log('[CALENDLY_AUTH_DEBUG] Received authorization code:', {
+      code: `${code?.substring(0, 10)}...`,
+      code_length: code?.length,
+      verifier: {
+        exists: !!codeVerifier,
+        length: codeVerifier?.length,
+        preview: codeVerifier ? `${codeVerifier.substring(0, 10)}...` : 'none'
       }
-    } catch (e) {
-      console.error('[CALENDLY_AUTH_ERROR] Invalid redirect URI format:', e)
-      return NextResponse.redirect(
-        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Invalid redirect URI format')}`
-      )
-    }
+    })
 
-    // Get client configuration based on environment
-    const clientId = CALENDLY_CONFIG.CLIENT.id
-    if (!clientId) {
-      console.error('[CALENDLY_AUTH_ERROR] Missing client ID')
-      return NextResponse.redirect(
-        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Missing client configuration')}`
-      )
-    }
-
-    // Prepare token exchange request exactly as per docs
+    // Prepare token exchange request
     const tokenParams = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: redirectUri,
-      client_id: clientId,
+      redirect_uri: CALENDLY_CONFIG.oauth.redirectUri,
+      client_id: CALENDLY_CONFIG.oauth.clientId,
       code_verifier: codeVerifier
     })
 
-    // Enhanced debug logging
-    console.log('[CALENDLY_AUTH_DEBUG] Full request details:', {
-      url: `${CALENDLY_CONFIG.OAUTH_BASE_URL}/token`,
-      method: 'POST',
+    // Create Basic Auth header
+    const basicAuth = Buffer.from(`${CALENDLY_CONFIG.oauth.clientId}:${CALENDLY_CONFIG.oauth.clientSecret}`).toString('base64')
+
+    // Log token request details (excluding sensitive data)
+    console.log('[CALENDLY_AUTH_DEBUG] Token request:', {
+      url: `${CALENDLY_CONFIG.oauth.baseUrl}/token`,
+      params: {
+        grant_type: 'authorization_code',
+        redirect_uri: CALENDLY_CONFIG.oauth.redirectUri,
+        client_id: CALENDLY_CONFIG.oauth.clientId,
+        code_verifier_length: codeVerifier.length
+      },
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      params: Object.fromEntries(tokenParams.entries()),
-      code: code,
-      redirectUri: {
-        exact: redirectUri,
-        hasTrailingSlash: redirectUri.endsWith('/'),
-        length: redirectUri.length
-      },
-      pkce: {
-        verifier: codeVerifier.substring(0, 10) + '...',
-        verifierLength: codeVerifier.length
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': 'Basic [REDACTED]'
       }
     })
 
-    const tokenResponse = await fetch(`${CALENDLY_CONFIG.OAUTH_BASE_URL}/token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: tokenParams.toString()
-    })
+    let tokenData;
+    let userData;
 
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text()
-      let errorData;
-      try {
-        errorData = JSON.parse(errorText);
-      } catch (e) {
-        errorData = { error: 'unknown_error', error_description: errorText };
+    if (isDevelopment) {
+      console.log('[CALENDLY_AUTH_DEBUG] Using development mode with mock responses')
+      tokenData = MOCK_TOKEN_RESPONSE
+      userData = MOCK_USER_RESPONSE
+    } else {
+      const tokenResponse = await fetch(`${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.tokenPath}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${basicAuth}`
+        },
+        body: tokenParams.toString()
+      })
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text()
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { error: 'unknown_error', error_description: errorText };
+        }
+
+        console.error('[CALENDLY_AUTH_ERROR] Token exchange failed:', {
+          status: tokenResponse.status,
+          statusText: tokenResponse.statusText,
+          error: errorData
+        });
+
+        let userMessage = '';
+        switch (errorData.error) {
+          case 'invalid_request':
+            userMessage = 'The request was malformed or missing required parameters';
+            break;
+          case 'invalid_grant':
+            userMessage = 'The authorization code is invalid or expired';
+            break;
+          case 'unsupported_grant_type':
+            userMessage = 'The grant type is not supported';
+            break;
+          case 'invalid_client':
+            userMessage = 'Client authentication failed. Please check your client credentials';
+            break;
+          case 'unauthorized_client':
+            userMessage = 'The client is not authorized to use this grant type';
+            break;
+          default:
+            userMessage = errorData.error_description || 'An unknown error occurred';
+        }
+
+        return NextResponse.redirect(
+          `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent(userMessage)}`
+        )
       }
 
-      // Log detailed error information
-      console.error('[CALENDLY_AUTH_ERROR] Token exchange failed:', {
-        status: tokenResponse.status,
-        statusText: tokenResponse.statusText,
-        error: errorData
-      });
+      tokenData = await tokenResponse.json()
+      
+      // Get user's Calendly information
+      const userResponse = await fetch(`${CALENDLY_CONFIG.api.baseUrl}/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      })
 
-      // Handle specific error cases
-      let userMessage = '';
-      switch (errorData.error) {
-        // 400 Bad Request errors
-        case 'invalid_request':
-          userMessage = 'The request was malformed or missing required parameters';
-          break;
-        case 'invalid_grant':
-          userMessage = 'The authorization code is invalid or expired';
-          break;
-        case 'unsupported_grant_type':
-          userMessage = 'The grant type is not supported';
-          break;
-        
-        // 401 Unauthorized errors
-        case 'invalid_client':
-          userMessage = 'Client authentication failed. Please check your client ID';
-          break;
-        case 'unauthorized_client':
-          userMessage = 'The client is not authorized to use this grant type';
-          break;
-        
-        default:
-          userMessage = errorData.error_description || 'An unknown error occurred';
+      if (!userResponse.ok) {
+        const errorText = await userResponse.text()
+        console.error('[CALENDLY_AUTH_ERROR] Failed to fetch user info:', errorText)
+        return NextResponse.redirect(
+          `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to fetch user info')}`
+        )
       }
 
-      return NextResponse.redirect(
-        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent(userMessage)}&details=${encodeURIComponent(errorData.error_description || '')}`
-      )
+      userData = await userResponse.json()
     }
 
-    const tokenData = await tokenResponse.json()
-    
     const { access_token, refresh_token, expires_in, scope } = tokenData
 
     if (!access_token || !refresh_token) {
       console.error('[CALENDLY_AUTH_ERROR] Missing tokens in response:', tokenData)
       return NextResponse.redirect(
-        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Invalid token response: Missing required tokens')}`
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Invalid token response')}`
       )
     }
 
-    // Get user's Calendly information
-    const userResponse = await fetch('https://api.calendly.com/users/me', {
-      headers: {
-        'Authorization': `Bearer ${access_token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!userResponse.ok) {
-      const errorText = await userResponse.text()
-      console.error('[CALENDLY_AUTH_ERROR] Failed to fetch user info:', errorText)
-      return NextResponse.redirect(
-        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to fetch user info')}`
-      )
-    }
-
-    const userData = await userResponse.json()
     if (!userData.resource) {
       console.error('[CALENDLY_AUTH_ERROR] Invalid user data:', userData)
       return NextResponse.redirect(
@@ -197,16 +206,16 @@ export async function GET(request: Request) {
             return cookieStore.get(name)?.value
           },
           set(name: string, value: string, options: any) {
-            // We don't need to set cookies in this flow anymore
+            // Not needed for this flow
           },
           remove(name: string, options: any) {
-            // We don't need to remove cookies in this flow anymore
+            // Not needed for this flow
           },
         },
       }
     )
 
-    // Get user's database ID using userId from state
+    // Get user's database ID
     const { data: user, error: userError } = await supabase
       .from('User')
       .select('id')
@@ -230,7 +239,9 @@ export async function GET(request: Request) {
         scope: scope || 'default',
         organizationUrl: userData.resource.current_organization,
         schedulingUrl: userData.resource.scheduling_url,
-        expiresAt: new Date(Date.now() + expires_in * 1000).toISOString(),
+        // Format dates in ISO format
+        expiresAt: new Date(Date.now() + (expires_in * 1000)).toISOString(),
+        updatedAt: new Date().toISOString()
       })
 
     if (integrationError) {
@@ -239,6 +250,9 @@ export async function GET(request: Request) {
         `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to store integration data')}`
       )
     }
+
+    // Clear the code verifier cookie
+    cookieStore.delete('calendly_verifier')
 
     // Redirect to success page
     return NextResponse.redirect(`${process.env.FRONTEND_URL}/dashboard/settings/calendly?calendly=success`)

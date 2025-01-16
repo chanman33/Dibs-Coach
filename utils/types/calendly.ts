@@ -32,7 +32,17 @@ export type ApiResponse<T> = {
 }
 
 // Base Schemas
-export const DateTimeSchema = z.string().datetime()
+export const DateTimeSchema = z.string().refine((val) => {
+  try {
+    // Attempt to parse the date and ensure it's valid
+    const date = new Date(val)
+    return !isNaN(date.getTime())
+  } catch {
+    return false
+  }
+}, {
+  message: 'Invalid datetime format'
+})
 export const UUIDSchema = z.string().uuid()
 export const URISchema = z.string().url()
 export const EmailSchema = z.string().email()
