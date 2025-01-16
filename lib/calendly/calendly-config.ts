@@ -17,15 +17,10 @@ export const CALENDLY_CONFIG = {
 
   // OAuth Configuration  
   oauth: {
-    baseUrl: process.env.NODE_ENV === 'development'
-      ? MOCK_SERVER_BASE
-      : 'https://auth.calendly.com',
-    authorizePath: process.env.NODE_ENV === 'development'
-      ? '/oauth/authorize'
-      : '/oauth/authorize',
-    tokenPath: process.env.NODE_ENV === 'development'
-      ? '/oauth/token'
-      : '/oauth/token',
+    // Always use real Calendly OAuth endpoints
+    baseUrl: 'https://calendly.com',
+    authorizePath: '/oauth/authorize',
+    tokenPath: '/oauth/token',
     clientId: process.env.CALENDLY_CLIENT_ID,
     clientSecret: process.env.CALENDLY_CLIENT_SECRET,
     redirectUri: process.env.CALENDLY_REDIRECT_URI

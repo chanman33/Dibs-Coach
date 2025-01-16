@@ -88,7 +88,7 @@ export async function GET(request: Request) {
 
     // Log token request details (excluding sensitive data)
     console.log('[CALENDLY_AUTH_DEBUG] Token request:', {
-      url: `${CALENDLY_CONFIG.oauth.baseUrl}/token`,
+      url: `${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.tokenPath}`,
       params: {
         grant_type: 'authorization_code',
         redirect_uri: CALENDLY_CONFIG.oauth.redirectUri,
@@ -232,17 +232,22 @@ export async function GET(request: Request) {
     // Store the integration data
     const { error: integrationError } = await supabase
       .from('CalendlyIntegration')
-      .upsert({
-        userDbId: user.id,
-        accessToken: access_token,
-        refreshToken: refresh_token,
-        scope: scope || 'default',
-        organizationUrl: userData.resource.current_organization,
-        schedulingUrl: userData.resource.scheduling_url,
-        // Format dates in ISO format
-        expiresAt: new Date(Date.now() + (expires_in * 1000)).toISOString(),
-        updatedAt: new Date().toISOString()
-      })
+      .upsert(
+        {
+          userDbId: user.id,
+          accessToken: access_token,
+          refreshToken: refresh_token,
+          scope: scope || 'default',
+          organizationUrl: userData.resource.current_organization,
+          schedulingUrl: userData.resource.scheduling_url,
+          expiresAt: new Date(Date.now() + (expires_in * 1000)).toISOString(),
+          updatedAt: new Date().toISOString()
+        },
+        {
+          onConflict: 'userDbId',
+          ignoreDuplicates: false
+        }
+      )
 
     if (integrationError) {
       console.error('[CALENDLY_AUTH_ERROR] Failed to store integration:', integrationError)
