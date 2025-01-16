@@ -1,74 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
-import { toast } from 'react-hot-toast'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { useSearchParams } from 'next/navigation'
-
-interface AvailabilityStatus {
-  connected: boolean
-  schedulingUrl?: string
-  expiresAt?: string
-  isExpired?: boolean
-  isMockData?: boolean
-}
+import { useCalendly } from '@/utils/hooks/useCalendly'
 
 export function CalendlyAvailability() {
-  const [status, setStatus] = useState<AvailabilityStatus | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isConnecting, setIsConnecting] = useState(false)
-  const searchParams = useSearchParams()
-
-  const fetchStatus = async () => {
-    try {
-      const response = await fetch('/api/calendly/status')
-      if (!response.ok) {
-        throw new Error('Failed to fetch Calendly status')
-      }
-      const data = await response.json()
-      setStatus(data)
-    } catch (error) {
-      console.error('[CALENDLY_STATUS_ERROR]', error)
-      toast.error('Failed to check Calendly connection status')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleConnect = async () => {
-    try {
-      setIsConnecting(true)
-      const response = await fetch('/api/calendly/oauth')
-      if (!response.ok) {
-        throw new Error('Failed to initiate Calendly connection')
-      }
-      const { authUrl } = await response.json()
-      window.location.href = authUrl
-    } catch (error) {
-      console.error('[CALENDLY_CONNECT_ERROR]', error)
-      toast.error('Failed to connect to Calendly')
-      setIsConnecting(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchStatus()
-  }, [])
-
-  useEffect(() => {
-    // Check for success or error params
-    const calendlyStatus = searchParams.get('calendly')
-    const error = searchParams.get('error')
-
-    if (calendlyStatus === 'success') {
-      toast.success('Calendly connected successfully!')
-    } else if (error) {
-      toast.error(decodeURIComponent(error))
-    }
-  }, [searchParams])
+  const { status, isLoading } = useCalendly()
 
   if (isLoading) {
     return (
@@ -86,19 +25,6 @@ export function CalendlyAvailability() {
           <p className="text-muted-foreground mb-4">
             You need to connect your Calendly account to manage your availability.
           </p>
-          <Button 
-            onClick={handleConnect}
-            disabled={isConnecting}
-          >
-            {isConnecting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Connecting...
-              </>
-            ) : (
-              'Connect Calendly'
-            )}
-          </Button>
         </div>
       </Card>
     )

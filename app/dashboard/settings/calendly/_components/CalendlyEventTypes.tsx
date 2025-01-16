@@ -1,47 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
-import { toast } from 'react-hot-toast'
-
-interface EventType {
-  uri: string
-  name: string
-  duration: number
-  url: string
-}
-
-interface EventTypesStatus {
-  connected: boolean
-  schedulingUrl?: string
-  eventTypes?: EventType[]
-}
+import { useCalendly } from '@/utils/hooks/useCalendly'
 
 export function CalendlyEventTypes() {
-  const [status, setStatus] = useState<EventTypesStatus | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  const fetchEventTypes = async () => {
-    try {
-      const response = await fetch('/api/calendly/event-types')
-      if (!response.ok) {
-        throw new Error('Failed to fetch event types')
-      }
-      const data = await response.json()
-      setStatus(data)
-    } catch (error) {
-      console.error('[CALENDLY_EVENT_TYPES_ERROR]', error)
-      toast.error('Failed to fetch event types')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchEventTypes()
-  }, [])
+  const { status, isLoading } = useCalendly()
 
   if (isLoading) {
     return (
