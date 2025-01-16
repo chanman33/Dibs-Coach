@@ -1,18 +1,23 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-
-const CALENDLY_AUTH_BASE = 'https://auth.calendly.com'
+import { auth } from '@clerk/nextjs/server'
+import { CALENDLY_CONFIG } from '@/lib/calendly/calendly-config'
 
 export async function GET(request: Request) {
   try {
+    const { userId } = await auth()
+    if (!userId) {
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Authentication required')}`
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const code = searchParams.get('code')
-    const encodedState = searchParams.get('state')
     const error = searchParams.get('error')
     const errorDescription = searchParams.get('error_description')
     
-    // Handle OAuth errors
     if (error) {
       console.error('[CALENDLY_AUTH_ERROR] OAuth error:', error, errorDescription)
       return NextResponse.redirect(
@@ -20,68 +25,141 @@ export async function GET(request: Request) {
       )
     }
     
-    if (!code || !encodedState) {
-      return new NextResponse('Invalid authorization response', { status: 400 })
+    if (!code) {
+      return new NextResponse('Missing authorization code', { status: 400 })
     }
 
-    // Decode and parse state
-    let state;
+    // Exchange code for token using Basic Auth
+    const cookieStore = await cookies()
+    const codeVerifier = cookieStore.get('calendly_verifier')?.value
+    
+    if (!codeVerifier) {
+      console.error('[CALENDLY_AUTH_ERROR] Missing code verifier')
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Missing code verifier')}`
+      )
+    }
+
+    // Validate required environment variables and redirect URI format
+    const redirectUri = 'https://7f3e-172-59-155-40.ngrok-free.app/api/calendly/oauth/callback'
+    
+    // Validate redirect URI format
     try {
-      const decodedState = Buffer.from(encodedState, 'base64').toString()
-      state = JSON.parse(decodedState)
-      console.log('[CALENDLY_AUTH] Decoded state:', state)
-    } catch (error) {
-      console.error('[CALENDLY_AUTH_ERROR] Failed to decode state:', error)
-      return new NextResponse('Invalid state parameter', { status: 400 })
+      const uri = new URL(redirectUri)
+      if (uri.toString().endsWith('/')) {
+        console.error('[CALENDLY_AUTH_ERROR] Redirect URI should not have trailing slash')
+        return NextResponse.redirect(
+          `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Invalid redirect URI format')}`
+        )
+      }
+    } catch (e) {
+      console.error('[CALENDLY_AUTH_ERROR] Invalid redirect URI format:', e)
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Invalid redirect URI format')}`
+      )
     }
 
-    const { userId, verifier: codeVerifier } = state
-    if (!userId || !codeVerifier) {
-      return new NextResponse('Invalid state content', { status: 400 })
+    // Get client configuration based on environment
+    const clientId = CALENDLY_CONFIG.CLIENT.id
+    if (!clientId) {
+      console.error('[CALENDLY_AUTH_ERROR] Missing client ID')
+      return NextResponse.redirect(
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Missing client configuration')}`
+      )
     }
 
-    // Exchange code for access token with PKCE
-    console.log('[CALENDLY_AUTH] Sending token request:', {
-      code,
-      code_verifier: codeVerifier,
+    // Prepare token exchange request exactly as per docs
+    const tokenParams = new URLSearchParams({
       grant_type: 'authorization_code',
-      redirect_uri: process.env.CALENDLY_REDIRECT_URI,
+      code,
+      redirect_uri: redirectUri,
+      client_id: clientId,
+      code_verifier: codeVerifier
     })
 
-    // Create Basic Auth header
-    const basicAuth = Buffer.from(
-      `${process.env.CALENDLY_CLIENT_ID}:${process.env.CALENDLY_CLIENT_SECRET}`
-    ).toString('base64')
-
-    const tokenResponse = await fetch(`${CALENDLY_AUTH_BASE}/oauth/token`, {
+    // Enhanced debug logging
+    console.log('[CALENDLY_AUTH_DEBUG] Full request details:', {
+      url: `${CALENDLY_CONFIG.OAUTH_BASE_URL}/token`,
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${basicAuth}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
-      body: new URLSearchParams({
-        code,
-        code_verifier: codeVerifier,
-        grant_type: 'authorization_code',
-        redirect_uri: process.env.CALENDLY_REDIRECT_URI!,
-      }).toString(),
+      params: Object.fromEntries(tokenParams.entries()),
+      code: code,
+      redirectUri: {
+        exact: redirectUri,
+        hasTrailingSlash: redirectUri.endsWith('/'),
+        length: redirectUri.length
+      },
+      pkce: {
+        verifier: codeVerifier.substring(0, 10) + '...',
+        verifierLength: codeVerifier.length
+      }
+    })
+
+    const tokenResponse = await fetch(`${CALENDLY_CONFIG.OAUTH_BASE_URL}/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: tokenParams.toString()
     })
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text()
-      console.error('[CALENDLY_AUTH_ERROR] Token exchange failed:', errorText)
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { error: 'unknown_error', error_description: errorText };
+      }
+
+      // Log detailed error information
+      console.error('[CALENDLY_AUTH_ERROR] Token exchange failed:', {
+        status: tokenResponse.status,
+        statusText: tokenResponse.statusText,
+        error: errorData
+      });
+
+      // Handle specific error cases
+      let userMessage = '';
+      switch (errorData.error) {
+        // 400 Bad Request errors
+        case 'invalid_request':
+          userMessage = 'The request was malformed or missing required parameters';
+          break;
+        case 'invalid_grant':
+          userMessage = 'The authorization code is invalid or expired';
+          break;
+        case 'unsupported_grant_type':
+          userMessage = 'The grant type is not supported';
+          break;
+        
+        // 401 Unauthorized errors
+        case 'invalid_client':
+          userMessage = 'Client authentication failed. Please check your client ID';
+          break;
+        case 'unauthorized_client':
+          userMessage = 'The client is not authorized to use this grant type';
+          break;
+        
+        default:
+          userMessage = errorData.error_description || 'An unknown error occurred';
+      }
+
       return NextResponse.redirect(
-        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to exchange authorization code')}`
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent(userMessage)}&details=${encodeURIComponent(errorData.error_description || '')}`
       )
     }
 
     const tokenData = await tokenResponse.json()
+    
     const { access_token, refresh_token, expires_in, scope } = tokenData
 
     if (!access_token || !refresh_token) {
       console.error('[CALENDLY_AUTH_ERROR] Missing tokens in response:', tokenData)
       return NextResponse.redirect(
-        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Invalid token response')}`
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Invalid token response: Missing required tokens')}`
       )
     }
 
@@ -110,7 +188,6 @@ export async function GET(request: Request) {
     }
 
     // Initialize Supabase client
-    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_KEY!,
