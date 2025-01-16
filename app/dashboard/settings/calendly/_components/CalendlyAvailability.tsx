@@ -13,13 +13,13 @@ interface AvailabilityStatus {
   schedulingUrl?: string
   expiresAt?: string
   isExpired?: boolean
+  isMockData?: boolean
 }
 
 export function CalendlyAvailability() {
   const [status, setStatus] = useState<AvailabilityStatus | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isConnecting, setIsConnecting] = useState(false)
-  const isDevelopment = process.env.NODE_ENV === 'development'
   const searchParams = useSearchParams()
 
   const fetchStatus = async () => {
@@ -64,14 +64,11 @@ export function CalendlyAvailability() {
     const error = searchParams.get('error')
 
     if (calendlyStatus === 'success') {
-      toast.success(isDevelopment 
-        ? 'Mock Calendly connection successful!'
-        : 'Calendly connected successfully!'
-      )
+      toast.success('Calendly connected successfully!')
     } else if (error) {
       toast.error(decodeURIComponent(error))
     }
-  }, [searchParams, isDevelopment])
+  }, [searchParams])
 
   if (isLoading) {
     return (
@@ -89,14 +86,6 @@ export function CalendlyAvailability() {
           <p className="text-muted-foreground mb-4">
             You need to connect your Calendly account to manage your availability.
           </p>
-          {isDevelopment && (
-            <Alert variant="info" className="mb-4">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Development Mode: This will create a mock Calendly connection
-              </AlertDescription>
-            </Alert>
-          )}
           <Button 
             onClick={handleConnect}
             disabled={isConnecting}
@@ -118,11 +107,11 @@ export function CalendlyAvailability() {
   return (
     <Card className="p-6">
       <div className="space-y-6">
-        {isDevelopment ? (
+        {status?.isMockData ? (
           <Alert variant="info">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Development Mode: Using mock Calendly data
+              Using mock Calendly data. Set USE_REAL_CALENDLY=true to use real Calendly integration.
             </AlertDescription>
           </Alert>
         ) : status?.isExpired ? (
@@ -187,8 +176,8 @@ export function CalendlyAvailability() {
 
         <div className="border-t pt-6">
           <p className="text-sm text-muted-foreground">
-            {isDevelopment 
-              ? 'Mock connection active - no real Calendly integration in development mode'
+            {status?.isMockData 
+              ? 'Mock connection active - set USE_REAL_CALENDLY=true to use real Calendly integration'
               : 'Changes made in Calendly will automatically sync with your coaching schedule.'
             }
           </p>

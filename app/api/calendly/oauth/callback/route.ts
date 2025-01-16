@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { CALENDLY_CONFIG, isProduction } from '@/lib/calendly/calendly-config'
+import { CALENDLY_CONFIG, useRealCalendly } from '@/lib/calendly/calendly-config'
 
 // Mock response for development mode
 const MOCK_TOKEN_RESPONSE = {
@@ -104,11 +104,12 @@ export async function GET(request: Request) {
     let tokenData;
     let userData;
 
-    if (!isProduction) {
-      console.log('[CALENDLY_AUTH_DEBUG] Using development mode with mock responses')
+    if (!useRealCalendly) {
+      console.log('[CALENDLY_AUTH_DEBUG] Using mock responses (USE_REAL_CALENDLY not set to true)')
       tokenData = MOCK_TOKEN_RESPONSE
       userData = MOCK_USER_RESPONSE
     } else {
+      // Exchange code for token
       const tokenResponse = await fetch(`${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.tokenPath}`, {
         method: 'POST',
         headers: {
@@ -160,7 +161,7 @@ export async function GET(request: Request) {
       }
 
       tokenData = await tokenResponse.json()
-      
+        
       // Get user's Calendly information
       const userResponse = await fetch(`${CALENDLY_CONFIG.api.baseUrl}/users/me`, {
         headers: {

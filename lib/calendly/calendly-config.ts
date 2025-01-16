@@ -32,5 +32,5 @@ export const CALENDLY_CONFIG = {
   }
 }
 
-// Helper to check if we're in production mode
-export const isProduction = process.env.NODE_ENV === 'production' 
+// Helper to check if we should use real Calendly integration
+export const useRealCalendly = process.env.USE_REAL_CALENDLY === 'true' 
