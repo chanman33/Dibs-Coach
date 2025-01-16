@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { CalendlyService } from '@/lib/calendly-service'
+import { CalendlyService } from '@/lib/calendly/calendly-service'
 import { 
   ApiResponse, 
   EventTypesQuery, 
@@ -31,10 +31,11 @@ export async function GET(request: Request) {
 
     // Get event types with validated parameters
     const calendly = new CalendlyService()
-    const eventTypes = await calendly.getEventTypes(
+    const response = await calendly.getEventTypes(
       queryResult.data.count,
       queryResult.data.pageToken
     )
+    const eventTypes = (response as { collection: CalendlyEventType[] }).collection
 
     return NextResponse.json<ApiResponse<CalendlyEventType[]>>({ 
       data: eventTypes,

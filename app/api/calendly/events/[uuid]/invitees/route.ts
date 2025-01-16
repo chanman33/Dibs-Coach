@@ -1,8 +1,5 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-import { getCalendlyConfig } from '@/lib/calendly/calendly-api'
+import { CalendlyService } from '@/lib/calendly/calendly-service'
 import { 
   ApiResponse,
   CalendlyInvitee,
@@ -28,7 +25,6 @@ export async function GET(
   { params }: { params: { uuid: string } }
 ) {
   try {
-    const { uuid } = params
     const { searchParams } = new URL(request.url)
     const queryResult = QueryParamsSchema.safeParse({
       page_token: searchParams.get('page_token')
@@ -46,24 +42,21 @@ export async function GET(
       }, { status: 400 })
     }
 
-    const config = await getCalendlyConfig()
-    
-    const queryParams = new URLSearchParams()
-    if (queryResult.data.page_token) {
-      queryParams.append('page_token', queryResult.data.page_token)
-    }
-
-    const response = await fetch(
-      `${process.env.CALENDLY_API_BASE}/scheduled_events/${uuid}/invitees?${queryParams}`,
-      { headers: config.headers }
+    const calendly = new CalendlyService()
+    const response = await calendly.getEventInvitees(
+      params.uuid,
+      10, // Default count
+      queryResult.data.page_token
     )
 
-    if (!response.ok) {
-      console.error('[CALENDLY_ERROR] Failed to fetch invitees:', await response.text())
-      throw new Error('Failed to fetch invitees')
+    const data = response as { 
+      collection: unknown[], 
+      pagination: { 
+        next_page: boolean,
+        next_page_token: string | null,
+        previous_page_token: string | null
+      }
     }
-
-    const data = await response.json()
     
     // Validate response data
     const invitees = await Promise.all(

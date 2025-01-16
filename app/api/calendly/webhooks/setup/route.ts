@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createWebhookSubscription } from '@/lib/calendly-api'
+import { CalendlyService } from '@/lib/calendly/calendly-service'
 
 export async function POST() {
   try {
@@ -13,7 +13,8 @@ export async function POST() {
     const webhookUrl = `${ngrokDomain}/api/calendly/webhook`
 
     // Create webhook subscription
-    const subscription = await createWebhookSubscription(webhookUrl)
+    const calendly = new CalendlyService()
+    const subscription = await calendly.createWebhookSubscription(webhookUrl)
 
     return NextResponse.json({ 
       success: true, 

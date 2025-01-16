@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { auth } from '@clerk/nextjs/server'
+import { CalendlyClient } from './calendly-client'
 import type {
   CalendlyEventType,
   CalendlyScheduledEvent,
@@ -9,31 +10,15 @@ import type {
   CalendlyAvailabilitySchedule,
   CalendlyBusyTime,
   CalendlyConfig,
-  CalendlyEventTypeSchema,
-  CalendlyScheduledEventSchema,
-  CalendlyInviteeSchema
+  BookingData
 } from '@/utils/types/calendly'
 
-interface CalendlyUser {
-  uri: string
-  name: string
-  email: string
-  scheduling_url: string
-  timezone: string
-}
-
 export class CalendlyService {
-  private baseUrl: string
-  private authBaseUrl: string
-  private clientId: string
-  private clientSecret: string
+  private client: CalendlyClient
   private config: CalendlyConfig | null = null
 
   constructor() {
-    this.baseUrl = process.env.CALENDLY_API_BASE_URL || 'https://api.calendly.com'
-    this.authBaseUrl = process.env.CALENDLY_AUTH_BASE_URL || 'https://auth.calendly.com'
-    this.clientId = process.env.CALENDLY_CLIENT_ID || ''
-    this.clientSecret = process.env.CALENDLY_CLIENT_SECRET || ''
+    this.client = new CalendlyClient()
   }
 
   private async getConfig(): Promise<CalendlyConfig> {
@@ -70,20 +55,23 @@ export class CalendlyService {
       refreshToken: user.calendlyRefreshToken,
     }
 
+    // Update the client with the access token
+    this.client = new CalendlyClient(user.calendlyAccessToken)
+
     return this.config
   }
 
   private async refreshToken(refreshToken: string) {
-    const response = await fetch(`${this.authBaseUrl}/oauth/token`, {
+    const response = await fetch('https://auth.calendly.com/oauth/token', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({
-        client_id: this.clientId,
-        client_secret: this.clientSecret,
-        grant_type: 'refresh_token',
+      body: new URLSearchParams({
+        client_id: process.env.CALENDLY_CLIENT_ID!,
+        client_secret: process.env.CALENDLY_CLIENT_SECRET!,
         refresh_token: refreshToken,
+        grant_type: 'refresh_token',
       }),
     })
 
@@ -123,160 +111,173 @@ export class CalendlyService {
       refreshToken: data.refresh_token,
     }
 
+    // Update the client with the new access token
+    this.client = new CalendlyClient(data.access_token)
+
     return this.config
   }
 
-  private async fetch<T>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const config = await this.getConfig()
-    
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${config.accessToken}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    })
-
-    if (response.status === 401) {
-      const newConfig = await this.refreshToken(config.refreshToken)
-      return this.fetch<T>(endpoint, options)
-    }
-
-    if (!response.ok) {
-      throw new Error(`Calendly API error: ${await response.text()}`)
-    }
-
-    return response.json()
+  // User Methods
+  async getUserInfo() {
+    await this.getConfig()
+    return this.client.getUser()
   }
 
-  async getUserInfo(): Promise<CalendlyUser> {
-    const { resource } = await this.fetch<{ resource: CalendlyUser }>('/users/me')
-    return resource
+  // Event Type Methods
+  async getEventTypes(count = 10, pageToken?: string) {
+    await this.getConfig()
+    return this.client.getEventTypes()
   }
 
-  async getEventTypes(count = 10, pageToken?: string): Promise<CalendlyEventType[]> {
-    const user = await this.getUserInfo()
-    let url = `/event_types?count=${count}&user=${user.uri}`
-    if (pageToken) url += `&page_token=${pageToken}`
-
-    const { collection } = await this.fetch<{ collection: CalendlyEventType[] }>(url)
-    return collection
+  async getUserEventType(uuid: string) {
+    await this.getConfig()
+    return this.client.request(`/event_types/${uuid}`)
   }
 
+  // Scheduled Events Methods
   async getScheduledEvents(params: {
     count?: number
     pageToken?: string
     status?: string
     minStartTime?: string
     maxStartTime?: string
-  } = {}): Promise<CalendlyScheduledEvent[]> {
-    const user = await this.getUserInfo()
-    const { count = 10, pageToken, status, minStartTime, maxStartTime } = params
-
-    let url = `/scheduled_events?count=${count}&user=${user.uri}`
-    if (pageToken) url += `&page_token=${pageToken}`
-    if (status) url += `&status=${status}`
-    if (minStartTime) url += `&min_start_time=${minStartTime}`
-    if (maxStartTime) url += `&max_start_time=${maxStartTime}`
-
-    const { collection } = await this.fetch<{ collection: CalendlyScheduledEvent[] }>(url)
-    return collection
+  } = {}) {
+    await this.getConfig()
+    const queryParams: Record<string, string> = {}
+    if (params.count) queryParams.count = params.count.toString()
+    if (params.pageToken) queryParams.pageToken = params.pageToken
+    if (params.status) queryParams.status = params.status
+    if (params.minStartTime) queryParams.minStartTime = params.minStartTime
+    if (params.maxStartTime) queryParams.maxStartTime = params.maxStartTime
+    return this.client.getScheduledEvents(queryParams)
   }
 
-  async getScheduledEvent(uuid: string): Promise<CalendlyScheduledEvent> {
-    const { resource } = await this.fetch<{ resource: CalendlyScheduledEvent }>(
-      `/scheduled_events/${uuid}`
-    )
-    return resource
+  async getScheduledEvent(uuid: string) {
+    await this.getConfig()
+    return this.client.request(`/scheduled_events/${uuid}`)
   }
 
-  async getEventInvitees(eventUuid: string, count = 10, pageToken?: string): Promise<CalendlyInvitee[]> {
-    let url = `/scheduled_events/${eventUuid}/invitees?count=${count}`
-    if (pageToken) url += `&page_token=${pageToken}`
-
-    const { collection } = await this.fetch<{ collection: CalendlyInvitee[] }>(url)
-    return collection
-  }
-
-  async cancelEvent(uuid: string, reason: string): Promise<void> {
-    await this.fetch(`/scheduled_events/${uuid}/cancellation`, {
+  async cancelEvent(uuid: string, reason: string) {
+    await this.getConfig()
+    return this.client.request(`/scheduled_events/${uuid}/cancellation`, {
       method: 'POST',
-      body: JSON.stringify({ reason }),
+      body: { reason }
     })
   }
 
-  async getUserEventType(uuid: string): Promise<CalendlyEventType> {
-    const { resource } = await this.fetch<{ resource: CalendlyEventType }>(
-      `/event_types/${uuid}`
-    )
-    return resource
+  // Invitee Methods
+  async getEventInvitees(eventUuid: string, count = 10, pageToken?: string) {
+    await this.getConfig()
+    return this.client.request(`/scheduled_events/${eventUuid}/invitees`, {
+      method: 'GET'
+    })
+  }
+
+  async markInviteeAsNoShow(inviteeUri: string) {
+    await this.getConfig()
+    return this.client.request('/invitee_no_shows', {
+      method: 'POST',
+      body: { invitee: inviteeUri }
+    })
+  }
+
+  async undoInviteeNoShow(inviteeUuid: string) {
+    await this.getConfig()
+    return this.client.request(`/invitee_no_shows/${inviteeUuid}`, {
+      method: 'DELETE'
+    })
+  }
+
+  // Availability Methods
+  async getAvailableSlots(coachCalendlyUrl: string, startTime: string, endTime: string) {
+    await this.getConfig()
+    return this.client.request(`/scheduled_events/available_times`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+  }
+
+  async getUserAvailabilitySchedules(userUri: string) {
+    await this.getConfig()
+    return this.client.request(`/user_availability_schedules?user=${userUri}`)
+  }
+
+  async getUserBusyTimes(userUri: string, startTime: string, endTime: string) {
+    await this.getConfig()
+    const params = new URLSearchParams({
+      user: userUri,
+      start_time: startTime,
+      end_time: endTime
+    })
+    return this.client.request(`/user_busy_times?${params}`)
   }
 
   async getEventTypeAvailableTimes(params: {
     eventUri: string
     startTime: string
     endTime: string
-  }): Promise<CalendlyAvailableTime[]> {
-    const { eventUri, startTime, endTime } = params
+  }) {
+    await this.getConfig()
     const queryParams = new URLSearchParams({
-      start_time: startTime,
-      end_time: endTime,
-      event_type: eventUri,
+      event_type: params.eventUri,
+      start_time: params.startTime,
+      end_time: params.endTime
     })
-
-    const { collection } = await this.fetch<{ collection: CalendlyAvailableTime[] }>(
-      `/event_type_available_times?${queryParams}`
-    )
-    return collection
+    return this.client.request(`/event_type_available_times?${queryParams}`)
   }
 
-  async getUserBusyTimes(params: {
-    userUri: string
-    startTime: string
-    endTime: string
-  }): Promise<CalendlyBusyTime[]> {
-    const { userUri, startTime, endTime } = params
-    const queryParams = new URLSearchParams({
-      user: userUri,
-      start_time: startTime,
-      end_time: endTime,
-    })
-
-    const { collection } = await this.fetch<{ collection: CalendlyBusyTime[] }>(
-      `/user_busy_times?${queryParams}`
-    )
-    return collection
+  // Organization Methods
+  async getOrganizationMemberships() {
+    await this.getConfig()
+    return this.client.request('/organization_memberships')
   }
 
-  async getAvailabilitySchedules(userUri: string): Promise<CalendlyAvailabilitySchedule[]> {
-    const queryParams = new URLSearchParams({ user: userUri })
-    const { collection } = await this.fetch<{ collection: CalendlyAvailabilitySchedule[] }>(
-      `/user_availability_schedules?${queryParams}`
-    )
-    return collection
-  }
+  // Webhook Methods
+  async createWebhookSubscription(webhookUrl: string, scope: 'user' | 'organization' = 'user') {
+    await this.getConfig()
+    const response = await this.getOrganizationMemberships()
+    const orgMemberships = response as { collection: Array<{ organization: { uri: string } }> }
+    const organization = orgMemberships.collection[0]?.organization.uri
 
-  async getUser(userUri: string): Promise<CalendlyUser> {
-    const { resource } = await this.fetch<{ resource: CalendlyUser }>(
-      `/users/${userUri}`
-    )
-    return resource
-  }
+    if (!organization) {
+      throw new Error('No organization found')
+    }
 
-  async markInviteeAsNoShow(inviteeUri: string): Promise<void> {
-    await this.fetch('/invitee_no_shows', {
+    return this.client.request('/webhook_subscriptions', {
       method: 'POST',
-      body: JSON.stringify({ invitee: inviteeUri }),
+      body: {
+        url: webhookUrl,
+        events: ['invitee.created', 'invitee.canceled', 'invitee.rescheduled'],
+        organization,
+        scope
+      }
     })
   }
 
-  async undoInviteeNoShow(inviteeUuid: string): Promise<void> {
-    await this.fetch(`/invitee_no_shows/${inviteeUuid}`, {
-      method: 'DELETE',
+  async listWebhookSubscriptions() {
+    await this.getConfig()
+    return this.client.request('/webhook_subscriptions')
+  }
+
+  async deleteWebhookSubscription(webhookUuid: string) {
+    await this.getConfig()
+    return this.client.request(`/webhook_subscriptions/${webhookUuid}`, {
+      method: 'DELETE'
+    })
+  }
+
+  // Booking Methods
+  async createScheduledEvent(data: BookingData) {
+    await this.getConfig()
+    return this.client.request('/scheduled_events', {
+      method: 'POST',
+      body: {
+        event_type_url: data.eventTypeUrl,
+        start_time: data.scheduledTime,
+        email: data.inviteeEmail
+      }
     })
   }
 

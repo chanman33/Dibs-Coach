@@ -28,7 +28,12 @@ export async function GET(request: Request) {
     }
 
     const calendly = new CalendlyService()
-    const busyTimes = await calendly.getUserBusyTimes(queryResult.data)
+    const response = await calendly.getUserBusyTimes(
+      queryResult.data.userUri,
+      queryResult.data.startTime,
+      queryResult.data.endTime
+    ) as { collection: CalendlyBusyTime[] }
+    const busyTimes = response.collection
 
     return NextResponse.json<ApiResponse<CalendlyBusyTime[]>>({
       data: busyTimes,

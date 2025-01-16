@@ -30,7 +30,8 @@ export async function GET(request: Request) {
     }
 
     const calendly = new CalendlyService()
-    const events = await calendly.getScheduledEvents(queryResult.data)
+    const response = await calendly.getScheduledEvents(queryResult.data) as { collection: CalendlyScheduledEvent[] }
+    const events = response.collection
 
     return NextResponse.json<ApiResponse<CalendlyScheduledEvent[]>>({
       data: events,

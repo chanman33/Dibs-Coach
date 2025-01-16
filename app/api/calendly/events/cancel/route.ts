@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-import { getCalendlyConfig } from '@/lib/calendly/calendly-api'
+import { CalendlyService } from '@/lib/calendly/calendly-service'
 import { 
   ApiResponse,
   EventCancellationSchema,
@@ -43,31 +41,12 @@ export async function POST(request: Request) {
 
     const { uuid, reason } = requestResult.data
 
-    // Get Calendly config
-    const config = await getCalendlyConfig()
-    
     // Cancel the event
-    const response = await fetch(
-      `${process.env.CALENDLY_API_BASE}/scheduled_events/${uuid}/cancellation`,
-      {
-        method: 'POST',
-        headers: {
-          ...config.headers,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ reason })
-      }
-    )
-
-    if (!response.ok) {
-      console.error('[CALENDLY_ERROR] Failed to cancel event:', await response.text())
-      throw new Error('Failed to cancel event')
-    }
-
-    const data = await response.json()
+    const calendly = new CalendlyService()
+    const response = await calendly.cancelEvent(uuid, reason)
     
     // Validate response data
-    const eventResult = CalendlyScheduledEventSchema.safeParse(data.resource)
+    const eventResult = CalendlyScheduledEventSchema.safeParse(response)
     if (!eventResult.success) {
       console.error('[CALENDLY_ERROR] Invalid event data:', eventResult.error)
       throw new Error('Invalid event data received from Calendly')

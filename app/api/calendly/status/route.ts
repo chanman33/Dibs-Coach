@@ -1,8 +1,8 @@
+import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
-import type { CookieOptions } from '@supabase/ssr'
+import { CalendlyService } from '@/lib/calendly/calendly-service'
 import { 
   ApiResponse,
   CalendlyIntegration,
@@ -29,7 +29,6 @@ export async function GET() {
       }, { status: 401 })
     }
 
-    // Get user's database ID first
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL!,
@@ -38,12 +37,6 @@ export async function GET() {
         cookies: {
           get(name: string) {
             return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options: CookieOptions) {
-            cookieStore.set({ name, value, ...options })
-          },
-          remove(name: string, options: CookieOptions) {
-            cookieStore.set({ name, value: '', ...options, maxAge: 0 })
           },
         },
       }
@@ -90,6 +83,18 @@ export async function GET() {
         data: null, 
         error 
       }, { status: 500 })
+    }
+
+    // Test connection by making a simple API call
+    try {
+      const calendly = new CalendlyService()
+      await calendly.getUserInfo()
+    } catch (error) {
+      console.error('[CALENDLY_STATUS_ERROR] API test failed:', error)
+      return NextResponse.json<ApiResponse<CalendlyStatus>>({
+        data: { connected: false },
+        error: null
+      })
     }
 
     return NextResponse.json<ApiResponse<CalendlyStatus>>({

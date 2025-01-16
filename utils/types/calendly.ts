@@ -373,4 +373,22 @@ export const ScheduledEventsQuerySchema = z.object({
   ]).optional(),
   minStartTime: DateTimeSchema.optional(),
   maxStartTime: DateTimeSchema.optional()
+})
+
+export interface CalendlyConfig {
+  accessToken: string
+  refreshToken: string
+}
+
+export interface BookingData {
+  eventTypeUrl: string
+  schedulingUrl?: string
+  scheduledTime: string
+  inviteeEmail: string
+}
+
+export const AvailabilityQuerySchema = z.object({
+  startTime: DateTimeSchema,
+  endTime: DateTimeSchema,
+  timezone: TimezoneSchema
 }) 

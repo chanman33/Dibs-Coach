@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { CALENDLY_API_BASE } from '@/lib/calendly/calendly-api'
+import { CALENDLY_CONFIG } from '@/lib/calendly/calendly-config'
 import crypto from 'crypto'
 import type { CookieOptions } from '@supabase/ssr'
 import { 

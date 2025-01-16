@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { getEventTypes, getEventTypeAvailability } from '@/lib/calendly-api'
+import { CalendlyService } from '@/lib/calendly/calendly-service'
 import { 
   ApiResponse,
   AvailabilityQuerySchema,
@@ -70,16 +70,19 @@ export async function GET(request: Request) {
     }
 
     // Get event types
-    const eventTypes = await getEventTypes()
+    const calendly = new CalendlyService()
+    const eventTypesResponse = await calendly.getEventTypes()
+    const eventTypes = (eventTypesResponse as { collection: CalendlyEventType[] }).collection
     
     // Get availability for each event type
     const availability = await Promise.all(
       eventTypes.map(async (eventType): Promise<AvailabilityResponse> => {
-        const times = await getEventTypeAvailability(
-          eventType.uri,
-          queryResult.data.startTime,
-          queryResult.data.endTime
-        )
+        const response = await calendly.getEventTypeAvailableTimes({
+          eventUri: eventType.uri,
+          startTime: queryResult.data.startTime,
+          endTime: queryResult.data.endTime
+        })
+        const times = (response as { collection: CalendlyAvailableTime[] }).collection
 
         return {
           eventType: {
