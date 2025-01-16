@@ -5,8 +5,8 @@ export default async function SignOutPage({
 }: {
     searchParams: { forceRedirectUrl?: string }
 }) {
-    const params = await searchParams;
-    const { forceRedirectUrl } = params;
+    // Safely extract forceRedirectUrl from searchParams
+    const forceRedirectUrl = searchParams?.forceRedirectUrl;
     
     return (
         <div className="flex min-h-screen items-center justify-center">

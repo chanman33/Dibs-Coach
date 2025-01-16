@@ -1,11 +1,22 @@
 import { SignUp } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
+import { ReadonlyURLSearchParams } from "next/navigation";
 import config from "@/config";
 
-export default function SignUpPage() {
+export default async function SignUpPage({
+    searchParams,
+}: {
+    searchParams: { forceRedirectUrl?: string } | ReadonlyURLSearchParams
+}) {
     if (!config?.auth?.enabled) {
         redirect('/');
     }
+
+    // Wait for searchParams to be ready and safely extract forceRedirectUrl
+    const params = await Promise.resolve(searchParams);
+    const forceRedirectUrl = params instanceof ReadonlyURLSearchParams 
+        ? params.get('forceRedirectUrl')
+        : params.forceRedirectUrl;
 
     return (
         <div className="flex min-h-screen justify-center items-center p-4">
@@ -16,8 +27,9 @@ export default function SignUpPage() {
                         card: "shadow-none"
                     }
                 }}
-                fallbackRedirectUrl="/" 
-                signInFallbackRedirectUrl="/dashboard" 
+                redirectUrl={forceRedirectUrl || undefined}
+                afterSignUpUrl={forceRedirectUrl || '/dashboard'}
+                signInUrl="/sign-in"
             />
         </div>
     );

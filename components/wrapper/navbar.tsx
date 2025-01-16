@@ -42,11 +42,18 @@ export default function NavBar() {
                                 </Link>
                             </DialogClose>
                             {!userId && (
-                                <DialogClose asChild>
-                                    <Link href="/sign-up">
-                                        <Button variant="outline" className="w-full">Sign Up / Log In</Button>
-                                    </Link>
-                                </DialogClose>
+                                <>
+                                    <DialogClose asChild>
+                                        <Link href="/sign-up">
+                                            <Button variant="outline" className="w-full">Sign Up</Button>
+                                        </Link>
+                                    </DialogClose>
+                                    <DialogClose asChild>
+                                        <Link href="/sign-in">
+                                            <Button variant="outline" className="w-full">Log In</Button>
+                                        </Link>
+                                    </DialogClose>
+                                </>
                             )}
                         </div>
                     </SheetContent>
@@ -84,9 +91,14 @@ export default function NavBar() {
                 {userId ? (
                     <UserProfile />
                 ) : (
-                    <Link href="/sign-up">
-                        <Button variant="ghost">Sign Up / Log In</Button>
-                    </Link>
+                    <>
+                        <Link href="/sign-in">
+                            <Button variant="ghost">Log In</Button>
+                        </Link>
+                        <Link href="/sign-up">
+                            <Button variant="default">Sign Up</Button>
+                        </Link>
+                    </>
                 )}
                 <ModeToggle />
             </div>
