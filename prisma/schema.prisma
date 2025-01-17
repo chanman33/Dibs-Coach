@@ -536,3 +536,40 @@ model CalendlyWebhookEvent {
   @@index([eventType])
   @@index([processed])
 }
+
+model CalendlyEvent {
+  id        BigInt   @id @default(autoincrement())
+  eventUuid String   @unique // Calendly event UUID
+  userDbId  BigInt   // Reference to User table
+  status    String   // scheduled, canceled, etc.
+  startTime DateTime
+  endTime   DateTime
+  inviteeEmail String
+  inviteeName  String
+  eventType    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Zoom session mapping
+  zoomSession  ZoomSession? @relation(fields: [zoomSessionId], references: [id])
+  zoomSessionId BigInt?
+
+  @@index([userDbId])
+  @@index([zoomSessionId])
+}
+
+model ZoomSession {
+  id        BigInt   @id @default(autoincrement())
+  hostId    BigInt   // Reference to User table
+  topic     String
+  startTime DateTime
+  duration  Int      // Duration in minutes
+  status    String   // scheduled, started, ended, failed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Calendly event mapping
+  calendlyEvent CalendlyEvent?
+
+  @@index([hostId])
+}
