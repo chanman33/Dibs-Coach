@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ROLES } from './utils/roles/roles'
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
 // Import config and define its type
 type AppConfig = {
