@@ -125,6 +125,7 @@ model User {
   calendlyIntegration  CalendlyIntegration?
   subscriptions        Subscription[]
   invoices             Invoice[]
+  calendlyEvents       CalendlyEvent[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -208,20 +209,25 @@ model LoanOfficerCoachProfile {
 
 model Session {
   id              Int      @id @default(autoincrement())
-  coachDbId       Int
-  menteeDbId      Int
-  calendlyEventId String?
+  coachDbId       Int      
+  menteeDbId      Int      
+  calendlyEventId String?  @unique
   durationMinutes Int
-  status          String   @default("scheduled")
+  status          SessionStatus
   startTime       DateTime
   endTime         DateTime
 
+  // Relationships
   coach           User     @relation("SessionCoach", fields: [coachDbId], references: [id], onDelete: Cascade)
   mentee          User     @relation("SessionMentee", fields: [menteeDbId], references: [id], onDelete: Cascade)
   payment         Payment? @relation("SessionPayment")
   reviews         Review[]
   notes           Note[]
   reminders       Reminder[]
+  
+  // Integration relationships
+  calendlyEvent   CalendlyEvent? @relation(fields: [calendlyEventId], references: [eventUuid])
+  zoomSession     ZoomSession?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -230,6 +236,7 @@ model Session {
   @@index([menteeDbId])
   @@index([startTime])
   @@index([endTime])
+  @@index([calendlyEventId])
 }
 
 model Payment {
@@ -538,38 +545,37 @@ model CalendlyWebhookEvent {
 }
 
 model CalendlyEvent {
-  id        BigInt   @id @default(autoincrement())
-  eventUuid String   @unique // Calendly event UUID
-  userDbId  BigInt   // Reference to User table
-  status    String   // scheduled, canceled, etc.
-  startTime DateTime
-  endTime   DateTime
-  inviteeEmail String
-  inviteeName  String
-  eventType    String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  eventUuid     String   @unique
+  userDbId      Int
+  status        String
+  eventType     String
+  inviteeEmail  String
+  inviteeName   String
 
-  // Zoom session mapping
-  zoomSession  ZoomSession? @relation(fields: [zoomSessionId], references: [id])
-  zoomSessionId BigInt?
+  // Relationships
+  session       Session?
+  user          User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([userDbId])
-  @@index([zoomSessionId])
+  @@index([eventUuid])
 }
 
 model ZoomSession {
-  id        BigInt   @id @default(autoincrement())
-  hostId    BigInt   // Reference to User table
-  topic     String
-  startTime DateTime
-  duration  Int      // Duration in minutes
-  status    String   // scheduled, started, ended, failed
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  sessionId     Int      @unique
+  topic         String
+  status        String
+  joinUrl       String?
 
-  // Calendly event mapping
-  calendlyEvent CalendlyEvent?
+  // Relationships
+  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  @@index([hostId])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([sessionId])
 }
