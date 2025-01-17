@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ROLES } from './utils/roles/roles'
-import { clerkMiddleware } from "@clerk/nextjs/server";
 
 // Import config and define its type
 type AppConfig = {
@@ -16,7 +15,7 @@ type AppConfig = {
   };
 };
 
-const config: AppConfig = require('./config').default;
+const appConfig: AppConfig = require('./config').default;
 
 // Roles that can access Calendly features
 const CALENDLY_ROLES = [ROLES.REALTOR_COACH, ROLES.LOAN_OFFICER_COACH, ROLES.ADMIN] as const
@@ -43,18 +42,18 @@ const PUBLIC_ROUTES = [
   '/api/calendly/webhooks'
 ] as const
 
-let clerkMiddleware: any, createRouteMatcher: any;
+let clerkMiddlewareInstance: any, createRouteMatcher: any;
 
-if (config.auth.enabled) {
+if (appConfig.auth.enabled) {
   try {
-    ({ clerkMiddleware, createRouteMatcher } = require("@clerk/nextjs/server"));
+    ({ clerkMiddleware: clerkMiddlewareInstance, createRouteMatcher } = require("@clerk/nextjs/server"));
   } catch (error) {
     console.warn("Clerk modules not available. Auth will be disabled.");
-    config.auth.enabled = false;
+    appConfig.auth.enabled = false;
   }
 }
 
-const isProtectedRoute = config.auth.enabled
+const isProtectedRoute = appConfig.auth.enabled
   ? createRouteMatcher(["/dashboard(.*)"])
   : () => false;
 
@@ -65,16 +64,31 @@ const isPublicRoute = (pathname: string) =>
   PUBLIC_ROUTES.some(route => pathname.startsWith(route));
 
 export default function middleware(req: NextRequest) {
-  if (!config.auth.enabled) {
+  const pathname = req.nextUrl.pathname;
+  
+  // Log all requests in middleware
+  console.log("\n[MIDDLEWARE] ====== Request Details ======");
+  console.log("[MIDDLEWARE] Request to:", pathname);
+  console.log("[MIDDLEWARE] Method:", req.method);
+  console.log("[MIDDLEWARE] Headers:", Object.fromEntries(req.headers));
+  
+  // Always allow webhook requests - more permissive matching
+  if (pathname.includes('/api/auth/webhook')) {
+    console.log("[MIDDLEWARE] Webhook request detected");
+    console.log("[MIDDLEWARE] Allowing webhook request");
     return NextResponse.next();
   }
 
-  return clerkMiddleware(async (auth: any) => {
-    const resolvedAuth = await auth();
-    const pathname = req.nextUrl.pathname;
+  if (!appConfig.auth.enabled) {
+    return NextResponse.next();
+  }
 
+  return clerkMiddlewareInstance(async (auth: any) => {
+    const resolvedAuth = await auth();
+    
     // Handle public routes
     if (isPublicRoute(pathname)) {
+      console.log("[MIDDLEWARE] Public route detected:", pathname);
       return NextResponse.next();
     }
 
@@ -111,7 +125,6 @@ export default function middleware(req: NextRequest) {
   })(req);
 }
 
-// Export middleware config separately to avoid naming conflicts
-export const middlewareConfig = {
+export const config = {
   matcher: ['/((?!.+\\.[\\w]+$|_next).*)', '/', '/(api|trpc)(.*)'],
 };
