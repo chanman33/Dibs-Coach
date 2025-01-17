@@ -1,20 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
-
-export interface CalendlyStatus {
-    connected: boolean
-    schedulingUrl?: string
-    expiresAt?: string
-    isExpired?: boolean
-    isMockData?: boolean
-    eventTypes?: Array<{
-        uri: string
-        name: string
-        duration: number
-        url: string
-    }>
-}
+import type { CalendlyStatus } from '@/utils/types/calendly'
 
 export function useCalendly() {
     const [status, setStatus] = useState<CalendlyStatus | null>(null)

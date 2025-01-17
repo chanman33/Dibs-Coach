@@ -1,8 +1,8 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
 import { ConnectCalendly } from '@/components/calendly/ConnectCalendly'
-import { CalendlyEventTypes } from './_components/CalendlyEventTypes'
-import { CalendlyAvailability } from './_components/CalendlyAvailability'
+import { CalendlyEventTypes } from '@/components/calendly/CalendlyEventTypes'
+import { CalendlyAvailability } from '@/components/calendly/CalendlyAvailability'
 
 export default function CalendlySettingsPage() {
   return (

@@ -8,6 +8,8 @@ export interface CalendlyStatus {
   isExpired?: boolean
   isMockData?: boolean
   eventTypes?: CalendlyEventType[]
+  needsReconnect?: boolean
+  error?: string
 }
 
 export interface CalendlyEventType {

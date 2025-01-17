@@ -1,4 +1,5 @@
 import { CALENDLY_CONFIG } from './calendly-config'
+import { getValidCalendlyToken } from './calendly-service'
 
 interface CalendlyRequestOptions {
   method?: string
@@ -14,17 +15,23 @@ type CalendlyHeaders = {
 }
 
 export class CalendlyClient {
+  private userDbId: number
   private accessToken?: string
 
-  constructor(accessToken?: string) {
+  constructor(userDbId: number, accessToken?: string) {
+    this.userDbId = userDbId
     this.accessToken = accessToken
   }
 
-  private getHeaders(requiresAuth: boolean = true): CalendlyHeaders {
+  private async getHeaders(requiresAuth: boolean = true): Promise<CalendlyHeaders> {
     const headers: CalendlyHeaders = { ...CALENDLY_CONFIG.headers }
     
-    if (requiresAuth && this.accessToken) {
-      headers.Authorization = `Bearer ${this.accessToken}`
+    if (requiresAuth) {
+      // Get a valid token (will refresh if needed)
+      const token = this.accessToken || await getValidCalendlyToken(this.userDbId)
+      headers.Authorization = `Bearer ${token}`
+      // Update the stored token
+      this.accessToken = token
     }
 
     return headers
@@ -43,7 +50,7 @@ export class CalendlyClient {
     } = options
 
     const url = this.buildUrl(path)
-    const baseHeaders = this.getHeaders(requiresAuth)
+    const baseHeaders = await this.getHeaders(requiresAuth)
     
     // Ensure all header values are strings
     const headers: Record<string, string> = {}

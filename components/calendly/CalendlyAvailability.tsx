@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useCalendly } from '@/utils/hooks/useCalendly'
 
 export function CalendlyAvailability() {
-  const { status, isLoading } = useCalendly()
+  const { status, isLoading, isConnecting, handleConnect } = useCalendly()
 
   if (isLoading) {
     return (
@@ -40,12 +40,29 @@ export function CalendlyAvailability() {
               Using mock Calendly data. Set USE_REAL_CALENDLY=true to use real Calendly integration.
             </AlertDescription>
           </Alert>
-        ) : status?.isExpired ? (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Calendly connection expired. Please reconnect.
-            </AlertDescription>
+        ) : status?.needsReconnect || status?.isExpired ? (
+          <Alert variant="destructive" className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {status.error || 'Calendly connection expired. Please reconnect.'}
+              </AlertDescription>
+            </div>
+            <Button 
+              variant="secondary" 
+              size="sm"
+              onClick={handleConnect}
+              disabled={isConnecting}
+            >
+              {isConnecting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Reconnecting...
+                </>
+              ) : (
+                'Reconnect'
+              )}
+            </Button>
           </Alert>
         ) : (
           <Alert variant="default" className="bg-green-50 border-green-200 dark:bg-green-900/30 dark:border-green-200/30">
@@ -79,6 +96,7 @@ export function CalendlyAvailability() {
             <Button
               variant="outline"
               onClick={() => window.open(`${status.schedulingUrl}/availability`, '_blank')}
+              disabled={status?.needsReconnect || status?.isExpired}
             >
               Edit Availability
             </Button>
@@ -94,6 +112,7 @@ export function CalendlyAvailability() {
             <Button
               variant="outline"
               onClick={() => window.open(status.schedulingUrl, '_blank')}
+              disabled={status?.needsReconnect || status?.isExpired}
             >
               View Page
             </Button>
