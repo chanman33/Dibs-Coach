@@ -1,14 +1,14 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { fetchUserSessions } from '@/utils/actions/sessions'
+import { fetchCoachSessions } from '@/utils/actions/sessions'
 import { CoachingCalendar } from '@/components/calendar/coaching-calendar'
 
-export default function RealtorCalendarPage() {
+export default function CoachCalendarPage() {
   const { data: sessions, isLoading } = useQuery({
-    queryKey: ['sessions'],
+    queryKey: ['coach-sessions'],
     queryFn: async () => {
-      const data = await fetchUserSessions()
+      const data = await fetchCoachSessions()
       if (!data) return []
       return data
     },
@@ -16,9 +16,9 @@ export default function RealtorCalendarPage() {
 
   return (
     <CoachingCalendar 
-      sessions={sessions} 
+      sessions={sessions}
       isLoading={isLoading}
-      title="My Coaching Calendar"
+      title="My Coaching Schedule"
     />
   )
 }

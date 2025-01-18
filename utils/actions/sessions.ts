@@ -1,6 +1,7 @@
 'use server'
 
 import { auth } from '@clerk/nextjs/server'
+import { createServerSupabase } from '../../lib/supabase/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
@@ -35,6 +36,17 @@ interface TransformedSession {
   createdAt: string
   userRole: 'coach' | 'mentee'
   otherParty: User
+}
+
+interface CoachSessionResponse {
+  id: number
+  durationMinutes: number
+  status: string
+  calendlyEventId: string
+  startTime: string
+  endTime: string
+  createdAt: string
+  mentee: User
 }
 
 export async function fetchUserSessions(): Promise<TransformedSession[] | null> {
@@ -114,4 +126,52 @@ export async function fetchUserSessions(): Promise<TransformedSession[] | null> 
     console.error('[FETCH_SESSIONS_ERROR]', error)
     return null
   }
+}
+
+export async function fetchCoachSessions(): Promise<TransformedSession[] | null> {
+  'use server'
+  const { supabase } = await createServerSupabase()
+  const { userId } = await auth()
+  if (!userId) return null
+
+  const { data: user } = await supabase
+    .from('User')
+    .select('id')
+    .eq('userId', userId)
+    .single()
+  if (!user) return null
+
+  const { data: sessions } = await supabase
+    .from('Session')
+    .select(`
+      id,
+      durationMinutes,
+      status,
+      calendlyEventId,
+      startTime,
+      endTime,
+      createdAt,
+      mentee:User!Session_menteeDbId_fkey (
+        id,
+        firstName,
+        lastName,
+        email
+      )
+    `)
+    .eq('coachDbId', user.id)
+    .order('startTime', { ascending: false })
+
+  if (!sessions) return null
+
+  return sessions.map(session => ({
+    id: session.id,
+    durationMinutes: session.durationMinutes,
+    status: session.status,
+    calendlyEventId: session.calendlyEventId,
+    startTime: session.startTime,
+    endTime: session.endTime,
+    createdAt: session.createdAt,
+    userRole: 'coach' as const,
+    otherParty: session.mentee[0]
+  }))
 } 
