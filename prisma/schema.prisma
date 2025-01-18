@@ -73,6 +73,25 @@ enum DisputeStatus {
   rejected
 }
 
+enum GoalStatus {
+  in_progress
+  completed
+  overdue
+}
+
+enum GoalType {
+  sales
+  listings
+  clients
+  custom
+}
+
+enum AchievementType {
+  milestone
+  performance
+  learning
+}
+
 // Models
 model User {
   id            Int      @id @default(autoincrement())
@@ -126,6 +145,10 @@ model User {
   subscriptions        Subscription[]
   invoices             Invoice[]
   calendlyEvents       CalendlyEvent[]
+
+  // Goals Relations
+  goals         Goal[]
+  achievements  Achievement[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -578,4 +601,45 @@ model ZoomSession {
   updatedAt     DateTime @updatedAt
 
   @@index([sessionId])
+}
+
+model Goal {
+  id          Int        @id @default(autoincrement())
+  userDbId    Int
+  title       String
+  description String?
+  target      Float
+  current     Float      @default(0)
+  deadline    DateTime
+  type        GoalType
+  status      GoalStatus @default(in_progress)
+  
+  // Relationships
+  user        User       @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([userDbId])
+  @@index([type])
+  @@index([status])
+}
+
+model Achievement {
+  id          Int              @id @default(autoincrement())
+  userDbId    Int
+  title       String
+  description String
+  earnedAt    DateTime         @default(now())
+  type        AchievementType
+  icon        String
+  
+  // Relationships
+  user        User             @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([userDbId])
+  @@index([type])
 }

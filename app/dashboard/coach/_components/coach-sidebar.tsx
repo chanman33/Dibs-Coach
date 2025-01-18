@@ -2,7 +2,7 @@
 
 import { Separator } from "@/components/ui/separator"
 import clsx from "clsx"
-import { Users, CalendarDays, HomeIcon, MessageSquare, Settings, ClipboardList, Target, UserCircle } from "lucide-react"
+import { Users, CalendarDays, HomeIcon, MessageSquare, Settings, ClipboardList, UserCircle, BarChart } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -71,14 +71,14 @@ export default function CoachSidebar() {
               Sessions
             </Link>
             <Link
-              href="/dashboard/coach/goals"
+              href="/dashboard/coach/analytics"
               className={clsx(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-                pathname === "/dashboard/coach/goals" && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
+                pathname === "/dashboard/coach/analytics" && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
               )}
             >
-              <Target className="h-4 w-4" />
-              Goals
+              <BarChart className="h-4 w-4" />
+              Analytics
             </Link>
             <Link
               href="/dashboard/coach/messages"

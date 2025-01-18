@@ -318,7 +318,7 @@ export async function GET(req: Request) {
       }
     );
 
-    // First get the user's database ID and role
+    // Get user data including role
     const { data: userData, error: userError } = await supabase
       .from('User')
       .select('id, role')
@@ -326,92 +326,18 @@ export async function GET(req: Request) {
       .single();
 
     if (userError || !userData) {
-      console.error('[GET_COACH_ERROR] User lookup:', userError);
+      console.error('[COACH_GET_ERROR] User lookup:', userError);
       return new NextResponse('User not found', { status: 404 });
     }
 
-    if (userData.role !== 'realtor_coach') {
+    // Allow both realtor_coach and loan_officer_coach roles
+    if (!['realtor_coach', 'loan_officer_coach'].includes(userData.role)) {
       return new NextResponse('Unauthorized - Not a coach', { status: 403 });
     }
 
-    // Get coach profile data
-    const { data: profileData, error: profileError } = await supabase
-      .from('RealtorCoachProfile')
-      .select(`
-        id,
-        userDbId,
-        specialty,
-        bio,
-        experience,
-        certifications,
-        availability,
-        sessionLength,
-        specialties,
-        calendlyUrl,
-        eventTypeUrl,
-        hourlyRate,
-        createdAt,
-        updatedAt
-      `)
-      .eq('userDbId', userData.id)
-      .single();
-
-    if (profileError) {
-      console.error('[GET_COACH_ERROR] Profile lookup:', profileError);
-      if (profileError.code === 'PGRST116') {
-        // No profile found - return empty data
-        return NextResponse.json({
-          specialty: null,
-          bio: null,
-          experience: null,
-          specialties: [],
-          certifications: [],
-          availability: null,
-          sessionLength: null,
-          calendlyUrl: null,
-          eventTypeUrl: null,
-          hourlyRate: null
-        });
-      }
-      return NextResponse.json({ 
-        error: 'Failed to fetch coach profile',
-        details: profileError
-      }, { status: 500 });
-    }
-
-    // Ensure arrays are properly formatted
-    const formattedData = {
-      ...profileData,
-      specialties: profileData?.specialties 
-        ? (typeof profileData.specialties === 'string' 
-            ? JSON.parse(profileData.specialties) 
-            : profileData.specialties)
-        : [],
-      certifications: profileData?.certifications
-        ? (typeof profileData.certifications === 'string'
-            ? JSON.parse(profileData.certifications)
-            : profileData.certifications)
-        : []
-    };
-
-    return NextResponse.json(formattedData || {
-      specialty: null,
-      bio: null,
-      experience: null,
-      specialties: [],
-      certifications: [],
-      availability: null,
-      sessionLength: null,
-      calendlyUrl: null,
-      eventTypeUrl: null,
-      hourlyRate: null
-    });
-
+    return NextResponse.json(userData);
   } catch (error) {
-    console.error('[GET_COACH_ERROR]', error);
-    return NextResponse.json({ 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    console.error('[COACH_GET_ERROR]', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

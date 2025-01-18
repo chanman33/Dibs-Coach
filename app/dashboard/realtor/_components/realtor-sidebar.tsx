@@ -2,7 +2,7 @@
 
 import { Separator } from "@/components/ui/separator"
 import clsx from "clsx"
-import { Building2, CalendarDays, GraduationCap, HomeIcon, MessageSquare, Settings, Users } from "lucide-react"
+import { Building2, CalendarDays, GraduationCap, HomeIcon, MessageSquare, Settings, Users, Target } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -41,6 +41,18 @@ export default function RealtorSidebar() {
                 <Users className="h-3 w-3" />
               </div>
               Profile
+            </Link>
+            <Link
+              href="/dashboard/realtor/goals"
+              className={clsx(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                pathname === "/dashboard/realtor/goals" && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
+              )}
+            >
+              <div className="border rounded-lg dark:bg-black dark:border-gray-800 border-gray-400 p-1 bg-white">
+                <Target className="h-3 w-3" />
+              </div>
+              Goals & Achievements
             </Link>
             <Link
               href="/dashboard/realtor/coaches"
@@ -97,7 +109,6 @@ export default function RealtorSidebar() {
               AI Listing Generator
             </Link>
             <Separator className="my-3" />
-
           </nav>
         </div>
       </div>
