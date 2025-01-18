@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import { auth, currentUser } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { ROLES } from "@/utils/roles/roles";
-import { userCreate } from "@/utils/data/user/userCreate";
 
 interface RealtorProfile {
   id: number
@@ -27,31 +25,35 @@ interface UserResponse {
 
 export async function GET() {
   try {
-    const { userId: clerkUserId } = await auth();
-    const user = await currentUser();
-
-    if (!clerkUserId || !user) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    // Auth check
+    const { userId: clerkUserId } = await auth()
+    const clerkUser = await currentUser()
+    
+    if (!clerkUserId || !clerkUser) {
+      return NextResponse.json(
+        { message: 'Unauthorized' }, 
+        { status: 401 }
+      )
     }
 
-    console.log("[REALTOR_PROFILE_GET] Looking up user:", clerkUserId);
-
-    const cookieStore = await cookies();
+    // Initialize Supabase client
+    const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_KEY!,
       {
         cookies: {
           get(name: string) {
-            return cookieStore.get(name)?.value;
+            return cookieStore.get(name)?.value
           },
         },
       }
-    );
+    )
 
-    // Look up user in Supabase
-    const { data: userData, error: userError } = await supabase
-      .from("User")
+    // Get user with realtor profile in a single query
+    console.log('[REALTOR_PROFILE_GET] Looking up user:', clerkUserId)
+    const { data: user, error } = await supabase
+      .from('User')
       .select(`
         id,
         email,
@@ -59,49 +61,96 @@ export async function GET() {
         lastName,
         role,
         status,
-        realtorProfile (
+        brokerId,
+        teamId,
+        RealtorProfile!left (
+          id,
           companyName,
           licenseNumber,
           phoneNumber
         )
       `)
-      .eq("userId", clerkUserId)
-      .single();
+      .eq('userId', clerkUserId)
+      .single() as { data: UserResponse | null, error: any }
 
-    // If user doesn't exist in Supabase, create them
-    if (userError?.code === "PGRST116") {
-      console.info("[REALTOR_PROFILE_INFO] New user detected:", {
-        clerkUserId,
-        email: user.emailAddresses[0]?.emailAddress
-      });
-
-      // Create user in Supabase
-      const newUser = await userCreate({
-        email: user.emailAddresses[0]?.emailAddress || "",
-        firstName: user.firstName || "",
-        lastName: user.lastName || "",
-        profileImageUrl: user.imageUrl,
-        userId: clerkUserId,
-        role: ROLES.REALTOR,
-      });
-
-      return NextResponse.json({
-        user: {
-          ...newUser,
-          realtorProfile: null
-        }
-      });
+    if (error) {
+      // Handle new user case
+      if (error.code === 'PGRST116' && clerkUser) {
+        console.log('[REALTOR_PROFILE_INFO] New user detected:', {
+          clerkUserId,
+          email: clerkUser.emailAddresses[0]?.emailAddress
+        })
+        return NextResponse.json({
+          role: 'realtor',
+          firstName: clerkUser.firstName,
+          lastName: clerkUser.lastName,
+          email: clerkUser.emailAddresses[0]?.emailAddress,
+          companyName: null,
+          licenseNumber: null,
+          phoneNumber: null,
+          brokerId: null,
+          teamId: null,
+          status: 'active',
+          isNewUser: true
+        })
+      }
+      
+      // Handle actual errors
+      console.error('[REALTOR_PROFILE_ERROR] User lookup failed:', {
+        error,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        message: error.message,
+        clerkUserId
+      })
+      return NextResponse.json(
+        { 
+          message: `Database error: ${error.message}`,
+          details: error
+        },
+        { status: 500 }
+      )
     }
 
-    if (userError) {
-      console.error("[REALTOR_PROFILE_ERROR] Error fetching user:", userError);
-      return new NextResponse("Error fetching user profile", { status: 500 });
+    if (!user) {
+      return NextResponse.json(
+        { message: 'User not found' },
+        { status: 404 }
+      )
     }
 
-    return NextResponse.json({ user: userData });
+    console.log('[REALTOR_PROFILE_GET] Raw user data:', user)
+    console.log('[REALTOR_PROFILE_GET] RealtorProfile data:', user.RealtorProfile)
+
+    // Return the combined profile data
+    const realtorProfile = Array.isArray(user.RealtorProfile) 
+      ? user.RealtorProfile[0] 
+      : user.RealtorProfile
+
+    const response = {
+      id: user.id,
+      role: user.role,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      companyName: realtorProfile?.companyName ?? null,
+      licenseNumber: realtorProfile?.licenseNumber ?? null,
+      phoneNumber: realtorProfile?.phoneNumber ?? null,
+      brokerId: user.brokerId,
+      teamId: user.teamId,
+      status: user.status,
+      isNewUser: !realtorProfile
+    }
+
+    console.log('[REALTOR_PROFILE_GET] Formatted response:', response)
+    return NextResponse.json(response)
   } catch (error) {
-    console.error("[REALTOR_PROFILE_ERROR] Unexpected error:", error);
-    return new NextResponse("Internal server error", { status: 500 });
+    console.error('[REALTOR_PROFILE_ERROR]', error)
+    return NextResponse.json(
+      { message: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }
 
