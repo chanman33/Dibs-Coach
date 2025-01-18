@@ -2,7 +2,7 @@
 
 import { Separator } from "@/components/ui/separator"
 import clsx from "clsx"
-import { Users, CalendarDays, HomeIcon, MessageSquare, Settings, ClipboardList, Target } from "lucide-react"
+import { Users, CalendarDays, HomeIcon, MessageSquare, Settings, ClipboardList, Target, UserCircle } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -29,6 +29,26 @@ export default function CoachSidebar() {
                 <HomeIcon className="h-3 w-3" />
               </div>
               Dashboard
+            </Link>
+            <Link
+              href="/dashboard/coach/profile"
+              className={clsx(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                pathname === "/dashboard/coach/profile" && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
+              )}
+            >
+              <UserCircle className="h-4 w-4" />
+              Profile
+            </Link>
+            <Link
+              href="/dashboard/coach/calendar"
+              className={clsx(
+                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
+                pathname === "/dashboard/coach/calendar" && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
+              )}
+            >
+              <CalendarDays className="h-4 w-4" />
+              Calendar
             </Link>
             <Link
               href="/dashboard/coach/crm"
@@ -59,16 +79,6 @@ export default function CoachSidebar() {
             >
               <Target className="h-4 w-4" />
               Goals
-            </Link>
-            <Link
-              href="/dashboard/coach/calendar"
-              className={clsx(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-                pathname === "/dashboard/coach/calendar" && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
-              )}
-            >
-              <CalendarDays className="h-4 w-4" />
-              Calendar
             </Link>
             <Link
               href="/dashboard/coach/messages"
