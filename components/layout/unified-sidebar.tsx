@@ -17,7 +17,8 @@ import {
   Building2,
   ChevronDown,
   ChevronUp,
-  Trophy
+  Trophy,
+  Calculator
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -150,6 +151,9 @@ export default function UnifiedSidebar({ userRole }: UnifiedSidebarProps) {
                   <div className="pl-3">
                     <NavLink href="/dashboard/realtor/ai-listings" icon={Building2}>
                       AI Listing Generator
+                    </NavLink>
+                    <NavLink href="/dashboard/realtor/income-calc" icon={Calculator}>
+                      Income Calculator
                     </NavLink>
                   </div>
                 )}
