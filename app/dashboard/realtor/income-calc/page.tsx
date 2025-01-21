@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar, Cell } from "recharts"
+import { ResponsiveSankey } from '@nivo/sankey'
 
 const formatNumber = (num: number) => {
   return new Intl.NumberFormat("en-US", {
@@ -82,6 +83,71 @@ export default function RealtorIncomeCalculator() {
       ? (includeTaxes ? monthlyNetIncomeAfterTax : monthlyNetIncomeBeforeTax)
       : (includeTaxes ? annualNetIncomeAfterTax : annualNetIncomeBeforeTax),
   }))
+
+  // Add this helper function for the waterfall chart data
+  const getWaterfallData = (isMonthly: boolean) => {
+    const grossIncome = isMonthly ? monthlyGrossIncome : annualGrossIncome;
+    const brokerage = isMonthly ? brokerageFees / 12 : brokerageFees;
+    const marketing = isMonthly ? monthlyExpenses : annualExpenses;
+    const taxes = isMonthly ? monthlyTaxes : annualTaxes;
+    
+    return [
+      { name: 'Gross Income', value: grossIncome, type: 'positive' },
+      { name: 'Brokerage Fees', value: -brokerage, type: 'negative' },
+      { name: 'Marketing', value: -marketing, type: 'negative' },
+      ...(includeTaxes ? [{ name: 'Taxes', value: -taxes, type: 'negative' }] : []),
+      { 
+        name: 'Net Income', 
+        value: isMonthly 
+          ? (includeTaxes ? monthlyNetIncomeAfterTax : monthlyNetIncomeBeforeTax)
+          : (includeTaxes ? annualNetIncomeAfterTax : annualNetIncomeBeforeTax),
+        type: 'total'
+      }
+    ];
+  };
+
+  // Add this helper function for the Sankey diagram data
+  const getSankeyData = (isMonthly: boolean) => {
+    const grossIncome = isMonthly ? monthlyGrossIncome : annualGrossIncome;
+    const brokerage = isMonthly ? brokerageFees / 12 : brokerageFees;
+    const marketing = isMonthly ? monthlyExpenses : annualExpenses;
+    const taxes = isMonthly ? monthlyTaxes : annualTaxes;
+    const netIncome = isMonthly 
+      ? (includeTaxes ? monthlyNetIncomeAfterTax : monthlyNetIncomeBeforeTax)
+      : (includeTaxes ? annualNetIncomeAfterTax : annualNetIncomeBeforeTax);
+
+    return {
+      nodes: [
+        { id: 'grossIncome', label: `Gross Income\n${formatNumber(grossIncome)}`, color: '#8884d8' },
+        { id: 'brokerageFees', label: `Brokerage Fees\n${formatNumber(brokerage)}`, color: '#ff8042' },
+        { id: 'marketing', label: `Marketing\n${formatNumber(marketing)}`, color: '#82ca9d' },
+        ...(includeTaxes ? [{ id: 'taxes', label: `Taxes\n${formatNumber(taxes)}`, color: '#e74c3c' }] : []),
+        { id: 'netIncome', label: `Net Income\n${formatNumber(netIncome)}`, color: '#ffc658' }
+      ],
+      links: [
+        {
+          source: 'grossIncome',
+          target: 'brokerageFees',
+          value: brokerage
+        },
+        {
+          source: 'grossIncome',
+          target: 'marketing',
+          value: marketing
+        },
+        ...(includeTaxes ? [{
+          source: 'grossIncome',
+          target: 'taxes',
+          value: taxes
+        }] : []),
+        {
+          source: 'grossIncome',
+          target: 'netIncome',
+          value: netIncome
+        }
+      ]
+    };
+  };
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -189,27 +255,138 @@ export default function RealtorIncomeCalculator() {
           </TabsContent>
         </Tabs>
 
-        <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4">Income Projection</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value) => formatNumber(Number(value))} />
-              <Legend />
-              <Line type="monotone" dataKey="income" stroke="#8884d8" name="Gross Income" />
-              <Line type="monotone" dataKey="brokerageFees" stroke="#ff8042" name="Brokerage Fees" />
-              <Line type="monotone" dataKey="expenses" stroke="#82ca9d" name="Marketing Expenses" />
-              {includeTaxes && <Line type="monotone" dataKey="taxes" stroke="#e74c3c" name="Estimated Taxes" />}
-              <Line
-                type="monotone"
-                dataKey="netIncome"
-                stroke="#ffc658"
-                name={includeTaxes ? "Net Income (After Tax)" : "Net Income (Before Tax)"}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="mt-8 space-y-8">
+          {/* Original Line Chart */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Monthly Breakdown</h3>
+            <div className="h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatNumber(Number(value))} />
+                  <Legend />
+                  <Line type="monotone" dataKey="income" stroke="#8884d8" name="Gross Income" />
+                  <Line type="monotone" dataKey="brokerageFees" stroke="#ff8042" name="Brokerage Fees" />
+                  <Line type="monotone" dataKey="expenses" stroke="#82ca9d" name="Marketing Expenses" />
+                  {includeTaxes && <Line type="monotone" dataKey="taxes" stroke="#e74c3c" name="Estimated Taxes" />}
+                  <Line
+                    type="monotone"
+                    dataKey="netIncome"
+                    stroke="#ffc658"
+                    name={includeTaxes ? "Net Income (After Tax)" : "Net Income (Before Tax)"}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Waterfall and Sankey Charts Grid */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Income Breakdown</h3>
+              <div className="h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart
+                    data={getWaterfallData(view === 'monthly')}
+                    layout="vertical"
+                    margin={{ top: 20, right: 20, bottom: 20, left: 100 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" tickFormatter={formatNumber} />
+                    <YAxis type="category" dataKey="name" />
+                    <Tooltip formatter={(value) => formatNumber(Math.abs(Number(value)))} />
+                    <Bar dataKey="value" fill="#8884d8">
+                      {getWaterfallData(view === 'monthly').map((entry, index) => (
+                        <Cell 
+                          key={`cell-${index}`}
+                          fill={entry.type === 'positive' ? '#82ca9d' : entry.type === 'negative' ? '#ff8042' : '#ffc658'}
+                        />
+                      ))}
+                    </Bar>
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Income Flow</h3>
+              <div className="h-[400px]">
+                <ResponsiveSankey
+                  data={getSankeyData(view === 'monthly')}
+                  margin={{ top: 20, right: 20, bottom: 20, left: 20 }}
+                  align="justify"
+                  colors={{ scheme: 'category10' }}
+                  nodeOpacity={1}
+                  nodeThickness={18}
+                  nodeInnerPadding={3}
+                  nodeSpacing={24}
+                  nodeBorderWidth={0}
+                  linkOpacity={0.5}
+                  linkHoverOpacity={0.8}
+                  enableLinkGradient={true}
+                  labelPosition="outside"
+                  labelOrientation="horizontal"
+                  labelPadding={16}
+                  labelTextColor={{ from: 'color', modifiers: [['darker', 1]] }}
+                  linkTooltip={({ link }) => {
+                    const tooltipLabels = {
+                      grossIncome: 'Total Gross Commission',
+                      brokerageFees: 'Brokerage Split',
+                      marketing: 'Marketing & Advertising',
+                      taxes: 'Estimated Tax Liability',
+                      netIncome: includeTaxes ? 'Final Take-Home Income' : 'Net Income Before Taxes'
+                    };
+                    const sourceLabel = tooltipLabels[link.source.id as keyof typeof tooltipLabels];
+                    const targetLabel = tooltipLabels[link.target.id as keyof typeof tooltipLabels];
+                    return (
+                      <div style={{ 
+                        background: 'white', 
+                        padding: '12px 16px', 
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        fontSize: '14px',
+                        lineHeight: '1.5'
+                      }}>
+                        <div style={{ fontWeight: 600, color: '#1a202c', marginBottom: '4px' }}>
+                          Flow: {sourceLabel} → {targetLabel}
+                        </div>
+                        <div style={{ color: '#4a5568' }}>{formatNumber(link.value)}</div>
+                      </div>
+                    );
+                  }}
+                  nodeTooltip={({ node }) => {
+                    const tooltipLabels = {
+                      grossIncome: 'Total Gross Commission',
+                      brokerageFees: 'Brokerage Split',
+                      marketing: 'Marketing & Advertising',
+                      taxes: 'Estimated Tax Liability',
+                      netIncome: includeTaxes ? 'Final Take-Home Income' : 'Net Income Before Taxes'
+                    };
+                    const value = node.label.split('\n')[1];
+                    return (
+                      <div style={{ 
+                        background: 'white', 
+                        padding: '12px 16px', 
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '6px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        fontSize: '14px',
+                        lineHeight: '1.5'
+                      }}>
+                        <div style={{ fontWeight: 600, color: '#1a202c', marginBottom: '4px' }}>
+                          {tooltipLabels[node.id as keyof typeof tooltipLabels]}
+                        </div>
+                        <div style={{ color: '#4a5568' }}>{value}</div>
+                      </div>
+                    );
+                  }}
+                  animate={true}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>
