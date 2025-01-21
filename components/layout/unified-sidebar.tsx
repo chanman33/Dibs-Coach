@@ -129,7 +129,7 @@ export default function UnifiedSidebar({ userRole }: UnifiedSidebarProps) {
                       Goals & Milestones
                     </NavLink>
                     <NavLink href="/dashboard/coach/analytics" icon={BarChart}>
-                      Analytics
+                      Finance & Analytics
                     </NavLink>
                   </div>
                 )}
