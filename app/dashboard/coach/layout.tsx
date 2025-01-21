@@ -1,10 +1,15 @@
 import { ReactNode } from "react"
-import CoachSidebar from "./_components/coach-sidebar"
+import UnifiedSidebar from "@/components/layout/unified-sidebar"
+import { auth } from "@clerk/nextjs/server"
+import { getUserRole } from "@/utils/roles/checkUserRole"
 
-export default function CoachLayout({ children }: { children: ReactNode }) {
+export default async function CoachLayout({ children }: { children: ReactNode }) {
+  const { userId } = await auth()
+  const userRole = await getUserRole(userId!)
+  
   return (
     <div className="flex h-screen">
-      <CoachSidebar />
+      <UnifiedSidebar userRole={userRole} />
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>

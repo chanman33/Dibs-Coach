@@ -1,13 +1,18 @@
 import { ReactNode } from "react"
-import RealtorSidebar from "./_components/realtor-sidebar"
+import UnifiedSidebar from "@/components/layout/unified-sidebar"
+import { auth } from "@clerk/nextjs/server"
+import { getUserRole } from "@/utils/roles/checkUserRole"
 
-export default function RealtorLayout({ children }: { children: ReactNode }) {
+export default async function RealtorLayout({ children }: { children: ReactNode }) {
+  const { userId } = await auth()
+  const userRole = await getUserRole(userId!)
+  
   return (
     <div className="flex h-screen">
-        <RealtorSidebar />
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
+      <UnifiedSidebar userRole={userRole} />
+      <main className="flex-1 overflow-y-auto">
+        {children}
+      </main>
     </div>
   )
 } 
