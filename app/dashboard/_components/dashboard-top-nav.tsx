@@ -10,30 +10,28 @@ import { ReactNode } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 
-// Import the sidebar components
-import RealtorSidebar from '@/app/dashboard/realtor/_components/realtor-sidebar'
-import CoachSidebar from '@/app/dashboard/coach/_components/coach-sidebar'
+
+// Add this import
+import UnifiedSidebar from '@/app/dashboard/_components/unified-sidebar'
 import AdminSidebar from '@/app/dashboard/admin/_components/admin-sidebar'
 
 export default function DashboardTopNav({ children }: { children: ReactNode }) {
   const pathname = usePathname()
 
-  // Function to determine which sidebar to show
+  // Update getSidebarContent to handle admin case
   const getSidebarContent = () => {
-    if (pathname.startsWith('/dashboard/realtor')) {
-      return <RealtorSidebar />
-    }
-    if (pathname.startsWith('/dashboard/coach')) {
-      return <CoachSidebar />
-    }
     if (pathname.startsWith('/dashboard/admin')) {
       return <AdminSidebar />
     }
-    return null
+    // TODO: Pass the correct userRole from auth context
+    return <UnifiedSidebar userRole={pathname.includes('/coach') ? 'realtor_coach' : 'realtor'} />
   }
 
-  // Function to get the portal title
+  // Update getPortalTitle to include admin case
   const getPortalTitle = () => {
+    if (pathname.startsWith('/dashboard/admin')) {
+      return 'Admin Portal'
+    }
     if (pathname.startsWith('/dashboard/realtor')) {
       return 'Realtor Portal'
     }

@@ -42,6 +42,10 @@ const PUBLIC_ROUTES = [
   '/api/calendly/webhooks'
 ] as const
 
+// Add role-specific route patterns
+const COACH_ROUTES = ['/dashboard/coach(.*)'] as const
+const REALTOR_ROUTES = ['/dashboard/realtor(.*)'] as const
+
 let clerkMiddleware: any, createRouteMatcher: any;
 
 if (config.auth.enabled) {
@@ -82,6 +86,22 @@ export default function middleware(req: NextRequest) {
       return resolvedAuth.redirectToSignIn();
     }
 
+    // Handle role-specific routes
+    const role = resolvedAuth.sessionClaims?.role;
+    if (role) {
+      // Protect coach routes
+      if (COACH_ROUTES.some(route => pathname.match(route)) && 
+          !CALENDLY_ROLES.includes(role as CalendlyRole)) {
+        return new NextResponse('Access denied. Coach role required.', { status: 403 });
+      }
+
+      // Protect realtor routes
+      if (REALTOR_ROUTES.some(route => pathname.match(route)) && 
+          role !== ROLES.REALTOR) {
+        return new NextResponse('Access denied. Realtor role required.', { status: 403 });
+      }
+    }
+
     // Handle Calendly routes
     if (isCalendlyRoute(pathname)) {
       const role = resolvedAuth.sessionClaims?.role as CalendlyRole | undefined;
@@ -109,7 +129,6 @@ export default function middleware(req: NextRequest) {
     return NextResponse.next();
   })(req);
 }
-
 // Export middleware config separately to avoid naming conflicts
 export const middlewareConfig = {
   matcher: ['/((?!.+\\.[\\w]+$|_next).*)', '/', '/(api|trpc)(.*)'],
