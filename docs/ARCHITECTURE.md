@@ -73,6 +73,13 @@ The database schema includes models for:
 - Real-time availability sync
 - Event storage and user linking
 
+#### OAuth Best Practices
+- Use PKCE (Proof Key for Code Exchange) flow for security
+- Ensure redirect URIs match exactly in app settings and environment config
+- Use tunneling (e.g., ngrok) for local development
+- Handle domain-specific cookie storage for auth state
+- Implement proper error handling and logging
+
 ### Payment Processing (Stripe)
 - Secure payment processing
 - Webhook handling

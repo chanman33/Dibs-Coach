@@ -99,6 +99,14 @@ The marketplace incorporates features such as user-friendly navigation, real-tim
    NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
    NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/
    NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/
+
+   For Calendly OAuth setup:
+   ```
+   CALENDLY_CLIENT_ID=<your-calendly-client-id>
+   CALENDLY_CLIENT_SECRET=<your-calendly-client-secret>
+   CALENDLY_REDIRECT_URI=<your-domain>/api/calendly/oauth/callback
+   ```
+   Note: For local development, use a tunneling service (e.g., ngrok) and set the redirect URI to your tunnel URL.
    ```
 
 4. Configure features:
