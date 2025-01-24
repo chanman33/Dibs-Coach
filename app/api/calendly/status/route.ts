@@ -13,8 +13,9 @@ interface CalendlyStatus {
 
 export async function GET() {
   try {
-    const { userId } = await auth()
-    if (!userId) {
+    // Get Clerk auth ID
+    const { userId: clerkId } = await auth()
+    if (!clerkId) {
       return NextResponse.json({ 
         data: { connected: false },
         error: { code: 'UNAUTHORIZED', message: 'Authentication required' }
@@ -34,29 +35,36 @@ export async function GET() {
       }
     )
 
-    // Get user's database ID
-    const { data: user, error: userError } = await supabase
+    // Convert Clerk ID to database ID early
+    const { data: userData, error: userError } = await supabase
       .from('User')
       .select('id')
-      .eq('userId', userId)
+      .eq('userId', clerkId)
       .single()
 
-    if (userError || !user) {
+    if (userError || !userData) {
+      console.error('[CALENDLY_STATUS_ERROR] User not found in database:', { clerkId, error: userError })
       return NextResponse.json({ 
-        data: { connected: false },
-        error: null
-      })
+        data: null,
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'User not found in database. Please complete onboarding first.',
+          details: userError?.message
+        }
+      }, { status: 404 })
     }
 
-    // Get Calendly integration
-    const { data: integration, error } = await supabase
+    const userDbId = userData.id
+
+    // Use database ID for all subsequent operations
+    const { data: integration, error: integrationError } = await supabase
       .from('CalendlyIntegration')
       .select('*')
-      .eq('userDbId', user.id)
+      .eq('userDbId', userDbId)
       .single()
 
     // If no integration found, return not connected
-    if (error?.code === 'PGRST116' || !integration) {
+    if (integrationError?.code === 'PGRST116' || !integration) {
       return NextResponse.json<{ data: CalendlyStatus }>({
         data: { connected: false }
       })

@@ -14,6 +14,11 @@ export function useCalendly() {
             setIsLoading(true)
             const response = await fetch('/api/calendly/status')
             if (!response.ok) {
+                const errorData = await response.json()
+                if (errorData.error?.code === 'USER_NOT_FOUND') {
+                    toast.error('Please complete onboarding before connecting Calendly')
+                    return
+                }
                 throw new Error('Failed to fetch Calendly status')
             }
             const { data } = await response.json()

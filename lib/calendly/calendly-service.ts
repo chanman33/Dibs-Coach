@@ -72,37 +72,56 @@ export class CalendlyService {
 
   private async refreshTokenIfNeeded() {
     const tokens = await this.getTokens()
-    if (!tokens.expiresAt || new Date(tokens.expiresAt) <= new Date()) {
-      // Refresh token logic here
-      const response = await fetch('https://auth.calendly.com/oauth/token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          client_id: process.env.CALENDLY_CLIENT_ID!,
-          client_secret: process.env.CALENDLY_CLIENT_SECRET!,
-          refresh_token: tokens.refreshToken,
-        }),
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to refresh token')
-      }
-
-      const data = await response.json()
-      await this.supabase
-        .from('User')
-        .update({
-          calendlyAccessToken: data.access_token,
-          calendlyRefreshToken: data.refresh_token,
-          calendlyExpiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
-          updatedAt: new Date().toISOString()
+    const now = new Date()
+    const expiresAt = tokens.expiresAt ? new Date(tokens.expiresAt) : null
+    
+    // Refresh if token is expired or will expire in the next 5 minutes
+    if (!expiresAt || expiresAt.getTime() - now.getTime() <= 5 * 60 * 1000) {
+      console.log('[CALENDLY_TOKEN] Refreshing token that expires at:', expiresAt)
+      
+      try {
+        const response = await fetch('https://auth.calendly.com/oauth/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            client_id: CALENDLY_CONFIG.oauth.clientId,
+            client_secret: CALENDLY_CONFIG.oauth.clientSecret,
+            refresh_token: tokens.refreshToken,
+          }),
         })
-        .eq('userId', this.userId)
 
-      return data.access_token
+        if (!response.ok) {
+          const error = await response.json()
+          console.error('[CALENDLY_REFRESH_ERROR]', error)
+          throw new Error('Failed to refresh token: ' + error.message)
+        }
+
+        const data = await response.json()
+        
+        // Update tokens in database
+        const { error: updateError } = await this.supabase
+          .from('User')
+          .update({
+            calendlyAccessToken: data.access_token,
+            calendlyRefreshToken: data.refresh_token,
+            calendlyExpiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
+            updatedAt: new Date().toISOString()
+          })
+          .eq('userId', this.userId)
+
+        if (updateError) {
+          console.error('[CALENDLY_DB_ERROR] Failed to update tokens:', updateError)
+          throw new Error('Failed to update tokens in database')
+        }
+
+        return data.access_token
+      } catch (error) {
+        console.error('[CALENDLY_REFRESH_ERROR]', error)
+        throw new Error('Token refresh failed - please reconnect Calendly')
+      }
     }
 
     return tokens.accessToken
@@ -330,7 +349,6 @@ async function introspectToken(token: string): Promise<TokenIntrospectionRespons
 
 export async function getValidCalendlyToken(userDbId: number): Promise<string> {
   try {
-    // Initialize Supabase client
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL!,
@@ -353,7 +371,7 @@ export async function getValidCalendlyToken(userDbId: number): Promise<string> {
     // Get current integration data
     const { data: integration, error: fetchError } = await supabase
       .from('CalendlyIntegration')
-      .select('accessToken, refreshToken, expiresAt')
+      .select('accessToken, expiresAt')
       .eq('userDbId', userDbId)
       .single()
 
@@ -361,28 +379,13 @@ export async function getValidCalendlyToken(userDbId: number): Promise<string> {
       throw new Error('Calendly integration not found')
     }
 
-    // First check if token is expired based on our stored expiration
+    // Check if token is expired or will expire in the next 5 minutes
     const expiresAt = new Date(integration.expiresAt)
     const now = new Date()
     const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000)
 
     if (expiresAt <= fiveMinutesFromNow) {
-      // Token is expired or will expire soon based on our records
-      return refreshCalendlyToken(userDbId)
-    }
-
-    // Even if our records show the token is valid, let's verify with Calendly
-    const introspection = await introspectToken(integration.accessToken)
-    
-    if (!introspection.active) {
-      // Token is actually invalid according to Calendly
-      console.log('[CALENDLY_TOKEN] Token reported as inactive by Calendly, refreshing...')
-      return refreshCalendlyToken(userDbId)
-    }
-
-    // If we have an expiration from introspection that's sooner than our stored one
-    if (introspection.exp && new Date(introspection.exp * 1000) <= fiveMinutesFromNow) {
-      console.log('[CALENDLY_TOKEN] Token expiring soon according to introspection, refreshing...')
+      console.log('[CALENDLY_TOKEN] Access token expiring soon, refreshing...')
       return refreshCalendlyToken(userDbId)
     }
 
@@ -426,40 +429,32 @@ export async function refreshCalendlyToken(userDbId: number) {
       throw new Error('Failed to fetch Calendly integration')
     }
 
-    // Verify refresh token is still valid before using it
-    const refreshTokenIntrospection = await introspectToken(integration.refreshToken)
-    if (!refreshTokenIntrospection.active) {
-      throw new Error('Refresh token is invalid, user needs to reconnect Calendly')
-    }
-
-    // Create Basic Auth header
-    const basicAuth = Buffer.from(
-      `${CALENDLY_CONFIG.oauth.clientId}:${CALENDLY_CONFIG.oauth.clientSecret}`
-    ).toString('base64')
-
-    // Exchange refresh token for new tokens
+    // For native clients, we include client_id in the body params
+    // and don't use Basic Auth header
     const tokenResponse = await fetch(`${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.tokenPath}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${basicAuth}`
       },
       body: new URLSearchParams({
+        client_id: CALENDLY_CONFIG.oauth.clientId,
+        client_secret: CALENDLY_CONFIG.oauth.clientSecret,
         grant_type: 'refresh_token',
-        refresh_token: integration.refreshToken,
-        client_id: CALENDLY_CONFIG.oauth.clientId
+        refresh_token: integration.refreshToken
       }).toString()
     })
 
     if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text()
-      throw new Error(`Token refresh failed: ${errorText}`)
+      const errorData = await tokenResponse.json()
+      console.error('[CALENDLY_REFRESH_ERROR] Token refresh failed:', errorData)
+      throw new Error(errorData.message || 'Token refresh failed')
     }
 
     const tokenData = await tokenResponse.json()
     const { access_token, refresh_token, expires_in } = tokenData
 
     // Update tokens in database
+    // Note: Access tokens expire after 2 hours (7200 seconds)
     const { error: updateError } = await supabase
       .from('CalendlyIntegration')
       .update({
@@ -471,56 +466,47 @@ export async function refreshCalendlyToken(userDbId: number) {
       .eq('userDbId', userDbId)
 
     if (updateError) {
-      throw new Error('Failed to update tokens')
+      console.error('[CALENDLY_DB_ERROR] Failed to update tokens:', updateError)
+      throw new Error('Failed to update tokens in database')
     }
 
     return access_token
   } catch (error) {
     console.error('[CALENDLY_REFRESH_ERROR]', error)
     
-    // If refresh token is invalid, try to revoke any remaining tokens and clean up
-    if (error instanceof Error && error.message.includes('Refresh token is invalid')) {
-      try {
-        const cookieStore = await cookies()
-        const supabase = createServerClient(
-          process.env.SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_KEY!,
-          {
-            cookies: {
-              get(name: string) {
-                return cookieStore.get(name)?.value
-              },
-              set(name: string, value: string, options: any) {
-                // Not needed for this flow
-              },
-              remove(name: string, options: any) {
-                // Not needed for this flow
-              },
+    // If refresh fails, clean up the integration
+    try {
+      const cookieStore = await cookies()
+      const supabase = createServerClient(
+        process.env.SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_KEY!,
+        {
+          cookies: {
+            get(name: string) {
+              return cookieStore.get(name)?.value
             },
-          }
-        )
-
-        const { data: integration } = await supabase
-          .from('CalendlyIntegration')
-          .select('accessToken')
-          .eq('userDbId', userDbId)
-          .single()
-
-        if (integration?.accessToken) {
-          await revokeCalendlyToken(integration.accessToken)
+            set(name: string, value: string, options: any) {
+              // Not needed for this flow
+            },
+            remove(name: string, options: any) {
+              // Not needed for this flow
+            },
+          },
         }
+      )
 
-        // Delete the integration record since it's no longer valid
-        await supabase
-          .from('CalendlyIntegration')
-          .delete()
-          .eq('userDbId', userDbId)
-      } catch (cleanupError) {
-        console.error('[CALENDLY_CLEANUP_ERROR]', cleanupError)
-      }
+      // Delete the integration record since it's no longer valid
+      await supabase
+        .from('CalendlyIntegration')
+        .delete()
+        .eq('userDbId', userDbId)
+
+      console.log('[CALENDLY_CLEANUP] Removed invalid integration for userDbId:', userDbId)
+    } catch (cleanupError) {
+      console.error('[CALENDLY_CLEANUP_ERROR]', cleanupError)
     }
     
-    throw error
+    throw new Error('Calendly connection expired. Please reconnect your account.')
   }
 }
 

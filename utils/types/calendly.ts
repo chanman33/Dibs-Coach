@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // Base Calendly Types
-export interface CalendlyStatus {
+export type CalendlyStatus = {
   connected: boolean
   schedulingUrl?: string
   expiresAt?: string
@@ -10,6 +10,7 @@ export interface CalendlyStatus {
   eventTypes?: CalendlyEventType[]
   needsReconnect?: boolean
   error?: string
+  userUri?: string
 }
 
 export interface CalendlyEventType {
@@ -120,4 +121,40 @@ export const WebhookEventSchema = z.object({
     invitee: CalendlyInviteeSchema,
     scheduled_event: CalendlyScheduledEventSchema
   })
-}) 
+})
+
+export type CalendlyAvailabilitySchedule = {
+  uri: string
+  name: string
+  default: boolean
+  timezone: string
+  active: boolean
+  rules: {
+    type: 'wday'
+    wday: number
+    intervals: {
+      from: string
+      to: string
+    }[]
+  }[]
+}
+
+export type CalendlyBusyTimeType = 'event' | 'busy_period'
+
+export type CalendlyBusyTime = {
+  uri: string
+  start_time: string
+  end_time: string
+  type: CalendlyBusyTimeType
+  calendar_type?: string
+  event_name?: string
+  event_url?: string
+  calendar_name?: string
+}
+
+export type BusyTimeFilters = {
+  type?: CalendlyBusyTimeType
+  startDate: Date
+  endDate: Date
+  calendar?: string
+} 

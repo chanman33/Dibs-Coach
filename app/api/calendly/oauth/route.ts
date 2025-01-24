@@ -4,11 +4,19 @@ import { generateCodeVerifier, generateCodeChallenge } from '@/utils/pkce'
 import { cookies } from 'next/headers'
 import { CALENDLY_CONFIG } from '@/lib/calendly/calendly-config'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const { userId } = await auth()
     if (!userId) {
       return new NextResponse('Unauthorized', { status: 401 })
+    }
+
+    // Get the redirect URL from query params
+    const { searchParams } = new URL(request.url)
+    const redirectUrl = searchParams.get('redirect')
+    
+    if (!redirectUrl) {
+      return new NextResponse('Missing redirect URL', { status: 400 })
     }
 
     // Validate required configuration
@@ -33,9 +41,16 @@ export async function GET() {
     const codeVerifier = generateCodeVerifier()
     const codeChallenge = generateCodeChallenge(codeVerifier)
 
-    // Store code verifier in cookie for callback
+    // Store code verifier and redirect URL in cookies for callback
     const cookieStore = await cookies()
     cookieStore.set('calendly_verifier', codeVerifier, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 5 * 60 // 5 minutes expiry
+    })
+    cookieStore.set('calendly_redirect', redirectUrl, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -77,7 +92,8 @@ export async function GET() {
     // Log the final URL for verification
     console.log('[CALENDLY_AUTH_DEBUG] Final authorization URL:', authUrl)
     
-    return NextResponse.json({ authUrl })
+    // Redirect to Calendly's authorization URL instead of returning it
+    return Response.redirect(authUrl)
   } catch (error) {
     console.error('[CALENDLY_AUTH_ERROR]', error)
     return new NextResponse('Internal Server Error', { status: 500 })

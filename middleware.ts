@@ -17,10 +17,6 @@ type AppConfig = {
 
 const config: AppConfig = require('./config').default;
 
-// Roles that can access Calendly features
-const CALENDLY_ROLES = [ROLES.REALTOR_COACH, ROLES.LOAN_OFFICER_COACH, ROLES.ADMIN] as const
-type CalendlyRole = typeof CALENDLY_ROLES[number]
-
 // Routes that require Calendly access
 const CALENDLY_ROUTES = [
   '/api/calendly/events',
@@ -91,7 +87,7 @@ export default function middleware(req: NextRequest) {
     if (role) {
       // Protect coach routes
       if (COACH_ROUTES.some(route => pathname.match(route)) && 
-          !CALENDLY_ROLES.includes(role as CalendlyRole)) {
+          role !== ROLES.REALTOR_COACH && role !== ROLES.LOAN_OFFICER_COACH && role !== ROLES.ADMIN) {
         return new NextResponse('Access denied. Coach role required.', { status: 403 });
       }
 
@@ -104,19 +100,16 @@ export default function middleware(req: NextRequest) {
 
     // Handle Calendly routes
     if (isCalendlyRoute(pathname)) {
-      const role = resolvedAuth.sessionClaims?.role as CalendlyRole | undefined;
       const userId = resolvedAuth.userId;
-
-      if (!role || !CALENDLY_ROLES.includes(role) || !userId) {
-        return new NextResponse(
-          'Access denied. Required role: coach or admin',
-          { status: 403 }
-        );
+      if (!userId) {
+        return new NextResponse('Authentication required', { status: 401 });
       }
 
       // Add auth info to headers for downstream use
       const requestHeaders = new Headers(req.headers);
-      requestHeaders.set('x-user-role', role);
+      if (role) {
+        requestHeaders.set('x-user-role', role);
+      }
       requestHeaders.set('x-user-id', userId);
 
       return NextResponse.next({
@@ -129,6 +122,7 @@ export default function middleware(req: NextRequest) {
     return NextResponse.next();
   })(req);
 }
+
 // Export middleware config separately to avoid naming conflicts
 export const middlewareConfig = {
   matcher: ['/((?!.+\\.[\\w]+$|_next).*)', '/', '/(api|trpc)(.*)'],
