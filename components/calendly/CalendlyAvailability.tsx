@@ -54,7 +54,7 @@ interface AvailabilityData {
   filters: BusyTimeFilters
 }
 
-type ViewType = 'month' | 'week' | 'list'
+type ViewType = 'week' | 'list'
 
 interface ScheduleRule {
   type: 'wday' | 'date';
@@ -73,6 +73,7 @@ export function CalendlyAvailability() {
       endDate: endOfWeek(new Date()),
     }
   })
+  const [cachedData, setCachedData] = useState<Record<string, CalendlyBusyTime[]>>({})
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [error, setError] = useState<string>()
   const [view, setView] = useState<ViewType>('week')
@@ -81,19 +82,68 @@ export function CalendlyAvailability() {
   const [authError, setAuthError] = useState(false)
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
 
+  // Helper function to get cache key for a date range
+  const getCacheKey = (start: Date, end: Date) => {
+    return `${start.toISOString()}_${end.toISOString()}_${selectedType}`
+  }
+
+  // Helper function to check if a date range is cached
+  const isDateRangeCached = (start: Date, end: Date) => {
+    return !!cachedData[getCacheKey(start, end)]
+  }
+
   useEffect(() => {
     if (!status?.connected || isLoadingData) return
 
-    // Prevent fetching more often than every 30 seconds
     const now = Date.now()
     if (now - lastFetchTime < 30000) return
 
-    fetchAvailabilityData()
-  }, [status?.connected, data.filters, lastFetchTime])
+    // Check if we already have this date range cached
+    const cacheKey = getCacheKey(data.filters.startDate, data.filters.endDate)
+    if (cachedData[cacheKey]) {
+      setData(prev => ({
+        ...prev,
+        busyTimes: cachedData[cacheKey]
+      }))
+      return
+    }
 
-  const fetchAvailabilityData = async () => {
+    fetchAvailabilityData()
+  }, [status?.connected, data.filters, lastFetchTime, selectedType])
+
+  // Pre-fetch adjacent weeks when in week view
+  useEffect(() => {
+    if (view !== 'week' || !status?.connected || isLoadingData) return
+
+    const prefetchAdjacentWeeks = async () => {
+      const prevWeekStart = subWeeks(data.filters.startDate, 1)
+      const prevWeekEnd = subWeeks(data.filters.endDate, 1)
+      const nextWeekStart = addWeeks(data.filters.startDate, 1)
+      const nextWeekEnd = addWeeks(data.filters.endDate, 1)
+
+      // Prefetch previous week if not cached
+      if (!isDateRangeCached(prevWeekStart, prevWeekEnd)) {
+        await fetchAvailabilityData(prevWeekStart, prevWeekEnd, true)
+      }
+
+      // Prefetch next week if not cached
+      if (!isDateRangeCached(nextWeekStart, nextWeekEnd)) {
+        await fetchAvailabilityData(nextWeekStart, nextWeekEnd, true)
+      }
+    }
+
+    prefetchAdjacentWeeks()
+  }, [data.filters.startDate, data.filters.endDate, view, status?.connected])
+
+  const fetchAvailabilityData = async (
+    startDate: Date = data.filters.startDate,
+    endDate: Date = data.filters.endDate,
+    isPrefetch: boolean = false
+  ) => {
     try {
-      setIsLoadingData(true)
+      if (!isPrefetch) {
+        setIsLoadingData(true)
+      }
       setError(undefined)
       setAuthError(false)
       setLastFetchTime(Date.now())
@@ -106,8 +156,8 @@ export function CalendlyAvailability() {
       if (selectedType !== 'all') {
         queryParams.set('type', selectedType)
       }
-      queryParams.set('startDate', data.filters.startDate.toISOString())
-      queryParams.set('endDate', data.filters.endDate.toISOString())
+      queryParams.set('startDate', startDate.toISOString())
+      queryParams.set('endDate', endDate.toISOString())
       
       const response = await fetch(`/api/calendly/availability/schedules?${queryParams}`)
       if (!response.ok) {
@@ -133,12 +183,25 @@ export function CalendlyAvailability() {
           endDate: parseISO(responseData.data.filters.endDate)
         }
       }
+
+      // Cache the fetched data
+      const cacheKey = getCacheKey(startDate, endDate)
+      setCachedData(prev => ({
+        ...prev,
+        [cacheKey]: parsedData.busyTimes
+      }))
       
-      setData(parsedData)
+      if (!isPrefetch) {
+        setData(parsedData)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load availability data')
+      if (!isPrefetch) {
+        setError(err instanceof Error ? err.message : 'Failed to load availability data')
+      }
     } finally {
-      setIsLoadingData(false)
+      if (!isPrefetch) {
+        setIsLoadingData(false)
+      }
     }
   }
 
@@ -148,14 +211,24 @@ export function CalendlyAvailability() {
     
     const newFilters = {
       ...data.filters,
-      startDate: view === 'month' ? startOfMonth(date) : startOfWeek(date),
-      endDate: view === 'month' ? endOfMonth(date) : endOfWeek(date)
+      startDate: startOfWeek(date),
+      endDate: endOfWeek(date)
     }
     
-    setData(prev => ({
-      ...prev,
-      filters: newFilters
-    }))
+    // Check if we have this date range cached before updating filters
+    const cacheKey = getCacheKey(newFilters.startDate, newFilters.endDate)
+    if (cachedData[cacheKey]) {
+      setData(prev => ({
+        ...prev,
+        filters: newFilters,
+        busyTimes: cachedData[cacheKey]
+      }))
+    } else {
+      setData(prev => ({
+        ...prev,
+        filters: newFilters
+      }))
+    }
   }
 
   const handleViewChange = (newView: ViewType) => {
@@ -164,13 +237,24 @@ export function CalendlyAvailability() {
     setView(newView)
     const newFilters = {
       ...data.filters,
-      startDate: newView === 'month' ? startOfMonth(selectedDate) : startOfWeek(selectedDate),
-      endDate: newView === 'month' ? endOfMonth(selectedDate) : endOfWeek(selectedDate)
+      startDate: startOfWeek(selectedDate),
+      endDate: endOfWeek(selectedDate)
     }
-    setData(prev => ({
-      ...prev,
-      filters: newFilters
-    }))
+
+    // Check if we have this date range cached before updating filters
+    const cacheKey = getCacheKey(newFilters.startDate, newFilters.endDate)
+    if (cachedData[cacheKey]) {
+      setData(prev => ({
+        ...prev,
+        filters: newFilters,
+        busyTimes: cachedData[cacheKey]
+      }))
+    } else {
+      setData(prev => ({
+        ...prev,
+        filters: newFilters
+      }))
+    }
   }
 
   const handleWeekChange = (direction: 'prev' | 'next') => {
@@ -180,7 +264,27 @@ export function CalendlyAvailability() {
       ? addWeeks(selectedDate, 1)
       : subWeeks(selectedDate, 1)
     setSelectedDate(newDate)
-    handleDateSelect(newDate)
+    
+    const newFilters = {
+      ...data.filters,
+      startDate: startOfWeek(newDate),
+      endDate: endOfWeek(newDate)
+    }
+
+    // Check if we have this date range cached before updating filters
+    const cacheKey = getCacheKey(newFilters.startDate, newFilters.endDate)
+    if (cachedData[cacheKey]) {
+      setData(prev => ({
+        ...prev,
+        filters: newFilters,
+        busyTimes: cachedData[cacheKey]
+      }))
+    } else {
+      setData(prev => ({
+        ...prev,
+        filters: newFilters
+      }))
+    }
   }
 
   const getBusyTimesForDate = (date: Date) => {
@@ -499,13 +603,6 @@ export function CalendlyAvailability() {
                 </Select>
                 <div className="flex items-center gap-2">
                   <Button
-                    variant={view === 'month' ? 'default' : 'outline'}
-                    size="icon"
-                    onClick={() => handleViewChange('month')}
-                  >
-                    <CalendarIcon className="h-4 w-4" />
-                  </Button>
-                  <Button
                     variant={view === 'week' ? 'default' : 'outline'}
                     size="icon"
                     onClick={() => handleViewChange('week')}
@@ -524,94 +621,81 @@ export function CalendlyAvailability() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {view === 'month' ? (
-              <div className="flex flex-col gap-4">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={handleDateSelect}
-                  modifiers={{
-                    busy: (date) => getBusyTimesForDate(date).length > 0
-                  }}
-                  modifiersStyles={{
-                    busy: { backgroundColor: 'var(--warning)' }
-                  }}
-                />
-                <div className="space-y-2">
-                  {getBusyTimesForDate(selectedDate).map((busyTime) => (
-                    <div
-                      key={busyTime.uri}
-                      className="flex items-center justify-between p-2 rounded-md border"
-                    >
-                      <div>
-                        <p className="font-medium">
-                          {busyTime.event_name || 'Busy'}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {format(parseISO(busyTime.start_time), 'h:mm a')} - {format(parseISO(busyTime.end_time), 'h:mm a')}
-                        </p>
-                      </div>
-                      <Badge>{busyTime.type}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : view === 'week' ? (
+            {view === 'week' ? (
               <WeekView />
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Start Time</TableHead>
-                    <TableHead>End Time</TableHead>
-                    <TableHead>Event</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Calendar</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.busyTimes.map((busyTime) => {
-                    // Create a unique key using start_time and uri
-                    const uniqueKey = `${busyTime.uri}_${busyTime.start_time}`
-                    
-                    return (
-                      <TableRow key={uniqueKey}>
-                        <TableCell>
-                          {format(parseISO(busyTime.start_time), 'MMM d, yyyy')}
-                        </TableCell>
-                        <TableCell>
-                          {format(parseISO(busyTime.start_time), 'h:mm a')}
-                        </TableCell>
-                        <TableCell>
-                          {format(parseISO(busyTime.end_time), 'h:mm a')}
-                        </TableCell>
-                        <TableCell>
-                          {busyTime.event_name || 'Busy'}
-                          {busyTime.event_url && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="ml-2"
-                              onClick={() => window.open(busyTime.event_url, '_blank')}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge>
-                            {busyTime.type}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {busyTime.calendar_name || busyTime.calendar_type}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleWeekChange('prev')}
+                  >
+                    Previous Week
+                  </Button>
+                  <div className="text-lg font-semibold">
+                    {format(data.filters.startDate, 'MMM d')} - {format(data.filters.endDate, 'MMM d, yyyy')}
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => handleWeekChange('next')}
+                  >
+                    Next Week
+                  </Button>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Start Time</TableHead>
+                      <TableHead>End Time</TableHead>
+                      <TableHead>Event</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Calendar</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.busyTimes.map((busyTime) => {
+                      // Create a unique key using start_time and uri
+                      const uniqueKey = `${busyTime.uri}_${busyTime.start_time}`
+                      
+                      return (
+                        <TableRow key={uniqueKey}>
+                          <TableCell>
+                            {format(parseISO(busyTime.start_time), 'MMM d, yyyy')}
+                          </TableCell>
+                          <TableCell>
+                            {format(parseISO(busyTime.start_time), 'h:mm a')}
+                          </TableCell>
+                          <TableCell>
+                            {format(parseISO(busyTime.end_time), 'h:mm a')}
+                          </TableCell>
+                          <TableCell>
+                            {busyTime.event_name || 'Busy'}
+                            {busyTime.event_url && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="ml-2"
+                                onClick={() => window.open(busyTime.event_url, '_blank')}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge>
+                              {busyTime.type}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {busyTime.calendar_name || busyTime.calendar_type}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
