@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, ExternalLink, Calendar as CalendarIcon, Filter, LayoutGrid, List } from 'lucide-react'
+import { Loader2, ExternalLink, Calendar as CalendarIcon, Filter, LayoutGrid, List, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { useCalendly } from '@/utils/hooks/useCalendly'
 import {
   Table,
@@ -81,6 +81,7 @@ export function CalendlyAvailability() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [authError, setAuthError] = useState(false)
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
+  const [activeTab, setActiveTab] = useState<string>('schedules')
 
   // Helper function to get cache key for a date range
   const getCacheKey = (start: Date, end: Date) => {
@@ -326,33 +327,35 @@ export function CalendlyAvailability() {
             Next Week
           </Button>
         </div>
-        <div className="border rounded-lg">
-          <div className="grid grid-cols-8 border-b">
-            <div className="p-2 border-r" />
+        <div className="border rounded-lg overflow-hidden bg-card">
+          <div className="grid grid-cols-8 border-b sticky top-0 bg-card z-10">
+            <div className="p-2 border-r bg-muted/50" />
             {weekDays.map((day) => (
               <div
                 key={day.toISOString()}
                 className={cn(
-                  "p-2 text-center border-r last:border-r-0",
-                  isSameDay(day, new Date()) && "bg-muted"
+                  "p-3 text-center border-r last:border-r-0",
+                  isSameDay(day, new Date()) && "bg-primary/5 font-medium"
                 )}
               >
-                <div className="font-medium">{format(day, 'EEE')}</div>
-                <div className="text-sm text-muted-foreground">{format(day, 'd')}</div>
+                <div className="font-medium text-sm">{format(day, 'EEE')}</div>
+                <div className={cn(
+                  "text-base mt-1",
+                  isSameDay(day, new Date()) && "text-primary font-semibold"
+                )}>{format(day, 'd')}</div>
               </div>
             ))}
           </div>
-          <div className="grid grid-cols-8">
-            <div className="border-r">
+          <div className="grid grid-cols-8 relative">
+            <div className="border-r bg-muted/50">
               {hours.map((hour) => {
-                // Create a proper date object for the hour
                 const hourDate = new Date()
                 hourDate.setHours(hour, 0, 0, 0)
                 
                 return (
                   <div
-                    key={hour}
-                    className="h-12 border-b last:border-b-0 p-1 text-xs text-muted-foreground"
+                    key={`time-${hour}`}
+                    className="h-14 border-b last:border-b-0 p-2 text-xs text-muted-foreground sticky left-0"
                   >
                     {format(hourDate, 'h a')}
                   </div>
@@ -360,14 +363,13 @@ export function CalendlyAvailability() {
               })}
             </div>
             {weekDays.map((day) => (
-              <div key={day.toISOString()} className="border-r last:border-r-0">
+              <div key={day.toISOString()} className="border-r last:border-r-0 relative">
                 {hours.map((hour) => {
                   const busyTimes = getBusyTimesForDate(day)
-                  const hasEventAtHour = busyTimes.some(busyTime => {
+                  const eventsAtHour = busyTimes.filter(busyTime => {
                     try {
                       const start = parseISO(busyTime.start_time)
                       const end = parseISO(busyTime.end_time)
-                      // Create a proper date object for comparison
                       const hourDate = new Date(day)
                       hourDate.setHours(hour, 0, 0, 0)
                       return isWithinInterval(hourDate, { start, end })
@@ -379,37 +381,70 @@ export function CalendlyAvailability() {
 
                   return (
                     <div
-                      key={hour}
+                      key={`${day.toISOString()}-${hour}`}
                       className={cn(
-                        "h-12 border-b last:border-b-0",
-                        hasEventAtHour && "bg-primary/10"
+                        "h-14 border-b last:border-b-0 relative group transition-colors",
+                        eventsAtHour.length > 0 && "bg-primary/10 hover:bg-primary/15"
                       )}
-                    />
+                    >
+                      {eventsAtHour.length > 0 && (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-primary/5">
+                          <div className="px-2 py-1 rounded-md bg-popover text-xs font-medium shadow-sm">
+                            {eventsAtHour.length} {eventsAtHour.length === 1 ? 'event' : 'events'}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
             ))}
           </div>
         </div>
-        <div className="space-y-4 mt-4">
-          <h3 className="font-medium">Events for {format(selectedDate, 'MMMM d, yyyy')}</h3>
-          <div className="space-y-2">
+        <div className="space-y-4 mt-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Events for {format(selectedDate, 'MMMM d, yyyy')}</h3>
+            <Badge variant="outline" className="text-xs">
+              {getBusyTimesForDate(selectedDate).length} events
+            </Badge>
+          </div>
+          <div className="space-y-3">
             {getBusyTimesForDate(selectedDate).map((busyTime) => (
               <div
                 key={busyTime.uri}
-                className="flex items-center justify-between p-2 rounded-md border"
+                className="flex items-center justify-between p-3 rounded-lg border bg-card/50 hover:bg-card/80 transition-colors"
               >
-                <div>
+                <div className="space-y-1">
                   <p className="font-medium">
                     {busyTime.event_name || 'Busy'}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    {format(parseISO(busyTime.start_time), 'h:mm a')} - {format(parseISO(busyTime.end_time), 'h:mm a')}
-                  </p>
+                  <div className="flex items-center text-sm text-muted-foreground space-x-2">
+                    <CalendarIcon className="h-3.5 w-3.5" />
+                    <span>{format(parseISO(busyTime.start_time), 'h:mm a')} - {format(parseISO(busyTime.end_time), 'h:mm a')}</span>
+                  </div>
                 </div>
-                <Badge>{busyTime.type}</Badge>
+                <div className="flex items-center space-x-2">
+                  <Badge variant="secondary" className="capitalize">
+                    {busyTime.type.replace(/_/g, ' ')}
+                  </Badge>
+                  {busyTime.event_url && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => window.open(busyTime.event_url, '_blank')}
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
+            {getBusyTimesForDate(selectedDate).length === 0 && (
+              <div className="text-center py-8 text-muted-foreground bg-muted/10 rounded-lg border border-dashed">
+                No events scheduled for this day
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -430,10 +465,19 @@ export function CalendlyAvailability() {
     return date
   }
 
+  const handleRefresh = async () => {
+    // Clear the cache
+    setCachedData({})
+    // Force a new fetch by resetting the last fetch time
+    setLastFetchTime(0)
+    // Fetch new data
+    await fetchAvailabilityData()
+  }
+
   if (isLoading || isLoadingData) {
     return (
-      <div className="flex items-center justify-center p-4">
-        <Loader2 className="h-6 w-6 animate-spin" />
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
   }
@@ -441,21 +485,19 @@ export function CalendlyAvailability() {
   if (!status?.connected || authError) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <div className="text-center">
-            <h3 className="text-lg font-semibold mb-2">
-              {authError ? 'Reconnect Your Calendly Account' : 'Connect Your Calendly Account'}
-            </h3>
-            <p className="text-muted-foreground mb-4">
-              {authError 
-                ? 'Your Calendly connection has expired. Please reconnect to continue managing your availability.'
-                : 'You need to connect your Calendly account to manage your availability.'
-              }
-            </p>
-            <Button onClick={handleReconnect}>
-              {authError ? 'Reconnect Calendly' : 'Connect Calendly'}
-            </Button>
-          </div>
+        <CardHeader>
+          <CardTitle>Calendly Integration</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <AlertDescription>
+              Please connect your Calendly account to view your availability.
+            </AlertDescription>
+          </Alert>
+          <Button onClick={handleReconnect} className="mt-4">
+            Connect Calendly
+            <ExternalLink className="ml-2 h-4 w-4" />
+          </Button>
         </CardContent>
       </Card>
     )
@@ -479,7 +521,7 @@ export function CalendlyAvailability() {
   }
 
   return (
-    <Tabs defaultValue="schedules">
+    <Tabs value={activeTab} onValueChange={setActiveTab}>
       <TabsList className="mb-4">
         <TabsTrigger value="schedules" className="flex items-center gap-2">
           <CalendarIcon className="h-4 w-4" />
@@ -583,36 +625,39 @@ export function CalendlyAvailability() {
       </TabsContent>
 
       <TabsContent value="busy-times">
-        <Card>
-          <CardHeader>
+        <Card className="border-none shadow-none">
+          <CardHeader className="px-0 pt-0">
             <CardTitle className="flex items-center justify-between">
               <span>Upcoming Busy Times</span>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center space-x-4">
                 <Select
                   value={selectedType}
-                  onValueChange={(value) => setSelectedType(value as any)}
+                  onValueChange={(value) => setSelectedType(value as CalendlyBusyTimeType | 'all')}
                 >
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Filter by type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    <SelectItem value="event">Events</SelectItem>
-                    <SelectItem value="busy_period">Busy Periods</SelectItem>
+                    <SelectItem value="all">All Events</SelectItem>
+                    <SelectItem value="busy_time">Busy Time</SelectItem>
+                    <SelectItem value="calendly_event">Calendly Event</SelectItem>
+                    <SelectItem value="external_event">External Event</SelectItem>
                   </SelectContent>
                 </Select>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center rounded-md border bg-muted p-1">
                   <Button
-                    variant={view === 'week' ? 'default' : 'outline'}
-                    size="icon"
+                    variant={view === 'week' ? 'secondary' : 'ghost'}
+                    size="sm"
                     onClick={() => handleViewChange('week')}
+                    className="h-8"
                   >
                     <LayoutGrid className="h-4 w-4" />
                   </Button>
                   <Button
-                    variant={view === 'list' ? 'default' : 'outline'}
-                    size="icon"
+                    variant={view === 'list' ? 'secondary' : 'ghost'}
+                    size="sm"
                     onClick={() => handleViewChange('list')}
+                    className="h-8"
                   >
                     <List className="h-4 w-4" />
                   </Button>
@@ -620,7 +665,7 @@ export function CalendlyAvailability() {
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-0">
             {view === 'week' ? (
               <WeekView />
             ) : (
@@ -628,8 +673,11 @@ export function CalendlyAvailability() {
                 <div className="flex items-center justify-between mb-4">
                   <Button
                     variant="outline"
+                    size="sm"
                     onClick={() => handleWeekChange('prev')}
+                    className="h-8"
                   >
+                    <ChevronLeft className="h-4 w-4 mr-1" />
                     Previous Week
                   </Button>
                   <div className="text-lg font-semibold">
@@ -637,66 +685,95 @@ export function CalendlyAvailability() {
                   </div>
                   <Button
                     variant="outline"
+                    size="sm"
                     onClick={() => handleWeekChange('next')}
+                    className="h-8"
                   >
                     Next Week
+                    <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Start Time</TableHead>
-                      <TableHead>End Time</TableHead>
-                      <TableHead>Event</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Calendar</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.busyTimes.map((busyTime) => {
-                      // Create a unique key using start_time and uri
-                      const uniqueKey = `${busyTime.uri}_${busyTime.start_time}`
-                      
-                      return (
-                        <TableRow key={uniqueKey}>
-                          <TableCell>
-                            {format(parseISO(busyTime.start_time), 'MMM d, yyyy')}
-                          </TableCell>
-                          <TableCell>
-                            {format(parseISO(busyTime.start_time), 'h:mm a')}
-                          </TableCell>
-                          <TableCell>
-                            {format(parseISO(busyTime.end_time), 'h:mm a')}
-                          </TableCell>
-                          <TableCell>
-                            {busyTime.event_name || 'Busy'}
-                            {busyTime.event_url && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="ml-2"
-                                onClick={() => window.open(busyTime.event_url, '_blank')}
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge>
-                              {busyTime.type}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {busyTime.calendar_name || busyTime.calendar_type}
+                <div className="rounded-lg border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-[150px]">Date</TableHead>
+                        <TableHead className="w-[120px]">Start Time</TableHead>
+                        <TableHead className="w-[120px]">End Time</TableHead>
+                        <TableHead>Event</TableHead>
+                        <TableHead className="w-[120px]">Type</TableHead>
+                        <TableHead>Calendar</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.busyTimes.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="h-32 text-center">
+                            No events scheduled for this week
                           </TableCell>
                         </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                      ) : (
+                        data.busyTimes.map((busyTime) => {
+                          const uniqueKey = `${busyTime.uri}_${busyTime.start_time}`
+                          return (
+                            <TableRow key={uniqueKey} className="group">
+                              <TableCell className="font-medium">
+                                {format(parseISO(busyTime.start_time), 'MMM d, yyyy')}
+                              </TableCell>
+                              <TableCell>
+                                {format(parseISO(busyTime.start_time), 'h:mm a')}
+                              </TableCell>
+                              <TableCell>
+                                {format(parseISO(busyTime.end_time), 'h:mm a')}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center space-x-2">
+                                  <span>{busyTime.event_name || 'Busy'}</span>
+                                  {busyTime.event_url && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                      onClick={() => window.open(busyTime.event_url, '_blank')}
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="capitalize">
+                                  {busyTime.type.replace(/_/g, ' ')}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {busyTime.calendar_name || busyTime.calendar_type}
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             )}
+            <div className="mt-6 flex justify-end">
+              <Button 
+                onClick={handleRefresh}
+                disabled={isLoadingData}
+                variant="outline"
+                size="sm"
+                className="h-9"
+              >
+                {isLoadingData ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Refresh Schedule
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </TabsContent>
