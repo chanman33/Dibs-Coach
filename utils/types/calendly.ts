@@ -124,21 +124,26 @@ export const WebhookEventSchema = z.object({
   })
 })
 
-export type CalendlyAvailabilitySchedule = {
+export interface TimeInterval {
+  from: string
+  to: string
+}
+
+export interface ScheduleRule {
+  type: 'wday' | 'date'
+  wday?: number
+  date?: string
+  intervals: TimeInterval[]
+}
+
+export interface CalendlyAvailabilitySchedule {
   uri: string
   name: string
-  default: boolean
   timezone: string
+  default: boolean
   active: boolean
-  rules: {
-    type: 'wday' | 'date'
-    wday?: number
-    date?: string
-    intervals: {
-      from: string
-      to: string
-    }[]
-  }[]
+  rules: ScheduleRule[]
+  source?: 'calendly' | 'coaching'
 }
 
 export type CalendlyBusyTimeType = 'event' | 'busy_period'
@@ -163,13 +168,13 @@ export type BusyTimeFilters = {
 
 export type CalendarEventType = 'session' | 'busy' | 'availability'
 
-export type CalendarEvent = {
+export interface CalendarEvent {
   id: string
   title: string
   start: Date
   end: Date
-  type: CalendarEventType
-  resource?: ExtendedSession | CalendlyBusyTime | CalendlyAvailabilitySchedule
+  type: 'session' | 'busy' | 'availability'
+  resource: ExtendedSession | CalendlyBusyTime | CalendlyAvailabilitySchedule
 }
 
 export interface ExtendedSession {

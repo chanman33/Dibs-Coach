@@ -7,7 +7,15 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
-import { CalendlyAvailabilitySchedule, CalendarEvent, CalendarEventType, CalendlyBusyTime, ExtendedSession } from '@/utils/types/calendly'
+import { 
+  CalendlyAvailabilitySchedule, 
+  CalendarEvent, 
+  CalendarEventType, 
+  CalendlyBusyTime, 
+  ExtendedSession,
+  TimeInterval,
+  ScheduleRule
+} from '@/utils/types/calendly'
 import { cn } from '@/utils/cn'
 
 const localizer = momentLocalizer(moment)
@@ -18,11 +26,16 @@ interface CoachingCalendarProps {
   title?: string
   busyTimes?: CalendlyBusyTime[]
   availabilitySchedules?: CalendlyAvailabilitySchedule[]
+  coachingSchedules?: CalendlyAvailabilitySchedule[]
   onRefreshCalendly?: () => void
   isCalendlyConnected?: boolean
   isCalendlyLoading?: boolean
   showCalendlyButton?: boolean
   userRole: 'coach' | 'mentee'
+}
+
+interface CalendarEventResource extends CalendlyAvailabilitySchedule {
+  source?: 'calendly' | 'coaching'
 }
 
 // Helper to get badge color based on session status
@@ -42,7 +55,12 @@ const getStatusColor = (status: string) => {
 }
 
 // Helper to convert availability schedule to events
-const getAvailabilityEvents = (schedule: CalendlyAvailabilitySchedule, startDate: Date, endDate: Date): CalendarEvent[] => {
+const getAvailabilityEvents = (
+  schedule: CalendlyAvailabilitySchedule, 
+  startDate: Date, 
+  endDate: Date,
+  source: 'calendly' | 'coaching' = 'calendly'
+): CalendarEvent[] => {
   const events: CalendarEvent[] = []
   const start = moment(startDate).startOf('week')
   const end = moment(endDate).endOf('week')
@@ -72,11 +90,11 @@ const getAvailabilityEvents = (schedule: CalendlyAvailabilitySchedule, startDate
 
         events.push({
           id: `availability-${schedule.uri}-${slotStart.toISOString()}`,
-          title: 'Available',
+          title: source === 'coaching' ? 'Coaching Available' : 'Available',
           start: slotStart.toDate(),
           end: slotEnd.toDate(),
           type: 'availability',
-          resource: schedule
+          resource: { ...schedule, source }
         })
       }
     })
@@ -94,6 +112,7 @@ export function CoachingCalendar({
   sessions,
   busyTimes = [],
   availabilitySchedules = [],
+  coachingSchedules = [],
   isLoading,
   title = "My Coaching Calendar",
   onRefreshCalendly,
@@ -147,13 +166,26 @@ export function CoachingCalendar({
   }))
 
   // Get availability events for the current view's date range
-  const availabilityEvents = availabilitySchedules.flatMap(schedule => 
-    getAvailabilityEvents(
-      schedule,
-      moment(date).startOf('month').toDate(),
-      moment(date).endOf('month').toDate()
+  const availabilityEvents = [
+    // Get Calendly availability
+    ...availabilitySchedules.flatMap(schedule => 
+      getAvailabilityEvents(
+        schedule,
+        moment(date).startOf('month').toDate(),
+        moment(date).endOf('month').toDate(),
+        'calendly'
+      )
+    ),
+    // Get coaching availability
+    ...coachingSchedules.flatMap(schedule => 
+      getAvailabilityEvents(
+        schedule,
+        moment(date).startOf('month').toDate(),
+        moment(date).endOf('month').toDate(),
+        'coaching'
+      )
     )
-  )
+  ]
 
   // Filter out availability slots that overlap with busy times or sessions
   const filteredAvailabilityEvents = availabilityEvents.filter(availEvent => {
@@ -184,8 +216,11 @@ export function CoachingCalendar({
           }
         }
       case 'availability':
+        const isCoachingSlot = (event.resource as CalendlyAvailabilitySchedule).source === 'coaching'
         return {
-          className: '!bg-emerald-100 !text-emerald-800 !border !border-emerald-200 hover:!bg-emerald-200',
+          className: isCoachingSlot
+            ? '!bg-emerald-500 !text-white !border !border-emerald-600 hover:!bg-emerald-600'
+            : '!bg-emerald-100 !text-emerald-800 !border !border-emerald-200 hover:!bg-emerald-200',
           style: {
             borderRadius: '4px',
           }

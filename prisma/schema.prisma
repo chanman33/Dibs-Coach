@@ -150,6 +150,8 @@ model User {
   goals         Goal[]
   achievements  Achievement[]
 
+  coachingSchedules CoachingAvailabilitySchedule[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -642,4 +644,20 @@ model Achievement {
 
   @@index([userDbId])
   @@index([type])
+}
+
+model CoachingAvailabilitySchedule {
+  id        Int      @id @default(autoincrement())
+  userDbId  Int
+  name      String
+  timezone  String
+  isDefault Boolean  @default(false)
+  active    Boolean  @default(true)
+  rules     Json     // Stored as JSONB
+  user      User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userDbId])
 }

@@ -10,9 +10,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import { Trash } from 'lucide-react'
 
-interface AvailabilityScheduleViewProps {
+export interface AvailabilityScheduleViewProps {
   schedule: CalendlyAvailabilitySchedule
+  onDelete?: () => Promise<void>
 }
 
 type WeekDay = 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday'
@@ -24,7 +27,10 @@ interface ScheduleRule {
   date?: string
 }
 
-export function AvailabilityScheduleView({ schedule }: AvailabilityScheduleViewProps) {
+export function AvailabilityScheduleView({ 
+  schedule,
+  onDelete
+}: AvailabilityScheduleViewProps) {
   // Convert weekday string to name with proper capitalization
   const getWeekdayName = (wday: WeekDay) => {
     return wday.charAt(0).toUpperCase() + wday.slice(1).toLowerCase()
@@ -59,18 +65,23 @@ export function AvailabilityScheduleView({ schedule }: AvailabilityScheduleViewP
   const dateRules = (schedule.rules as ScheduleRule[]).filter(rule => rule.type === 'date')
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">{schedule.name}</h3>
-          <p className="text-sm text-muted-foreground">Timezone: {schedule.timezone}</p>
+          <p className="text-sm text-muted-foreground">
+            {schedule.timezone} {schedule.default && '(Default)'}
+          </p>
         </div>
-        <div className="flex gap-2">
-          {schedule.default && <Badge>Default Schedule</Badge>}
-          <Badge variant={schedule.active ? "default" : "secondary"}>
-            {schedule.active ? "Active" : "Inactive"}
-          </Badge>
-        </div>
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+          >
+            <Trash className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <div className="border rounded-lg">

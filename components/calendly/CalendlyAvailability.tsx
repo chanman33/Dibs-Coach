@@ -4,7 +4,7 @@ import * as React from 'react'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, ExternalLink, Calendar as CalendarIcon, Filter, LayoutGrid, List, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { Loader2, ExternalLink, Calendar as CalendarIcon, Filter, LayoutGrid, List, ChevronLeft, ChevronRight, RefreshCw, Plus } from 'lucide-react'
 import { useCalendly } from '@/utils/hooks/useCalendly'
 import {
   Table,
@@ -50,6 +50,8 @@ import {
 import { cn } from '@/utils/cn'
 import { UserRole } from '@prisma/client'
 import { AvailabilityScheduleView } from './AvailabilityScheduleView'
+import { CoachingAvailabilityEditor } from './CoachingAvailabilityEditor'
+import { toast } from 'react-hot-toast'
 
 interface AvailabilityData {
   schedules: CalendlyAvailabilitySchedule[]
@@ -88,6 +90,9 @@ export function CalendlyAvailability() {
   const [authError, setAuthError] = useState(false)
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
   const [activeTab, setActiveTab] = useState<string>('schedules')
+  const [showCoachingEditor, setShowCoachingEditor] = useState(false)
+  const [coachingSchedules, setCoachingSchedules] = useState<any[]>([])
+  const [isLoadingCoachingSchedules, setIsLoadingCoachingSchedules] = useState(false)
 
   const getCacheKey = (startDate: Date, endDate: Date) => {
     return `${format(startDate, 'yyyy-MM-dd')}_${format(endDate, 'yyyy-MM-dd')}`
@@ -140,6 +145,11 @@ export function CalendlyAvailability() {
 
     prefetchAdjacentMonths()
   }, [selectedDate, status?.connected])
+
+  useEffect(() => {
+    if (!status?.connected) return
+    fetchCoachingSchedules()
+  }, [status?.connected])
 
   const fetchAvailabilityData = async (
     startDate: Date = data.filters.startDate,
@@ -479,6 +489,22 @@ export function CalendlyAvailability() {
     await fetchAvailabilityData()
   }
 
+  const fetchCoachingSchedules = async () => {
+    try {
+      setIsLoadingCoachingSchedules(true)
+      const response = await fetch('/api/coaching/availability')
+      if (!response.ok) {
+        throw new Error('Failed to fetch coaching schedules')
+      }
+      const { data } = await response.json()
+      setCoachingSchedules(data)
+    } catch (error) {
+      console.error('[COACHING_SCHEDULES_ERROR]', error)
+    } finally {
+      setIsLoadingCoachingSchedules(false)
+    }
+  }
+
   if (isLoading || isLoadingData) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -532,6 +558,10 @@ export function CalendlyAvailability() {
           <CalendarIcon className="h-4 w-4" />
           Availability Schedules
         </TabsTrigger>
+        <TabsTrigger value="coaching" className="flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4" />
+          Coaching Availability
+        </TabsTrigger>
         <TabsTrigger value="busy-times" className="flex items-center gap-2">
           <CalendarIcon className="h-4 w-4" />
           Busy Times
@@ -566,6 +596,66 @@ export function CalendlyAvailability() {
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 No availability schedules found
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="coaching">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Coaching Availability</span>
+              <Button
+                onClick={() => setShowCoachingEditor(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="h-4 w-4" />
+                Add Schedule
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoadingCoachingSchedules ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            ) : showCoachingEditor ? (
+              <CoachingAvailabilityEditor
+                onSave={() => {
+                  setShowCoachingEditor(false)
+                  fetchCoachingSchedules()
+                }}
+                onCancel={() => setShowCoachingEditor(false)}
+              />
+            ) : coachingSchedules.length > 0 ? (
+              <div className="space-y-8">
+                {coachingSchedules.map((schedule) => (
+                  <AvailabilityScheduleView 
+                    key={schedule.id} 
+                    schedule={schedule}
+                    onDelete={async () => {
+                      try {
+                        const response = await fetch(`/api/coaching/availability?id=${schedule.id}`, {
+                          method: 'DELETE'
+                        })
+                        if (!response.ok) {
+                          throw new Error('Failed to delete schedule')
+                        }
+                        toast.success('Schedule deleted successfully')
+                        fetchCoachingSchedules()
+                      } catch (error) {
+                        console.error('[COACHING_SCHEDULE_DELETE_ERROR]', error)
+                        toast.error('Failed to delete schedule')
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No coaching availability schedules found
               </div>
             )}
           </CardContent>
