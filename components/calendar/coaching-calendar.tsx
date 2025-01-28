@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { Calendar, momentLocalizer, View } from 'react-big-calendar'
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
-import { Loader2 } from "lucide-react"
+import { Loader2, RefreshCw } from "lucide-react"
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Button } from "@/components/ui/button"
 
 const localizer = momentLocalizer(moment)
 
@@ -28,10 +29,26 @@ interface Session {
   otherParty: User
 }
 
+interface BusyTime {
+  type: string
+  start_time: string
+  end_time: string
+  buffered_start_time?: string
+  buffered_end_time?: string
+  event?: {
+    uri: string
+  }
+}
+
 interface CoachingCalendarProps {
   sessions: Session[] | undefined
   isLoading?: boolean
   title?: string
+  busyTimes?: BusyTime[]
+  onRefreshCalendly?: () => void
+  isCalendlyConnected?: boolean
+  isCalendlyLoading?: boolean
+  showCalendlyButton?: boolean
 }
 
 // Helper to get badge color based on session status
@@ -50,16 +67,16 @@ const getStatusColor = (status: string) => {
   }
 }
 
-const EventComponent = ({ event }: any) => (
-  <div className="flex flex-col gap-1 p-1">
-    <div>{event.title}</div>
-    <Badge className={getStatusColor(event.resource.status)}>
-      {event.resource.status}
-    </Badge>
-  </div>
-)
-
-export function CoachingCalendar({ sessions, isLoading, title = "My Coaching Calendar" }: CoachingCalendarProps) {
+export function CoachingCalendar({
+  sessions,
+  busyTimes = [],
+  isLoading,
+  title = "My Coaching Calendar",
+  onRefreshCalendly,
+  isCalendlyConnected,
+  isCalendlyLoading,
+  showCalendlyButton
+}: CoachingCalendarProps) {
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
 
@@ -84,38 +101,67 @@ export function CoachingCalendar({ sessions, isLoading, title = "My Coaching Cal
     )
   }
 
-  const events = sessions?.map(session => ({
+  const sessionEvents = sessions?.map(session => ({
     title: `${session.userRole === 'coach' ? 'Coaching' : 'Session with'} ${session.otherParty.firstName} ${session.otherParty.lastName}`,
     start: new Date(session.startTime),
     end: new Date(session.endTime),
     resource: session
   })) || []
 
+  const busyTimeEvents = busyTimes.map(busyTime => ({
+    title: 'Busy',
+    start: new Date(busyTime.start_time),
+    end: new Date(busyTime.end_time)
+  }))
+
+  const allEvents = [...sessionEvents, ...busyTimeEvents]
+
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">{title}</h1>
       
       <div className="grid grid-cols-[1fr,300px] gap-4">
-        <Card className="p-4">
-          <div className="h-[600px]">
-            <Calendar
-              localizer={localizer}
-              events={events}
-              startAccessor="start"
-              endAccessor="end"
-              view={view}
-              date={date}
-              onView={(newView) => setView(newView)}
-              onNavigate={(newDate) => setDate(newDate)}
-              views={['month', 'week', 'day']}
-              components={{
-                event: EventComponent
-              }}
-              popup
-              selectable
-            />
-          </div>
-        </Card>
+        <div>
+          <Card className="p-4">
+            <div className="h-[600px]">
+              <Calendar
+                localizer={localizer}
+                events={allEvents}
+                startAccessor="start"
+                endAccessor="end"
+                view={view}
+                date={date}
+                onView={(newView) => setView(newView)}
+                onNavigate={(newDate) => setDate(newDate)}
+                views={['month', 'week', 'day']}
+                step={30}
+                timeslots={1}
+                min={new Date(2020, 1, 1, 6, 30, 0)}
+                max={new Date(2020, 1, 1, 20, 0, 0)}
+              />
+            </div>
+          </Card>
+          {showCalendlyButton && (
+            <div className="mt-4">
+              <Button
+                onClick={(e) => {
+                  e.preventDefault()
+                  onRefreshCalendly?.()
+                }}
+                disabled={isLoading || isCalendlyLoading}
+                variant="outline"
+                className="gap-2"
+              >
+                {isLoading || isCalendlyLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {!isCalendlyConnected ? 'Connect Calendly' : 'Refresh Schedule'}
+              </Button>
+            </div>
+          )}
+        </div>
 
         <Card className="p-4">
           <h2 className="text-lg font-semibold mb-4">All Sessions</h2>

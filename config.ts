@@ -6,7 +6,7 @@ const config = {
     enabled: true,
   },
   roles: {
-    enabled: false,
+    enabled: true,
   }
 };
 

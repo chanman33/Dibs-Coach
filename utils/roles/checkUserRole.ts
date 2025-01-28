@@ -25,9 +25,9 @@ export async function getUserRole(userId: string): Promise<UserRole> {
 
   try {
     const { data, error } = await supabase
-      .from("user")
+      .from("User")
       .select("role")
-      .eq("user_id", userId)
+      .eq("userId", userId)
       .single();
 
     if (error) throw error;
