@@ -57,15 +57,17 @@ export async function GET(request: Request) {
     const integration = dbIntegration as {
       accessToken: string
       refreshToken: string
-      expiresAt: number
+      expiresAt: string
       organizationUrl: string
     }
 
     let accessToken = integration.accessToken
-    const now_timestamp = Math.floor(Date.now() / 1000)
+    const expiresAt = integration.expiresAt ? new Date(integration.expiresAt) : null
 
-    if (integration.expiresAt && now_timestamp >= integration.expiresAt) {
+    // Refresh if token is expired or will expire in the next 5 minutes
+    if (!expiresAt || expiresAt.getTime() - now.getTime() <= 5 * 60 * 1000) {
       try {
+        console.log('[CALENDLY_TOKEN] Refreshing token that expires at:', expiresAt)
         const refreshResponse = await fetch('https://auth.calendly.com/oauth/token', {
           method: 'POST',
           headers: {
@@ -80,22 +82,45 @@ export async function GET(request: Request) {
         })
 
         if (!refreshResponse.ok) {
-          console.error('[CALENDLY_REFRESH_ERROR]', await refreshResponse.text())
-          return new NextResponse('Failed to refresh Calendly token', { status: 401 })
+          const errorData = await refreshResponse.json().catch(() => null)
+          console.error('[CALENDLY_REFRESH_ERROR]', errorData)
+          
+          // If refresh token is invalid, clean up the integration
+          if (errorData?.error === 'invalid_grant') {
+            const { error: deleteError } = await supabase
+              .from('CalendlyIntegration')
+              .delete()
+              .eq('userDbId', dbUser.id)
+
+            if (deleteError) {
+              console.error('[CALENDLY_CLEANUP_ERROR] Failed to delete invalid integration:', deleteError)
+            } else {
+              console.log('[CALENDLY_CLEANUP] Removed invalid integration for userDbId:', dbUser.id)
+            }
+            return new NextResponse('Calendly connection expired. Please reconnect your account.', { status: 401 })
+          }
+          
+          throw new Error('Failed to refresh token: ' + (errorData?.error_description || 'Unknown error'))
         }
 
         const refreshData = await refreshResponse.json()
         accessToken = refreshData.access_token
 
         // Update tokens in database
-        await supabase
+        const { error: updateError } = await supabase
           .from('CalendlyIntegration')
           .update({
             accessToken: refreshData.access_token,
             refreshToken: refreshData.refresh_token,
-            expiresAt: Math.floor(Date.now() / 1000) + refreshData.expires_in,
+            expiresAt: new Date(Date.now() + refreshData.expires_in * 1000).toISOString(),
+            updatedAt: new Date().toISOString()
           })
           .eq('userDbId', dbUser.id)
+
+        if (updateError) {
+          console.error('[CALENDLY_DB_ERROR] Failed to update tokens:', updateError)
+          throw new Error('Failed to update tokens in database')
+        }
       } catch (error) {
         console.error('[CALENDLY_REFRESH_ERROR]', error)
         return new NextResponse('Failed to refresh Calendly token', { status: 401 })

@@ -53,20 +53,32 @@ export class CalendlyService {
       throw new Error('Service not initialized')
     }
 
-    const { data: user, error } = await this.supabase
+    // First get the user's database ID
+    const { data: user, error: userError } = await this.supabase
       .from('User')
-      .select('calendlyAccessToken, calendlyRefreshToken, calendlyExpiresAt')
+      .select('id')
       .eq('userId', this.userId)
       .single()
 
-    if (error || !user?.calendlyAccessToken) {
+    if (userError || !user?.id) {
+      throw new Error('User not found')
+    }
+
+    // Then get the Calendly integration using the user's database ID
+    const { data: integration, error: integrationError } = await this.supabase
+      .from('CalendlyIntegration')
+      .select('accessToken, refreshToken, expiresAt')
+      .eq('userDbId', user.id)
+      .single()
+
+    if (integrationError || !integration?.accessToken) {
       throw new Error('Calendly not connected')
     }
 
     return {
-      accessToken: user.calendlyAccessToken,
-      refreshToken: user.calendlyRefreshToken,
-      expiresAt: user.calendlyExpiresAt
+      accessToken: integration.accessToken,
+      refreshToken: integration.refreshToken,
+      expiresAt: integration.expiresAt
     }
   }
 
@@ -75,6 +87,17 @@ export class CalendlyService {
     const now = new Date()
     const expiresAt = tokens.expiresAt ? new Date(tokens.expiresAt) : null
     
+    // Get the user's database ID
+    const { data: user } = await this.supabase
+      .from('User')
+      .select('id')
+      .eq('userId', this.userId)
+      .single()
+
+    if (!user?.id) {
+      throw new Error('User not found')
+    }
+
     // Refresh if token is expired or will expire in the next 5 minutes
     if (!expiresAt || expiresAt.getTime() - now.getTime() <= 5 * 60 * 1000) {
       console.log('[CALENDLY_TOKEN] Refreshing token that expires at:', expiresAt)
@@ -101,16 +124,16 @@ export class CalendlyService {
 
         const data = await response.json()
         
-        // Update tokens in database
+        // Update tokens in database using the user's database ID
         const { error: updateError } = await this.supabase
-          .from('User')
+          .from('CalendlyIntegration')
           .update({
-            calendlyAccessToken: data.access_token,
-            calendlyRefreshToken: data.refresh_token,
-            calendlyExpiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
+            accessToken: data.access_token,
+            refreshToken: data.refresh_token,
+            expiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
             updatedAt: new Date().toISOString()
           })
-          .eq('userId', this.userId)
+          .eq('userDbId', user.id)
 
         if (updateError) {
           console.error('[CALENDLY_DB_ERROR] Failed to update tokens:', updateError)
@@ -120,6 +143,23 @@ export class CalendlyService {
         return data.access_token
       } catch (error) {
         console.error('[CALENDLY_REFRESH_ERROR]', error)
+        
+        // If refresh fails, try to clean up the integration
+        try {
+          const { error: deleteError } = await this.supabase
+            .from('CalendlyIntegration')
+            .delete()
+            .eq('userDbId', user.id)
+
+          if (deleteError) {
+            console.error('[CALENDLY_CLEANUP_ERROR] Failed to delete invalid integration:', deleteError)
+          } else {
+            console.log('[CALENDLY_CLEANUP] Removed invalid integration for userDbId:', user.id)
+          }
+        } catch (cleanupError) {
+          console.error('[CALENDLY_CLEANUP_ERROR]', cleanupError)
+        }
+        
         throw new Error('Token refresh failed - please reconnect Calendly')
       }
     }
@@ -127,22 +167,55 @@ export class CalendlyService {
     return tokens.accessToken
   }
 
-  private async fetchCalendly(endpoint: string, options: RequestInit = {}) {
-    const accessToken = await this.refreshTokenIfNeeded()
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    })
+  private async fetchCalendly<T = any>(endpoint: string, options: RequestInit = {}, retryCount = 0): Promise<T> {
+    try {
+      const accessToken = await this.refreshTokenIfNeeded()
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      })
 
-    if (!response.ok) {
-      throw new Error(`Calendly API error: ${response.statusText}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('[CALENDLY_API_ERROR]', errorData)
+
+        // If unauthorized and haven't retried yet, force token refresh and retry once
+        if (response.status === 401 && retryCount === 0) {
+          console.log('[CALENDLY_API] Unauthorized, forcing token refresh and retrying...')
+          // Force token refresh by passing an expired date
+          const tokens = await this.getTokens()
+          const { data: user } = await this.supabase
+            .from('User')
+            .select('id')
+            .eq('userId', this.userId)
+            .single()
+
+          if (user?.id) {
+            await this.supabase
+              .from('CalendlyIntegration')
+              .update({
+                expiresAt: new Date(0).toISOString(),
+                updatedAt: new Date().toISOString()
+              })
+              .eq('userDbId', user.id)
+
+            // Retry the request
+            return this.fetchCalendly<T>(endpoint, options, retryCount + 1)
+          }
+        }
+
+        throw new Error(`Calendly API error: ${errorData.message || response.statusText}`)
+      }
+
+      return response.json()
+    } catch (error) {
+      console.error('[CALENDLY_API_ERROR]', error)
+      throw error
     }
-
-    return response.json()
   }
 
   async getStatus(): Promise<CalendlyStatus> {

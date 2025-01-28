@@ -15,23 +15,48 @@ interface AvailabilityScheduleViewProps {
   schedule: CalendlyAvailabilitySchedule
 }
 
+type WeekDay = 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday'
+
+interface ScheduleRule {
+  type: 'wday' | 'date'
+  intervals: Array<{ from: string; to: string }>
+  wday?: WeekDay
+  date?: string
+}
+
 export function AvailabilityScheduleView({ schedule }: AvailabilityScheduleViewProps) {
-  // Convert weekday number to name (0 = Sunday, 1 = Monday, etc.)
-  const getWeekdayName = (wday: number) => {
-    const date = new Date(2024, 0, 7 + wday) // Jan 7, 2024 is a Sunday
-    return format(date, 'EEEE')
+  // Convert weekday string to name with proper capitalization
+  const getWeekdayName = (wday: WeekDay) => {
+    return wday.charAt(0).toUpperCase() + wday.slice(1).toLowerCase()
   }
 
   // Format time string (e.g., "09:00" to "9:00 AM")
   const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':')
-    const date = new Date()
-    date.setHours(parseInt(hours), parseInt(minutes))
-    return format(date, 'h:mm a')
+    try {
+      // Handle "HH:mm" format (e.g., "09:00")
+      if (time.length === 5) {
+        const [hours, minutes] = time.split(':').map(Number)
+        const date = new Date()
+        date.setHours(hours, minutes, 0, 0)
+        return format(date, 'h:mm a')
+      }
+      
+      // Handle ISO format (e.g., "2020-01-02T20:00:00.000000Z")
+      return format(parseISO(time), 'h:mm a')
+    } catch (error) {
+      console.error('Error formatting time:', error, time)
+      return 'Invalid Time'
+    }
   }
 
-  const weekdayRules = schedule.rules.filter(rule => rule.type === 'wday')
-  const dateRules = schedule.rules.filter(rule => rule.type === 'date')
+  const weekdayRules = (schedule.rules as ScheduleRule[])
+    .filter(rule => rule.type === 'wday' && rule.wday)
+    // Sort weekdays in correct order (Sunday to Saturday)
+    .sort((a, b) => {
+      const days: WeekDay[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      return days.indexOf(a.wday!) - days.indexOf(b.wday!)
+    })
+  const dateRules = (schedule.rules as ScheduleRule[]).filter(rule => rule.type === 'date')
 
   return (
     <div className="space-y-6">
@@ -60,7 +85,7 @@ export function AvailabilityScheduleView({ schedule }: AvailabilityScheduleViewP
             {weekdayRules.map((rule) => (
               <TableRow key={rule.wday}>
                 <TableCell className="font-medium">
-                  {getWeekdayName(rule.wday!)}
+                  {getWeekdayName(rule.wday as WeekDay)}
                 </TableCell>
                 <TableCell>
                   {rule.intervals.length > 0 ? (
