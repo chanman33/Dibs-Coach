@@ -9,7 +9,7 @@ import { useCalendly } from '@/utils/hooks/useCalendly'
 import { Button } from '@/components/ui/button'
 import { ROLES } from '@/utils/roles/roles'
 import { Loader2, RefreshCw } from 'lucide-react'
-import { startOfWeek, endOfWeek } from 'date-fns'
+import { startOfWeek, endOfWeek, addMonths } from 'date-fns'
 import { CalendlyAvailabilitySchedule } from '@/utils/types/calendly'
 
 // Mock data for testing
@@ -140,8 +140,9 @@ export default function CalendarPage() {
 
     try {
       setIsLoadingBusyTimes(true)
+      // Fetch 3 months of data
       const startDate = startOfWeek(new Date())
-      const endDate = endOfWeek(new Date())
+      const endDate = endOfWeek(addMonths(new Date(), 3))
 
       const queryParams = new URLSearchParams({
         startDate: startDate.toISOString(),

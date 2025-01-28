@@ -163,36 +163,142 @@ export async function GET(request: Request) {
 
     const schedulesData = await schedulesResponse.json()
 
-    // Get busy times with filters
-    const busyTimesUrl = new URL('https://api.calendly.com/user_busy_times')
-    busyTimesUrl.searchParams.append('user', userUri)
-    busyTimesUrl.searchParams.append('start_time', filters.startDate.toISOString())
-    busyTimesUrl.searchParams.append('end_time', filters.endDate.toISOString())
-    
-    const calendar = filters.calendar
-    if (calendar !== undefined && calendar !== '') {
-      busyTimesUrl.searchParams.append('calendar_type', calendar as string)
+    // Log initial request parameters
+    console.log('[CALENDLY_DEBUG] Fetching busy times for date range:', {
+      start: filters.startDate.toISOString(),
+      end: filters.endDate.toISOString()
+    })
+
+    // Split date range into 7-day chunks for busy times
+    const chunks: { start: Date; end: Date }[] = []
+    let currentStart = new Date(filters.startDate)
+    const finalEnd = new Date(filters.endDate)
+
+    while (currentStart < finalEnd) {
+      const chunkEnd = new Date(currentStart)
+      // Add 6 days to ensure we don't exceed 7-day limit (inclusive of start and end dates)
+      chunkEnd.setDate(chunkEnd.getDate() + 6)
+      if (chunkEnd > finalEnd) {
+        chunks.push({
+          start: currentStart,
+          end: finalEnd
+        })
+      } else {
+        chunks.push({
+          start: new Date(currentStart),
+          end: chunkEnd
+        })
+      }
+      // Start next chunk from the next day
+      currentStart = new Date(chunkEnd)
+      currentStart.setDate(currentStart.getDate() + 1)
     }
 
-    const busyTimesResponse = await fetch(busyTimesUrl.toString(), {
+    console.log('[CALENDLY_DEBUG] Created chunks:', chunks.map(chunk => ({
+      start: chunk.start.toISOString(),
+      end: chunk.end.toISOString()
+    })))
+
+    // First try fetching a single chunk to validate the API call
+    const testChunk = chunks[0]
+    const testUrl = new URL('https://api.calendly.com/user_busy_times')
+    testUrl.searchParams.append('user', userUri)
+    testUrl.searchParams.append('start_time', testChunk.start.toISOString())
+    testUrl.searchParams.append('end_time', testChunk.end.toISOString())
+    
+    const testResponse = await fetch(testUrl.toString(), {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       }
     })
 
-    if (!busyTimesResponse.ok) {
-      const errorText = await busyTimesResponse.text()
-      console.error('[CALENDLY_API_ERROR]', errorText)
-      return new NextResponse('Failed to fetch busy times', { status: busyTimesResponse.status })
+    if (!testResponse.ok) {
+      const errorText = await testResponse.text()
+      console.error('[CALENDLY_API_ERROR] Test chunk failed:', errorText)
+      return new NextResponse('Failed to fetch test chunk', { status: testResponse.status })
     }
 
-    const busyTimesData = await busyTimesResponse.json()
+    const testData = await testResponse.json()
+    console.log('[CALENDLY_DEBUG] Test chunk response:', {
+      count: testData.collection.length,
+      sample: testData.collection[0]
+    })
 
-    // Filter busy times if type filter is present
+    // Fetch busy times for each chunk in parallel with better error handling
+    const results = await Promise.allSettled(chunks.map(async (chunk) => {
+      try {
+        const busyTimesUrl = new URL('https://api.calendly.com/user_busy_times')
+        busyTimesUrl.searchParams.append('user', userUri)
+        busyTimesUrl.searchParams.append('start_time', chunk.start.toISOString())
+        busyTimesUrl.searchParams.append('end_time', chunk.end.toISOString())
+        
+        if (filters.calendar) {
+          busyTimesUrl.searchParams.append('calendar_type', filters.calendar)
+        }
+
+        const busyTimesResponse = await fetch(busyTimesUrl.toString(), {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          }
+        })
+
+        if (!busyTimesResponse.ok) {
+          throw new Error(await busyTimesResponse.text())
+        }
+
+        const busyTimesData = await busyTimesResponse.json()
+        return busyTimesData.collection
+      } catch (error) {
+        console.error('[CALENDLY_CHUNK_ERROR]', {
+          chunk: {
+            start: chunk.start.toISOString(),
+            end: chunk.end.toISOString()
+          },
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+        throw error
+      }
+    }))
+
+    // Process results and handle failures
+    const successfulChunks = results
+      .filter((result): result is PromiseFulfilledResult<any[]> => result.status === 'fulfilled')
+      .map(result => result.value)
+
+    const failedChunks = results
+      .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+      .length
+
+    console.log('[CALENDLY_DEBUG] Chunks processed:', {
+      total: chunks.length,
+      successful: successfulChunks.length,
+      failed: failedChunks
+    })
+
+    // Combine all chunks
+    const allBusyTimes = successfulChunks.flat()
+    console.log('[CALENDLY_DEBUG] Total busy times before filtering:', allBusyTimes.length)
+
+    // Only deduplicate if we have multiple chunks, using composite key of start_time + end_time + type
+    const uniqueBusyTimes = chunks.length > 1
+      ? Array.from(new Map(
+          allBusyTimes.map(item => [
+            `${item.start_time}-${item.end_time}-${item.type}`,
+            item
+          ])
+        ).values())
+      : allBusyTimes
+
+    console.log('[CALENDLY_DEBUG] Busy times after deduplication:', uniqueBusyTimes.length)
+
+    // Filter by type if specified
     const filteredBusyTimes = filters.type
-      ? busyTimesData.collection.filter((time: any) => time.type === filters.type)
-      : busyTimesData.collection
+      ? uniqueBusyTimes.filter((time: any) => time.type === filters.type)
+      : uniqueBusyTimes
+
+    console.log('[CALENDLY_DEBUG] Final busy times count:', filteredBusyTimes.length)
 
     return NextResponse.json({ 
       data: {

@@ -27,7 +27,9 @@ import {
   isSameDay,
   addWeeks,
   subWeeks,
-  isWithinInterval
+  isWithinInterval,
+  addMonths,
+  subMonths,
 } from 'date-fns'
 import { CalendlyAvailabilitySchedule, CalendlyBusyTime, BusyTimeFilters, CalendlyBusyTimeType } from '@/utils/types/calendly'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -64,6 +66,9 @@ interface ScheduleRule {
   date?: string;
 }
 
+const CACHE_DURATION = 30 * 60 * 1000 // 30 minutes
+const FETCH_RANGE_MONTHS = 3
+
 export function CalendlyAvailability() {
   const { status, isLoading } = useCalendly()
   const [data, setData] = useState<AvailabilityData>({ 
@@ -84,14 +89,17 @@ export function CalendlyAvailability() {
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
   const [activeTab, setActiveTab] = useState<string>('schedules')
 
-  // Helper function to get cache key for a date range
-  const getCacheKey = (start: Date, end: Date) => {
-    return `${start.toISOString()}_${end.toISOString()}_${selectedType}`
+  const getCacheKey = (startDate: Date, endDate: Date) => {
+    return `${format(startDate, 'yyyy-MM-dd')}_${format(endDate, 'yyyy-MM-dd')}`
   }
 
-  // Helper function to check if a date range is cached
-  const isDateRangeCached = (start: Date, end: Date) => {
-    return !!cachedData[getCacheKey(start, end)]
+  const isDateRangeCached = (startDate: Date, endDate: Date) => {
+    const cacheKey = getCacheKey(startDate, endDate)
+    const cachedEntry = cachedData[cacheKey]
+    if (!cachedEntry) return false
+    
+    const now = Date.now()
+    return now - lastFetchTime < CACHE_DURATION
   }
 
   useEffect(() => {
@@ -113,29 +121,25 @@ export function CalendlyAvailability() {
     fetchAvailabilityData()
   }, [status?.connected, data.filters, lastFetchTime, selectedType])
 
-  // Pre-fetch adjacent weeks when in week view
+  // Update the prefetch logic to handle monthly ranges
   useEffect(() => {
-    if (view !== 'week' || !status?.connected || isLoadingData) return
+    if (!status?.connected || isLoadingData) return
 
-    const prefetchAdjacentWeeks = async () => {
-      const prevWeekStart = subWeeks(data.filters.startDate, 1)
-      const prevWeekEnd = subWeeks(data.filters.endDate, 1)
-      const nextWeekStart = addWeeks(data.filters.startDate, 1)
-      const nextWeekEnd = addWeeks(data.filters.endDate, 1)
+    const prefetchAdjacentMonths = async () => {
+      const currentMonth = startOfMonth(selectedDate)
+      
+      for (let i = 1; i <= FETCH_RANGE_MONTHS; i++) {
+        const monthStart = addMonths(currentMonth, i)
+        const monthEnd = endOfMonth(monthStart)
 
-      // Prefetch previous week if not cached
-      if (!isDateRangeCached(prevWeekStart, prevWeekEnd)) {
-        await fetchAvailabilityData(prevWeekStart, prevWeekEnd, true)
-      }
-
-      // Prefetch next week if not cached
-      if (!isDateRangeCached(nextWeekStart, nextWeekEnd)) {
-        await fetchAvailabilityData(nextWeekStart, nextWeekEnd, true)
+        if (!isDateRangeCached(monthStart, monthEnd)) {
+          await fetchAvailabilityData(monthStart, monthEnd, true)
+        }
       }
     }
 
-    prefetchAdjacentWeeks()
-  }, [data.filters.startDate, data.filters.endDate, view, status?.connected])
+    prefetchAdjacentMonths()
+  }, [selectedDate, status?.connected])
 
   const fetchAvailabilityData = async (
     startDate: Date = data.filters.startDate,
