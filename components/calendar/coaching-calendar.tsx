@@ -46,6 +46,7 @@ const getAvailabilityEvents = (schedule: CalendlyAvailabilitySchedule, startDate
   const events: CalendarEvent[] = []
   const start = moment(startDate).startOf('week')
   const end = moment(endDate).endOf('week')
+  const SLOT_DURATION = 30 // minutes
 
   // For each day in the range
   for (let day = moment(start); day.isSameOrBefore(end); day.add(1, 'day')) {
@@ -58,27 +59,35 @@ const getAvailabilityEvents = (schedule: CalendlyAvailabilitySchedule, startDate
       const [fromHour, fromMinute] = interval.from.split(':').map(Number)
       const [toHour, toMinute] = interval.to.split(':').map(Number)
 
-      const eventStart = moment(day)
-        .hour(fromHour)
-        .minute(fromMinute)
-        .second(0)
-      const eventEnd = moment(day)
-        .hour(toHour)
-        .minute(toMinute)
-        .second(0)
+      const intervalStart = moment(day).hour(fromHour).minute(fromMinute).second(0)
+      const intervalEnd = moment(day).hour(toHour).minute(toMinute).second(0)
 
-      events.push({
-        id: `availability-${schedule.uri}-${eventStart.toISOString()}`,
-        title: 'Available',
-        start: eventStart.toDate(),
-        end: eventEnd.toDate(),
-        type: 'availability',
-        resource: schedule
-      })
+      // Split interval into 30-minute slots
+      for (let slotStart = moment(intervalStart); 
+           slotStart.isBefore(intervalEnd); 
+           slotStart.add(SLOT_DURATION, 'minutes')) {
+        
+        const slotEnd = moment(slotStart).add(SLOT_DURATION, 'minutes')
+        if (slotEnd.isAfter(intervalEnd)) continue
+
+        events.push({
+          id: `availability-${schedule.uri}-${slotStart.toISOString()}`,
+          title: 'Available',
+          start: slotStart.toDate(),
+          end: slotEnd.toDate(),
+          type: 'availability',
+          resource: schedule
+        })
+      }
     })
   }
 
   return events
+}
+
+// Helper to check if two time ranges overlap
+const doTimesOverlap = (start1: Date, end1: Date, start2: Date, end2: Date) => {
+  return moment(start1).isBefore(end2) && moment(end1).isAfter(start2)
 }
 
 export function CoachingCalendar({
@@ -146,23 +155,15 @@ export function CoachingCalendar({
     )
   )
 
-  // For mentees, filter out availability slots that overlap with busy times or sessions
-  const filteredAvailabilityEvents = userRole === 'mentee' 
-    ? availabilityEvents.filter(availEvent => {
-        const isOverlapping = [...busyTimeEvents, ...sessionEvents].some(event => {
-          return moment(availEvent.start).isBetween(event.start, event.end, undefined, '[)') ||
-                 moment(availEvent.end).isBetween(event.start, event.end, undefined, '(]') ||
-                 moment(event.start).isBetween(availEvent.start, availEvent.end, undefined, '[)') ||
-                 moment(event.end).isBetween(availEvent.start, availEvent.end, undefined, '(]')
-        })
-        return !isOverlapping
-      })
-    : availabilityEvents
+  // Filter out availability slots that overlap with busy times or sessions
+  const filteredAvailabilityEvents = availabilityEvents.filter(availEvent => {
+    return ![...busyTimeEvents, ...sessionEvents].some(event => 
+      doTimesOverlap(availEvent.start, availEvent.end, event.start, event.end)
+    )
+  })
 
   // Combine all events based on user role
-  const allEvents = userRole === 'coach'
-    ? [...sessionEvents, ...busyTimeEvents, ...availabilityEvents]
-    : [...sessionEvents, ...filteredAvailabilityEvents]
+  const allEvents = [...sessionEvents, ...busyTimeEvents, ...filteredAvailabilityEvents]
 
   // Custom event styles
   const eventStyleGetter = (event: CalendarEvent) => {
