@@ -11,6 +11,13 @@ import type {
   WebhookStorage
 } from '@/utils/types/calendly'
 import { formatEventDateTime, formatEventType } from './calendly-utils'
+import { env } from '@/lib/env'
+
+interface TokenResponse {
+  access_token: string
+  refresh_token: string
+  expires_in: number
+}
 
 export class CalendlyService {
   private baseUrl = 'https://api.calendly.com/v2'
@@ -26,6 +33,13 @@ export class CalendlyService {
     }
   )
   private userId: string | null = null
+  private readonly clientId: string
+  private readonly clientSecret: string
+
+  constructor() {
+    this.clientId = env.CALENDLY_CLIENT_ID
+    this.clientSecret = env.CALENDLY_CLIENT_SECRET
+  }
 
   async init() {
     const { userId } = await auth()
@@ -110,8 +124,8 @@ export class CalendlyService {
           },
           body: new URLSearchParams({
             grant_type: 'refresh_token',
-            client_id: CALENDLY_CONFIG.oauth.clientId,
-            client_secret: CALENDLY_CONFIG.oauth.clientSecret,
+            client_id: this.clientId,
+            client_secret: this.clientSecret,
             refresh_token: tokens.refreshToken,
           }),
         })
@@ -235,7 +249,7 @@ export class CalendlyService {
 
       // Try to get a valid token (this will refresh if needed)
       try {
-        const accessToken = await getValidCalendlyToken(user.id)
+        const accessToken = await this.refreshTokenIfNeeded()
         
         // If we got here, we have a valid token
         // Now fetch the Calendly user info and event types
@@ -381,6 +395,30 @@ export class CalendlyService {
       console.error('[CALENDLY_DISCONNECT_ERROR]', error)
       throw error
     }
+  }
+
+  public async refreshToken(refreshToken: string): Promise<TokenResponse> {
+    const params = new URLSearchParams({
+      client_id: this.clientId,
+      client_secret: this.clientSecret,
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    })
+
+    const response = await fetch('https://auth.calendly.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Token refresh failed: ${error.error || response.statusText}`)
+    }
+
+    return response.json()
   }
 }
 
