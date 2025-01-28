@@ -289,7 +289,34 @@ export class CalendlyService {
     }
   }
 
-  async getEventTypes(): Promise<CalendlyEventType[]> {
+  async getEventTypes(accessToken?: string): Promise<CalendlyEventType[]> {
+    // If accessToken is provided, use it directly, otherwise use fetchCalendly
+    if (accessToken) {
+      const response = await fetch(`${this.baseUrl}/event_types`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to fetch event types: ${error.message}`)
+      }
+
+      const data = await response.json()
+      return data.collection.map((eventType: any) => ({
+        id: eventType.uri,
+        name: eventType.name,
+        description: eventType.description,
+        duration: eventType.duration,
+        color: eventType.color,
+        type: eventType.type,
+        schedulingUrl: eventType.scheduling_url,
+      }))
+    }
+
+    // Use fetchCalendly for authenticated requests
     const response = await this.fetchCalendly('/event_types')
     return response.collection.map(formatEventType)
   }
@@ -419,6 +446,35 @@ export class CalendlyService {
     }
 
     return response.json()
+  }
+
+  async getUserAvailability(accessToken: string) {
+    const response = await fetch(`${this.baseUrl}/user_availability_schedules`, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(`Failed to fetch availability: ${error.message}`)
+    }
+
+    const data = await response.json()
+    return data.collection.map((schedule: any) => ({
+      id: schedule.uri,
+      name: schedule.name,
+      timezone: schedule.timezone,
+      rules: schedule.rules.map((rule: any) => ({
+        type: rule.type,
+        wday: rule.wday,
+        intervals: rule.intervals.map((interval: any) => ({
+          from: interval.from,
+          to: interval.to,
+        })),
+      })),
+    }))
   }
 }
 
