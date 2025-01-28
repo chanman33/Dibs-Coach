@@ -6,7 +6,7 @@ The Real Estate Agent Coaching Marketplace is built using a modern tech stack wi
 ## Tech Stack
 - **Frontend**: Next.js 14, Tailwind CSS, Shadcn UI
 - **Backend**: Next.js API Routes, Server Components
-- **Database**: 
+- **Database**:
   - Supabase (PostgreSQL) for data operations
   - Prisma for schema management and migrations
 - **Authentication**: Clerk
@@ -72,6 +72,66 @@ The database schema includes models for:
 - Client-side widget integration
 - Real-time availability sync
 - Event storage and user linking
+
+#### Token Management & Sync System
+1. **Background Jobs**
+   - Hourly token refresh job
+   - Availability sync process
+   - Cache invalidation
+   - Error recovery mechanisms
+
+2. **Caching Strategy**
+   - TTL-based availability caching
+   - Proactive cache warmup
+   - Cache invalidation on webhooks
+   - Fallback mechanisms
+
+3. **Webhook Integration**
+   - Real-time event processing
+   - Signature verification
+   - Event queueing and retry
+   - Error handling and logging
+
+4. **Error Recovery**
+   - Circuit breaker pattern
+   - Exponential backoff
+   - Automatic cleanup
+   - User notifications
+
+#### Database Tables
+```sql
+-- Calendly Integration Tables
+CREATE TABLE CalendlyIntegration (
+  id BIGINT PRIMARY KEY,
+  userDbId BIGINT REFERENCES User(id),
+  accessToken TEXT NOT NULL,
+  refreshToken TEXT NOT NULL,
+  expiresAt TIMESTAMP WITH TIME ZONE NOT NULL,
+  lastSyncAt TIMESTAMP WITH TIME ZONE,
+  failedRefreshCount INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'active',
+  organizationUrl TEXT,
+  schedulingUrl TEXT,
+  updatedAt TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE CalendlyAvailabilityCache (
+  id BIGINT PRIMARY KEY,
+  userDbId BIGINT REFERENCES User(id),
+  data JSONB NOT NULL,
+  expiresAt TIMESTAMP WITH TIME ZONE NOT NULL,
+  createdAt TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE CalendlyWebhookEvent (
+  id BIGINT PRIMARY KEY,
+  eventType TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  processedAt TIMESTAMP WITH TIME ZONE,
+  error TEXT,
+  createdAt TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+```
 
 #### OAuth Best Practices
 - Use PKCE (Proof Key for Code Exchange) flow for security

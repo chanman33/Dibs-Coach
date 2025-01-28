@@ -9,20 +9,144 @@ This document outlines the implementation of Calendly integration in our Next.js
 
 1. **CalendlyService** (`lib/calendly/calendly-service.ts`)
    - Handles all Calendly API interactions
-   - Manages OAuth2 token refresh flow
+   - Manages OAuth2 token refresh flow with exponential backoff
    - Provides type-safe methods for all Calendly operations
    - Integrates with Clerk auth and Supabase storage
    - Implements automatic token refresh on 401 responses
+   - Includes circuit breaker for failed refresh attempts
+   - Manages availability data caching
 
 2. **CalendlyClient** (`lib/calendly/calendly-client.ts`)
    - Low-level API client implementation
    - Handles common API methods
    - Manages request formatting and response parsing
+   - Implements retry mechanisms with backoff
 
-3. **Type Definitions** (`utils/types/calendly.ts`)
+3. **CalendlySync** (`lib/calendly/calendly-sync.ts`)
+   - Manages background token refresh
+   - Handles webhook event processing
+   - Maintains availability cache
+   - Implements fallback mechanisms
+   - Tracks sync status and metrics
+
+4. **Type Definitions** (`utils/types/calendly.ts`)
    - Complete TypeScript interfaces for all Calendly entities
    - Zod schemas for request/response validation
    - Ensures type safety across the application
+
+### Background Jobs
+
+1. **Token Refresh Job** (`jobs/refresh-calendly-tokens.ts`)
+   ```typescript
+   // Runs every hour to proactively refresh tokens
+   interface TokenRefreshJob {
+     findExpiringTokens(): Promise<CalendlyIntegration[]>
+     refreshTokens(integrations: CalendlyIntegration[]): Promise<void>
+     handleFailures(failures: RefreshFailure[]): Promise<void>
+   }
+   ```
+
+2. **Availability Sync Job** (`jobs/sync-calendly-availability.ts`)
+   ```typescript
+   // Maintains availability cache and handles updates
+   interface AvailabilitySyncJob {
+     syncUserAvailability(userDbId: number): Promise<void>
+     updateCache(data: AvailabilityData): Promise<void>
+     handleSyncFailure(error: SyncError): Promise<void>
+   }
+   ```
+
+### Webhook System
+
+1. **Webhook Handlers** (`app/api/calendly/webhooks/route.ts`)
+   ```typescript
+   // Processes real-time updates from Calendly
+   interface WebhookHandlers {
+     handleAvailabilityUpdate(event: WebhookEvent): Promise<void>
+     handleUserUpdate(event: WebhookEvent): Promise<void>
+     handleEventCreation(event: WebhookEvent): Promise<void>
+   }
+   ```
+
+2. **Event Processing** (`lib/calendly/webhook-processor.ts`)
+   ```typescript
+   // Processes and validates webhook events
+   interface WebhookProcessor {
+     validateSignature(payload: unknown, signature: string): boolean
+     processEvent(event: WebhookEvent): Promise<void>
+     handleFailure(error: ProcessingError): Promise<void>
+   }
+   ```
+
+### Caching System
+
+1. **Availability Cache** (`lib/calendly/cache-manager.ts`)
+   ```typescript
+   interface CacheManager {
+     get(key: string): Promise<CachedData | null>
+     set(key: string, data: CachedData, ttl: number): Promise<void>
+     invalidate(key: string): Promise<void>
+     handleMiss(key: string): Promise<CachedData>
+   }
+   ```
+
+### Database Schema
+
+```sql
+CREATE TABLE CalendlyIntegration (
+  id BIGINT PRIMARY KEY,
+  userDbId BIGINT REFERENCES User(id),
+  accessToken TEXT NOT NULL,
+  refreshToken TEXT NOT NULL,
+  expiresAt TIMESTAMP WITH TIME ZONE NOT NULL,
+  lastSyncAt TIMESTAMP WITH TIME ZONE,
+  failedRefreshCount INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'active',
+  organizationUrl TEXT,
+  schedulingUrl TEXT,
+  updatedAt TIMESTAMP WITH TIME ZONE NOT NULL,
+  CONSTRAINT fk_user FOREIGN KEY (userDbId) REFERENCES User(id) ON DELETE CASCADE
+);
+
+CREATE TABLE CalendlyAvailabilityCache (
+  id BIGINT PRIMARY KEY,
+  userDbId BIGINT REFERENCES User(id),
+  data JSONB NOT NULL,
+  expiresAt TIMESTAMP WITH TIME ZONE NOT NULL,
+  createdAt TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  CONSTRAINT fk_user FOREIGN KEY (userDbId) REFERENCES User(id) ON DELETE CASCADE
+);
+
+CREATE TABLE CalendlyWebhookEvent (
+  id BIGINT PRIMARY KEY,
+  eventType TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  processedAt TIMESTAMP WITH TIME ZONE,
+  error TEXT,
+  createdAt TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+```
+
+### Error Handling & Recovery
+
+1. **Circuit Breaker**
+   ```typescript
+   interface CircuitBreaker {
+     isOpen(): boolean
+     recordSuccess(): void
+     recordFailure(): void
+     shouldAttemptRefresh(): boolean
+   }
+   ```
+
+2. **Retry Mechanism**
+   ```typescript
+   interface RetryManager {
+     shouldRetry(error: Error, attempt: number): boolean
+     getBackoffTime(attempt: number): number
+     handleMaxRetries(error: Error): void
+   }
+   ```
 
 ### React Components
 
