@@ -47,6 +47,7 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/utils/cn'
 import { UserRole } from '@prisma/client'
+import { AvailabilityScheduleView } from './AvailabilityScheduleView'
 
 interface AvailabilityData {
   schedules: CalendlyAvailabilitySchedule[]
@@ -550,71 +551,14 @@ export function CalendlyAvailability() {
           </CardHeader>
           <CardContent>
             {data.schedules.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Schedule Name</TableHead>
-                    <TableHead>Default</TableHead>
-                    <TableHead>Timezone</TableHead>
-                    <TableHead>Weekly Hours</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.schedules.map((schedule) => (
-                    <TableRow key={schedule.uri}>
-                      <TableCell className="font-medium">{schedule.name}</TableCell>
-                      <TableCell>
-                        {schedule.default && (
-                          <Badge variant="secondary">Default</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>{schedule.timezone}</TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          {(schedule.rules as ScheduleRule[]).map((rule, index) => {
-                            if (rule.type === 'wday' && typeof rule.wday === 'number') {
-                              const weekdayDate = getWeekdayDate(rule.wday)
-                              if (!weekdayDate) return null
-                              
-                              return (
-                                <div key={index} className="text-sm">
-                                  <span>
-                                    {format(weekdayDate, 'EEEE')}: {' '}
-                                    {rule.intervals.map(interval => (
-                                      `${interval.from}-${interval.to}`
-                                    )).join(', ')}
-                                  </span>
-                                </div>
-                              )
-                            }
-                            if (rule.type === 'date' && rule.date) {
-                              return (
-                                <div key={index} className="text-sm">
-                                  <span>
-                                    {format(parseISO(rule.date), 'MMM d, yyyy')}: {' '}
-                                    {rule.intervals.map(interval => (
-                                      `${interval.from}-${interval.to}`
-                                    )).join(', ')}
-                                  </span>
-                                </div>
-                              )
-                            }
-                            return null
-                          })}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={schedule.active ? 'default' : 'secondary'}
-                        >
-                          {schedule.active ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="space-y-8">
+                {data.schedules.map((schedule) => (
+                  <AvailabilityScheduleView 
+                    key={schedule.uri} 
+                    schedule={schedule} 
+                  />
+                ))}
+              </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 No availability schedules found

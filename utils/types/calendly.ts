@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { Session } from '@prisma/client'
 
 // Base Calendly Types
 export type CalendlyStatus = {
@@ -130,8 +131,9 @@ export type CalendlyAvailabilitySchedule = {
   timezone: string
   active: boolean
   rules: {
-    type: 'wday'
-    wday: number
+    type: 'wday' | 'date'
+    wday?: number
+    date?: string
     intervals: {
       from: string
       to: string
@@ -157,4 +159,32 @@ export type BusyTimeFilters = {
   startDate: Date
   endDate: Date
   calendar?: string
+}
+
+export type CalendarEventType = 'session' | 'busy' | 'availability'
+
+export type CalendarEvent = {
+  id: string
+  title: string
+  start: Date
+  end: Date
+  type: CalendarEventType
+  resource?: ExtendedSession | CalendlyBusyTime | CalendlyAvailabilitySchedule
+}
+
+export interface ExtendedSession {
+  id: number
+  durationMinutes: number
+  status: string
+  calendlyEventId: string
+  startTime: string
+  endTime: string
+  createdAt: string
+  userRole: 'coach' | 'mentee'
+  otherParty: {
+    id: number
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+  }
 } 

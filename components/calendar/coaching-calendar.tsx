@@ -7,48 +7,22 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
+import { CalendlyAvailabilitySchedule, CalendarEvent, CalendarEventType, CalendlyBusyTime, ExtendedSession } from '@/utils/types/calendly'
+import { cn } from '@/utils/cn'
 
 const localizer = momentLocalizer(moment)
 
-interface User {
-  id: number
-  firstName: string | null
-  lastName: string | null
-  email: string | null
-}
-
-interface Session {
-  id: number
-  durationMinutes: number
-  status: string
-  calendlyEventId: string
-  startTime: string
-  endTime: string
-  createdAt: string
-  userRole: 'coach' | 'mentee'
-  otherParty: User
-}
-
-interface BusyTime {
-  type: string
-  start_time: string
-  end_time: string
-  buffered_start_time?: string
-  buffered_end_time?: string
-  event?: {
-    uri: string
-  }
-}
-
 interface CoachingCalendarProps {
-  sessions: Session[] | undefined
+  sessions: ExtendedSession[] | undefined
   isLoading?: boolean
   title?: string
-  busyTimes?: BusyTime[]
+  busyTimes?: CalendlyBusyTime[]
+  availabilitySchedules?: CalendlyAvailabilitySchedule[]
   onRefreshCalendly?: () => void
   isCalendlyConnected?: boolean
   isCalendlyLoading?: boolean
   showCalendlyButton?: boolean
+  userRole: 'coach' | 'mentee'
 }
 
 // Helper to get badge color based on session status
@@ -67,15 +41,57 @@ const getStatusColor = (status: string) => {
   }
 }
 
+// Helper to convert availability schedule to events
+const getAvailabilityEvents = (schedule: CalendlyAvailabilitySchedule, startDate: Date, endDate: Date): CalendarEvent[] => {
+  const events: CalendarEvent[] = []
+  const start = moment(startDate).startOf('week')
+  const end = moment(endDate).endOf('week')
+
+  // For each day in the range
+  for (let day = moment(start); day.isSameOrBefore(end); day.add(1, 'day')) {
+    // Find matching rule for this weekday
+    const rule = schedule.rules.find(r => r.wday === day.day())
+    if (!rule) continue
+
+    // For each interval in the rule
+    rule.intervals.forEach(interval => {
+      const [fromHour, fromMinute] = interval.from.split(':').map(Number)
+      const [toHour, toMinute] = interval.to.split(':').map(Number)
+
+      const eventStart = moment(day)
+        .hour(fromHour)
+        .minute(fromMinute)
+        .second(0)
+      const eventEnd = moment(day)
+        .hour(toHour)
+        .minute(toMinute)
+        .second(0)
+
+      events.push({
+        id: `availability-${schedule.uri}-${eventStart.toISOString()}`,
+        title: 'Available',
+        start: eventStart.toDate(),
+        end: eventEnd.toDate(),
+        type: 'availability',
+        resource: schedule
+      })
+    })
+  }
+
+  return events
+}
+
 export function CoachingCalendar({
   sessions,
   busyTimes = [],
+  availabilitySchedules = [],
   isLoading,
   title = "My Coaching Calendar",
   onRefreshCalendly,
   isCalendlyConnected,
   isCalendlyLoading,
-  showCalendlyButton
+  showCalendlyButton,
+  userRole
 }: CoachingCalendarProps) {
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
@@ -101,20 +117,82 @@ export function CoachingCalendar({
     )
   }
 
-  const sessionEvents = sessions?.map(session => ({
+  // Convert sessions to calendar events
+  const sessionEvents: CalendarEvent[] = sessions?.map(session => ({
+    id: `session-${session.id}`,
     title: `${session.userRole === 'coach' ? 'Coaching' : 'Session with'} ${session.otherParty.firstName} ${session.otherParty.lastName}`,
     start: new Date(session.startTime),
     end: new Date(session.endTime),
+    type: 'session',
     resource: session
   })) || []
 
-  const busyTimeEvents = busyTimes.map(busyTime => ({
+  // Convert busy times to calendar events
+  const busyTimeEvents: CalendarEvent[] = busyTimes.map((busyTime, index) => ({
+    id: `busy-${busyTime.uri || `${busyTime.start_time}-${busyTime.end_time}-${index}`}`,
     title: 'Busy',
     start: new Date(busyTime.start_time),
-    end: new Date(busyTime.end_time)
+    end: new Date(busyTime.end_time),
+    type: 'busy',
+    resource: busyTime
   }))
 
-  const allEvents = [...sessionEvents, ...busyTimeEvents]
+  // Get availability events for the current view's date range
+  const availabilityEvents = availabilitySchedules.flatMap(schedule => 
+    getAvailabilityEvents(
+      schedule,
+      moment(date).startOf('month').toDate(),
+      moment(date).endOf('month').toDate()
+    )
+  )
+
+  // For mentees, filter out availability slots that overlap with busy times or sessions
+  const filteredAvailabilityEvents = userRole === 'mentee' 
+    ? availabilityEvents.filter(availEvent => {
+        const isOverlapping = [...busyTimeEvents, ...sessionEvents].some(event => {
+          return moment(availEvent.start).isBetween(event.start, event.end, undefined, '[)') ||
+                 moment(availEvent.end).isBetween(event.start, event.end, undefined, '(]') ||
+                 moment(event.start).isBetween(availEvent.start, availEvent.end, undefined, '[)') ||
+                 moment(event.end).isBetween(availEvent.start, availEvent.end, undefined, '(]')
+        })
+        return !isOverlapping
+      })
+    : availabilityEvents
+
+  // Combine all events based on user role
+  const allEvents = userRole === 'coach'
+    ? [...sessionEvents, ...busyTimeEvents, ...availabilityEvents]
+    : [...sessionEvents, ...filteredAvailabilityEvents]
+
+  // Custom event styles
+  const eventStyleGetter = (event: CalendarEvent) => {
+    switch (event.type) {
+      case 'session':
+        return {
+          className: '!bg-blue-500 !text-white hover:!bg-blue-600',
+          style: {
+            borderRadius: '4px',
+          }
+        }
+      case 'busy':
+        return {
+          className: '!bg-blue-500 !text-white hover:!bg-blue-600',
+          style: {
+            borderRadius: '4px',
+            opacity: 0.7
+          }
+        }
+      case 'availability':
+        return {
+          className: '!bg-emerald-100 !text-emerald-800 !border !border-emerald-200 hover:!bg-emerald-200',
+          style: {
+            borderRadius: '4px',
+          }
+        }
+      default:
+        return {}
+    }
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -138,6 +216,15 @@ export function CoachingCalendar({
                 timeslots={1}
                 min={new Date(2020, 1, 1, 6, 30, 0)}
                 max={new Date(2020, 1, 1, 20, 0, 0)}
+                eventPropGetter={eventStyleGetter}
+                selectable={userRole === 'mentee'}
+                onSelectSlot={(slotInfo) => {
+                  // Handle slot selection for booking (mentee only)
+                  if (userRole === 'mentee') {
+                    // TODO: Implement booking flow
+                    console.log('Selected slot:', slotInfo)
+                  }
+                }}
               />
             </div>
           </Card>
