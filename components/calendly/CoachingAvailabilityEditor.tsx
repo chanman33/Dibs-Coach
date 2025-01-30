@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from 'sonner'
+import { CalendlyAvailabilitySchedule } from '@/utils/types/calendly'
 
 // Validation schemas (matching API)
 const TimeIntervalSchema = z.object({
@@ -27,8 +28,9 @@ const TimeIntervalSchema = z.object({
 })
 
 const RuleSchema = z.object({
-  type: z.literal('wday'),
-  wday: z.number().min(0).max(6),
+  type: z.enum(['wday', 'date']),
+  wday: z.number().min(0).max(6).optional(),
+  date: z.string().optional(),
   intervals: z.array(TimeIntervalSchema)
 })
 
@@ -52,10 +54,10 @@ const DAYS_OF_WEEK = [
   'Saturday'
 ]
 
-interface CoachingAvailabilityEditorProps {
+export interface CoachingAvailabilityEditorProps {
   onSave: () => void
   onCancel: () => void
-  initialData?: ScheduleFormData
+  initialData?: CalendlyAvailabilitySchedule
 }
 
 export function CoachingAvailabilityEditor({
@@ -116,8 +118,8 @@ export function CoachingAvailabilityEditor({
     try {
       setIsLoading(true)
       
-      const response = await fetch('/api/coaching/availability', {
-        method: 'POST',
+      const response = await fetch('/api/coaching/availability' + (initialData ? `?id=${initialData.id}` : ''), {
+        method: initialData ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -125,14 +127,14 @@ export function CoachingAvailabilityEditor({
       })
 
       if (!response.ok) {
-        throw new Error('Failed to save schedule')
+        throw new Error(initialData ? 'Failed to update schedule' : 'Failed to save schedule')
       }
 
-      toast.success('Schedule saved successfully')
+      toast.success(initialData ? 'Schedule updated successfully' : 'Schedule saved successfully')
       onSave()
     } catch (error) {
       console.error('[COACHING_AVAILABILITY_ERROR]', error)
-      toast.error('Failed to save schedule')
+      toast.error(initialData ? 'Failed to update schedule' : 'Failed to save schedule')
     } finally {
       setIsLoading(false)
     }
@@ -141,7 +143,7 @@ export function CoachingAvailabilityEditor({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Coaching Availability Schedule</CardTitle>
+        <CardTitle>{initialData ? 'Edit Schedule' : 'New Schedule'}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -291,7 +293,7 @@ export function CoachingAvailabilityEditor({
             </Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save Schedule
+              {initialData ? 'Update Schedule' : 'Save Schedule'}
             </Button>
           </div>
         </form>

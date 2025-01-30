@@ -26,7 +26,6 @@ interface CoachingCalendarProps {
   title?: string
   busyTimes?: CalendlyBusyTime[]
   availabilitySchedules?: CalendlyAvailabilitySchedule[]
-  coachingSchedules?: CalendlyAvailabilitySchedule[]
   onRefreshCalendly?: () => void
   isCalendlyConnected?: boolean
   isCalendlyLoading?: boolean
@@ -59,7 +58,6 @@ const getAvailabilityEvents = (
   schedule: CalendlyAvailabilitySchedule, 
   startDate: Date, 
   endDate: Date,
-  source: 'calendly' | 'coaching' = 'calendly'
 ): CalendarEvent[] => {
   const events: CalendarEvent[] = []
   const start = moment(startDate).startOf('week')
@@ -90,11 +88,11 @@ const getAvailabilityEvents = (
 
         events.push({
           id: `availability-${schedule.uri}-${slotStart.toISOString()}`,
-          title: source === 'coaching' ? 'Coaching Available' : 'Available',
+          title: 'Available for Coaching',
           start: slotStart.toDate(),
           end: slotEnd.toDate(),
           type: 'availability',
-          resource: { ...schedule, source }
+          resource: schedule
         })
       }
     })
@@ -112,7 +110,6 @@ export function CoachingCalendar({
   sessions,
   busyTimes = [],
   availabilitySchedules = [],
-  coachingSchedules = [],
   isLoading,
   title = "My Coaching Calendar",
   onRefreshCalendly,
@@ -166,26 +163,13 @@ export function CoachingCalendar({
   }))
 
   // Get availability events for the current view's date range
-  const availabilityEvents = [
-    // Get Calendly availability
-    ...availabilitySchedules.flatMap(schedule => 
-      getAvailabilityEvents(
-        schedule,
-        moment(date).startOf('month').toDate(),
-        moment(date).endOf('month').toDate(),
-        'calendly'
-      )
-    ),
-    // Get coaching availability
-    ...coachingSchedules.flatMap(schedule => 
-      getAvailabilityEvents(
-        schedule,
-        moment(date).startOf('month').toDate(),
-        moment(date).endOf('month').toDate(),
-        'coaching'
-      )
+  const availabilityEvents = (availabilitySchedules || []).flatMap(schedule => 
+    getAvailabilityEvents(
+      schedule,
+      moment(date).startOf('month').toDate(),
+      moment(date).endOf('month').toDate()
     )
-  ]
+  )
 
   // Filter out availability slots that overlap with busy times or sessions
   const filteredAvailabilityEvents = availabilityEvents.filter(availEvent => {
@@ -216,11 +200,8 @@ export function CoachingCalendar({
           }
         }
       case 'availability':
-        const isCoachingSlot = (event.resource as CalendlyAvailabilitySchedule).source === 'coaching'
         return {
-          className: isCoachingSlot
-            ? '!bg-emerald-500 !text-white !border !border-emerald-600 hover:!bg-emerald-600'
-            : '!bg-emerald-100 !text-emerald-800 !border !border-emerald-200 hover:!bg-emerald-200',
+          className: '!bg-emerald-100 !text-emerald-800 !border !border-emerald-200 hover:!bg-emerald-200',
           style: {
             borderRadius: '4px',
           }

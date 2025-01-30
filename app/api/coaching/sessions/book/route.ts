@@ -1,0 +1,110 @@
+import { NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
+import { cookies } from 'next/headers'
+import { createServerClient } from '@supabase/ssr'
+import { z } from 'zod'
+
+// Validation schema for booking request
+const BookingSchema = z.object({
+  coachId: z.string(),
+  startTime: z.string().datetime(),
+  endTime: z.string().datetime(),
+  durationMinutes: z.number().int().positive()
+})
+
+export async function POST(request: Request) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return new NextResponse('Unauthorized', { status: 401 })
+    }
+
+    const body = await request.json()
+    const validatedData = BookingSchema.parse(body)
+
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY!,
+      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
+    )
+
+    // Get coach's database ID and verify they are a coach
+    const { data: coach, error: coachError } = await supabase
+      .from('User')
+      .select('id, role')
+      .eq('userId', validatedData.coachId)
+      .single()
+
+    if (coachError || !coach) {
+      return new NextResponse(coachError ? 'Error fetching coach data' : 'Coach not found', { 
+        status: coachError ? 500 : 404 
+      })
+    }
+
+    if (!coach.role.includes('coach')) {
+      return new NextResponse('Invalid coach ID', { status: 400 })
+    }
+
+    // Get mentee's database ID
+    const { data: mentee, error: menteeError } = await supabase
+      .from('User')
+      .select('id')
+      .eq('userId', userId)
+      .single()
+
+    if (menteeError || !mentee) {
+      return new NextResponse(menteeError ? 'Error fetching user data' : 'User not found', { 
+        status: menteeError ? 500 : 404 
+      })
+    }
+
+    // Check for scheduling conflicts
+    const { data: existingSessions, error: conflictError } = await supabase
+      .from('Session')
+      .select('id')
+      .eq('coachDbId', coach.id)
+      .or(`startTime.lte.${validatedData.endTime},endTime.gte.${validatedData.startTime}`)
+      .neq('status', 'cancelled')
+
+    if (conflictError) {
+      return new NextResponse('Error checking schedule conflicts', { status: 500 })
+    }
+
+    if (existingSessions && existingSessions.length > 0) {
+      return new NextResponse('Time slot is no longer available', { status: 409 })
+    }
+
+    // Create the session
+    const { data: session, error: sessionError } = await supabase
+      .from('Session')
+      .insert({
+        coachDbId: coach.id,
+        menteeDbId: mentee.id,
+        startTime: validatedData.startTime,
+        endTime: validatedData.endTime,
+        durationMinutes: validatedData.durationMinutes,
+        status: 'scheduled'
+      })
+      .select()
+      .single()
+
+    if (sessionError) {
+      console.error('[BOOKING_ERROR]', sessionError)
+      return new NextResponse('Failed to create session', { status: 500 })
+    }
+
+    // TODO: Handle payment integration here if required
+    // TODO: Send email notifications
+    // TODO: Create calendar invites
+
+    return NextResponse.json({ data: session })
+
+  } catch (error) {
+    console.error('[BOOKING_ERROR]', error)
+    if (error instanceof z.ZodError) {
+      return new NextResponse(JSON.stringify(error.errors), { status: 400 })
+    }
+    return new NextResponse('Internal server error', { status: 500 })
+  }
+} 

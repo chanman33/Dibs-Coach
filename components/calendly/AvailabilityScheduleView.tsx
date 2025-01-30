@@ -11,29 +11,39 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Trash } from 'lucide-react'
+import { Trash, Pencil } from 'lucide-react'
 
 export interface AvailabilityScheduleViewProps {
   schedule: CalendlyAvailabilitySchedule
   onDelete?: () => Promise<void>
+  onEdit?: () => void
 }
-
-type WeekDay = 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday'
 
 interface ScheduleRule {
   type: 'wday' | 'date'
   intervals: Array<{ from: string; to: string }>
-  wday?: WeekDay
+  wday?: number
   date?: string
 }
 
+const WEEKDAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday'
+]
+
 export function AvailabilityScheduleView({ 
   schedule,
-  onDelete
+  onDelete,
+  onEdit
 }: AvailabilityScheduleViewProps) {
-  // Convert weekday string to name with proper capitalization
-  const getWeekdayName = (wday: WeekDay) => {
-    return wday.charAt(0).toUpperCase() + wday.slice(1).toLowerCase()
+  // Get weekday name from number (0-6)
+  const getWeekdayName = (wday: number) => {
+    return WEEKDAYS[wday] || 'Invalid Day'
   }
 
   // Format time string (e.g., "09:00" to "9:00 AM")
@@ -56,13 +66,11 @@ export function AvailabilityScheduleView({
   }
 
   const weekdayRules = (schedule.rules as ScheduleRule[])
-    .filter(rule => rule.type === 'wday' && rule.wday)
-    // Sort weekdays in correct order (Sunday to Saturday)
-    .sort((a, b) => {
-      const days: WeekDay[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-      return days.indexOf(a.wday!) - days.indexOf(b.wday!)
-    })
-  const dateRules = (schedule.rules as ScheduleRule[]).filter(rule => rule.type === 'date')
+    .filter(rule => rule.type === 'wday' && typeof rule.wday === 'number')
+    .sort((a, b) => (a.wday || 0) - (b.wday || 0))
+
+  const dateRules = (schedule.rules as ScheduleRule[])
+    .filter(rule => rule.type === 'date' && rule.date)
 
   return (
     <div className="space-y-4">
@@ -73,15 +81,26 @@ export function AvailabilityScheduleView({
             {schedule.timezone} {schedule.default && '(Default)'}
           </p>
         </div>
-        {onDelete && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onDelete}
-          >
-            <Trash className="h-4 w-4" />
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {onEdit && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onEdit}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+            >
+              <Trash className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="border rounded-lg">
@@ -96,7 +115,7 @@ export function AvailabilityScheduleView({
             {weekdayRules.map((rule) => (
               <TableRow key={rule.wday}>
                 <TableCell className="font-medium">
-                  {getWeekdayName(rule.wday as WeekDay)}
+                  {getWeekdayName(rule.wday || 0)}
                 </TableCell>
                 <TableCell>
                   {rule.intervals.length > 0 ? (
@@ -132,7 +151,7 @@ export function AvailabilityScheduleView({
                 {dateRules.map((rule) => (
                   <TableRow key={rule.date}>
                     <TableCell className="font-medium">
-                      {format(parseISO(rule.date!), 'MMM d, yyyy')}
+                      {rule.date && format(parseISO(rule.date), 'MMM d, yyyy')}
                     </TableCell>
                     <TableCell>
                       {rule.intervals.length > 0 ? (

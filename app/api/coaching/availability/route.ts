@@ -197,4 +197,85 @@ export async function DELETE(request: Request) {
     console.error('[COACHING_AVAILABILITY_ERROR]', error)
     return new NextResponse('Internal server error', { status: 500 })
   }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return new NextResponse('Unauthorized', { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const scheduleId = searchParams.get('id')
+
+    if (!scheduleId) {
+      return new NextResponse('Schedule ID is required', { status: 400 })
+    }
+
+    const body = await request.json()
+    
+    // Validate request body
+    const validatedData = ScheduleSchema.parse(body)
+
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY!,
+      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
+    )
+
+    // Get user's database ID
+    const { data: dbUser, error: userError } = await supabase
+      .from('User')
+      .select('id')
+      .eq('userId', userId)
+      .single()
+
+    if (userError || !dbUser) {
+      return new NextResponse(userError ? 'Error fetching user data' : 'User not found', { 
+        status: userError ? 500 : 404 
+      })
+    }
+
+    // If this is set as default, unset other default schedules
+    if (validatedData.isDefault) {
+      await supabase
+        .from('CoachingAvailabilitySchedule')
+        .update({ isDefault: false })
+        .eq('userDbId', dbUser.id)
+        .eq('isDefault', true)
+        .neq('id', scheduleId)
+    }
+
+    // Update schedule
+    const { data: schedule, error: updateError } = await supabase
+      .from('CoachingAvailabilitySchedule')
+      .update({
+        name: validatedData.name,
+        timezone: validatedData.timezone,
+        isDefault: validatedData.isDefault ?? false,
+        active: validatedData.active ?? true,
+        rules: validatedData.rules,
+        updatedAt: new Date().toISOString()
+      })
+      .eq('id', scheduleId)
+      .eq('userDbId', dbUser.id)  // Ensure user owns this schedule
+      .select()
+      .single()
+
+    if (updateError) {
+      console.error('[COACHING_AVAILABILITY_ERROR]', updateError)
+      return new NextResponse('Failed to update schedule', { status: 500 })
+    }
+
+    return NextResponse.json({ data: schedule })
+
+  } catch (error) {
+    console.error('[COACHING_AVAILABILITY_ERROR]', error)
+    if (error instanceof z.ZodError) {
+      return new NextResponse(JSON.stringify(error.errors), { status: 400 })
+    }
+    return new NextResponse('Internal server error', { status: 500 })
+  }
 } 

@@ -11,32 +11,11 @@ import { ROLES } from '@/utils/roles/roles'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { startOfWeek, endOfWeek, addMonths } from 'date-fns'
 import { CalendlyAvailabilitySchedule } from '@/utils/types/calendly'
+import { CoachingAvailabilityEditor } from '@/components/calendly/CoachingAvailabilityEditor'
+import { AvailabilityScheduleView } from '@/components/calendly/AvailabilityScheduleView'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { toast } from 'sonner'
 
-// Mock data for testing
-const mockAvailabilitySchedules: CalendlyAvailabilitySchedule[] = [{
-  uri: 'mock-schedule-1',
-  name: 'Regular Hours',
-  default: true,
-  timezone: 'America/Denver', // MST timezone
-  active: true,
-  rules: [
-    {
-      type: 'wday',
-      wday: 3, // Wednesday
-      intervals: [{ from: '09:00', to: '12:00' }]
-    },
-    {
-      type: 'wday',
-      wday: 4, // Thursday
-      intervals: [{ from: '09:00', to: '12:00' }]
-    },
-    {
-      type: 'wday',
-      wday: 5, // Friday
-      intervals: [{ from: '09:00', to: '12:00' }]
-    }
-  ]
-}]
 
 // Mock sessions for testing
 const mockSessions = [
@@ -95,7 +74,11 @@ export default function CalendarPage() {
   const [userRole, setUserRole] = useState<'coach' | 'realtor' | null>(null)
   const { status, isLoading: isCalendlyLoading, handleConnect } = useCalendly()
   const [isLoadingBusyTimes, setIsLoadingBusyTimes] = useState(false)
-  const [busyTimes, setBusyTimes] = useState<any[]>(mockBusyTimes)
+  const [busyTimes, setBusyTimes] = useState<any[]>([])
+  const [coachingSchedules, setCoachingSchedules] = useState<CalendlyAvailabilitySchedule[]>([])
+  const [isLoadingCoachingSchedules, setIsLoadingCoachingSchedules] = useState(false)
+  const [showEditor, setShowEditor] = useState(false)
+  const [editingSchedule, setEditingSchedule] = useState<CalendlyAvailabilitySchedule | null>(null)
 
   useEffect(() => {
     const fetchRole = async () => {
@@ -114,23 +97,42 @@ export default function CalendarPage() {
     fetchRole()
   }, [user?.id])
 
-  const { data: sessions, isLoading } = useQuery({
+  // Fetch coaching availability schedules
+  const fetchCoachingSchedules = async () => {
+    if (userRole !== 'coach') return
+
+    try {
+      setIsLoadingCoachingSchedules(true)
+      const response = await fetch('/api/coaching/availability')
+      if (!response.ok) {
+        throw new Error('Failed to fetch coaching schedules')
+      }
+      const { data } = await response.json()
+      setCoachingSchedules(data)
+    } catch (error) {
+      console.error('[FETCH_COACHING_SCHEDULES_ERROR]', error)
+    } finally {
+      setIsLoadingCoachingSchedules(false)
+    }
+  }
+
+  // Fetch coaching schedules when role is determined
+  useEffect(() => {
+    if (userRole === 'coach') {
+      fetchCoachingSchedules()
+    }
+  }, [userRole])
+
+  const { data: sessions, isLoading: isLoadingSessions } = useQuery({
     queryKey: ['sessions', userRole],
     queryFn: async () => {
       if (!userRole) return []
-
-      // Return mock sessions for testing
-      return mockSessions
-
-      // Uncomment below when ready for real data
-      /*
       const data = userRole === 'coach'
         ? await fetchCoachSessions()
         : await fetchUserSessions()
 
       if (!data) return []
       return data
-      */
     },
     enabled: !!userRole
   })
@@ -178,12 +180,46 @@ export default function CalendarPage() {
     }
   }
 
+  const isPageLoading = isLoadingBusyTimes || isLoadingCoachingSchedules || isLoadingSessions
+
+  const handleDelete = async (id: number) => {
+    try {
+      const response = await fetch(`/api/coaching/availability?id=${id}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) {
+        throw new Error('Failed to delete schedule')
+      }
+      toast.success('Schedule deleted successfully')
+      fetchCoachingSchedules()
+    } catch (error) {
+      console.error('[DELETE_SCHEDULE_ERROR]', error)
+      toast.error('Failed to delete schedule')
+    }
+  }
+
+  const handleStartEdit = (schedule: CalendlyAvailabilitySchedule) => {
+    setEditingSchedule(schedule)
+    setShowEditor(true)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingSchedule(null)
+    setShowEditor(false)
+  }
+
+  const handleSaveEdit = () => {
+    setEditingSchedule(null)
+    setShowEditor(false)
+    fetchCoachingSchedules()
+  }
+
   return (
     <div>
-      <div className="p-6">
+      <div className="p-6 space-y-6">
         <CoachingCalendar
           sessions={sessions}
-          isLoading={isLoading}
+          isLoading={isPageLoading}
           title={userRole === 'coach' ? "My Coaching Schedule" : "My Coaching Calendar"}
           busyTimes={busyTimes}
           onRefreshCalendly={handleCalendlyAction}
@@ -191,8 +227,48 @@ export default function CalendarPage() {
           isCalendlyLoading={isCalendlyLoading || isLoadingBusyTimes}
           showCalendlyButton={userRole === 'coach'}
           userRole={userRole === 'coach' ? 'coach' : 'mentee'}
-          availabilitySchedules={mockAvailabilitySchedules}
+          availabilitySchedules={coachingSchedules}
         />
+
+        {/* Only show availability management for coaches */}
+        {userRole === 'coach' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Coaching Availability</span>
+                {!showEditor && (
+                  <Button onClick={() => setShowEditor(true)}>
+                    Add Schedule
+                  </Button>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {showEditor ? (
+                <CoachingAvailabilityEditor
+                  initialData={editingSchedule || undefined}
+                  onSave={handleSaveEdit}
+                  onCancel={handleCancelEdit}
+                />
+              ) : coachingSchedules.length > 0 ? (
+                <div className="space-y-8">
+                  {coachingSchedules.map((schedule) => (
+                    <AvailabilityScheduleView
+                      key={schedule.id}
+                      schedule={schedule}
+                      onDelete={() => handleDelete(schedule.id)}
+                      onEdit={() => handleStartEdit(schedule)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  No coaching availability schedules found. Add a schedule to set your coaching hours.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

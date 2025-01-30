@@ -137,13 +137,13 @@ export interface ScheduleRule {
 }
 
 export interface CalendlyAvailabilitySchedule {
+  id: number
   uri: string
   name: string
   timezone: string
   default: boolean
   active: boolean
   rules: ScheduleRule[]
-  source?: 'calendly' | 'coaching'
 }
 
 export type CalendlyBusyTimeType = 'event' | 'busy_period'
