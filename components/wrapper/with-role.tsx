@@ -16,17 +16,24 @@ export function withRole(
     const { user } = useUser();
     const [userRole, setUserRole] = useState<UserRole | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     useEffect(() => {
       async function fetchUserRole() {
         if (user?.id) {
           try {
-            const response = await fetch(`/api/user/role?userId=${user.id}`);
+            const response = await fetch(`/api/user/role?userId=${user.id}&isInitialSignup=${isInitialLoad}`);
             const data = await response.json();
             setUserRole(data.role);
+            setIsInitialLoad(false);
           } catch (error) {
-            console.error("Error fetching user role:", error);
+            console.error("[ROLE_FETCH_ERROR]", {
+              userId: user.id,
+              error,
+              context: { isInitialLoad }
+            });
             setUserRole(ROLES.REALTOR);
+            setIsInitialLoad(false);
           }
           setLoading(false);
         }
