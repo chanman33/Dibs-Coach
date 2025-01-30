@@ -110,7 +110,7 @@ export async function submitCoachApplication(formData: {
       throw new Error('Failed to create application');
     }
 
-    revalidatePath('/dashboard/realtor/profile');
+    revalidatePath('/dashboard/profile');
     return application;
   } catch (error) {
     console.error('[SUBMIT_COACH_APPLICATION_ERROR]', error);
@@ -289,7 +289,7 @@ export async function reviewCoachApplication(data: {
       }
     }
 
-    revalidatePath('/dashboard/admin/coach-applications');
+    revalidatePath('/dashboard/profile');
     return application;
   } catch (error) {
     console.error('[REVIEW_COACH_APPLICATION_ERROR]', error);

@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
 import CoachApplicationForm from '@/components/dashboard/CoachApplicationForm'
 import { getCoachApplication } from '@/utils/actions/coach-application'
+import { useRouter } from 'next/navigation'
 
 interface RealtorProfileFormData {
   companyName: string
@@ -69,14 +70,15 @@ interface ProfileDashboardProps {
 }
 
 export function ProfileDashboard({ userId, userRole }: ProfileDashboardProps) {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [coachLoading, setCoachLoading] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [coachApplication, setCoachApplication] = useState<CoachApplication | null>(null)
   
-  const isCoach = userRole === 'REALTOR_COACH' || userRole === 'LOAN_OFFICER_COACH'
-  const isAdmin = userRole === 'ADMIN'
-  const canApplyForCoach = !isCoach && !isAdmin && userRole === 'REALTOR'
+  const isCoach = userRole === 'realtor_coach' || userRole === 'loan_officer_coach'
+  const isAdmin = userRole === 'admin'
+  const canApplyForCoach = !isCoach && !isAdmin && userRole === 'realtor'
 
   const { 
     register, 
@@ -111,7 +113,7 @@ export function ProfileDashboard({ userId, userRole }: ProfileDashboardProps) {
         setValue('phoneNumber', profileData.phoneNumber || '')
         
         // If user is a coach, fetch their coach profile
-        if (userRole === 'REALTOR_COACH' || userRole === 'LOAN_OFFICER_COACH') {
+        if (userRole === 'realtor_coach' || userRole === 'loan_officer_coach') {
           try {
             setCoachLoading(true)
             const coachResponse = await fetch('/api/user/coach/profile')
@@ -143,7 +145,7 @@ export function ProfileDashboard({ userId, userRole }: ProfileDashboardProps) {
           const applicationData = await getCoachApplication()
           
           // For admin users, we don't want to show any application in their profile
-          if (userRole === 'ADMIN') {
+          if (userRole === 'admin') {
             setCoachApplication(null)
           } else {
             // For non-admin users, find their application
@@ -237,6 +239,10 @@ export function ProfileDashboard({ userId, userRole }: ProfileDashboardProps) {
     }
   }
 
+  const handleApplyForCoach = () => {
+    router.push('/apply-coach')
+  }
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-[400px]">
@@ -296,8 +302,8 @@ export function ProfileDashboard({ userId, userRole }: ProfileDashboardProps) {
           </CardContent>
         </Card>
 
-        {/* Coach Profile Form - Only shown for coaches */}
-        {(userRole === 'REALTOR_COACH' || userRole === 'LOAN_OFFICER_COACH') && (
+        {/* Coach Profile Form - Only shown for active coaches */}
+        {isCoach && (
           <Card>
             <CardHeader>
               <h2 className="text-2xl font-bold">Coach Profile</h2>
@@ -362,59 +368,73 @@ export function ProfileDashboard({ userId, userRole }: ProfileDashboardProps) {
           </Card>
         )}
 
-        {/* Coach Application Section - Only show for realtors who aren't coaches yet */}
-        {!coachLoading && canApplyForCoach && (
+        {/* Coach Application Section - Only show for realtors who can apply */}
+        {canApplyForCoach && !coachApplication && (
           <Card>
             <CardHeader>
-              <h2 className="text-2xl font-bold">
-                {coachApplication ? 'Coach Application Status' : 'Become a Coach'}
-              </h2>
+              <h2 className="text-2xl font-bold">Become a Coach</h2>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground">
+                Share your expertise and help other realtors succeed. Apply to become a coach today.
+              </p>
+              <Button 
+                onClick={handleApplyForCoach}
+                className="w-full"
+              >
+                Apply to Become a Coach
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Show application status if user has applied */}
+        {coachApplication && (
+          <Card>
+            <CardHeader>
+              <h2 className="text-2xl font-bold">Coach Application Status</h2>
             </CardHeader>
             <CardContent>
-              {coachApplication ? (
-                <div className="space-y-4">
-                  <div>
-                    <Label>Application Status</Label>
-                    <p className="mt-1 text-muted-foreground capitalize font-medium">
-                      {coachApplication.status.toLowerCase()}
-                    </p>
-                  </div>
-                  <div>
-                    <Label>Experience</Label>
-                    <p className="mt-1 text-muted-foreground whitespace-pre-wrap">
-                      {coachApplication.experience}
-                    </p>
-                  </div>
-                  <div>
-                    <Label>Specialties</Label>
-                    <p className="mt-1 text-muted-foreground">
-                      {Array.isArray(coachApplication.specialties) 
-                        ? coachApplication.specialties.join(', ')
-                        : 'No specialties listed'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label>Application Date</Label>
-                    <p className="mt-1 text-muted-foreground">
-                      {new Date(coachApplication.applicationDate).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                  {coachApplication.notes && (
-                    <div>
-                      <Label>Admin Notes</Label>
-                      <p className="mt-1 text-muted-foreground whitespace-pre-wrap">
-                        {coachApplication.notes}
-                      </p>
-                    </div>
-                  )}
+              <div className="space-y-4">
+                <div>
+                  <Label>Application Status</Label>
+                  <p className="mt-1 text-muted-foreground capitalize font-medium">
+                    {coachApplication.status.toLowerCase()}
+                  </p>
                 </div>
-              ) : (
-                <CoachApplicationForm />
-              )}
+                <div>
+                  <Label>Experience</Label>
+                  <p className="mt-1 text-muted-foreground whitespace-pre-wrap">
+                    {coachApplication.experience}
+                  </p>
+                </div>
+                <div>
+                  <Label>Specialties</Label>
+                  <p className="mt-1 text-muted-foreground">
+                    {Array.isArray(coachApplication.specialties) 
+                      ? coachApplication.specialties.join(', ')
+                      : 'No specialties listed'}
+                  </p>
+                </div>
+                <div>
+                  <Label>Application Date</Label>
+                  <p className="mt-1 text-muted-foreground">
+                    {new Date(coachApplication.applicationDate).toLocaleDateString(undefined, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </p>
+                </div>
+                {coachApplication.notes && (
+                  <div>
+                    <Label>Admin Notes</Label>
+                    <p className="mt-1 text-muted-foreground whitespace-pre-wrap">
+                      {coachApplication.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}

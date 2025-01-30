@@ -56,7 +56,7 @@ export function UserProfile() {
                             <span>Dashboard</span>
                         </DropdownMenuItem>
                     </Link>
-                    <Link href="/dashboard/realtor/profile">
+                    <Link href="/dashboard/profile">
                         <DropdownMenuItem>
                             <UserCircle className="mr-2 h-4 w-4" />
                             <span>Profile</span>
