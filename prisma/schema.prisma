@@ -144,6 +144,9 @@ model User {
 
   coachingSchedules CoachingAvailabilitySchedule[]
 
+  // Add new relation
+  sessionConfig         CoachSessionConfig?
+
   @@index([userId])
   @@index([email])
   @@index([role])
@@ -199,6 +202,12 @@ model RealtorCoachProfile {
   user User @relation(fields: [userDbId], references: [id], onDelete: Cascade, map: "RealtorCoachProfile_user_fkey")
   realtorProfile RealtorProfile @relation(fields: [userDbId], references: [userDbId], onDelete: Cascade, map: "RealtorCoachProfile_realtorProfile_fkey")
 
+  // Add new fields
+  defaultDuration     Int      @default(60)
+  allowCustomDuration Boolean  @default(false)
+  minimumDuration     Int      @default(30)
+  maximumDuration     Int      @default(120)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -252,6 +261,10 @@ model Session {
   notes                Note[]
   calendlyEvent        CalendlyEvent?    @relation("SessionCalendlyEvent", fields: [calendlyEventId], references: [eventUuid])
   zoomSession          ZoomSession?
+
+  // Add new fields
+  rateAtBooking    Decimal?  @db.Decimal(10,2)
+  currencyCode     Currency  @default(USD)
 
   @@index([coachDbId])
   @@index([menteeDbId])
@@ -656,4 +669,21 @@ model CoachingAvailabilitySchedule {
   updatedAt DateTime @updatedAt
 
   @@index([userDbId])
+}
+
+model CoachSessionConfig {
+  id              Int      @id @default(autoincrement())
+  userDbId        Int      @unique
+  durations       Json     // [30, 60, 90]
+  rates           Json     // {"30": 50, "60": 90, "90": 120}
+  currency        Currency @default(USD)
+  isActive        Boolean  @default(true)
+  
+  user            User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
+
+  @@index([userDbId])
+  @@map("CoachSessionConfig")
 }
