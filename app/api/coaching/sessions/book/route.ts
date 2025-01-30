@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import { cookies } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 import { z } from 'zod'
+import { createSingleUseSchedulingLink } from '@/utils/calendly'
+import { sendSessionConfirmationEmails } from '@/utils/email'
 
 // Validation schema for booking request
 const BookingSchema = z.object({
@@ -29,10 +31,20 @@ export async function POST(request: Request) {
       { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
     )
 
-    // Get coach's database ID and verify they are a coach
+    // Get coach's data and verify they are a coach
     const { data: coach, error: coachError } = await supabase
       .from('User')
-      .select('id, role')
+      .select(`
+        id, 
+        role,
+        firstName,
+        lastName,
+        email,
+        calendlyIntegration:CalendlyIntegration!inner (
+          userId,
+          eventTypeId
+        )
+      `)
       .eq('userId', validatedData.coachId)
       .single()
 
@@ -46,10 +58,15 @@ export async function POST(request: Request) {
       return new NextResponse('Invalid coach ID', { status: 400 })
     }
 
+    const calendlyEventTypeId = coach.calendlyIntegration?.[0]?.eventTypeId
+    if (!calendlyEventTypeId) {
+      return new NextResponse('Coach has not configured their event type', { status: 400 })
+    }
+
     // Get mentee's database ID
     const { data: mentee, error: menteeError } = await supabase
       .from('User')
-      .select('id')
+      .select('id, email, firstName, lastName')
       .eq('userId', userId)
       .single()
 
@@ -75,6 +92,11 @@ export async function POST(request: Request) {
       return new NextResponse('Time slot is no longer available', { status: 409 })
     }
 
+    // Create single-use scheduling link
+    const schedulingLink = await createSingleUseSchedulingLink({
+      eventTypeId: calendlyEventTypeId
+    })
+
     // Create the session
     const { data: session, error: sessionError } = await supabase
       .from('Session')
@@ -84,7 +106,9 @@ export async function POST(request: Request) {
         startTime: validatedData.startTime,
         endTime: validatedData.endTime,
         durationMinutes: validatedData.durationMinutes,
-        status: 'scheduled'
+        status: 'scheduled',
+        calendlySchedulingLink: schedulingLink.booking_url,
+        updatedAt: new Date().toISOString()
       })
       .select()
       .single()
@@ -94,11 +118,30 @@ export async function POST(request: Request) {
       return new NextResponse('Failed to create session', { status: 500 })
     }
 
-    // TODO: Handle payment integration here if required
-    // TODO: Send email notifications
-    // TODO: Create calendar invites
+    // Send confirmation emails
+    await sendSessionConfirmationEmails({
+      startTime: validatedData.startTime,
+      endTime: validatedData.endTime,
+      durationMinutes: validatedData.durationMinutes,
+      schedulingUrl: schedulingLink.booking_url,
+      coach: {
+        firstName: coach.firstName || '',
+        lastName: coach.lastName || '',
+        email: coach.email
+      },
+      mentee: {
+        firstName: mentee.firstName || '',
+        lastName: mentee.lastName || '',
+        email: mentee.email
+      }
+    })
 
-    return NextResponse.json({ data: session })
+    return NextResponse.json({ 
+      data: {
+        ...session,
+        schedulingUrl: schedulingLink.booking_url
+      }
+    })
 
   } catch (error) {
     console.error('[BOOKING_ERROR]', error)

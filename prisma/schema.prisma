@@ -9,14 +9,6 @@ datasource db {
 }
 
 // Enums
-enum UserRole {
-  realtor
-  loan_officer
-  realtor_coach
-  loan_officer_coach
-  admin
-}
-
 enum PaymentStatus {
   pending
   completed
@@ -94,28 +86,29 @@ enum AchievementType {
 
 // Models
 model User {
-  id            Int      @id @default(autoincrement())
-  email         String   @unique
-  firstName     String?
-  lastName      String?
-  gender        String?
-  profileImageUrl String?
-  userId        String   @unique  // Clerk ID
-  subscription  String?
-  role          UserRole @default(realtor)
-  status        String   @default("active")
-  brokerId      Int?
-  teamId        Int?
+  id                  Int       @id @default(autoincrement())
+  userId              String    @unique // Clerk user ID
+  email               String
+  firstName           String?
+  lastName            String?
+  gender              String?
+  profileImageUrl     String?
+  subscription        String?
+  role                String[]  // Array of roles: ['admin', 'realtor', 'realtor_coach', etc.]
+  status              String    @default("active")
+  brokerId            Int?
+  teamId              Int?
+  calendlyIntegration CalendlyIntegration?
+  coachSessions       Session[] @relation("CoachSessions")
+  menteeSessions      Session[] @relation("MenteeSessions")
+  createdAt           DateTime  @default(now()) @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @db.Timestamptz
 
   // Profile Relations
   realtorProfile         RealtorProfile?
   loanOfficerProfile     LoanOfficerProfile?
   realtorCoachProfile    RealtorCoachProfile?
   loanOfficerCoachProfile LoanOfficerCoachProfile?
-  
-  // Session Relations
-  coachSessions         Session[]        @relation("SessionCoach")
-  menteeSessions        Session[]        @relation("SessionMentee")
   
   // Payment Relations
   paymentsMade          Payment[]        @relation("Payer")
@@ -141,7 +134,6 @@ model User {
   relatedNotes         Note[]           @relation("RelatedUserNotes")
   reminders            Reminder[]
   supportTickets       SupportTicket[]   @relation("UserSupportTickets")
-  calendlyIntegration  CalendlyIntegration?
   subscriptions        Subscription[]
   invoices             Invoice[]
   calendlyEvents       CalendlyEvent[]
@@ -152,10 +144,10 @@ model User {
 
   coachingSchedules CoachingAvailabilitySchedule[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
   @@index([userId])
+  @@index([email])
+  @@index([role])
+  @@map("User")
 }
 
 model RealtorProfile {
@@ -233,35 +225,40 @@ model LoanOfficerCoachProfile {
 }
 
 model Session {
-  id              Int      @id @default(autoincrement())
-  coachDbId       Int      
-  menteeDbId      Int      
-  calendlyEventId String?  @unique
-  durationMinutes Int
-  status          SessionStatus
-  startTime       DateTime
-  endTime         DateTime
+  id                    Int      @id @default(autoincrement())
+  coachDbId            Int
+  coach                User     @relation("CoachSessions", fields: [coachDbId], references: [id])
+  menteeDbId           Int
+  mentee               User     @relation("MenteeSessions", fields: [menteeDbId], references: [id])
+  startTime            DateTime @db.Timestamptz
+  endTime              DateTime @db.Timestamptz
+  durationMinutes      Int
+  status               String   // scheduled, completed, cancelled, no_show
+  calendlyEventId      String?  @unique // ID of the Calendly event once scheduled
+  calendlyEventUri     String?  // URI of the Calendly event
+  calendlyInviteeUri   String?  // URI of the Calendly invitee
+  calendlySchedulingUrl String? // Single-use scheduling link
+  zoomMeetingId        String?  // ID of the Zoom meeting if created
+  zoomJoinUrl          String?  // URL to join the Zoom meeting
+  zoomStartUrl         String?  // URL for the host to start the meeting
+  description          String?  // Session description
+  createdAt            DateTime @default(now()) @db.Timestamptz
+  updatedAt            DateTime @updatedAt @db.Timestamptz
 
   // Relationships
-  coach           User     @relation("SessionCoach", fields: [coachDbId], references: [id], onDelete: Cascade)
-  mentee          User     @relation("SessionMentee", fields: [menteeDbId], references: [id], onDelete: Cascade)
-  payment         Payment? @relation("SessionPayment")
-  reviews         Review[]
-  notes           Note[]
-  reminders       Reminder[]
-  
-  // Integration relationships
-  calendlyEvent   CalendlyEvent? @relation(fields: [calendlyEventId], references: [eventUuid])
-  zoomSession     ZoomSession?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  payment              Payment?          @relation("SessionPayment")
+  reviews              Review[]
+  reminders            Reminder[]
+  notes                Note[]
+  calendlyEvent        CalendlyEvent?    @relation("SessionCalendlyEvent", fields: [calendlyEventId], references: [eventUuid])
+  zoomSession          ZoomSession?
 
   @@index([coachDbId])
   @@index([menteeDbId])
   @@index([startTime])
-  @@index([endTime])
+  @@index([status])
   @@index([calendlyEventId])
+  @@map("Session")
 }
 
 model Payment {
@@ -480,21 +477,20 @@ model Reminder {
 }
 
 model CalendlyIntegration {
-  id              Int      @id @default(autoincrement())
-  userDbId        Int      @unique
-  accessToken     String
-  refreshToken    String
-  scope           String
-  organizationUrl String
-  schedulingUrl   String
-  expiresAt       DateTime
-
-  user            User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  userDbId          Int      @unique
+  user              User     @relation(fields: [userDbId], references: [id])
+  userId            String   // Calendly user ID
+  eventTypeId       String   // Default event type ID
+  accessToken       String
+  refreshToken      String
+  scope             String
+  organization      String?
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  updatedAt         DateTime @updatedAt @db.Timestamptz
 
   @@index([userDbId])
+  @@map("CalendlyIntegration")
 }
 
 model Subscription {
@@ -579,7 +575,7 @@ model CalendlyEvent {
   inviteeName   String
 
   // Relationships
-  session       Session?
+  session       Session? @relation("SessionCalendlyEvent")
   user          User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
 
   createdAt     DateTime @default(now())
