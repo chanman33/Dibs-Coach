@@ -1,3 +1,5 @@
+'use client'
+
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'react-hot-toast'
@@ -34,15 +36,29 @@ export function useCalendly() {
     const handleConnect = async () => {
         try {
             setIsConnecting(true)
-            const response = await fetch('/api/calendly/oauth')
+            // Get the current URL to redirect back to after authorization
+            const currentUrl = window.location.href
+            
+            // Get the authorization URL from our backend
+            const response = await fetch(`/api/calendly/oauth?redirect=${encodeURIComponent(currentUrl)}`)
+            
             if (!response.ok) {
-                throw new Error('Failed to initiate Calendly connection')
+                const errorData = await response.json().catch(() => ({}))
+                throw new Error(errorData.message || 'Failed to initiate Calendly connection')
             }
-            const { authUrl } = await response.json()
-            window.location.href = authUrl
+
+            // Get the authorization URL from the response
+            const data = await response.json()
+            if (!data.authUrl) {
+                throw new Error('No authorization URL received')
+            }
+
+            // Redirect to Calendly's authorization page
+            window.location.href = data.authUrl
         } catch (error) {
             console.error('[CALENDLY_CONNECT_ERROR]', error)
             toast.error('Failed to connect to Calendly')
+        } finally {
             setIsConnecting(false)
         }
     }

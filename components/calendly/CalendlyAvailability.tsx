@@ -48,7 +48,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { cn } from '@/utils/cn'
-import { UserRole } from '@prisma/client'
 import { AvailabilityScheduleView } from './AvailabilityScheduleView'
 import { CoachingAvailabilityEditor } from './CoachingAvailabilityEditor'
 import { toast } from 'react-hot-toast'

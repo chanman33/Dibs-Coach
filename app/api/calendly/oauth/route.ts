@@ -92,8 +92,8 @@ export async function GET(request: Request) {
     // Log the final URL for verification
     console.log('[CALENDLY_AUTH_DEBUG] Final authorization URL:', authUrl)
     
-    // Redirect to Calendly's authorization URL instead of returning it
-    return Response.redirect(authUrl)
+    // Return the authorization URL instead of redirecting
+    return NextResponse.json({ authUrl })
   } catch (error) {
     console.error('[CALENDLY_AUTH_ERROR]', error)
     return new NextResponse('Internal Server Error', { status: 500 })

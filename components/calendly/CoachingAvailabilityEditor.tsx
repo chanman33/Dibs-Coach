@@ -54,6 +54,28 @@ const DAYS_OF_WEEK = [
   'Saturday'
 ]
 
+const SUPPORTED_TIMEZONES = [
+  // UK
+  'Europe/London',
+  // US
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Anchorage',
+  'America/Adak',
+  'Pacific/Honolulu',
+  // Canada
+  'America/Vancouver',
+  'America/Edmonton',
+  'America/Regina',
+  'America/Winnipeg',
+  'America/Toronto',
+  'America/Montreal',
+  'America/Halifax',
+  'America/St_Johns'
+]
+
 export interface CoachingAvailabilityEditorProps {
   onSave: () => void
   onCancel: () => void
@@ -66,7 +88,6 @@ export function CoachingAvailabilityEditor({
   initialData
 }: CoachingAvailabilityEditorProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedDay, setSelectedDay] = useState<number>(0)
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<ScheduleFormData>({
     resolver: zodResolver(ScheduleSchema),
@@ -170,9 +191,9 @@ export function CoachingAvailabilityEditor({
                   <SelectValue placeholder="Select timezone" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Intl.supportedValuesOf('timeZone').map((tz) => (
+                  {SUPPORTED_TIMEZONES.map((tz) => (
                     <SelectItem key={tz} value={tz}>
-                      {tz}
+                      {tz.replace('_', ' ')}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -202,23 +223,10 @@ export function CoachingAvailabilityEditor({
 
             <div className="space-y-4">
               <Label>Availability Rules</Label>
+              <p className="text-sm text-muted-foreground mb-4">
+                Set your available time slots for each day of the week.
+              </p>
               
-              <Select
-                value={selectedDay.toString()}
-                onValueChange={(value) => setSelectedDay(parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select day" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DAYS_OF_WEEK.map((day, index) => (
-                    <SelectItem key={index} value={index.toString()}>
-                      {day}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
               {DAYS_OF_WEEK.map((day, wday) => {
                 const dayRule = rules?.find(r => r.wday === wday)
                 return (
