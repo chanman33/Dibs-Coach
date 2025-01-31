@@ -9,7 +9,7 @@ import { z } from 'zod'
 const QuerySchema = z.object({
   coachId: z.string(),
   startDate: z.string().datetime(),
-  endDate: z.string().datetime().optional(),
+  endDate: z.string().datetime(),
   duration: z.string().regex(/^\d+$/).transform(Number).optional()
 })
 
@@ -24,6 +24,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const coachId = searchParams.get('coachId')
     const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate') || addDays(new Date(startDate || ''), 30).toISOString()
+    const duration = searchParams.get('duration')
     
     if (!coachId || !startDate) {
       return new NextResponse('Missing required parameters', { status: 400 })
@@ -32,18 +34,24 @@ export async function GET(request: Request) {
     const validatedParams = QuerySchema.parse({
       coachId,
       startDate,
-      endDate: searchParams.get('endDate') || addDays(new Date(startDate), 30).toISOString(),
-      duration: searchParams.get('duration') || '60'
-    }) as z.infer<typeof QuerySchema> & { endDate: string, duration: number }
+      endDate,
+      duration: duration || undefined
+    })
 
     const cookieStore = await cookies()
     const supabase = createServerClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
     )
 
-    // Get coach's database ID and verify they are a coach
+    // Get coach's data and verify they are a coach
     const { data: coach, error: coachError } = await supabase
       .from('User')
       .select(`
@@ -53,6 +61,18 @@ export async function GET(request: Request) {
           id,
           rules,
           timezone
+        ),
+        RealtorCoachProfile!inner (
+          defaultDuration,
+          allowCustomDuration,
+          minimumDuration,
+          maximumDuration
+        ),
+        CoachSessionConfig!inner (
+          durations,
+          rates,
+          currency,
+          isActive
         )
       `)
       .eq('userId', validatedParams.coachId)
@@ -85,7 +105,20 @@ export async function GET(request: Request) {
     const availableSlots = []
     const startDateObj = parseISO(validatedParams.startDate)
     const endDateObj = parseISO(validatedParams.endDate)
-    const durationMinutes = validatedParams.duration
+    const requestedDuration = validatedParams.duration || coach.RealtorCoachProfile[0].defaultDuration
+
+    // Validate requested duration
+    const coachConfig = coach.CoachSessionConfig[0]
+    if (!coachConfig.isActive) {
+      return new NextResponse('Coach is not accepting bookings', { status: 400 })
+    }
+
+    if (!coachConfig.durations.includes(requestedDuration) && !coach.RealtorCoachProfile[0].allowCustomDuration) {
+      return new NextResponse('Invalid session duration', { status: 400 })
+    }
+
+    const rate = coachConfig.rates[requestedDuration.toString()] || 
+      (requestedDuration / 60) * coachConfig.rates['60'] // Calculate rate based on hourly rate if custom duration
 
     // For each day in the range
     for (let date = startDateObj; date <= endDateObj; date = addDays(date, 1)) {
@@ -114,7 +147,7 @@ export async function GET(request: Request) {
           // Generate slots within the interval
           while (slotStart < intervalEnd) {
             const slotEnd = new Date(slotStart)
-            slotEnd.setMinutes(slotStart.getMinutes() + durationMinutes)
+            slotEnd.setMinutes(slotStart.getMinutes() + requestedDuration)
 
             // Check if slot conflicts with existing sessions
             const hasConflict = existingSessions.some(session => {
@@ -137,10 +170,23 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       data: {
-        availableSlots,
-        timezone: coach.coachingSchedules[0]?.timezone
+        availableSlots: availableSlots.map(slot => ({
+          ...slot,
+          rate,
+          currency: coachConfig.currency
+        })),
+        timezone: coach.coachingSchedules[0]?.timezone,
+        sessionConfig: {
+          durations: coachConfig.durations,
+          rates: coachConfig.rates,
+          currency: coachConfig.currency,
+          defaultDuration: coach.RealtorCoachProfile[0].defaultDuration,
+          allowCustomDuration: coach.RealtorCoachProfile[0].allowCustomDuration,
+          minimumDuration: coach.RealtorCoachProfile[0].minimumDuration,
+          maximumDuration: coach.RealtorCoachProfile[0].maximumDuration
+        }
       }
     })
 
@@ -149,6 +195,6 @@ export async function GET(request: Request) {
     if (error instanceof z.ZodError) {
       return new NextResponse(JSON.stringify(error.errors), { status: 400 })
     }
-    return new NextResponse('Internal server error', { status: 500 })
+    return new NextResponse('Internal Server Error', { status: 500 })
   }
 } 

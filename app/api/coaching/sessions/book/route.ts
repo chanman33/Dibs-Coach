@@ -11,7 +11,9 @@ const BookingSchema = z.object({
   coachId: z.string(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
-  durationMinutes: z.number().int().positive()
+  durationMinutes: z.number().int().positive(),
+  rate: z.number().positive(),
+  currency: z.enum(['USD', 'EUR', 'GBP'])
 })
 
 export async function POST(request: Request) {
@@ -43,6 +45,18 @@ export async function POST(request: Request) {
         calendlyIntegration:CalendlyIntegration!inner (
           userId,
           eventTypeId
+        ),
+        RealtorCoachProfile!inner (
+          defaultDuration,
+          allowCustomDuration,
+          minimumDuration,
+          maximumDuration
+        ),
+        CoachSessionConfig!inner (
+          durations,
+          rates,
+          currency,
+          isActive
         )
       `)
       .eq('userId', validatedData.coachId)
@@ -56,6 +70,36 @@ export async function POST(request: Request) {
 
     if (!coach.role.includes('coach')) {
       return new NextResponse('Invalid coach ID', { status: 400 })
+    }
+
+    // Validate session configuration
+    const coachConfig = coach.CoachSessionConfig[0]
+    const coachProfile = coach.RealtorCoachProfile[0]
+
+    if (!coachConfig.isActive) {
+      return new NextResponse('Coach is not accepting bookings', { status: 400 })
+    }
+
+    // Validate duration
+    if (!coachConfig.durations.includes(validatedData.durationMinutes) && !coachProfile.allowCustomDuration) {
+      return new NextResponse('Invalid session duration', { status: 400 })
+    }
+
+    if (validatedData.durationMinutes < coachProfile.minimumDuration || 
+        validatedData.durationMinutes > coachProfile.maximumDuration) {
+      return new NextResponse('Session duration outside allowed range', { status: 400 })
+    }
+
+    // Validate rate and currency
+    const expectedRate = coachConfig.rates[validatedData.durationMinutes.toString()] || 
+      (validatedData.durationMinutes / 60) * coachConfig.rates['60']
+    
+    if (validatedData.rate !== expectedRate) {
+      return new NextResponse('Invalid session rate', { status: 400 })
+    }
+
+    if (validatedData.currency !== coachConfig.currency) {
+      return new NextResponse('Invalid currency', { status: 400 })
     }
 
     const calendlyEventTypeId = coach.calendlyIntegration?.[0]?.eventTypeId
@@ -106,6 +150,8 @@ export async function POST(request: Request) {
         startTime: validatedData.startTime,
         endTime: validatedData.endTime,
         durationMinutes: validatedData.durationMinutes,
+        rateAtBooking: validatedData.rate,
+        currencyCode: validatedData.currency,
         status: 'scheduled',
         calendlySchedulingLink: schedulingLink.booking_url,
         updatedAt: new Date().toISOString()
@@ -124,6 +170,8 @@ export async function POST(request: Request) {
       endTime: validatedData.endTime,
       durationMinutes: validatedData.durationMinutes,
       schedulingUrl: schedulingLink.booking_url,
+      rate: validatedData.rate,
+      currency: validatedData.currency,
       coach: {
         firstName: coach.firstName || '',
         lastName: coach.lastName || '',

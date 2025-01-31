@@ -6,6 +6,8 @@ interface SessionDetails {
   endTime: string
   durationMinutes: number
   schedulingUrl: string
+  rate: number
+  currency: string
   coach: {
     firstName: string
     lastName: string
@@ -48,6 +50,7 @@ export async function sendSessionConfirmationEmails(session: SessionDetails) {
         <li><strong>Date:</strong> ${format(startTime, 'EEEE, MMMM d, yyyy')}</li>
         <li><strong>Time:</strong> ${format(startTime, 'h:mm a')} - ${format(endTime, 'h:mm a')}</li>
         <li><strong>Duration:</strong> ${session.durationMinutes} minutes</li>
+        <li><strong>Rate:</strong> ${session.currency} ${session.rate}</li>
       </ul>
 
       <p>Please complete your scheduling by clicking the link below:</p>
@@ -76,6 +79,7 @@ export async function sendSessionConfirmationEmails(session: SessionDetails) {
         <li><strong>Date:</strong> ${format(startTime, 'EEEE, MMMM d, yyyy')}</li>
         <li><strong>Time:</strong> ${format(startTime, 'h:mm a')} - ${format(endTime, 'h:mm a')}</li>
         <li><strong>Duration:</strong> ${session.durationMinutes} minutes</li>
+        <li><strong>Rate:</strong> ${session.currency} ${session.rate}</li>
         <li><strong>Mentee Email:</strong> ${session.mentee.email}</li>
       </ul>
 
