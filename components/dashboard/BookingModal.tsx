@@ -1,13 +1,26 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Loader2 } from "lucide-react"
-import { createBooking } from '@/utils/actions/booking'
+import { Button } from "@/components/ui/button"
+import { formatCurrency } from "@/utils/format"
+import { DateTimeSelector } from "./DateTimeSelector"
 import { toast } from 'react-hot-toast'
 
-declare global {
-  interface Window {
-    Calendly: any;
-  }
+interface SessionConfig {
+  durations: number[]
+  rates: Record<string, number>
+  currency: string
+  defaultDuration: number
+  allowCustomDuration: boolean
+  minimumDuration: number
+  maximumDuration: number
+  isActive: boolean
+}
+
+interface TimeSlot {
+  startTime: string
+  endTime: string
+  rate: number
+  currency: string
 }
 
 interface BookingModalProps {
@@ -17,183 +30,194 @@ interface BookingModalProps {
   coachId: number
   calendlyUrl: string | null
   eventTypeUrl: string | null
+  sessionConfig: SessionConfig
 }
+
+type BookingStep = 'duration' | 'datetime' | 'confirmation'
 
 export function BookingModal({
   isOpen,
   onClose,
   coachName,
   coachId,
-  calendlyUrl,
-  eventTypeUrl,
+  sessionConfig
 }: BookingModalProps) {
-  const [isLoading, setIsLoading] = useState(true)
+  const [step, setStep] = useState<BookingStep>('duration')
+  const [selectedDuration, setSelectedDuration] = useState<number>()
+  const [selectedSlot, setSelectedSlot] = useState<TimeSlot>()
+  const [isLoading, setIsLoading] = useState(false)
 
-  // Validate Calendly URL
-  const isValidCalendlyUrl = (url: string | null) => {
-    if (!url) return false;
+  const handleDurationSelect = (duration: number) => {
+    setSelectedDuration(duration)
+    setStep('datetime')
+  }
+
+  const handleSlotSelect = (slot: TimeSlot) => {
+    setSelectedSlot(slot)
+    setStep('confirmation')
+  }
+
+  const handleConfirm = async () => {
+    if (!selectedDuration || !selectedSlot) return
+
+    setIsLoading(true)
     try {
-      const parsed = new URL(url);
-      return parsed.hostname === 'calendly.com';
-    } catch {
-      return false;
-    }
-  };
+      const response = await fetch('/api/coaching/sessions/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          coachId,
+          startTime: selectedSlot.startTime,
+          endTime: selectedSlot.endTime,
+          durationMinutes: selectedDuration,
+          rate: selectedSlot.rate,
+          currency: selectedSlot.currency
+        })
+      })
 
-  useEffect(() => {
-    if (!isOpen || !calendlyUrl) return;
-    
-    // Validate URL before initializing
-    if (!isValidCalendlyUrl(calendlyUrl)) {
-      console.error('[CALENDLY_ERROR] Invalid Calendly URL:', calendlyUrl);
-      toast.error('Invalid booking URL configuration');
-      setIsLoading(false);
-      return;
-    }
-
-    // Load Calendly script
-    const loadCalendlyScript = () => {
-      return new Promise<void>((resolve, reject) => {
-        // Check if script already exists
-        if (document.querySelector('script[src*="calendly"]')) {
-          if (window.Calendly) {
-            resolve();
-          } else {
-            // Script exists but not loaded yet, wait for it
-            const checkCalendly = setInterval(() => {
-              if (window.Calendly) {
-                clearInterval(checkCalendly);
-                resolve();
-              }
-            }, 100);
-          }
-          return;
-        }
-
-        const script = document.createElement('script');
-        script.src = 'https://assets.calendly.com/assets/external/widget.js';
-        script.async = true;
-        script.onload = () => resolve();
-        script.onerror = () => {
-          console.error('[CALENDLY_ERROR] Failed to load script');
-          reject(new Error('Failed to load Calendly script'));
-        };
-        document.head.appendChild(script);
-      });
-    };
-
-    const initializeWidget = async () => {
-      try {
-        await loadCalendlyScript();
-        
-        const container = document.getElementById('calendly-container');
-        if (container && window.Calendly) {
-          container.innerHTML = '';
-          window.Calendly.initInlineWidget({
-            url: calendlyUrl,
-            parentElement: container,
-            prefill: {},
-            minWidth: '320px',
-            height: '100%'
-          });
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('[CALENDLY_ERROR] Failed to initialize widget:', error);
-        setIsLoading(false);
-        toast.error('Failed to load booking widget. Please try again.');
+      if (!response.ok) {
+        throw new Error('Failed to book session')
       }
-    };
 
-    initializeWidget();
-
-    return () => {
-      const container = document.getElementById('calendly-container');
-      if (container) {
-        container.innerHTML = '';
-      }
-      setIsLoading(true);
-    };
-  }, [isOpen, calendlyUrl]);
-
-  const handleCalendlyEvent = useCallback(async (e: any) => {
-    if (e.origin !== 'https://calendly.com') return;
-    
-    if (e.data.event === 'calendly.event_scheduled') {
-      try {
-        if (!eventTypeUrl) {
-          throw new Error('Booking URL not configured');
-        }
-
-        const scheduledTime = e.data.payload.event.start_time;
-        const inviteeEmail = e.data.payload.invitee.email;
-        const eventUri = e.data.payload.event.uri;
-
-        const toastId = toast.loading('Scheduling your session...', {
-          position: 'top-center'
-        });
-
-        await createBooking({
-          eventTypeUrl,
-          scheduledTime,
-          inviteeEmail,
-          eventUri,
-          coachId
-        });
-
-        toast.dismiss(toastId);
-
-        setTimeout(() => {
-          toast.success('Session scheduled successfully! Check your email for details.', { 
-            position: 'top-center',
-            duration: 4000
-          });
-          onClose();
-        }, 2000);
-
-      } catch (error: any) {
-        console.error('[CALENDLY_ERROR] Error creating booking:', error);
-        toast.error(error.message || 'Failed to schedule session. Please try again.', { 
-          position: 'top-center',
-          duration: 4000
-        });
-      }
+      onClose()
+      toast.success('Session booked successfully! Check your email for details.')
+    } catch (error) {
+      console.error('[BOOKING_ERROR]', error)
+      toast.error('Failed to book session. Please try again.')
+    } finally {
+      setIsLoading(false)
     }
-  }, [eventTypeUrl, coachId, onClose]);
+  }
 
-  useEffect(() => {
-    if (isOpen) {
-      window.addEventListener('message', handleCalendlyEvent);
-    }
-    return () => {
-      window.removeEventListener('message', handleCalendlyEvent);
-    };
-  }, [isOpen, handleCalendlyEvent]);
+  const renderDurationStep = () => (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>Select Session Duration</DialogTitle>
+        <DialogDescription>
+          Choose how long you'd like your session to be
+        </DialogDescription>
+      </DialogHeader>
+
+      <div className="grid gap-3">
+        {sessionConfig.durations.map((duration) => (
+          <Button
+            key={duration}
+            variant="outline"
+            className="w-full justify-between h-auto py-4"
+            onClick={() => handleDurationSelect(duration)}
+          >
+            <span>{duration} minutes</span>
+            <span className="font-medium">
+              {formatCurrency(sessionConfig.rates[duration.toString()])}
+            </span>
+          </Button>
+        ))}
+
+        {sessionConfig.allowCustomDuration && (
+          <Button
+            variant="outline"
+            className="w-full justify-between h-auto py-4"
+            onClick={() => {/* TODO: Handle custom duration */}}
+          >
+            <span>Custom Duration</span>
+            <span className="text-sm text-muted-foreground">
+              ({sessionConfig.minimumDuration}-{sessionConfig.maximumDuration} min)
+            </span>
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+
+  const renderDateTimeStep = () => (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>Select Date & Time</DialogTitle>
+        <DialogDescription>
+          Choose a time slot for your {selectedDuration}-minute session
+        </DialogDescription>
+      </DialogHeader>
+
+      <DateTimeSelector
+        coachId={coachId.toString()}
+        duration={selectedDuration!}
+        onSelect={handleSlotSelect}
+      />
+
+      <Button
+        variant="outline"
+        onClick={() => setStep('duration')}
+        className="w-full"
+      >
+        Back to Duration Selection
+      </Button>
+    </div>
+  )
+
+  const renderConfirmationStep = () => (
+    <div className="space-y-4">
+      <DialogHeader>
+        <DialogTitle>Confirm Booking</DialogTitle>
+        <DialogDescription>
+          Review your session details
+        </DialogDescription>
+      </DialogHeader>
+
+      {selectedSlot && (
+        <div className="space-y-4 border rounded-lg p-4">
+          <div className="grid gap-2">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Coach</span>
+              <span className="font-medium">{coachName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Duration</span>
+              <span className="font-medium">{selectedDuration} minutes</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Date & Time</span>
+              <span className="font-medium">
+                {new Date(selectedSlot.startTime).toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Rate</span>
+              <span className="font-medium">
+                {formatCurrency(selectedSlot.rate)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <Button
+          variant="outline"
+          onClick={() => setStep('datetime')}
+          className="flex-1"
+          disabled={isLoading}
+        >
+          Back
+        </Button>
+        <Button
+          onClick={handleConfirm}
+          className="flex-1"
+          disabled={isLoading}
+        >
+          Confirm Booking
+        </Button>
+      </div>
+    </div>
+  )
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[800px] h-[90vh] max-h-[800px] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle>Book a Call with {coachName}</DialogTitle>
-          <DialogDescription>
-            Select a time slot that works best for you
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex-1 min-h-0 relative">
-          {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-50">
-              <Loader2 className="h-8 w-8 animate-spin" data-testid="loading-spinner" />
-            </div>
-          )}
-          <div
-            id="calendly-container"
-            className="w-full h-full"
-            style={{ minHeight: '600px' }}
-          />
-        </div>
+      <DialogContent className="sm:max-w-[425px]">
+        {step === 'duration' && renderDurationStep()}
+        {step === 'datetime' && renderDateTimeStep()}
+        {step === 'confirmation' && renderConfirmationStep()}
       </DialogContent>
     </Dialog>
-  );
+  )
 }
 

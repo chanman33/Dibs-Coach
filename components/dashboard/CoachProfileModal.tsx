@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Star, Calendar, Clock, Award } from 'lucide-react'
 import Image from "next/image"
 import { BookingModal } from "@/components/dashboard/BookingModal"
+import { formatCurrency } from "@/utils/format"
 
 const DEFAULT_IMAGE_URL = '/placeholder.svg'
 
@@ -11,6 +12,17 @@ const getImageUrl = (url: string | null) => {
   if (!url) return DEFAULT_IMAGE_URL
   // No transformation needed, use the URL directly
   return url
+}
+
+interface SessionConfig {
+  durations: number[]
+  rates: Record<string, number>
+  currency: string
+  defaultDuration: number
+  allowCustomDuration: boolean
+  minimumDuration: number
+  maximumDuration: number
+  isActive: boolean
 }
 
 interface Coach {
@@ -27,6 +39,7 @@ interface Coach {
   specialties: string[]
   calendlyUrl: string | null
   eventTypeUrl: string | null
+  sessionConfig: SessionConfig
 }
 
 interface CoachProfileModalProps {
@@ -69,6 +82,27 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
               </div>
             </div>
             <p className="text-sm">{coach.bio || 'No bio available'}</p>
+            
+            {/* Session Lengths and Rates */}
+            <div>
+              <h4 className="font-semibold mb-2">Available Session Lengths</h4>
+              <div className="space-y-2">
+                {coach.sessionConfig.durations.map((duration) => (
+                  <div key={duration} className="flex justify-between items-center text-sm">
+                    <span>{duration} minutes</span>
+                    <span className="font-medium">
+                      {formatCurrency(coach.sessionConfig.rates[duration.toString()])}
+                    </span>
+                  </div>
+                ))}
+                {coach.sessionConfig.allowCustomDuration && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Custom durations available ({coach.sessionConfig.minimumDuration}-{coach.sessionConfig.maximumDuration} minutes)
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div>
               <h4 className="font-semibold mb-2">Certifications</h4>
               <ul className="list-disc list-inside text-sm">
@@ -95,18 +129,16 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
               <Calendar className="h-4 w-4" />
               <span>Availability: {coach.availability || 'Not specified'}</span>
             </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Clock className="h-4 w-4" />
-              <span>Session Length: {coach.sessionLength || 'Not specified'}</span>
-            </div>
           </div>
           <div className="flex justify-between">
             <Button variant="outline" onClick={onClose}>Close</Button>
             <Button 
               onClick={handleBookNowClick}
-              disabled={!coach.calendlyUrl}
+              disabled={!coach.calendlyUrl || !coach.sessionConfig.isActive}
             >
-              {coach.calendlyUrl ? "Book Now" : "Booking Unavailable"}
+              {!coach.calendlyUrl ? "Booking Unavailable" : 
+               !coach.sessionConfig.isActive ? "Not Accepting Bookings" : 
+               "Book Now"}
             </Button>
           </div>
         </DialogContent>
@@ -119,6 +151,7 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
         coachId={coach.id}
         calendlyUrl={coach.calendlyUrl}
         eventTypeUrl={coach.eventTypeUrl}
+        sessionConfig={coach.sessionConfig}
       />
     </>
   )
