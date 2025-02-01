@@ -12,6 +12,7 @@ const envSchema = z.object({
   
   // Vercel Cron
   CRON_SECRET: z.string().min(1),
+  ZOOM_ACCESS_TOKEN: z.string(),
 })
 
 // Validate and export environment variables
@@ -22,4 +23,5 @@ export const env = envSchema.parse({
   CALENDLY_CLIENT_SECRET: process.env.CALENDLY_CLIENT_SECRET,
   CALENDLY_WEBHOOK_SIGNING_KEY: process.env.CALENDLY_WEBHOOK_SIGNING_KEY,
   CRON_SECRET: process.env.CRON_SECRET,
+  ZOOM_ACCESS_TOKEN: process.env.ZOOM_ACCESS_TOKEN,
 }) 

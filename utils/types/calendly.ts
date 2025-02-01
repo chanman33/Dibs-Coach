@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { Session } from '@prisma/client'
+import { SessionType } from './session'
 
 // Base Calendly Types
-export type CalendlyStatus = {
+export interface CalendlyStatus {
   connected: boolean
   schedulingUrl?: string
   expiresAt?: string
@@ -17,9 +18,26 @@ export type CalendlyStatus = {
 export interface CalendlyEventType {
   uri: string
   name: string
+  description: string
   duration: number
+  type: string
+  slug: string
   url: string
-  updated_at: string
+  active: boolean
+  scheduling_url: string
+  custom_questions: any[]
+  sessionType: SessionType
+  minimumDuration: number
+  maximumDuration: number
+  bufferBeforeMinutes: number
+  bufferAfterMinutes: number
+  availabilityRules: {
+    type: string
+    interval: number
+    count: number
+    weekStart: string
+    weekDays: string[]
+  }[]
 }
 
 export interface CalendlyScheduledEvent {
@@ -87,10 +105,29 @@ export interface ApiResponse<T> {
 export const CalendlyEventTypeSchema = z.object({
   uri: z.string(),
   name: z.string(),
+  description: z.string().optional(),
   duration: z.number(),
+  type: z.string(),
+  slug: z.string(),
   url: z.string(),
-  updated_at: z.string()
+  active: z.boolean(),
+  scheduling_url: z.string(),
+  custom_questions: z.array(z.any()).optional(),
+  sessionType: SessionType.optional(),
+  minimumDuration: z.number().optional(),
+  maximumDuration: z.number().optional(),
+  bufferBeforeMinutes: z.number().optional(),
+  bufferAfterMinutes: z.number().optional(),
+  availabilityRules: z.array(z.object({
+    type: z.string(),
+    interval: z.number().optional(),
+    count: z.number().optional(),
+    weekStart: z.string().optional(),
+    weekDays: z.array(z.string()).optional(),
+  })).optional(),
 })
+
+export type CalendlyEventType = z.infer<typeof CalendlyEventTypeSchema>
 
 export const CalendlyInviteeSchema = z.object({
   email: z.string().email(),
@@ -192,4 +229,21 @@ export interface ExtendedSession {
     lastName: string | null
     email: string | null
   }
-} 
+}
+
+// Event type mapping configuration
+export const EventTypeMappingSchema = z.object({
+  eventTypeUri: z.string(),
+  sessionType: SessionType,
+  durationConstraints: z.object({
+    minimum: z.number(),
+    maximum: z.number(),
+    default: z.number(),
+  }),
+  bufferTime: z.object({
+    before: z.number(),
+    after: z.number(),
+  }),
+})
+
+export type EventTypeMapping = z.infer<typeof EventTypeMappingSchema> 

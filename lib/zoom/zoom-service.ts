@@ -5,6 +5,14 @@ import { createServerClient } from '@supabase/ssr';
 import { auth } from '@clerk/nextjs/server';
 import { ZoomSession, ZoomSessionConfig } from '@/utils/types/zoom';
 import { handleZoomError } from './middleware/zoom-error-handler';
+import { type SupabaseClient } from '@supabase/supabase-js';
+import type {
+  ZoomMeeting,
+  ZoomMeetingResponse,
+  ZoomMeetingUpdate,
+  SessionMeetingConfig,
+} from '@/utils/types/zoom';
+import { env } from '@/lib/env';
 
 // Initialize Supabase client
 const getSupabase = async () => {
@@ -123,5 +131,159 @@ export async function deleteZoomSession(sessionId: string) {
     if (error) throw error;
   } catch (error) {
     throw handleZoomError(error);
+  }
+}
+
+export class ZoomService {
+  private baseUrl = 'https://api.zoom.us/v2'
+  private supabase: SupabaseClient = createServerClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return null
+        },
+      },
+    }
+  )
+  private userId: string | null = null
+  private accessToken: string | null = null
+
+  constructor() {
+    this.accessToken = env.ZOOM_ACCESS_TOKEN
+  }
+
+  async init() {
+    const { userId } = await auth()
+    if (!userId) {
+      throw new Error('Not authenticated')
+    }
+    this.userId = userId
+
+    const cookieStore = await cookies()
+    this.supabase = createServerClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
+  }
+
+  private async fetchZoom<T = any>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<T> {
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        ...options,
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('[ZOOM_API_ERROR]', errorData)
+        throw new Error(`Zoom API error: ${errorData.message || response.statusText}`)
+      }
+
+      return response.json()
+    } catch (error) {
+      console.error('[ZOOM_API_ERROR]', error)
+      throw error
+    }
+  }
+
+  async createMeeting(data: ZoomMeeting): Promise<ZoomMeetingResponse> {
+    return this.fetchZoom('/users/me/meetings', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateMeeting(data: ZoomMeetingUpdate): Promise<ZoomMeetingResponse> {
+    const { id, ...updateData } = data
+    return this.fetchZoom(`/meetings/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updateData),
+    })
+  }
+
+  async getMeeting(meetingId: number): Promise<ZoomMeetingResponse> {
+    return this.fetchZoom(`/meetings/${meetingId}`)
+  }
+
+  async deleteMeeting(meetingId: number): Promise<void> {
+    await this.fetchZoom(`/meetings/${meetingId}`, {
+      method: 'DELETE',
+    })
+  }
+
+  async getMeetingConfig(userDbId: number): Promise<SessionMeetingConfig | null> {
+    const { data } = await this.supabase
+      .from('ZoomMeetingConfig')
+      .select('*')
+      .eq('userDbId', userDbId)
+      .single()
+
+    return data
+  }
+
+  async updateMeetingConfig(
+    userDbId: number,
+    config: SessionMeetingConfig
+  ): Promise<void> {
+    await this.supabase
+      .from('ZoomMeetingConfig')
+      .upsert({
+        userDbId,
+        ...config,
+        updatedAt: new Date().toISOString(),
+      })
+  }
+
+  async syncMeetingDuration(
+    meetingId: number,
+    durationMinutes: number
+  ): Promise<ZoomMeetingResponse> {
+    return this.updateMeeting({
+      id: meetingId,
+      duration: durationMinutes,
+    })
+  }
+
+  async getMeetingUrls(meetingId: number): Promise<{
+    startUrl: string
+    joinUrl: string
+  }> {
+    const meeting = await this.getMeeting(meetingId)
+    return {
+      startUrl: meeting.start_url,
+      joinUrl: meeting.join_url,
+    }
+  }
+
+  async storeMeetingUrls(
+    sessionId: number,
+    meetingId: number,
+    urls: { startUrl: string; joinUrl: string }
+  ): Promise<void> {
+    await this.supabase
+      .from('Session')
+      .update({
+        zoomMeetingId: meetingId.toString(),
+        zoomStartUrl: urls.startUrl,
+        zoomJoinUrl: urls.joinUrl,
+        updatedAt: new Date().toISOString(),
+      })
+      .eq('id', sessionId)
   }
 } 

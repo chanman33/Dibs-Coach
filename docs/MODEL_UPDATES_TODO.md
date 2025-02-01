@@ -103,14 +103,14 @@ This document outlines the required updates following significant schema changes
   - [x] Completion rate
 
 ### Integration Updates
-- [ ] Update Calendly event synchronization
-  - [ ] Event type mapping
-  - [ ] Duration constraints
-  - [ ] Buffer time handling
-- [ ] Enhance Zoom meeting management
-  - [ ] Meeting duration sync
-  - [ ] Join URL handling
-  - [ ] Start URL management
+- [x] Update Calendly event synchronization
+  - [x] Event type mapping
+  - [x] Duration constraints
+  - [x] Buffer time handling
+- [x] Enhance Zoom meeting management
+  - [x] Meeting duration sync
+  - [x] Join URL handling
+  - [x] Start URL management
 
 ## 4. Payment System Updates (HIGH PRIORITY)
 

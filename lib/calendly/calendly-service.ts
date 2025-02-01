@@ -476,6 +476,130 @@ export class CalendlyService {
       })),
     }))
   }
+
+  private async getUserDbId(): Promise<number> {
+    if (!this.userId) {
+      throw new Error('Service not initialized')
+    }
+
+    const { data: user, error } = await this.supabase
+      .from('User')
+      .select('id')
+      .eq('userId', this.userId)
+      .single()
+
+    if (error || !user?.id) {
+      throw new Error('User not found')
+    }
+
+    return user.id
+  }
+
+  private async getEventTypeMapping(userDbId: number, eventTypeUri: string) {
+    const { data: mapping } = await this.supabase
+      .from('CalendlyEventTypeMapping')
+      .select('*')
+      .eq('userDbId', userDbId)
+      .eq('eventTypeUri', eventTypeUri)
+      .single()
+
+    return mapping
+  }
+
+  private async applyEventTypeMapping(eventType: CalendlyEventType, userDbId: number) {
+    const mapping = await this.getEventTypeMapping(userDbId, eventType.uri)
+    if (mapping) {
+      return {
+        ...eventType,
+        sessionType: mapping.sessionType,
+        minimumDuration: mapping.durationConstraints.minimum,
+        maximumDuration: mapping.durationConstraints.maximum,
+        bufferBeforeMinutes: mapping.bufferTime.before,
+        bufferAfterMinutes: mapping.bufferTime.after,
+      }
+    }
+    return eventType
+  }
+
+  async getEventTypes(count?: number, pageToken?: string): Promise<CalendlyEventType[]> {
+    if (!this.userId) {
+      throw new Error('Service not initialized')
+    }
+
+    const userDbId = await this.getUserDbId()
+    const response = await this.fetchCalendly('/event_types', {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      ...(count || pageToken ? {
+        searchParams: new URLSearchParams({
+          ...(count ? { count: count.toString() } : {}),
+          ...(pageToken ? { page_token: pageToken } : {}),
+        }).toString()
+      } : {})
+    })
+
+    const eventTypes = response.collection.map(async (eventType: CalendlyEventType) => {
+      return this.applyEventTypeMapping(eventType, userDbId)
+    })
+
+    return Promise.all(eventTypes)
+  }
+
+  async createScheduledEvent(data: {
+    eventTypeUri: string
+    startTime: string
+    endTime: string
+    email: string
+    name: string
+    timezone: string
+    questions?: Record<string, string>
+  }) {
+    if (!this.userId) {
+      throw new Error('Service not initialized')
+    }
+
+    const userDbId = await this.getUserDbId()
+    const mapping = await this.getEventTypeMapping(userDbId, data.eventTypeUri)
+
+    // Apply buffer time if mapping exists
+    if (mapping) {
+      const startTime = new Date(data.startTime)
+      const endTime = new Date(data.endTime)
+      
+      // Add buffer time before
+      startTime.setMinutes(startTime.getMinutes() - mapping.bufferTime.before)
+      
+      // Add buffer time after
+      endTime.setMinutes(endTime.getMinutes() + mapping.bufferTime.after)
+
+      data.startTime = startTime.toISOString()
+      data.endTime = endTime.toISOString()
+    }
+
+    const response = await this.fetchCalendly(`/scheduled_events`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        event_type_uri: data.eventTypeUri,
+        start_time: data.startTime,
+        end_time: data.endTime,
+        invitee: {
+          email: data.email,
+          name: data.name,
+          timezone: data.timezone,
+          questions_and_answers: Object.entries(data.questions || {}).map(([question, answer]) => ({
+            question,
+            answer,
+          })),
+        },
+      }),
+    })
+
+    return response
+  }
 }
 
 interface TokenIntrospectionResponse {
