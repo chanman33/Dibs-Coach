@@ -1,19 +1,19 @@
 # Stripe Payments Implementation TODO
 
 ## Overview
-This document outlines the implementation plan for Stripe payments in our coaching peer-to-peer marketplace. The system needs to handle both subscription-based payments for platform access and direct payments between coaches and clients.
+This document outlines the implementation plan for Stripe payments in our coaching marketplace. The system handles pay-as-you-go session payments and coaching bundles between coaches and clients.
 
 ## 1. Core Payment Infrastructure
 
 ### Stripe Account Setup
-- [ ] Configure Stripe Connect for marketplace payments
-  - [ ] Set up platform account
-  - [ ] Configure OAuth connection for coach onboarding
-  - [ ] Set up webhook endpoints for Connect events
-  - [ ] Implement automatic payouts for coaches
+- [x] Configure Stripe Connect for marketplace payments
+  - [x] Set up platform account
+  - [x] Configure OAuth connection for coach onboarding
+  - [x] Set up webhook endpoints for Connect events
+  - [x] Implement automatic payouts for coaches
 
 ### Database Schema Updates
-- [ ] Create new tables and relationships:
+- [x] Create new tables and relationships:
   ```sql
   -- For tracking connected accounts (coaches)
   CREATE TABLE stripe_connected_accounts (
@@ -75,48 +75,39 @@ This document outlines the implementation plan for Stripe payments in our coachi
   );
   ```
 
-## 2. Subscription Management System
+## 2. Bundle Payment System
 
-### API Endpoints
-- [ ] Create subscription management endpoints:
-  - [ ] `POST /api/subscriptions/create` - Create new subscription
-  - [ ] `GET /api/subscriptions/[id]` - Get subscription details
-  - [ ] `PUT /api/subscriptions/[id]` - Update subscription
-  - [ ] `DELETE /api/subscriptions/[id]` - Cancel subscription
-  - [ ] `POST /api/subscriptions/[id]/resume` - Resume cancelled subscription
+### Bundle Configuration
+- [ ] Implement bundle management:
+  - [ ] Define bundle types (e.g., 5, 10, 20 sessions)
+  - [ ] Configure bundle pricing and discounts
+  - [ ] Set up bundle expiration rules
+  - [ ] Add bundle usage tracking
 
-### Subscription Plans
-- [ ] Implement plan management:
-  - [ ] Create standard plans in Stripe dashboard
-  - [ ] Store plan configurations in database
-  - [ ] Implement plan CRUD operations
-  - [ ] Add plan comparison features
+### Bundle Purchase Flow
+- [ ] Create bundle payment endpoints:
+  - [ ] `POST /api/payments/bundle/create` - Create bundle payment intent
+  - [ ] `GET /api/payments/bundle/[id]` - Get bundle details
+  - [ ] `POST /api/payments/bundle/redeem` - Redeem bundle session
 
-### Billing System
-- [ ] Implement billing logic:
-  - [ ] Set up recurring billing with Stripe
-  - [ ] Handle failed payments and retries
-  - [ ] Implement proration for plan changes
-  - [ ] Add support for coupons and promotions
-
-### Invoice Generation
-- [ ] Create invoice system:
-  - [ ] Generate PDF invoices using Stripe's API
-  - [ ] Store invoice history in database
-  - [ ] Implement invoice download functionality
-  - [ ] Add invoice email notifications
+### Bundle Analytics
+- [ ] Add bundle tracking features:
+  - [ ] Sessions remaining counter
+  - [ ] Bundle usage history
+  - [ ] Expiration tracking
+  - [ ] Usage notifications
 
 ## 3. Session Payment System
 
 ### Coach Onboarding
-- [ ] Implement Stripe Connect onboarding:
-  - [ ] Create onboarding flow for coaches
-  - [ ] Handle account verification
-  - [ ] Implement payout settings
-  - [ ] Add banking information collection
+- [x] Implement Stripe Connect onboarding:
+  - [x] Create onboarding flow for coaches
+  - [x] Handle account verification
+  - [x] Implement payout settings
+  - [x] Add banking information collection
 
 ### Payment Processing
-- [ ] Implement session payment flow:
+- [x] Implement session payment flow:
   ```typescript
   interface SessionPayment {
     sessionId: string;
@@ -127,10 +118,18 @@ This document outlines the implementation plan for Stripe payments in our coachi
     platformFee: number;
   }
   ```
-- [ ] Add endpoints:
-  - [ ] `POST /api/payments/session/create` - Create payment intent
-  - [ ] `POST /api/payments/session/confirm` - Confirm payment
-  - [ ] `POST /api/payments/session/refund` - Process refund
+- [x] Add endpoints:
+  - [x] `POST /api/payments/session/create` - Create payment intent
+  - [x] `POST /api/webhooks/stripe` - Handle webhooks
+  - [x] `POST /api/payments/onboarding` - Coach onboarding
+  - [x] `GET /api/payments/onboarding` - Get onboarding status
+
+### Fee Management
+- [x] Implement fee calculation system:
+  - [x] Platform fee calculation (8.5% from coach)
+  - [x] Agent fee calculation (3.5% from agent)
+  - [x] Stripe fee handling
+  - [x] Fee breakdown and reporting
 
 ### Payment Methods
 - [ ] Add payment method management:
@@ -181,11 +180,11 @@ This document outlines the implementation plan for Stripe payments in our coachi
 ## 6. Security and Compliance
 
 ### Data Security
-- [ ] Implement security measures:
-  - [ ] PCI compliance requirements
-  - [ ] Sensitive data encryption
-  - [ ] Audit logging
-  - [ ] Access controls
+- [x] Implement security measures:
+  - [x] PCI compliance requirements
+  - [x] Sensitive data encryption
+  - [x] Audit logging
+  - [x] Access controls
 
 ### Compliance
 - [ ] Ensure regulatory compliance:
@@ -219,19 +218,11 @@ function handlePaymentError(error: PaymentError) {
 ```
 
 ### Webhook Processing
-```typescript
-async function processStripeWebhook(event: Stripe.Event) {
-  switch (event.type) {
-    case 'payment_intent.succeeded':
-      await handleSuccessfulPayment(event.data.object);
-      break;
-    case 'payment_intent.payment_failed':
-      await handleFailedPayment(event.data.object);
-      break;
-    // ... handle other events
-  }
-}
-```
+- [x] Implement webhook handling:
+  - [x] Signature verification
+  - [x] Event type handling
+  - [x] Error handling and logging
+  - [x] Retry mechanism
 
 ### Testing Requirements
 - [ ] Unit tests for all payment functions
@@ -241,14 +232,14 @@ async function processStripeWebhook(event: Stripe.Event) {
 - [ ] Error scenario testing
 
 ## Migration Plan
-1. Set up Stripe Connect account
-2. Create and test database migrations
-3. Implement core payment infrastructure
-4. Add subscription management
-5. Build session payment system
-6. Deploy to staging for testing
-7. Conduct security audit
-8. Plan production rollout
+1. ✅ Set up Stripe Connect account
+2. ✅ Create and test database migrations
+3. ✅ Implement core payment infrastructure
+4. ⏳ Add subscription management
+5. ✅ Build session payment system
+6. ⏳ Deploy to staging for testing
+7. ⏳ Conduct security audit
+8. ⏳ Plan production rollout
 
 ## Documentation Requirements
 - [ ] API documentation

@@ -104,12 +104,17 @@ enum ReviewStatus {
 
 // Models
 model User {
-  id                  Int       @id @default(autoincrement())
-  userId              String    @unique // Clerk Auth ID
-  email               String
-  firstName           String?
-  lastName            String?
-  
+  id                    Int                     @id @default(autoincrement())
+  userId                String                  @unique // Clerk ID
+  email                 String                  @unique
+  firstName             String?
+  lastName              String?
+  role                  String                  @default("mentee")
+  stripeCustomerId      String?                 @unique
+  stripeConnectAccountId String?                @unique
+  createdAt            DateTime                @default(now()) @db.Timestamptz
+  updatedAt            DateTime                @updatedAt @db.Timestamptz
+
   // RESO Member fields
   memberKey           String?   @unique // RESO: MemberKey (MLS ID)
   memberStatus        String    // RESO: MemberStatus
@@ -119,7 +124,6 @@ model User {
   phoneNumber         String?
   
   // Application-specific fields
-  role                UserRole[]
   status              UserStatus @default(active)
   profileImageUrl     String?
   
@@ -132,8 +136,13 @@ model User {
   coachingSchedules     CoachingAvailabilitySchedule[]
   
   // Session Relations
-  sessionsAsCoach       Session[] @relation("CoachSessions")
-  sessionsAsMentee      Session[] @relation("MenteeSessions")
+  sessions             Session[]               @relation("UserSessions")
+  coachingSessions     Session[]               @relation("CoachSessions")
+  paymentMethods       StripePaymentMethod[]
+  setupIntents         SetupIntent[]
+  stripeAccount        StripeConnectedAccount?
+  sentTransactions     Transaction[]           @relation("TransactionPayer")
+  receivedTransactions Transaction[]           @relation("TransactionCoach")
   
   // Keep existing relations
   paymentsMade          Payment[]        @relation("Payer")
@@ -162,9 +171,6 @@ model User {
   subscriptions         Subscription[]
   invoices              Invoice[]
   calendlyEvents        CalendlyEvent[]
-
-  createdAt             DateTime  @default(now()) @db.Timestamptz
-  updatedAt             DateTime  @updatedAt @db.Timestamptz
 
   @@index([userId])
   @@index([email])
@@ -224,45 +230,41 @@ model MenteeProfile {
 }
 
 model Session {
-  id                    Int      @id @default(autoincrement())
-  coachDbId            Int
-  coach                User     @relation("CoachSessions", fields: [coachDbId], references: [id])
-  menteeDbId           Int
-  mentee               User     @relation("MenteeSessions", fields: [menteeDbId], references: [id])
-  startTime            DateTime @db.Timestamptz
-  endTime              DateTime @db.Timestamptz
-  durationMinutes      Int       @default(60)
-  status               SessionStatus @default(scheduled)
-  calendlyEventId      String?   @unique
-  calendlyEventUri     String?
-  calendlyInviteeUri   String?
-  calendlySchedulingUrl String?
-  zoomMeetingId        String?
-  zoomJoinUrl          String?
-  zoomStartUrl         String?
-  description          String?
-  sessionType          SessionType @default(MENTORSHIP)
+  id                  Int       @id @default(autoincrement())
+  menteeDbId         Int
+  coachDbId          Int
+  startTime          DateTime   @db.Timestamptz
+  endTime            DateTime   @db.Timestamptz
+  status             String     @default("scheduled") // scheduled, completed, cancelled
+  sessionNotes       String?
+  zoomMeetingId      String?
+  zoomMeetingUrl     String?
   
+  // Payment fields
+  priceAmount         Float?
+  currency            String?    @default("usd")
+  platformFeeAmount   Float?
+  coachPayoutAmount   Float?
+  stripePaymentIntentId String?
+  paymentStatus       String?    @default("pending") // pending, completed, failed, refunded
+  payoutStatus        String?    // null, completed, failed
+  
+  createdAt          DateTime   @default(now()) @db.Timestamptz
+  updatedAt          DateTime   @updatedAt @db.Timestamptz
+
   // Relationships
-  payment              Payment?          @relation("SessionPayment")
-  reviews              Review[]
-  reminders            Reminder[]
-  notes                Note[]
-  calendlyEvent        CalendlyEvent?    @relation("SessionCalendlyEvent", fields: [calendlyEventId], references: [eventUuid])
-  zoomSession          ZoomSession?
+  mentee             User       @relation("UserSessions", fields: [menteeDbId], references: [id])
+  coach              User       @relation("CoachSessions", fields: [coachDbId], references: [id])
+  transaction        Transaction?
+  payment            Payment?   @relation("SessionPayment")
+  reviews            Review[]
+  notes              Note[]
+  reminders          Reminder[]
+  calendlyEvent      CalendlyEvent? @relation("SessionCalendlyEvent")
+  zoomSession        ZoomSession?
 
-  // Add new fields
-  rateAtBooking        Decimal?  @db.Decimal(10,2)
-  currencyCode         Currency  @default(USD)
-
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-
-  @@index([coachDbId])
   @@index([menteeDbId])
-  @@index([startTime])
-  @@index([status])
-  @@index([calendlyEventId])
+  @@index([coachDbId])
   @@map("Session")
 }
 
@@ -579,9 +581,10 @@ model CalendlyEvent {
   eventType     String
   inviteeEmail  String
   inviteeName   String
+  sessionId     Int?     @unique
 
   // Relationships
-  session       Session? @relation("SessionCalendlyEvent")
+  session       Session? @relation("SessionCalendlyEvent", fields: [sessionId], references: [id])
   user          User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
 
   createdAt     DateTime @default(now())
@@ -681,4 +684,85 @@ model CoachingAvailabilitySchedule {
   updatedAt           DateTime  @updatedAt
 
   @@index([userDbId])
+}
+
+model StripePaymentMethod {
+  id                   Int      @id @default(autoincrement())
+  userDbId            Int
+  stripePaymentMethodId String
+  type                String    // card, bank_account
+  isDefault           Boolean   @default(false)
+  metadata            Json      @default("{}")
+  createdAt           DateTime  @default(now()) @db.Timestamptz
+  updatedAt           DateTime  @updatedAt @db.Timestamptz
+
+  // Relationships
+  user                User     @relation(fields: [userDbId], references: [id])
+
+  @@unique([userDbId, stripePaymentMethodId])
+  @@index([userDbId])
+  @@map("StripePaymentMethod")
+}
+
+model SetupIntent {
+  id                  Int      @id @default(autoincrement())
+  userDbId           Int
+  stripeSetupIntentId String
+  status             String
+  createdAt          DateTime  @default(now()) @db.Timestamptz
+  updatedAt          DateTime  @updatedAt @db.Timestamptz
+
+  // Relationships
+  user               User     @relation(fields: [userDbId], references: [id])
+
+  @@index([userDbId])
+  @@map("SetupIntent")
+}
+
+model StripeConnectedAccount {
+  id                  Int      @id @default(autoincrement())
+  userDbId           Int      @unique
+  stripeAccountId     String   @unique
+  country             String
+  defaultCurrency     String   @default("usd")
+  payoutsEnabled      Boolean  @default(false)
+  detailsSubmitted    Boolean  @default(false)
+  chargesEnabled      Boolean  @default(false)
+  requiresOnboarding  Boolean  @default(true)
+  deauthorizedAt      DateTime? @db.Timestamptz
+  createdAt          DateTime  @default(now()) @db.Timestamptz
+  updatedAt          DateTime  @updatedAt @db.Timestamptz
+
+  // Relationships
+  user               User     @relation(fields: [userDbId], references: [id])
+
+  @@map("StripeConnectedAccount")
+}
+
+model Transaction {
+  id                  Int      @id @default(autoincrement())
+  type                String   // session_payment, bundle_payment, payout, refund
+  status              String   // pending, completed, failed, refunded
+  amount              Float
+  currency            String   @default("usd")
+  stripePaymentIntentId String?
+  stripeTransferId    String?
+  platformFee         Float?
+  coachPayout         Float?
+  sessionDbId        Int?     @unique
+  payerDbId          Int
+  coachDbId          Int
+  metadata            Json     @default("{}")
+  createdAt          DateTime @default(now()) @db.Timestamptz
+  updatedAt          DateTime @updatedAt @db.Timestamptz
+
+  // Relationships
+  session            Session? @relation(fields: [sessionDbId], references: [id])
+  payer              User    @relation("TransactionPayer", fields: [payerDbId], references: [id])
+  coach              User    @relation("TransactionCoach", fields: [coachDbId], references: [id])
+
+  @@index([payerDbId])
+  @@index([coachDbId])
+  @@index([sessionDbId])
+  @@map("Transaction")
 }

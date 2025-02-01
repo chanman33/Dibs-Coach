@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CalendarIcon, DollarSign, Users, Clock, ArrowUpRight, Wallet, PiggyBank, Calendar } from 'lucide-react';
+import { CalendarIcon, DollarSign, Users, Clock, ArrowUpRight, Wallet, PiggyBank, Calendar, TrendingUp } from 'lucide-react';
 import { formatCurrency } from '@/utils/format';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { format } from 'date-fns';
+import { TransactionHistory } from '@/components/payments/TransactionHistory';
+import { useTransactions } from '@/hooks/use-transactions';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type Payment = {
   id: number;
@@ -56,6 +59,7 @@ export function CoachAnalyticsDashboard({ userDbId }: { userDbId: number }) {
     nextPayoutAmount: 0,
     nextPayoutDate: '',
   });
+  const { transactions, isLoading: isLoadingTransactions } = useTransactions();
 
   const fetchAnalytics = async () => {
     try {
@@ -145,7 +149,7 @@ export function CoachAnalyticsDashboard({ userDbId }: { userDbId: number }) {
       </div>
       
       {/* Balance Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending Balance</CardTitle>
@@ -339,6 +343,53 @@ export function CoachAnalyticsDashboard({ userDbId }: { userDbId: number }) {
           </CardContent>
         </Card>
       </div>
+
+      <Tabs defaultValue="earnings" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="earnings">Earnings</TabsTrigger>
+          <TabsTrigger value="transactions">Transactions</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="earnings" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Balance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(analytics.availableBalance)}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Ready for next payout
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Pending Balance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(analytics.pendingBalance)}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  From upcoming sessions
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="transactions">
+          <TransactionHistory
+            transactions={transactions}
+            userRole="coach"
+            isLoading={isLoadingTransactions}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 } 

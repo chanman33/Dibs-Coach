@@ -50,17 +50,19 @@ CREATE TABLE "User" (
     "email" TEXT NOT NULL,
     "firstName" TEXT,
     "lastName" TEXT,
+    "role" TEXT NOT NULL DEFAULT 'mentee',
+    "stripeCustomerId" TEXT,
+    "stripeConnectAccountId" TEXT,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
     "memberKey" TEXT,
     "memberStatus" TEXT NOT NULL,
     "designations" TEXT[],
     "licenseNumber" TEXT,
     "companyName" TEXT,
     "phoneNumber" TEXT,
-    "role" "UserRole"[],
     "status" "UserStatus" NOT NULL DEFAULT 'active',
     "profileImageUrl" TEXT,
-    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -109,25 +111,23 @@ CREATE TABLE "MenteeProfile" (
 -- CreateTable
 CREATE TABLE "Session" (
     "id" SERIAL NOT NULL,
-    "coachDbId" INTEGER NOT NULL,
     "menteeDbId" INTEGER NOT NULL,
+    "coachDbId" INTEGER NOT NULL,
     "startTime" TIMESTAMPTZ NOT NULL,
     "endTime" TIMESTAMPTZ NOT NULL,
-    "durationMinutes" INTEGER NOT NULL DEFAULT 60,
-    "status" "SessionStatus" NOT NULL DEFAULT 'scheduled',
-    "calendlyEventId" TEXT,
-    "calendlyEventUri" TEXT,
-    "calendlyInviteeUri" TEXT,
-    "calendlySchedulingUrl" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'scheduled',
+    "sessionNotes" TEXT,
     "zoomMeetingId" TEXT,
-    "zoomJoinUrl" TEXT,
-    "zoomStartUrl" TEXT,
-    "description" TEXT,
-    "sessionType" "SessionType" NOT NULL DEFAULT 'MENTORSHIP',
-    "rateAtBooking" DECIMAL(10,2),
-    "currencyCode" "Currency" NOT NULL DEFAULT 'USD',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "zoomMeetingUrl" TEXT,
+    "priceAmount" DOUBLE PRECISION,
+    "currency" TEXT DEFAULT 'usd',
+    "platformFeeAmount" DOUBLE PRECISION,
+    "coachPayoutAmount" DOUBLE PRECISION,
+    "stripePaymentIntentId" TEXT,
+    "paymentStatus" TEXT DEFAULT 'pending',
+    "payoutStatus" TEXT,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
 );
@@ -389,6 +389,7 @@ CREATE TABLE "CalendlyEvent" (
     "eventType" TEXT NOT NULL,
     "inviteeEmail" TEXT NOT NULL,
     "inviteeName" TEXT NOT NULL,
+    "sessionId" INTEGER,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -465,8 +466,82 @@ CREATE TABLE "CoachingAvailabilitySchedule" (
     CONSTRAINT "CoachingAvailabilitySchedule_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "StripePaymentMethod" (
+    "id" SERIAL NOT NULL,
+    "userDbId" INTEGER NOT NULL,
+    "stripePaymentMethodId" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "isDefault" BOOLEAN NOT NULL DEFAULT false,
+    "metadata" JSONB NOT NULL DEFAULT '{}',
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "StripePaymentMethod_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "SetupIntent" (
+    "id" SERIAL NOT NULL,
+    "userDbId" INTEGER NOT NULL,
+    "stripeSetupIntentId" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "SetupIntent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "StripeConnectedAccount" (
+    "id" SERIAL NOT NULL,
+    "userDbId" INTEGER NOT NULL,
+    "stripeAccountId" TEXT NOT NULL,
+    "country" TEXT NOT NULL,
+    "defaultCurrency" TEXT NOT NULL DEFAULT 'usd',
+    "payoutsEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "detailsSubmitted" BOOLEAN NOT NULL DEFAULT false,
+    "chargesEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "requiresOnboarding" BOOLEAN NOT NULL DEFAULT true,
+    "deauthorizedAt" TIMESTAMPTZ,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "StripeConnectedAccount_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Transaction" (
+    "id" SERIAL NOT NULL,
+    "type" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
+    "currency" TEXT NOT NULL DEFAULT 'usd',
+    "stripePaymentIntentId" TEXT,
+    "stripeTransferId" TEXT,
+    "platformFee" DOUBLE PRECISION,
+    "coachPayout" DOUBLE PRECISION,
+    "sessionDbId" INTEGER,
+    "payerDbId" INTEGER NOT NULL,
+    "coachDbId" INTEGER NOT NULL,
+    "metadata" JSONB NOT NULL DEFAULT '{}',
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "Transaction_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_userId_key" ON "User"("userId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_stripeCustomerId_key" ON "User"("stripeCustomerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_stripeConnectAccountId_key" ON "User"("stripeConnectAccountId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_memberKey_key" ON "User"("memberKey");
@@ -496,22 +571,10 @@ CREATE UNIQUE INDEX "MenteeProfile_userDbId_key" ON "MenteeProfile"("userDbId");
 CREATE INDEX "MenteeProfile_userDbId_idx" ON "MenteeProfile"("userDbId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Session_calendlyEventId_key" ON "Session"("calendlyEventId");
-
--- CreateIndex
-CREATE INDEX "Session_coachDbId_idx" ON "Session"("coachDbId");
-
--- CreateIndex
 CREATE INDEX "Session_menteeDbId_idx" ON "Session"("menteeDbId");
 
 -- CreateIndex
-CREATE INDEX "Session_startTime_idx" ON "Session"("startTime");
-
--- CreateIndex
-CREATE INDEX "Session_status_idx" ON "Session"("status");
-
--- CreateIndex
-CREATE INDEX "Session_calendlyEventId_idx" ON "Session"("calendlyEventId");
+CREATE INDEX "Session_coachDbId_idx" ON "Session"("coachDbId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Payment_sessionId_key" ON "Payment"("sessionId");
@@ -622,6 +685,9 @@ CREATE INDEX "CalendlyWebhookEvent_processed_idx" ON "CalendlyWebhookEvent"("pro
 CREATE UNIQUE INDEX "CalendlyEvent_eventUuid_key" ON "CalendlyEvent"("eventUuid");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "CalendlyEvent_sessionId_key" ON "CalendlyEvent"("sessionId");
+
+-- CreateIndex
 CREATE INDEX "CalendlyEvent_userDbId_idx" ON "CalendlyEvent"("userDbId");
 
 -- CreateIndex
@@ -651,6 +717,33 @@ CREATE INDEX "Achievement_type_idx" ON "Achievement"("type");
 -- CreateIndex
 CREATE INDEX "CoachingAvailabilitySchedule_userDbId_idx" ON "CoachingAvailabilitySchedule"("userDbId");
 
+-- CreateIndex
+CREATE INDEX "StripePaymentMethod_userDbId_idx" ON "StripePaymentMethod"("userDbId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "StripePaymentMethod_userDbId_stripePaymentMethodId_key" ON "StripePaymentMethod"("userDbId", "stripePaymentMethodId");
+
+-- CreateIndex
+CREATE INDEX "SetupIntent_userDbId_idx" ON "SetupIntent"("userDbId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "StripeConnectedAccount_userDbId_key" ON "StripeConnectedAccount"("userDbId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "StripeConnectedAccount_stripeAccountId_key" ON "StripeConnectedAccount"("stripeAccountId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Transaction_sessionDbId_key" ON "Transaction"("sessionDbId");
+
+-- CreateIndex
+CREATE INDEX "Transaction_payerDbId_idx" ON "Transaction"("payerDbId");
+
+-- CreateIndex
+CREATE INDEX "Transaction_coachDbId_idx" ON "Transaction"("coachDbId");
+
+-- CreateIndex
+CREATE INDEX "Transaction_sessionDbId_idx" ON "Transaction"("sessionDbId");
+
 -- AddForeignKey
 ALTER TABLE "CoachProfile" ADD CONSTRAINT "CoachProfile_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -658,13 +751,10 @@ ALTER TABLE "CoachProfile" ADD CONSTRAINT "CoachProfile_userDbId_fkey" FOREIGN K
 ALTER TABLE "MenteeProfile" ADD CONSTRAINT "MenteeProfile_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Session" ADD CONSTRAINT "Session_coachDbId_fkey" FOREIGN KEY ("coachDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Session" ADD CONSTRAINT "Session_menteeDbId_fkey" FOREIGN KEY ("menteeDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Session" ADD CONSTRAINT "Session_calendlyEventId_fkey" FOREIGN KEY ("calendlyEventId") REFERENCES "CalendlyEvent"("eventUuid") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Session" ADD CONSTRAINT "Session_coachDbId_fkey" FOREIGN KEY ("coachDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "Session"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -748,6 +838,9 @@ ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_subscriptionId_fkey" FOREIGN KEY (
 ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "CalendlyEvent" ADD CONSTRAINT "CalendlyEvent_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "Session"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "CalendlyEvent" ADD CONSTRAINT "CalendlyEvent_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -761,3 +854,21 @@ ALTER TABLE "Achievement" ADD CONSTRAINT "Achievement_userDbId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "CoachingAvailabilitySchedule" ADD CONSTRAINT "CoachingAvailabilitySchedule_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StripePaymentMethod" ADD CONSTRAINT "StripePaymentMethod_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "SetupIntent" ADD CONSTRAINT "SetupIntent_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "StripeConnectedAccount" ADD CONSTRAINT "StripeConnectedAccount_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_sessionDbId_fkey" FOREIGN KEY ("sessionDbId") REFERENCES "Session"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_payerDbId_fkey" FOREIGN KEY ("payerDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Transaction" ADD CONSTRAINT "Transaction_coachDbId_fkey" FOREIGN KEY ("coachDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
