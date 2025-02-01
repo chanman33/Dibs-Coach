@@ -84,40 +84,65 @@ enum AchievementType {
   learning
 }
 
+enum UserRole {
+  MENTEE
+  COACH
+  ADMIN
+}
+
+enum SessionType {
+  PEER_TO_PEER
+  MENTORSHIP
+  GROUP
+}
+
+enum ReviewStatus {
+  PENDING
+  PUBLISHED
+  HIDDEN
+}
+
 // Models
 model User {
   id                  Int       @id @default(autoincrement())
-  userId              String    @unique // Clerk user ID
+  userId              String    @unique // Clerk Auth ID
   email               String
   firstName           String?
   lastName            String?
-  gender              String?
-  profileImageUrl     String?
-  subscription        String?
-  role                String[]  // Array of roles: ['admin', 'realtor', 'realtor_coach', etc.]
-  status              String    @default("active")
-  brokerId            Int?
-  teamId              Int?
-  calendlyIntegration CalendlyIntegration?
-  coachSessions       Session[] @relation("CoachSessions")
-  menteeSessions      Session[] @relation("MenteeSessions")
-  createdAt           DateTime  @default(now()) @db.Timestamptz
-  updatedAt           DateTime  @updatedAt @db.Timestamptz
-
-  // Profile Relations
-  realtorProfile         RealtorProfile?
-  loanOfficerProfile     LoanOfficerProfile?
-  realtorCoachProfile    RealtorCoachProfile?
-  loanOfficerCoachProfile LoanOfficerCoachProfile?
   
-  // Payment Relations
+  // RESO Member fields
+  memberKey           String?   @unique // RESO: MemberKey (MLS ID)
+  memberStatus        String    // RESO: MemberStatus
+  designations        String[]  // RESO: Designations (CRS, GRI, etc.)
+  licenseNumber       String?   @unique
+  companyName         String?
+  phoneNumber         String?
+  
+  // Application-specific fields
+  role                UserRole[]
+  status              UserStatus @default(active)
+  profileImageUrl     String?
+  
+  // Profile Relations (simplified)
+  coachProfile        CoachProfile?
+  menteeProfile       MenteeProfile?
+  
+  // Existing integrations
+  calendlyIntegration CalendlyIntegration?
+  coachingSchedules     CoachingAvailabilitySchedule[]
+  
+  // Session Relations
+  sessionsAsCoach       Session[] @relation("CoachSessions")
+  sessionsAsMentee      Session[] @relation("MenteeSessions")
+  
+  // Keep existing relations
   paymentsMade          Payment[]        @relation("Payer")
   paymentsReceived      Payment[]        @relation("Payee")
   payouts               Payout[]         @relation("PayoutPayee")
-  
-  // Review Relations
   reviewsGiven          Review[]         @relation("Reviewer")
   reviewsReceived       Review[]         @relation("Reviewee")
+  goals                 Goal[]
+  achievements          Achievement[]
   
   // Message Relations
   messagesSent          Message[]        @relation("Sender")
@@ -131,21 +156,15 @@ model User {
   applications          CoachApplication[] @relation("Applicant")
   reviewedApplications  CoachApplication[] @relation("Reviewer")
   authoredNotes         Note[]           @relation("AuthorNotes")
-  relatedNotes         Note[]           @relation("RelatedUserNotes")
-  reminders            Reminder[]
-  supportTickets       SupportTicket[]   @relation("UserSupportTickets")
-  subscriptions        Subscription[]
-  invoices             Invoice[]
-  calendlyEvents       CalendlyEvent[]
+  relatedNotes          Note[]           @relation("RelatedUserNotes")
+  reminders             Reminder[]
+  supportTickets        SupportTicket[]   @relation("UserSupportTickets")
+  subscriptions         Subscription[]
+  invoices              Invoice[]
+  calendlyEvents        CalendlyEvent[]
 
-  // Goals Relations
-  goals         Goal[]
-  achievements  Achievement[]
-
-  coachingSchedules CoachingAvailabilitySchedule[]
-
-  // Add new relation
-  sessionConfig         CoachSessionConfig?
+  createdAt             DateTime  @default(now()) @db.Timestamptz
+  updatedAt             DateTime  @updatedAt @db.Timestamptz
 
   @@index([userId])
   @@index([email])
@@ -153,82 +172,53 @@ model User {
   @@map("User")
 }
 
-model RealtorProfile {
-  id              Int      @id @default(autoincrement())
-  userDbId        Int      @unique
-  companyName     String?
-  licenseNumber   String?  @unique
-  phoneNumber     String?
+model CoachProfile {
+  id                  Int       @id @default(autoincrement())
+  userDbId            Int       @unique
+  bio                 String?
+  specialties         String[]
+  yearsCoaching        Int?
+  certifications      String[]
+  hourlyRate          Decimal? @db.Decimal(10,2)
+  
+  // Calendly Integration
+  calendlyUrl         String?
+  eventTypeUrl        String?
+  
+  // Session Configuration
+  isActive            Boolean   @default(true)
+  defaultDuration     Int       @default(60)
+  allowCustomDuration Boolean   @default(false)
+  minimumDuration     Int       @default(30)
+  maximumDuration     Int       @default(120)
+  totalSessions       Int       @default(0)
+  averageRating       Decimal?  @db.Decimal(3,2)
+  
+  user                User      @relation(fields: [userDbId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userDbId], references: [id], onDelete: Cascade)
-  realtorCoachProfile RealtorCoachProfile?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userDbId])
-}
-
-model LoanOfficerProfile {
-  id              Int      @id @default(autoincrement())
-  userDbId        Int      @unique
-  companyName     String?
-  licenseNumber   String?  @unique
-  phoneNumber     String?
-
-  user User @relation(fields: [userDbId], references: [id], onDelete: Cascade)
-  loanOfficerCoachProfile LoanOfficerCoachProfile?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([userDbId])
 }
 
-model RealtorCoachProfile {
-  id              Int      @id @default(autoincrement())
-  userDbId        Int      @unique
-  specialty       String?
-  bio             String?
-  experience      String?
-  certifications  String[] @default([])
-  availability    String?
-  sessionLength   String?
-  specialties     String   @default("[]") // Stored as JSON string
-  calendlyUrl     String?
-  eventTypeUrl    String?
-  hourlyRate      Decimal? @db.Decimal(10,2)
+model MenteeProfile {
+  id                  Int       @id @default(autoincrement())
+  userDbId            Int       @unique
+  focusAreas          String[]
+  experienceLevel     String?
+  learningStyle       String?
+  goals               Json?    // Structured goals data
+  
+  // Add defaults to tracking fields
+  sessionsCompleted   Int       @default(0)
+  isActive            Boolean   @default(true)
+  lastSessionDate     DateTime? // No default needed
+  
+  user                User      @relation(fields: [userDbId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userDbId], references: [id], onDelete: Cascade, map: "RealtorCoachProfile_user_fkey")
-  realtorProfile RealtorProfile @relation(fields: [userDbId], references: [userDbId], onDelete: Cascade, map: "RealtorCoachProfile_realtorProfile_fkey")
-
-  // Add new fields
-  defaultDuration     Int      @default(60)
-  allowCustomDuration Boolean  @default(false)
-  minimumDuration     Int      @default(30)
-  maximumDuration     Int      @default(120)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([userDbId])
-}
-
-model LoanOfficerCoachProfile {
-  id                Int       @id @default(autoincrement())
-  userDbId          Int       @unique
-  specialties       String?
-  yearsOfExperience Int?
-  hourlyRate        Decimal?  @db.Decimal(10,2)
-  bio               String?
-  oneTimeCallPrice  Decimal?  @db.Decimal(10,2)
-  bundlePrice       Decimal?  @db.Decimal(10,2)
-
-  user              User      @relation(fields: [userDbId], references: [id], onDelete: Cascade, map: "LoanOfficerCoachProfile_user_fkey")
-  loanOfficerProfile LoanOfficerProfile @relation(fields: [userDbId], references: [userDbId], onDelete: Cascade, map: "LoanOfficerCoachProfile_loanOfficerProfile_fkey")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([userDbId])
 }
@@ -241,19 +231,18 @@ model Session {
   mentee               User     @relation("MenteeSessions", fields: [menteeDbId], references: [id])
   startTime            DateTime @db.Timestamptz
   endTime              DateTime @db.Timestamptz
-  durationMinutes      Int
-  status               String   // scheduled, completed, cancelled, no_show
-  calendlyEventId      String?  @unique // ID of the Calendly event once scheduled
-  calendlyEventUri     String?  // URI of the Calendly event
-  calendlyInviteeUri   String?  // URI of the Calendly invitee
-  calendlySchedulingUrl String? // Single-use scheduling link
-  zoomMeetingId        String?  // ID of the Zoom meeting if created
-  zoomJoinUrl          String?  // URL to join the Zoom meeting
-  zoomStartUrl         String?  // URL for the host to start the meeting
-  description          String?  // Session description
-  createdAt            DateTime @default(now()) @db.Timestamptz
-  updatedAt            DateTime @updatedAt @db.Timestamptz
-
+  durationMinutes      Int       @default(60)
+  status               SessionStatus @default(scheduled)
+  calendlyEventId      String?   @unique
+  calendlyEventUri     String?
+  calendlyInviteeUri   String?
+  calendlySchedulingUrl String?
+  zoomMeetingId        String?
+  zoomJoinUrl          String?
+  zoomStartUrl         String?
+  description          String?
+  sessionType          SessionType @default(MENTORSHIP)
+  
   // Relationships
   payment              Payment?          @relation("SessionPayment")
   reviews              Review[]
@@ -263,8 +252,11 @@ model Session {
   zoomSession          ZoomSession?
 
   // Add new fields
-  rateAtBooking    Decimal?  @db.Decimal(10,2)
-  currencyCode     Currency  @default(USD)
+  rateAtBooking        Decimal?  @db.Decimal(10,2)
+  currencyCode         Currency  @default(USD)
+
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   @@index([coachDbId])
   @@index([menteeDbId])
@@ -280,8 +272,8 @@ model Payment {
   payerDbId       Int
   payeeDbId       Int
   amount          Decimal  @db.Decimal(10,2)
-  currency        String   @default("USD")
-  status          String   @default("pending")
+  currency        Currency @default(USD)
+  status          PaymentStatus @default(pending)
   stripePaymentId String?
 
   session         Session? @relation("SessionPayment", fields: [sessionId], references: [id], onDelete: SetNull)
@@ -300,20 +292,21 @@ model Payment {
 }
 
 model Review {
-  id              Int      @id @default(autoincrement())
-  reviewerDbId    Int
-  revieweeDbId    Int
-  sessionId       Int?
-  rating          Int
-  comment         String?
-  status          String   @default("published")
+  id                  Int       @id @default(autoincrement())
+  reviewerDbId        Int
+  revieweeDbId         Int
+  sessionId           Int?
+  rating              Int
+  comment             String?
+  status              String    @default("published")
+  isVerified          Boolean   @default(false)
 
-  reviewer        User     @relation("Reviewer", fields: [reviewerDbId], references: [id], onDelete: Cascade)
-  reviewee        User     @relation("Reviewee", fields: [revieweeDbId], references: [id], onDelete: Cascade)
-  session         Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  reviewer            User      @relation("Reviewer", fields: [reviewerDbId], references: [id], onDelete: Cascade)
+  reviewee            User      @relation("Reviewee", fields: [revieweeDbId], references: [id], onDelete: Cascade)
+  session             Session?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([reviewerDbId])
   @@index([revieweeDbId])
@@ -656,34 +649,36 @@ model Achievement {
 }
 
 model CoachingAvailabilitySchedule {
-  id        Int      @id @default(autoincrement())
-  userDbId  Int
-  name      String
-  timezone  String
-  isDefault Boolean  @default(false)
-  active    Boolean  @default(true)
-  rules     Json     // Stored as JSONB
-  user      User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+  id                  Int       @id @default(autoincrement())
+  userDbId            Int
+  name                String    // e.g., "Standard Schedule", "Holiday Hours"
+  timezone            String
+  isDefault           Boolean   @default(false)
+  active              Boolean   @default(true)
+  
+  // Session Configuration
+  defaultDuration     Int       @default(60)
+  minimumDuration     Int       @default(30)
+  maximumDuration     Int       @default(120)
+  allowCustomDuration Boolean   @default(false)
+  bufferBefore        Int       @default(15)  // minutes
+  bufferAfter         Int       @default(15)  // minutes
+  
+  // Availability Rules
+  rules               Json      // Stored as JSONB - weekly schedule, breaks, etc.
+  
+  // Integration Settings
+  calendlyEnabled     Boolean   @default(false)
+  zoomEnabled         Boolean   @default(false)
+  
+  // Metrics
+  totalSessions       Int       @default(0)
+  averageRating       Decimal?  @db.Decimal(3,2)
+  
+  user                User      @relation(fields: [userDbId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@index([userDbId])
-}
-
-model CoachSessionConfig {
-  id              Int      @id @default(autoincrement())
-  userDbId        Int      @unique
-  durations       Json     // [30, 60, 90]
-  rates           Json     // {"30": 50, "60": 90, "90": 120}
-  currency        Currency @default(USD)
-  isActive        Boolean  @default(true)
-  
-  user            User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
-  
-  createdAt       DateTime @default(now()) @db.Timestamptz
-  updatedAt       DateTime @updatedAt @db.Timestamptz
-
-  @@index([userDbId])
-  @@map("CoachSessionConfig")
 }

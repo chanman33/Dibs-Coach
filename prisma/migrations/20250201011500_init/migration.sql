@@ -1,7 +1,4 @@
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('realtor', 'loan_officer', 'realtor_coach', 'loan_officer_coach', 'admin');
-
--- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('pending', 'completed', 'failed', 'refunded');
 
 -- CreateEnum
@@ -28,86 +25,85 @@ CREATE TYPE "RefundStatus" AS ENUM ('pending', 'completed', 'failed');
 -- CreateEnum
 CREATE TYPE "DisputeStatus" AS ENUM ('open', 'resolved', 'rejected');
 
+-- CreateEnum
+CREATE TYPE "GoalStatus" AS ENUM ('in_progress', 'completed', 'overdue');
+
+-- CreateEnum
+CREATE TYPE "GoalType" AS ENUM ('sales', 'listings', 'clients', 'custom');
+
+-- CreateEnum
+CREATE TYPE "AchievementType" AS ENUM ('milestone', 'performance', 'learning');
+
+-- CreateEnum
+CREATE TYPE "UserRole" AS ENUM ('MENTEE', 'COACH', 'ADMIN');
+
+-- CreateEnum
+CREATE TYPE "SessionType" AS ENUM ('PEER_TO_PEER', 'MENTORSHIP', 'GROUP');
+
+-- CreateEnum
+CREATE TYPE "ReviewStatus" AS ENUM ('PENDING', 'PUBLISHED', 'HIDDEN');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" SERIAL NOT NULL,
+    "userId" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "firstName" TEXT,
     "lastName" TEXT,
-    "gender" TEXT,
+    "memberKey" TEXT,
+    "memberStatus" TEXT NOT NULL,
+    "designations" TEXT[],
+    "licenseNumber" TEXT,
+    "companyName" TEXT,
+    "phoneNumber" TEXT,
+    "role" "UserRole"[],
+    "status" "UserStatus" NOT NULL DEFAULT 'active',
     "profileImageUrl" TEXT,
-    "userId" TEXT NOT NULL,
-    "subscription" TEXT,
-    "role" "UserRole" NOT NULL DEFAULT 'realtor',
-    "status" TEXT NOT NULL DEFAULT 'active',
-    "brokerId" INTEGER,
-    "teamId" INTEGER,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "RealtorProfile" (
+CREATE TABLE "CoachProfile" (
     "id" SERIAL NOT NULL,
     "userDbId" INTEGER NOT NULL,
-    "companyName" TEXT,
-    "licenseNumber" TEXT,
-    "phoneNumber" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "RealtorProfile_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "LoanOfficerProfile" (
-    "id" SERIAL NOT NULL,
-    "userDbId" INTEGER NOT NULL,
-    "companyName" TEXT,
-    "licenseNumber" TEXT,
-    "phoneNumber" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "LoanOfficerProfile_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "RealtorCoachProfile" (
-    "id" SERIAL NOT NULL,
-    "userDbId" INTEGER NOT NULL,
-    "specialty" TEXT,
     "bio" TEXT,
-    "experience" TEXT,
-    "certifications" TEXT[] DEFAULT ARRAY[]::TEXT[],
-    "availability" TEXT,
-    "sessionLength" TEXT,
-    "specialties" TEXT NOT NULL DEFAULT '[]',
+    "specialties" TEXT[],
+    "yearsCoaching" INTEGER,
+    "certifications" TEXT[],
+    "hourlyRate" DECIMAL(10,2),
     "calendlyUrl" TEXT,
     "eventTypeUrl" TEXT,
-    "hourlyRate" DECIMAL(10,2),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "defaultDuration" INTEGER NOT NULL DEFAULT 60,
+    "allowCustomDuration" BOOLEAN NOT NULL DEFAULT false,
+    "minimumDuration" INTEGER NOT NULL DEFAULT 30,
+    "maximumDuration" INTEGER NOT NULL DEFAULT 120,
+    "totalSessions" INTEGER NOT NULL DEFAULT 0,
+    "averageRating" DECIMAL(3,2),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "RealtorCoachProfile_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "CoachProfile_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "LoanOfficerCoachProfile" (
+CREATE TABLE "MenteeProfile" (
     "id" SERIAL NOT NULL,
     "userDbId" INTEGER NOT NULL,
-    "specialties" TEXT,
-    "yearsOfExperience" INTEGER,
-    "hourlyRate" DECIMAL(10,2),
-    "bio" TEXT,
-    "oneTimeCallPrice" DECIMAL(10,2),
-    "bundlePrice" DECIMAL(10,2),
+    "focusAreas" TEXT[],
+    "experienceLevel" TEXT,
+    "learningStyle" TEXT,
+    "goals" JSONB,
+    "sessionsCompleted" INTEGER NOT NULL DEFAULT 0,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "lastSessionDate" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "LoanOfficerCoachProfile_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "MenteeProfile_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -115,9 +111,21 @@ CREATE TABLE "Session" (
     "id" SERIAL NOT NULL,
     "coachDbId" INTEGER NOT NULL,
     "menteeDbId" INTEGER NOT NULL,
+    "startTime" TIMESTAMPTZ NOT NULL,
+    "endTime" TIMESTAMPTZ NOT NULL,
+    "durationMinutes" INTEGER NOT NULL DEFAULT 60,
+    "status" "SessionStatus" NOT NULL DEFAULT 'scheduled',
     "calendlyEventId" TEXT,
-    "durationMinutes" INTEGER NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'scheduled',
+    "calendlyEventUri" TEXT,
+    "calendlyInviteeUri" TEXT,
+    "calendlySchedulingUrl" TEXT,
+    "zoomMeetingId" TEXT,
+    "zoomJoinUrl" TEXT,
+    "zoomStartUrl" TEXT,
+    "description" TEXT,
+    "sessionType" "SessionType" NOT NULL DEFAULT 'MENTORSHIP',
+    "rateAtBooking" DECIMAL(10,2),
+    "currencyCode" "Currency" NOT NULL DEFAULT 'USD',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -131,8 +139,8 @@ CREATE TABLE "Payment" (
     "payerDbId" INTEGER NOT NULL,
     "payeeDbId" INTEGER NOT NULL,
     "amount" DECIMAL(10,2) NOT NULL,
-    "currency" TEXT NOT NULL DEFAULT 'USD',
-    "status" TEXT NOT NULL DEFAULT 'pending',
+    "currency" "Currency" NOT NULL DEFAULT 'USD',
+    "status" "PaymentStatus" NOT NULL DEFAULT 'pending',
     "stripePaymentId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -149,6 +157,7 @@ CREATE TABLE "Review" (
     "rating" INTEGER NOT NULL,
     "comment" TEXT,
     "status" TEXT NOT NULL DEFAULT 'published',
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -296,14 +305,14 @@ CREATE TABLE "Reminder" (
 CREATE TABLE "CalendlyIntegration" (
     "id" SERIAL NOT NULL,
     "userDbId" INTEGER NOT NULL,
+    "userId" TEXT NOT NULL,
+    "eventTypeId" TEXT NOT NULL,
     "accessToken" TEXT NOT NULL,
     "refreshToken" TEXT NOT NULL,
     "scope" TEXT NOT NULL,
-    "organizationUrl" TEXT NOT NULL,
-    "schedulingUrl" TEXT NOT NULL,
-    "expiresAt" TIMESTAMP(3) NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "organization" TEXT,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "CalendlyIntegration_pkey" PRIMARY KEY ("id")
 );
@@ -358,50 +367,151 @@ CREATE TABLE "Invoice" (
     CONSTRAINT "Invoice_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+-- CreateTable
+CREATE TABLE "CalendlyWebhookEvent" (
+    "id" SERIAL NOT NULL,
+    "eventType" TEXT NOT NULL,
+    "payload" JSONB NOT NULL,
+    "processed" BOOLEAN NOT NULL DEFAULT false,
+    "error" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "CalendlyWebhookEvent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CalendlyEvent" (
+    "id" SERIAL NOT NULL,
+    "eventUuid" TEXT NOT NULL,
+    "userDbId" INTEGER NOT NULL,
+    "status" TEXT NOT NULL,
+    "eventType" TEXT NOT NULL,
+    "inviteeEmail" TEXT NOT NULL,
+    "inviteeName" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "CalendlyEvent_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ZoomSession" (
+    "id" SERIAL NOT NULL,
+    "sessionId" INTEGER NOT NULL,
+    "topic" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "joinUrl" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ZoomSession_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Goal" (
+    "id" SERIAL NOT NULL,
+    "userDbId" INTEGER NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "target" DOUBLE PRECISION NOT NULL,
+    "current" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "deadline" TIMESTAMP(3) NOT NULL,
+    "type" "GoalType" NOT NULL,
+    "status" "GoalStatus" NOT NULL DEFAULT 'in_progress',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Goal_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Achievement" (
+    "id" SERIAL NOT NULL,
+    "userDbId" INTEGER NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT NOT NULL,
+    "earnedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "type" "AchievementType" NOT NULL,
+    "icon" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Achievement_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CoachingAvailabilitySchedule" (
+    "id" SERIAL NOT NULL,
+    "userDbId" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "timezone" TEXT NOT NULL,
+    "isDefault" BOOLEAN NOT NULL DEFAULT false,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "defaultDuration" INTEGER NOT NULL DEFAULT 60,
+    "minimumDuration" INTEGER NOT NULL DEFAULT 30,
+    "maximumDuration" INTEGER NOT NULL DEFAULT 120,
+    "allowCustomDuration" BOOLEAN NOT NULL DEFAULT false,
+    "bufferBefore" INTEGER NOT NULL DEFAULT 15,
+    "bufferAfter" INTEGER NOT NULL DEFAULT 15,
+    "rules" JSONB NOT NULL,
+    "calendlyEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "zoomEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "totalSessions" INTEGER NOT NULL DEFAULT 0,
+    "averageRating" DECIMAL(3,2),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "CoachingAvailabilitySchedule_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_userId_key" ON "User"("userId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "User_memberKey_key" ON "User"("memberKey");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "User_licenseNumber_key" ON "User"("licenseNumber");
+
+-- CreateIndex
 CREATE INDEX "User_userId_idx" ON "User"("userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RealtorProfile_userDbId_key" ON "RealtorProfile"("userDbId");
+CREATE INDEX "User_email_idx" ON "User"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RealtorProfile_licenseNumber_key" ON "RealtorProfile"("licenseNumber");
+CREATE INDEX "User_role_idx" ON "User"("role");
 
 -- CreateIndex
-CREATE INDEX "RealtorProfile_userDbId_idx" ON "RealtorProfile"("userDbId");
+CREATE UNIQUE INDEX "CoachProfile_userDbId_key" ON "CoachProfile"("userDbId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LoanOfficerProfile_userDbId_key" ON "LoanOfficerProfile"("userDbId");
+CREATE INDEX "CoachProfile_userDbId_idx" ON "CoachProfile"("userDbId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LoanOfficerProfile_licenseNumber_key" ON "LoanOfficerProfile"("licenseNumber");
+CREATE UNIQUE INDEX "MenteeProfile_userDbId_key" ON "MenteeProfile"("userDbId");
 
 -- CreateIndex
-CREATE INDEX "LoanOfficerProfile_userDbId_idx" ON "LoanOfficerProfile"("userDbId");
+CREATE INDEX "MenteeProfile_userDbId_idx" ON "MenteeProfile"("userDbId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RealtorCoachProfile_userDbId_key" ON "RealtorCoachProfile"("userDbId");
-
--- CreateIndex
-CREATE INDEX "RealtorCoachProfile_userDbId_idx" ON "RealtorCoachProfile"("userDbId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "LoanOfficerCoachProfile_userDbId_key" ON "LoanOfficerCoachProfile"("userDbId");
-
--- CreateIndex
-CREATE INDEX "LoanOfficerCoachProfile_userDbId_idx" ON "LoanOfficerCoachProfile"("userDbId");
+CREATE UNIQUE INDEX "Session_calendlyEventId_key" ON "Session"("calendlyEventId");
 
 -- CreateIndex
 CREATE INDEX "Session_coachDbId_idx" ON "Session"("coachDbId");
 
 -- CreateIndex
 CREATE INDEX "Session_menteeDbId_idx" ON "Session"("menteeDbId");
+
+-- CreateIndex
+CREATE INDEX "Session_startTime_idx" ON "Session"("startTime");
+
+-- CreateIndex
+CREATE INDEX "Session_status_idx" ON "Session"("status");
+
+-- CreateIndex
+CREATE INDEX "Session_calendlyEventId_idx" ON "Session"("calendlyEventId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Payment_sessionId_key" ON "Payment"("sessionId");
@@ -502,29 +612,59 @@ CREATE INDEX "Invoice_subscriptionId_idx" ON "Invoice"("subscriptionId");
 -- CreateIndex
 CREATE INDEX "Invoice_userDbId_idx" ON "Invoice"("userDbId");
 
--- AddForeignKey
-ALTER TABLE "RealtorProfile" ADD CONSTRAINT "RealtorProfile_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+-- CreateIndex
+CREATE INDEX "CalendlyWebhookEvent_eventType_idx" ON "CalendlyWebhookEvent"("eventType");
+
+-- CreateIndex
+CREATE INDEX "CalendlyWebhookEvent_processed_idx" ON "CalendlyWebhookEvent"("processed");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CalendlyEvent_eventUuid_key" ON "CalendlyEvent"("eventUuid");
+
+-- CreateIndex
+CREATE INDEX "CalendlyEvent_userDbId_idx" ON "CalendlyEvent"("userDbId");
+
+-- CreateIndex
+CREATE INDEX "CalendlyEvent_eventUuid_idx" ON "CalendlyEvent"("eventUuid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ZoomSession_sessionId_key" ON "ZoomSession"("sessionId");
+
+-- CreateIndex
+CREATE INDEX "ZoomSession_sessionId_idx" ON "ZoomSession"("sessionId");
+
+-- CreateIndex
+CREATE INDEX "Goal_userDbId_idx" ON "Goal"("userDbId");
+
+-- CreateIndex
+CREATE INDEX "Goal_type_idx" ON "Goal"("type");
+
+-- CreateIndex
+CREATE INDEX "Goal_status_idx" ON "Goal"("status");
+
+-- CreateIndex
+CREATE INDEX "Achievement_userDbId_idx" ON "Achievement"("userDbId");
+
+-- CreateIndex
+CREATE INDEX "Achievement_type_idx" ON "Achievement"("type");
+
+-- CreateIndex
+CREATE INDEX "CoachingAvailabilitySchedule_userDbId_idx" ON "CoachingAvailabilitySchedule"("userDbId");
 
 -- AddForeignKey
-ALTER TABLE "LoanOfficerProfile" ADD CONSTRAINT "LoanOfficerProfile_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CoachProfile" ADD CONSTRAINT "CoachProfile_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RealtorCoachProfile" ADD CONSTRAINT "RealtorCoachProfile_user_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "MenteeProfile" ADD CONSTRAINT "MenteeProfile_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RealtorCoachProfile" ADD CONSTRAINT "RealtorCoachProfile_realtorProfile_fkey" FOREIGN KEY ("userDbId") REFERENCES "RealtorProfile"("userDbId") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Session" ADD CONSTRAINT "Session_coachDbId_fkey" FOREIGN KEY ("coachDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "LoanOfficerCoachProfile" ADD CONSTRAINT "LoanOfficerCoachProfile_user_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Session" ADD CONSTRAINT "Session_menteeDbId_fkey" FOREIGN KEY ("menteeDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "LoanOfficerCoachProfile" ADD CONSTRAINT "LoanOfficerCoachProfile_loanOfficerProfile_fkey" FOREIGN KEY ("userDbId") REFERENCES "LoanOfficerProfile"("userDbId") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Session" ADD CONSTRAINT "Session_coachDbId_fkey" FOREIGN KEY ("coachDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Session" ADD CONSTRAINT "Session_menteeDbId_fkey" FOREIGN KEY ("menteeDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Session" ADD CONSTRAINT "Session_calendlyEventId_fkey" FOREIGN KEY ("calendlyEventId") REFERENCES "CalendlyEvent"("eventUuid") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Payment" ADD CONSTRAINT "Payment_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "Session"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -593,7 +733,7 @@ ALTER TABLE "Reminder" ADD CONSTRAINT "Reminder_userDbId_fkey" FOREIGN KEY ("use
 ALTER TABLE "Reminder" ADD CONSTRAINT "Reminder_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "Session"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CalendlyIntegration" ADD CONSTRAINT "CalendlyIntegration_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "CalendlyIntegration" ADD CONSTRAINT "CalendlyIntegration_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -606,3 +746,18 @@ ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_subscriptionId_fkey" FOREIGN KEY (
 
 -- AddForeignKey
 ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CalendlyEvent" ADD CONSTRAINT "CalendlyEvent_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ZoomSession" ADD CONSTRAINT "ZoomSession_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "Session"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Goal" ADD CONSTRAINT "Goal_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Achievement" ADD CONSTRAINT "Achievement_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CoachingAvailabilitySchedule" ADD CONSTRAINT "CoachingAvailabilitySchedule_userDbId_fkey" FOREIGN KEY ("userDbId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
