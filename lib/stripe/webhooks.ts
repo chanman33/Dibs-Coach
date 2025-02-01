@@ -33,8 +33,23 @@ type Database = {
   };
 };
 
+interface UserEmailResponse {
+  email: string;
+}
+
+interface TransactionResponse {
+  payer?: { email: string };
+  coach?: { email: string };
+}
+
+interface UserResponse {
+  email: string;
+}
+
 export class WebhookHandler {
   private stripeService: StripeService;
+  private readonly MAX_RETRIES = 3;
+  private readonly RETRY_DELAY = 1000; // 1 second
 
   constructor(stripeService: StripeService) {
     this.stripeService = stripeService;
@@ -42,69 +57,155 @@ export class WebhookHandler {
 
   async handleEvent(event: Stripe.Event): Promise<WebhookHandlerResponse> {
     try {
-      console.log(`[WEBHOOK] Processing event: ${event.type}`);
+      console.log(`[WEBHOOK] Processing event: ${event.type}, id: ${event.id}`);
 
-      switch (event.type) {
-        // Payment Events
-        case 'payment_intent.succeeded':
-          await this.handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
-          break;
-        case 'payment_intent.payment_failed':
-          await this.handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent);
-          break;
-        case 'payment_intent.canceled':
-          await this.handlePaymentIntentCanceled(event.data.object as Stripe.PaymentIntent);
-          break;
-
-        // Account Events
-        case 'account.updated':
-          await this.handleAccountUpdated(event.data.object as Stripe.Account);
-          break;
-        case 'account.application.deauthorized':
-          await this.handleAccountDeauthorized(event);
-          break;
-
-        // Payout Events
-        case 'payout.paid':
-          await this.handlePayoutPaid(event.data.object as Stripe.Payout);
-          break;
-        case 'payout.failed':
-          await this.handlePayoutFailed(event.data.object as Stripe.Payout);
-          break;
-
-        // Dispute Events
-        case 'charge.dispute.created':
-          await this.handleDisputeCreated(event.data.object as Stripe.Dispute);
-          break;
-        case 'charge.dispute.closed':
-          await this.handleDisputeClosed(event.data.object as Stripe.Dispute);
-          break;
-
-        // Refund Events
-        case 'charge.refunded':
-          await this.handleChargeRefunded(event.data.object as Stripe.Charge);
-          break;
-        case 'charge.refund.updated':
-          await this.handleRefundUpdated(event.data.object as Stripe.Refund);
-          break;
-
-        default:
-          console.log(`[WEBHOOK] Unhandled event type: ${event.type}`);
+      // Validate event structure
+      if (!this.validateEventStructure(event)) {
+        throw new Error('Invalid event structure');
       }
 
-      return { success: true, message: 'Webhook processed successfully' };
+      // Idempotency check
+      const processed = await this.checkIdempotency(event.id);
+      if (processed) {
+        return { success: true, message: 'Event already processed' };
+      }
+
+      const result = await this.processEventWithRetry(event);
+      
+      // Mark event as processed
+      await this.markEventProcessed(event.id);
+
+      return result;
     } catch (error) {
-      console.error('[WEBHOOK_ERROR]', error);
+      console.error('[WEBHOOK_ERROR]', {
+        eventId: event.id,
+        eventType: event.type,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
       throw error;
     }
   }
 
-  private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
-    // Update transaction status
+  private validateEventStructure(event: Stripe.Event): boolean {
+    return !!(
+      event &&
+      event.id &&
+      event.type &&
+      event.data?.object &&
+      typeof event.data.object === 'object'
+    );
+  }
+
+  private async checkIdempotency(eventId: string): Promise<boolean> {
+    const { data } = await this.stripeService.supabase
+      .from('ProcessedWebhooks')
+      .select('id')
+      .eq('eventId', eventId)
+      .single();
+    
+    return !!data;
+  }
+
+  private async markEventProcessed(eventId: string): Promise<void> {
     await this.stripeService.supabase
+      .from('ProcessedWebhooks')
+      .insert({
+        eventId,
+        processedAt: new Date().toISOString()
+      });
+  }
+
+  private async processEventWithRetry(event: Stripe.Event): Promise<WebhookHandlerResponse> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= this.MAX_RETRIES; attempt++) {
+      try {
+        switch (event.type) {
+          // Payment Events
+          case 'payment_intent.succeeded':
+            await this.handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent);
+            break;
+          case 'payment_intent.payment_failed':
+            await this.handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent);
+            break;
+          case 'payment_intent.canceled':
+            await this.handlePaymentIntentCanceled(event.data.object as Stripe.PaymentIntent);
+            break;
+
+          // Account Events
+          case 'account.updated':
+            await this.handleAccountUpdated(event.data.object as Stripe.Account);
+            break;
+          case 'account.application.deauthorized':
+            await this.handleAccountDeauthorized(event);
+            break;
+
+          // Payout Events
+          case 'payout.paid':
+            await this.handlePayoutPaid(event.data.object as Stripe.Payout);
+            break;
+          case 'payout.failed':
+            await this.handlePayoutFailed(event.data.object as Stripe.Payout);
+            break;
+
+          // Dispute Events
+          case 'charge.dispute.created':
+            await this.handleDisputeCreated(event.data.object as Stripe.Dispute);
+            break;
+          case 'charge.dispute.closed':
+            await this.handleDisputeClosed(event.data.object as Stripe.Dispute);
+            break;
+
+          // Refund Events
+          case 'charge.refunded':
+            await this.handleChargeRefunded(event.data.object as Stripe.Charge);
+            break;
+          case 'charge.refund.updated':
+            await this.handleRefundUpdated(event.data.object as Stripe.Refund);
+            break;
+
+          default:
+            console.warn(`[WEBHOOK] Unhandled event type: ${event.type}`);
+        }
+        
+        return { success: true, message: 'Webhook processed successfully' };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        console.error(`[WEBHOOK_RETRY] Attempt ${attempt} failed:`, {
+          eventId: event.id,
+          eventType: event.type,
+          error: lastError.message
+        });
+        
+        if (attempt < this.MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, this.RETRY_DELAY * attempt));
+        }
+      }
+    }
+    
+    throw lastError || new Error('Max retries exceeded');
+  }
+
+  private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent) {
+    // Validate paymentIntent
+    if (!this.validatePaymentIntent(paymentIntent)) {
+      throw new Error('Invalid payment intent structure');
+    }
+
+    // Transaction update with error handling
+    const { error: transactionError } = await this.stripeService.supabase
       .from('Transaction')
       .update({ status: 'completed' })
       .eq('stripePaymentIntentId', paymentIntent.id);
+
+    if (transactionError) {
+      console.error('[TRANSACTION_UPDATE_ERROR]', {
+        paymentIntentId: paymentIntent.id,
+        error: transactionError
+      });
+      throw transactionError;
+    }
 
     // Get transaction with user details
     const transaction = await this.getTransactionWithUsers(paymentIntent.id);
@@ -145,6 +246,15 @@ export class WebhookHandler {
     }
   }
 
+  private validatePaymentIntent(paymentIntent: Stripe.PaymentIntent): boolean {
+    return !!(
+      paymentIntent &&
+      paymentIntent.id &&
+      paymentIntent.status &&
+      paymentIntent.amount > 0
+    );
+  }
+
   private async handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent) {
     await this.stripeService.supabase
       .from('Transaction')
@@ -170,7 +280,7 @@ export class WebhookHandler {
       .from('Transaction')
       .select('payer:payerDbId (email)')
       .eq('stripePaymentIntentId', paymentIntent.id)
-      .single();
+      .single() as { data: TransactionResponse | null };
 
     if (transaction?.payer?.email) {
       await sendEmail({
@@ -340,7 +450,7 @@ export class WebhookHandler {
         payer:payerDbId (email)
       `)
       .eq('stripePaymentIntentId', paymentIntent)
-      .single();
+      .single() as { data: TransactionResponse | null };
 
     if (transaction) {
       // Notify coach
@@ -395,7 +505,7 @@ export class WebhookHandler {
         payer:payerDbId (email)
       `)
       .eq('stripePaymentIntentId', paymentIntent)
-      .single();
+      .single() as { data: TransactionResponse | null };
 
     if (transaction) {
       const template = dispute.status === 'won' ? 'dispute-won' : 'dispute-lost';
@@ -452,7 +562,7 @@ export class WebhookHandler {
         payer:payerDbId (email)
       `)
       .eq('stripePaymentIntentId', paymentIntent)
-      .single();
+      .single() as { data: TransactionResponse & { amount: number; currency: string } | null };
 
     if (transaction?.payer?.email) {
       await sendEmail({
@@ -477,7 +587,7 @@ export class WebhookHandler {
           payer:payerDbId (email)
         `)
         .eq('stripePaymentIntentId', refund.payment_intent)
-        .single();
+        .single() as { data: TransactionResponse | null };
 
       if (transaction?.payer?.email) {
         await sendEmail({
@@ -567,21 +677,21 @@ export class WebhookHandler {
 
   private async getUserEmail(userId: number): Promise<string | null> {
     const { data } = await this.stripeService.supabase
-      .from<Database['User']>('User')
+      .from('User')
       .select('email')
       .eq('id', userId)
-      .single();
-    
+      .single() as { data: UserResponse | null };
+
     return data?.email || null;
   }
 
   private async getConnectedAccountEmail(accountId: string): Promise<string | null> {
     const { data } = await this.stripeService.supabase
-      .from<Database['User']>('User')
+      .from('User')
       .select('email')
       .eq('stripeConnectAccountId', accountId)
-      .single();
-    
+      .single() as { data: UserResponse | null };
+
     return data?.email || null;
   }
 
