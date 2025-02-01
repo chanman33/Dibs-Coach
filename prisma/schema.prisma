@@ -390,17 +390,23 @@ model Payout {
 }
 
 model Dispute {
-  id        Int           @id @default(autoincrement())
-  paymentId Int
-  reason    String?
-  status    DisputeStatus @default(open)
+  id                   BigInt   @id @default(autoincrement())
+  stripeDisputeId      String   @unique
+  sessionId            BigInt
+  session              Session  @relation(fields: [sessionId], references: [id])
+  amount              Int
+  currency            String
+  status              String
+  reason              String
+  evidenceDueBy       DateTime
+  evidence            Json
+  stripePaymentIntentId String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
-  payment   Payment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([paymentId])
+  @@index([sessionId])
+  @@index([stripeDisputeId])
+  @@map("Dispute")
 }
 
 model Chargeback {
