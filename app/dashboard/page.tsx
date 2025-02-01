@@ -1,32 +1,26 @@
-import { redirect } from 'next/navigation'
-import { currentUser } from "@clerk/nextjs/server"
-import { getUserRole } from "@/utils/roles/checkUserRole"
-import { ROLES } from "@/utils/roles/roles"
+import { auth } from "@clerk/nextjs/server";
+import { getUserRoles } from "@/utils/roles/checkUserRole";
+import { ROLES, hasAnyRole } from "@/utils/roles/roles";
+import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
-  const user = await currentUser()
-  if (!user?.id) {
-    redirect('/sign-in')
+  const { userId } = await auth();
+  if (!userId) {
+    redirect("/sign-in");
   }
 
-  const role = await getUserRole(user.id)
+  const roles = await getUserRoles(userId);
 
-  const redirectPath = (() => {
-    switch (role) {
-      case ROLES.REALTOR:
-        return '/dashboard/realtor'
-      case ROLES.LOAN_OFFICER:
-        return '/dashboard/loan-officer'
-      case ROLES.REALTOR_COACH:
-        return '/dashboard/coach'
-      case ROLES.LOAN_OFFICER_COACH:
-        return '/dashboard/coach'
-      case ROLES.ADMIN:
-        return '/dashboard/admin'
-      default:
-        return '/dashboard/realtor'
-    }
-  })()
+  // Route based on highest privilege role
+  if (hasAnyRole(roles, [ROLES.ADMIN])) {
+    redirect("/dashboard/admin");
+  } else if (hasAnyRole(roles, [ROLES.COACH])) {
+    redirect("/dashboard/(role-specific)/coach");
+  } else {
+    // Default to mentee dashboard
+    redirect("/dashboard/(role-specific)/mentee");
+  }
 
-  redirect(redirectPath)
+  // This point should never be reached due to redirects
+  return null;
 } 

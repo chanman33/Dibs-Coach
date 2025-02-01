@@ -1,28 +1,54 @@
-import { auth } from '@clerk/nextjs/server'
-import { ProfileDashboard } from './_components/ProfileDashboard'
-import { getUserDbIdAndRole } from '@/utils/auth'
-import { Loader2 } from 'lucide-react'
-import { Suspense } from 'react'
+"use client";
 
-export default async function ProfilePage() {
-  const { userId } = await auth()
-  if (!userId) return null
+import { ResoMemberForm } from "@/components/profile/ResoMemberForm";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-  const { userDbId, role } = await getUserDbIdAndRole(userId)
-  if (!userDbId || !role) return null
-
+export default function ProfilePage() {
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <Suspense fallback={
-        <div className="flex justify-center items-center h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      }>
-        <ProfileDashboard 
-          userId={userId}
-          userRole={role}
-        />
-      </Suspense>
+    <div className="container mx-auto py-6">
+      <h1 className="text-3xl font-bold mb-6">Profile Settings</h1>
+      
+      <Tabs defaultValue="general" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="reso">RESO Member Info</TabsTrigger>
+          <TabsTrigger value="preferences">Preferences</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general">
+          <Card>
+            <CardHeader>
+              <CardTitle>General Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* General profile form component */}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="reso">
+          <Card>
+            <CardHeader>
+              <CardTitle>RESO Member Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResoMemberForm />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="preferences">
+          <Card>
+            <CardHeader>
+              <CardTitle>Preferences</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* Preferences form component */}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
-  )
+  );
 } 

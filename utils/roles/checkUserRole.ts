@@ -1,10 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { ROLES, type UserRole, rolePermissions, type Permission } from "./roles";
+import { ROLES, type UserRole, type UserRoles, validateRoles } from "./roles";
 import config from '@/config';
 
 const MAX_RETRIES = 3;
-const RETRY_DELAY = 500; // Reduced from 1000ms to 500ms based on observed webhook timing
+const RETRY_DELAY = 500;
 
 interface RoleCheckMetrics {
   startTime: number;
@@ -22,8 +22,7 @@ async function delay(ms: number) {
 
 function logMetrics(metric: RoleCheckMetrics) {
   metrics.push(metric);
-  // Log key performance indicators
-  console.info('[GET_USER_ROLE_METRICS]', {
+  console.info('[GET_USER_ROLES_METRICS]', {
     timeToComplete: `${metric.duration}ms`,
     attempts: metric.attempts,
     success: metric.success,
@@ -31,7 +30,7 @@ function logMetrics(metric: RoleCheckMetrics) {
   });
 }
 
-export async function getUserRole(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRole> {
+export async function getUserRoles(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRoles> {
   const startTime = Date.now();
   let attempts = 0;
 
@@ -43,7 +42,7 @@ export async function getUserRole(userId: string, context: { isInitialSignup?: b
       success: true,
       duration: Date.now() - startTime
     });
-    return ROLES.REALTOR;
+    return [ROLES.MENTEE];
   }
 
   const cookieStore = await cookies();
@@ -72,16 +71,15 @@ export async function getUserRole(userId: string, context: { isInitialSignup?: b
         .single();
 
       if (error) {
-        // Handle the "no rows" case during initial signup
         if (error.code === 'PGRST116') {
           if (context.isInitialSignup) {
-            console.debug(`[GET_USER_ROLE] Waiting for initial user creation: attempt ${retries + 1}/${MAX_RETRIES}`, {
+            console.debug(`[GET_USER_ROLES] Waiting for initial user creation: attempt ${retries + 1}/${MAX_RETRIES}`, {
               userId,
               attempt: retries + 1,
               errorCode: error.code
             });
           } else {
-            console.warn(`[GET_USER_ROLE] User not found: attempt ${retries + 1}/${MAX_RETRIES}`, {
+            console.warn(`[GET_USER_ROLES] User not found: attempt ${retries + 1}/${MAX_RETRIES}`, {
               userId,
               attempt: retries + 1,
               errorCode: error.code,
@@ -95,8 +93,7 @@ export async function getUserRole(userId: string, context: { isInitialSignup?: b
             continue;
           }
         } else {
-          // Log unexpected errors as errors
-          console.error("[GET_USER_ROLE] Unexpected error fetching user role:", {
+          console.error("[GET_USER_ROLES] Unexpected error fetching user roles:", {
             userId,
             attempt: retries + 1,
             error: error,
@@ -112,7 +109,7 @@ export async function getUserRole(userId: string, context: { isInitialSignup?: b
           duration: Date.now() - startTime
         });
 
-        return ROLES.REALTOR;
+        return [ROLES.MENTEE];
       }
       
       // Success case
@@ -123,9 +120,25 @@ export async function getUserRole(userId: string, context: { isInitialSignup?: b
         duration: Date.now() - startTime
       });
 
-      return (data?.role || ROLES.REALTOR) as UserRole;
+      // Handle the case where role is either a string array or needs to be parsed
+      let roles: string[] = [];
+      if (data?.role) {
+        roles = Array.isArray(data.role) ? data.role : [data.role];
+      }
+
+      // Validate and return roles, defaulting to MENTEE if no valid roles
+      try {
+        return validateRoles(roles);
+      } catch (e) {
+        console.warn("[GET_USER_ROLES] No valid roles found, using default:", {
+          userId,
+          roles,
+          error: e
+        });
+        return [ROLES.MENTEE];
+      }
     } catch (error) {
-      console.error("[GET_USER_ROLE] Unexpected error:", {
+      console.error("[GET_USER_ROLES] Unexpected error:", {
         userId,
         attempt: retries + 1,
         error: error,
@@ -140,19 +153,18 @@ export async function getUserRole(userId: string, context: { isInitialSignup?: b
         duration: Date.now() - startTime
       });
 
-      return ROLES.REALTOR;
+      return [ROLES.MENTEE];
     }
   }
 
-  // Max retries reached
   if (context.isInitialSignup) {
-    console.info("[GET_USER_ROLE] Max retries reached during initial signup, returning default role", {
+    console.info("[GET_USER_ROLES] Max retries reached during initial signup, returning default role", {
       userId,
       attempts,
       context
     });
   } else {
-    console.warn("[GET_USER_ROLE] Max retries reached, returning default role", {
+    console.warn("[GET_USER_ROLES] Max retries reached, returning default role", {
       userId,
       attempts,
       context
@@ -167,7 +179,13 @@ export async function getUserRole(userId: string, context: { isInitialSignup?: b
     duration: Date.now() - startTime
   });
 
-  return ROLES.REALTOR;
+  return [ROLES.MENTEE];
+}
+
+// For backward compatibility
+export async function getUserRole(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRole> {
+  const roles = await getUserRoles(userId, context);
+  return roles[0];
 }
 
 // Export metrics for monitoring

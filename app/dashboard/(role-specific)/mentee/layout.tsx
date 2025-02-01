@@ -5,14 +5,14 @@ import { ROLES, hasAnyRole } from "@/utils/roles/roles";
 import { redirect } from "next/navigation";
 import { type ReactNode } from "react";
 
-export default async function AdminLayout({ children }: { children: ReactNode }) {
+export default async function MenteeLayout({ children }: { children: ReactNode }) {
   const { userId } = await auth();
   if (!userId) {
     redirect("/sign-in");
   }
 
   const roles = await getUserRoles(userId);
-  if (!hasAnyRole(roles, [ROLES.ADMIN])) {
+  if (!hasAnyRole(roles, [ROLES.MENTEE])) {
     redirect("/dashboard");
   }
 

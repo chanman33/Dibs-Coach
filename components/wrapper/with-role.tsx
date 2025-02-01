@@ -1,30 +1,40 @@
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { ROLES, type UserRole } from "@/utils/roles/roles";
+import { ROLES, type UserRole, type UserRoles, hasAnyRole } from "@/utils/roles/roles";
 import NotAuthorized from "../not-authorized";
 import config from '@/config';
 
+interface WithRoleOptions {
+  requiredRoles: UserRole[];
+  requireAll?: boolean;
+}
+
 export function withRole(
   WrappedComponent: React.ComponentType,
-  requiredRole: UserRole[]
+  options: WithRoleOptions | UserRole[]
 ) {
+  // Handle backward compatibility
+  const { requiredRoles, requireAll } = Array.isArray(options) 
+    ? { requiredRoles: options, requireAll: false }
+    : options;
+
   return function WithRoleWrapper(props: any) {
     if (!config.roles.enabled) {
       return <WrappedComponent {...props} />;
     }
 
     const { user } = useUser();
-    const [userRole, setUserRole] = useState<UserRole | null>(null);
+    const [userRoles, setUserRoles] = useState<UserRoles | null>(null);
     const [loading, setLoading] = useState(true);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
     useEffect(() => {
-      async function fetchUserRole() {
+      async function fetchUserRoles() {
         if (user?.id) {
           try {
             const response = await fetch(`/api/user/role?userId=${user.id}&isInitialSignup=${isInitialLoad}`);
             const data = await response.json();
-            setUserRole(data.role);
+            setUserRoles(data.roles);
             setIsInitialLoad(false);
           } catch (error) {
             console.error("[ROLE_FETCH_ERROR]", {
@@ -32,24 +42,24 @@ export function withRole(
               error,
               context: { isInitialLoad }
             });
-            setUserRole(ROLES.REALTOR);
+            setUserRoles([ROLES.MENTEE]);
             setIsInitialLoad(false);
           }
           setLoading(false);
         }
       }
 
-      fetchUserRole();
+      fetchUserRoles();
     }, [user?.id]);
 
     if (loading) {
       return <div>Loading...</div>;
     }
 
-    if (!userRole || !requiredRole.includes(userRole)) {
+    if (!userRoles || !hasAnyRole(userRoles, requiredRoles)) {
       return <NotAuthorized />;
     }
 
-    return <WrappedComponent {...props} />;
+    return <WrappedComponent {...props} userRoles={userRoles} />;
   };
 } 

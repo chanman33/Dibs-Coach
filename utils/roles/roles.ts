@@ -1,50 +1,78 @@
 export const ROLES = {
-  REALTOR: 'realtor',
-  LOAN_OFFICER: 'loan_officer',
-  REALTOR_COACH: 'realtor_coach',
-  LOAN_OFFICER_COACH: 'loan_officer_coach',
-  ADMIN: 'admin'
+  MENTEE: 'MENTEE',
+  COACH: 'COACH',
+  ADMIN: 'ADMIN'
 } as const;
 
 export type UserRole = typeof ROLES[keyof typeof ROLES];
+export type UserRoles = UserRole[];
 
 export const rolePermissions = {
-  [ROLES.REALTOR]: {
+  [ROLES.MENTEE]: {
     canAccessDashboard: true,
-    canAccessProjects: true,
-    canAccessFinance: true,
+    canAccessSessions: true,
+    canBookSessions: true,
+    canAccessProfile: true,
     canAccessSettings: true,
   },
-  [ROLES.LOAN_OFFICER]: {
+  [ROLES.COACH]: {
     canAccessDashboard: true,
-    canAccessProjects: true,
-    canAccessFinance: true,
+    canAccessSessions: true,
+    canManageSessions: true,
+    canAccessProfile: true,
     canAccessSettings: true,
-  },
-  [ROLES.REALTOR_COACH]: {
-    canAccessDashboard: true,
-    canAccessProjects: true,
-    canAccessFinance: true,
-    canAccessSettings: true,
-    canManageRealtors: true,
-  },
-  [ROLES.LOAN_OFFICER_COACH]: {
-    canAccessDashboard: true,
-    canAccessProjects: true,
-    canAccessFinance: true,
-    canAccessSettings: true,
-    canManageLoanOfficers: true,
+    canSetAvailability: true,
+    canViewAnalytics: true,
   },
   [ROLES.ADMIN]: {
     canAccessDashboard: true,
-    canAccessProjects: true,
-    canAccessFinance: true,
+    canAccessSessions: true,
+    canManageSessions: true,
+    canAccessProfile: true,
     canAccessSettings: true,
-    canManageRealtors: true,
-    canManageLoanOfficers: true,
-    canManageCoaches: true,
+    canManageUsers: true,
     canManageRoles: true,
+    canViewAnalytics: true,
+    canManageSystem: true,
   },
 } as const;
 
-export type Permission = keyof typeof rolePermissions[UserRole]; 
+export type Permission = keyof typeof rolePermissions[UserRole];
+
+// Helper functions for role management
+export function hasAnyRole(userRoles: UserRoles, requiredRoles: UserRole[]): boolean {
+  return userRoles.some(role => requiredRoles.includes(role));
+}
+
+export function hasAllRoles(userRoles: UserRoles, requiredRoles: UserRole[]): boolean {
+  return requiredRoles.every(role => userRoles.includes(role));
+}
+
+export function hasPermissions(userRoles: UserRoles, requiredPermissions: Permission[]): boolean {
+  return requiredPermissions.every(permission => 
+    userRoles.some(role => rolePermissions[role]?.[permission])
+  );
+}
+
+export function getRolePermissions(userRoles: UserRoles): Set<Permission> {
+  return new Set(
+    userRoles.flatMap(role => 
+      Object.entries(rolePermissions[role])
+        .filter(([_, hasPermission]) => hasPermission)
+        .map(([permission]) => permission as Permission)
+    )
+  );
+}
+
+// Validation
+export function isValidRole(role: string): role is UserRole {
+  return Object.values(ROLES).includes(role as UserRole);
+}
+
+export function validateRoles(roles: string[]): UserRole[] {
+  const validRoles = roles.filter(isValidRole);
+  if (validRoles.length === 0) {
+    throw new Error('At least one valid role must be provided');
+  }
+  return validRoles;
+} 

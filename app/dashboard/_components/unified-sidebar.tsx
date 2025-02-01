@@ -1,7 +1,7 @@
 "use client"
 
 import { Separator } from "@/components/ui/separator"
-import { ROLES, type UserRole } from "@/utils/roles/roles"
+import { ROLES, type UserRoles, hasAnyRole } from "@/utils/roles/roles"
 import config from "@/config"
 import clsx from "clsx"
 import {
@@ -22,25 +22,43 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useUser } from "@clerk/nextjs"
 
-interface UnifiedSidebarProps {
-  userRole: UserRole;
-}
+export function UnifiedSidebar() {
+  const { user } = useUser()
+  const [userRoles, setUserRoles] = useState<UserRoles>([])
+  const [loading, setLoading] = useState(true)
 
-export default function UnifiedSidebar({ userRole }: UnifiedSidebarProps) {
+  useEffect(() => {
+    async function fetchUserRoles() {
+      if (user?.id) {
+        try {
+          const response = await fetch(`/api/user/role?userId=${user.id}`)
+          const data = await response.json()
+          setUserRoles(data.roles)
+        } catch (error) {
+          console.error("[SIDEBAR_ROLE_FETCH_ERROR]", error)
+          setUserRoles([ROLES.MENTEE])
+        }
+        setLoading(false)
+      }
+    }
+
+    fetchUserRoles()
+  }, [user?.id])
+
+  if (loading) {
+    return <div>Loading...</div>
+  }
+
+  const isAdmin = hasAnyRole(userRoles, [ROLES.ADMIN])
+  const isCoach = hasAnyRole(userRoles, [ROLES.COACH])
+  const isMentee = hasAnyRole(userRoles, [ROLES.MENTEE])
+
   const pathname = usePathname()
   const [isCoachToolsExpanded, setIsCoachToolsExpanded] = useState(true)
   const [isRealtorToolsExpanded, setIsRealtorToolsExpanded] = useState(true)
-
-  // When roles are enabled, check actual role. When disabled, show everything
-  const isCoach = config.roles.enabled ?
-    (userRole === ROLES.REALTOR_COACH || userRole === ROLES.LOAN_OFFICER_COACH) :
-    true // Show coach features when roles disabled
-
-  const isRealtor = config.roles.enabled ?
-    userRole === ROLES.REALTOR :
-    true // Show realtor features when roles disabled
 
   const NavLink = ({ href, icon: Icon, children }: { href: string; icon: any; children: React.ReactNode }) => (
     <Link
@@ -60,7 +78,7 @@ export default function UnifiedSidebar({ userRole }: UnifiedSidebarProps) {
       <div className="flex h-full max-h-screen flex-col gap-2">
         <div className="flex h-[55px] items-center justify-between border-b px-3 w-full">
           <Link className="flex items-center gap-2 font-semibold ml-1" href={isCoach ? "/dashboard/coach" : "/dashboard/realtor"}>
-            <span>{config.roles.enabled ? (isCoach ? "Coach Portal" : "Realtor Portal") : "Development Portal"}</span>
+            <span>{config.roles.enabled ? getPortalTitle(isAdmin, isCoach, isMentee) : "Development Portal"}</span>
           </Link>
         </div>
         <div className="flex-1 overflow-auto py-2">
@@ -96,22 +114,22 @@ export default function UnifiedSidebar({ userRole }: UnifiedSidebarProps) {
               </div>
             </NavLink>
 
-
-            {/* Realtor Mentee Only Features */}
-            {isRealtor && (
+            {/* Role-specific Links */}
+            {isAdmin && (
               <>
-                {/* <Separator className="my-3" /> */}
-
-                <NavLink
-                  href="/dashboard/goals"
-                  icon={Target}
-                >
-                  Goals & Plans
-                </NavLink>
+                <li>
+                  <NavLink href="/dashboard/admin/users" icon={Users}>
+                    User Management
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink href="/dashboard/admin/settings" icon={Users}>
+                    System Settings
+                  </NavLink>
+                </li>
               </>
             )}
 
-            {/* Coach Tools */}
             {isCoach && (
               <>
                 <Separator className="my-3" />
@@ -135,6 +153,21 @@ export default function UnifiedSidebar({ userRole }: UnifiedSidebarProps) {
                     </NavLink>
                   </div>
                 )}
+              </>
+            )}
+
+            {isMentee && (
+              <>
+                <li>
+                  <NavLink href="/dashboard/mentee/sessions" icon={CalendarDays}>
+                    My Sessions
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink href="/dashboard/mentee/coaches" icon={GraduationCap}>
+                    Find Coaches
+                  </NavLink>
+                </li>
               </>
             )}
 
@@ -163,5 +196,32 @@ export default function UnifiedSidebar({ userRole }: UnifiedSidebarProps) {
         </div>
       </div>
     </div>
+  )
+}
+
+function getPortalTitle(isAdmin: boolean, isCoach: boolean, isMentee: boolean): string {
+  if (isAdmin) return "Admin Portal"
+  if (isCoach) return "Coach Portal"
+  return "Mentee Portal"
+}
+
+interface SidebarLinkProps {
+  href: string;
+  icon: string;
+  children: React.ReactNode;
+}
+
+function SidebarLink({ href, icon, children }: SidebarLinkProps) {
+  return (
+    <a
+      href={href}
+      className={clsx(
+        "flex items-center gap-2 font-light px-3 py-2 hover:bg-gray-100 active:bg-gray-200 rounded-lg text-base",
+        pathname === href && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
+      )}
+    >
+      <span className="text-xl">{icon}</span>
+      {children}
+    </a>
   )
 } 

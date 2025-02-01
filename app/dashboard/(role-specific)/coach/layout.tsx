@@ -1,15 +1,24 @@
-import { ReactNode } from "react"
-import UnifiedSidebar from "@/app/dashboard/_components/unified-sidebar"
+import { UnifiedSidebar } from "@/app/dashboard/_components/unified-sidebar"
 import { auth } from "@clerk/nextjs/server"
-import { getUserRole } from "@/utils/roles/checkUserRole"
+import { getUserRoles } from "@/utils/roles/checkUserRole"
+import { ROLES, hasAnyRole } from "@/utils/roles/roles"
+import { redirect } from "next/navigation"
+import { type ReactNode } from "react"
 
 export default async function CoachLayout({ children }: { children: ReactNode }) {
   const { userId } = await auth()
-  const userRole = await getUserRole(userId!)
-  
+  if (!userId) {
+    redirect("/sign-in")
+  }
+
+  const roles = await getUserRoles(userId)
+  if (!hasAnyRole(roles, [ROLES.COACH])) {
+    redirect("/dashboard")
+  }
+
   return (
     <div className="flex h-screen">
-      <UnifiedSidebar userRole={userRole} />
+      <UnifiedSidebar />
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>
