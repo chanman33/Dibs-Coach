@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
-import { CoachingScheduleSchema } from "@/utils/types/coaching";
+import { CoachProfileSchema, UpdateCoachProfileSchema } from "@/utils/types/coach";
 import { ROLES, hasAnyRole } from "@/utils/roles/roles";
 import { getUserRoles } from "@/utils/roles/checkUserRole";
 
@@ -37,15 +37,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Check if user is a coach
-  const roles = await getUserRoles(userId);
-  if (!hasAnyRole(roles, [ROLES.COACH])) {
-    return NextResponse.json(
-      { error: "Only coaches can access availability schedules" },
-      { status: 403 }
-    );
-  }
-
   try {
     const userDbId = await getUserDbId(userId);
     const cookieStore = await cookies();
@@ -62,22 +53,22 @@ export async function GET(req: NextRequest) {
     );
 
     const { data, error } = await supabase
-      .from("CoachingAvailabilitySchedule")
+      .from("CoachProfile")
       .select("*")
       .eq("userDbId", userDbId)
-      .order("isDefault", { ascending: false });
+      .single();
 
     if (error) {
-      console.error("[GET_AVAILABILITY] Error:", error);
+      console.error("[GET_COACH_PROFILE] Error:", error);
       return NextResponse.json(
-        { error: "Error fetching availability schedules" },
+        { error: "Error fetching coach profile" },
         { status: 500 }
       );
     }
 
     return NextResponse.json({ data });
   } catch (error) {
-    console.error("[GET_AVAILABILITY] Error:", error);
+    console.error("[GET_COACH_PROFILE] Error:", error);
     return NextResponse.json(
       { error: "Error processing request" },
       { status: 500 }
@@ -95,14 +86,14 @@ export async function POST(req: NextRequest) {
   const roles = await getUserRoles(userId);
   if (!hasAnyRole(roles, [ROLES.COACH])) {
     return NextResponse.json(
-      { error: "Only coaches can create availability schedules" },
+      { error: "Only coaches can create profiles" },
       { status: 403 }
     );
   }
 
   try {
     const body = await req.json();
-    const validatedData = CoachingScheduleSchema.parse(body);
+    const validatedData = CoachProfileSchema.parse(body);
     const userDbId = await getUserDbId(userId);
 
     const cookieStore = await cookies();
@@ -118,18 +109,23 @@ export async function POST(req: NextRequest) {
       }
     );
 
-    // If this is set as default, unset any existing default
-    if (validatedData.isDefault) {
-      await supabase
-        .from("CoachingAvailabilitySchedule")
-        .update({ isDefault: false })
-        .eq("userDbId", userDbId)
-        .eq("isDefault", true);
+    // Check if profile already exists
+    const { data: existing } = await supabase
+      .from("CoachProfile")
+      .select("id")
+      .eq("userDbId", userDbId)
+      .single();
+
+    if (existing) {
+      return NextResponse.json(
+        { error: "Coach profile already exists" },
+        { status: 400 }
+      );
     }
 
-    // Create new schedule
+    // Create new profile
     const { data, error } = await supabase
-      .from("CoachingAvailabilitySchedule")
+      .from("CoachProfile")
       .insert({
         ...validatedData,
         userDbId,
@@ -139,16 +135,16 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      console.error("[CREATE_AVAILABILITY] Error:", error);
+      console.error("[CREATE_COACH_PROFILE] Error:", error);
       return NextResponse.json(
-        { error: "Error creating availability schedule" },
+        { error: "Error creating coach profile" },
         { status: 500 }
       );
     }
 
     return NextResponse.json({ data });
   } catch (error) {
-    console.error("[CREATE_AVAILABILITY] Error:", error);
+    console.error("[CREATE_COACH_PROFILE] Error:", error);
     return NextResponse.json(
       { error: "Error processing request" },
       { status: 500 }
@@ -166,23 +162,14 @@ export async function PUT(req: NextRequest) {
   const roles = await getUserRoles(userId);
   if (!hasAnyRole(roles, [ROLES.COACH])) {
     return NextResponse.json(
-      { error: "Only coaches can update availability schedules" },
+      { error: "Only coaches can update profiles" },
       { status: 403 }
     );
   }
 
   try {
     const body = await req.json();
-    const { id, ...updateData } = body;
-    
-    if (!id) {
-      return NextResponse.json(
-        { error: "Schedule ID is required" },
-        { status: 400 }
-      );
-    }
-
-    const validatedData = CoachingScheduleSchema.parse(updateData);
+    const validatedData = UpdateCoachProfileSchema.parse(body);
     const userDbId = await getUserDbId(userId);
 
     const cookieStore = await cookies();
@@ -200,115 +187,40 @@ export async function PUT(req: NextRequest) {
 
     // Verify ownership
     const { data: existing } = await supabase
-      .from("CoachingAvailabilitySchedule")
+      .from("CoachProfile")
       .select("id")
-      .eq("id", id)
       .eq("userDbId", userDbId)
       .single();
 
     if (!existing) {
       return NextResponse.json(
-        { error: "Schedule not found or unauthorized" },
+        { error: "Coach profile not found" },
         { status: 404 }
       );
     }
 
-    // If this is set as default, unset any existing default
-    if (validatedData.isDefault) {
-      await supabase
-        .from("CoachingAvailabilitySchedule")
-        .update({ isDefault: false })
-        .eq("userDbId", userDbId)
-        .eq("isDefault", true)
-        .neq("id", id);
-    }
-
-    // Update schedule
+    // Update profile
     const { data, error } = await supabase
-      .from("CoachingAvailabilitySchedule")
+      .from("CoachProfile")
       .update({
         ...validatedData,
         updatedAt: new Date().toISOString(),
       })
-      .eq("id", id)
       .eq("userDbId", userDbId)
       .select()
       .single();
 
     if (error) {
-      console.error("[UPDATE_AVAILABILITY] Error:", error);
+      console.error("[UPDATE_COACH_PROFILE] Error:", error);
       return NextResponse.json(
-        { error: "Error updating availability schedule" },
+        { error: "Error updating coach profile" },
         { status: 500 }
       );
     }
 
     return NextResponse.json({ data });
   } catch (error) {
-    console.error("[UPDATE_AVAILABILITY] Error:", error);
-    return NextResponse.json(
-      { error: "Error processing request" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Check if user is a coach
-  const roles = await getUserRoles(userId);
-  if (!hasAnyRole(roles, [ROLES.COACH])) {
-    return NextResponse.json(
-      { error: "Only coaches can delete availability schedules" },
-      { status: 403 }
-    );
-  }
-
-  const scheduleId = req.nextUrl.searchParams.get("id");
-  if (!scheduleId) {
-    return NextResponse.json(
-      { error: "Schedule ID is required" },
-      { status: 400 }
-    );
-  }
-
-  try {
-    const userDbId = await getUserDbId(userId);
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
-
-    // Verify ownership and delete
-    const { error } = await supabase
-      .from("CoachingAvailabilitySchedule")
-      .delete()
-      .eq("id", scheduleId)
-      .eq("userDbId", userDbId);
-
-    if (error) {
-      console.error("[DELETE_AVAILABILITY] Error:", error);
-      return NextResponse.json(
-        { error: "Error deleting availability schedule" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("[DELETE_AVAILABILITY] Error:", error);
+    console.error("[UPDATE_COACH_PROFILE] Error:", error);
     return NextResponse.json(
       { error: "Error processing request" },
       { status: 500 }
