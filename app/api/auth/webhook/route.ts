@@ -12,7 +12,7 @@ import { userUpdate } from '@/utils/data/user/userUpdate'
 async function createSupabaseClient() {
   const cookieStore = await cookies()
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_KEY!,
     {
       cookies: {
@@ -25,6 +25,8 @@ async function createSupabaseClient() {
 }
 
 export async function POST(req: Request) {
+  console.log('[CLERK_WEBHOOK] Received webhook request')
+
   const supabase = await createSupabaseClient()
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
 
@@ -80,25 +82,22 @@ export async function POST(req: Request) {
   switch (eventType) {
     case 'user.created': {
       try {
-        // Log the incoming payload for debugging
         console.log('[CLERK_WEBHOOK] Creating user with payload:', {
           email: payload?.data?.email_addresses?.[0]?.email_address,
           userId: payload?.data?.id,
         });
 
-        // Verify required fields
         if (!payload?.data?.id) {
           throw new Error('Missing required userId in webhook payload');
         }
 
-        // Create user in Supabase
         const result = await userCreate({
           email: payload?.data?.email_addresses?.[0]?.email_address,
           firstName: payload?.data?.first_name,
           lastName: payload?.data?.last_name,
           profileImageUrl: payload?.data?.image_url,
           userId: payload?.data?.id,
-          role: ROLES.MENTEE, // Set the default role
+          role: ROLES.MENTEE,
         });
 
         console.log('[CLERK_WEBHOOK] User created successfully:', result);
@@ -153,36 +152,3 @@ export async function POST(req: Request) {
       })
   }
 }
-
-export async function handleNewUser(userId: string) {
-  const supabase = await createSupabaseClient()
-  try {
-    const { data: existingUser } = await supabase
-      .from('User')
-      .select('id')
-      .eq('userId', userId)
-      .single();
-
-    if (!existingUser) {
-      // Create new user record
-      const { error: createError } = await supabase
-        .from('User')
-        .insert({
-          userId,
-          role: 'pending',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-
-      if (createError) throw createError;
-    }
-
-    return { success: true };
-  } catch (error) {
-    console.error('[NEW_USER_ERROR]', {
-      userId,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-    throw error;
-  }
-} 

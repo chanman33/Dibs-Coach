@@ -10,7 +10,8 @@ export async function userCreate({
   lastName,
   profileImageUrl,
   userId,
-  role
+  role,
+  memberStatus = 'active'
 }: {
   email?: string
   firstName?: string
@@ -18,10 +19,21 @@ export async function userCreate({
   profileImageUrl?: string
   userId: string
   role: string
+  memberStatus?: string
 }) {
+  console.log("[USER_CREATE] Attempting to create user:", {
+    userId,
+    email,
+    firstName,
+    lastName,
+    profileImageUrl,
+    role,
+    memberStatus
+  });
+
   const cookieStore = await cookies();
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_KEY!,
     {
       cookies: {
@@ -32,15 +44,15 @@ export async function userCreate({
     }
   );
 
-  // First check if user already exists
+  // First check if user already exists by userId or email
   const { data: existingUser } = await supabase
     .from("User")
     .select("id")
-    .eq("userId", userId)
+    .or(`userId.eq.${userId},email.eq.${email}`)
     .single();
 
   if (existingUser) {
-    console.log("[USER_CREATE] User already exists:", userId);
+    console.log("[USER_CREATE] User already exists:", { userId, email });
     return existingUser;
   }
 
@@ -54,6 +66,7 @@ export async function userCreate({
       lastName,
       profileImageUrl,
       role,
+      memberStatus,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     })

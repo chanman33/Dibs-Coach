@@ -5,6 +5,7 @@ import config from "@/config";
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { ROLES } from '@/utils/roles/roles';
+import { userCreate } from '@/utils/data/user/userCreate';
 
 export default async function SignUpPage({
     searchParams,
@@ -17,36 +18,18 @@ export default async function SignUpPage({
 
     // Create handler for after sign up
     const handleAfterSignUp = async (user: any) => {
-        const cookieStore = await cookies();
-        const supabase = createServerClient(
-            process.env.SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_KEY!,
-            {
-                cookies: {
-                    get(name: string) {
-                        return cookieStore.get(name)?.value;
-                    },
-                },
-            }
-        );
-
-        // Create initial user record
-        const { error } = await supabase
-            .from('User')
-            .insert([
-                {
-                    userId: user.id,
-                    email: user.emailAddresses[0]?.emailAddress,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                    role: ROLES.MENTEE,
-                    status: 'active',
-                    updatedAt: new Date().toISOString(),
-                    createdAt: new Date().toISOString(),
-                }
-            ]);
-
-        if (error) {
+        try {
+            // Create user in Supabase using the userCreate function
+            const result = await userCreate({
+                email: user.emailAddresses[0]?.emailAddress,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                profileImageUrl: user.imageUrl, // Ensure this field is available
+                userId: user.id,
+                role: ROLES.MENTEE, // Set the default role
+            });
+            console.log('[SIGN_UP] User created successfully:', result);
+        } catch (error) {
             console.error('[SIGN_UP_ERROR] Failed to create user record:', error);
             // Handle the error appropriately, e.g., show a message to the user
         }
@@ -67,8 +50,7 @@ export default async function SignUpPage({
                         card: "shadow-none"
                     }
                 }}
-                forceRedirectUrl={forceRedirectUrl || '/onboarding'}
-                signInUrl="/sign-in"
+                redirectUrl="/onboarding"
             />
         </div>
     );
