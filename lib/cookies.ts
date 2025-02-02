@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 
-export function getCookieStore() {
-  const cookieStore = cookies()
+export async function getCookieStore() {
+  const cookieStore = await cookies()
   return {
     get(name: string) {
       return cookieStore.get(name)?.value
@@ -10,7 +10,7 @@ export function getCookieStore() {
       cookieStore.set(name, value, options)
     },
     remove(name: string, options: any) {
-      cookieStore.delete(name, options)
+      cookieStore.delete(name)
     },
   }
 } 
