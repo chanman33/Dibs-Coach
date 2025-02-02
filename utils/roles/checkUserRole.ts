@@ -32,7 +32,6 @@ function logMetrics(metric: RoleCheckMetrics) {
 
 export async function getUserRoles(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRoles> {
   const startTime = Date.now();
-  let attempts = 0;
 
   // If roles are disabled, return default role for development
   if (!config.roles.enabled) {
@@ -46,7 +45,6 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
   }
 
   const cookieStore = await cookies();
-  
   const supabase = createServerClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_KEY!,
@@ -59,127 +57,61 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
     }
   );
 
-  let retries = 0;
-  
-  while (retries < MAX_RETRIES) {
-    try {
-      attempts++;
-      const { data, error } = await supabase
-        .from("User")
-        .select("role")
-        .eq("userId", userId)
-        .single();
+  try {
+    const { data, error } = await supabase
+      .from("User")
+      .select("role")
+      .eq("userId", userId)
+      .single();
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          if (context.isInitialSignup) {
-            console.debug(`[GET_USER_ROLES] Waiting for initial user creation: attempt ${retries + 1}/${MAX_RETRIES}`, {
-              userId,
-              attempt: retries + 1,
-              errorCode: error.code
-            });
-          } else {
-            console.warn(`[GET_USER_ROLES] User not found: attempt ${retries + 1}/${MAX_RETRIES}`, {
-              userId,
-              attempt: retries + 1,
-              errorCode: error.code,
-              details: error.details
-            });
-          }
-
-          retries++;
-          if (retries < MAX_RETRIES) {
-            await delay(RETRY_DELAY);
-            continue;
-          }
-        } else {
-          console.error("[GET_USER_ROLES] Unexpected error fetching user roles:", {
-            userId,
-            attempt: retries + 1,
-            error: error,
-            context: context
-          });
-        }
-
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // User not found - likely new registration
+        console.log(`[GET_USER_ROLES] New user detected: ${userId}`);
         logMetrics({
           startTime,
-          attempts,
-          success: false,
-          errorCode: error.code,
+          attempts: 1,
+          success: true,
           duration: Date.now() - startTime
         });
-
         return [ROLES.MENTEE];
       }
-      
-      // Success case
-      logMetrics({
-        startTime,
-        attempts,
-        success: true,
-        duration: Date.now() - startTime
-      });
+      throw error;
+    }
 
-      // Handle the case where role is either a string array or needs to be parsed
-      let roles: string[] = [];
-      if (data?.role) {
-        roles = Array.isArray(data.role) ? data.role : [data.role];
-      }
+    // Success case
+    logMetrics({
+      startTime,
+      attempts: 1,
+      success: true,
+      duration: Date.now() - startTime
+    });
 
-      // Validate and return roles, defaulting to MENTEE if no valid roles
-      try {
-        return validateRoles(roles);
-      } catch (e) {
-        console.warn("[GET_USER_ROLES] No valid roles found, using default:", {
-          userId,
-          roles,
-          error: e
-        });
-        return [ROLES.MENTEE];
-      }
-    } catch (error) {
-      console.error("[GET_USER_ROLES] Unexpected error:", {
+    // Handle the case where role is either a string array or needs to be parsed
+    let roles: string[] = [];
+    if (data?.role) {
+      roles = Array.isArray(data.role) ? data.role : [data.role];
+    }
+
+    // Validate and return roles, defaulting to MENTEE if no valid roles
+    try {
+      return validateRoles(roles);
+    } catch (e) {
+      console.warn("[GET_USER_ROLES] No valid roles found, using default:", {
         userId,
-        attempt: retries + 1,
-        error: error,
-        context: context
+        roles,
+        error: e
       });
-
-      logMetrics({
-        startTime,
-        attempts,
-        success: false,
-        errorCode: 'UNEXPECTED_ERROR',
-        duration: Date.now() - startTime
-      });
-
       return [ROLES.MENTEE];
     }
-  }
-
-  if (context.isInitialSignup) {
-    console.info("[GET_USER_ROLES] Max retries reached during initial signup, returning default role", {
+  } catch (error) {
+    console.error("[GET_USER_ROLES] Error:", {
       userId,
-      attempts,
-      context
+      error: error instanceof Error ? error.message : 'Unknown error',
+      duration: `${Date.now() - startTime}ms`
     });
-  } else {
-    console.warn("[GET_USER_ROLES] Max retries reached, returning default role", {
-      userId,
-      attempts,
-      context
-    });
+    return [ROLES.MENTEE];
   }
-
-  logMetrics({
-    startTime,
-    attempts,
-    success: false,
-    errorCode: 'MAX_RETRIES_REACHED',
-    duration: Date.now() - startTime
-  });
-
-  return [ROLES.MENTEE];
 }
 
 // For backward compatibility

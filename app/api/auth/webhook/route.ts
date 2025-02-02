@@ -9,12 +9,28 @@ import { ROLES } from '@/utils/roles/roles'
 import { userCreate } from '@/utils/data/user/userCreate'
 import { userUpdate } from '@/utils/data/user/userUpdate'
 
+async function createSupabaseClient() {
+  const cookieStore = await cookies()
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+      },
+    }
+  )
+}
+
 export async function POST(req: Request) {
+  const supabase = await createSupabaseClient()
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
 
   if (!WEBHOOK_SECRET) {
     console.error('[CLERK_WEBHOOK_ERROR] Missing CLERK_WEBHOOK_SECRET')
-    return NextResponse.json({ 
+    return NextResponse.json({
       status: 500,
       error: 'Please add CLERK_WEBHOOK_SECRET from Clerk Dashboard to .env'
     })
@@ -64,26 +80,44 @@ export async function POST(req: Request) {
   switch (eventType) {
     case 'user.created': {
       try {
+        // Log the incoming payload for debugging
+        console.log('[CLERK_WEBHOOK] Creating user with payload:', {
+          email: payload?.data?.email_addresses?.[0]?.email_address,
+          userId: payload?.data?.id,
+        });
+
+        // Verify required fields
+        if (!payload?.data?.id) {
+          throw new Error('Missing required userId in webhook payload');
+        }
+
+        // Create user in Supabase
         const result = await userCreate({
           email: payload?.data?.email_addresses?.[0]?.email_address,
           firstName: payload?.data?.first_name,
           lastName: payload?.data?.last_name,
           profileImageUrl: payload?.data?.image_url,
           userId: payload?.data?.id,
-          role: ROLES.MENTEE, // Default role for new users
-        })
+          role: ROLES.MENTEE, // Set the default role
+        });
 
-        return NextResponse.json({ 
-          status: 200, 
-          message: 'User created successfully', 
-          data: result 
-        })
+        console.log('[CLERK_WEBHOOK] User created successfully:', result);
+
+        return NextResponse.json({
+          status: 200,
+          message: 'User created successfully',
+          data: result
+        });
       } catch (error: any) {
-        console.error('[CLERK_WEBHOOK_ERROR] Failed to create user:', error)
+        console.error('[CLERK_WEBHOOK_ERROR] Failed to create user:', {
+          error: error.message,
+          stack: error.stack,
+          payload: payload?.data
+        });
         return NextResponse.json({
           status: 500,
           error: error.message || 'Failed to create user'
-        })
+        });
       }
     }
 
@@ -97,10 +131,10 @@ export async function POST(req: Request) {
           userId: payload?.data?.id,
         })
 
-        return NextResponse.json({ 
-          status: 200, 
-          message: 'User updated successfully', 
-          data: result 
+        return NextResponse.json({
+          status: 200,
+          message: 'User updated successfully',
+          data: result
         })
       } catch (error: any) {
         console.error('[CLERK_WEBHOOK_ERROR] Failed to update user:', error)
@@ -117,5 +151,38 @@ export async function POST(req: Request) {
         status: 400,
         error: `Unhandled webhook event type: ${eventType}`
       })
+  }
+}
+
+export async function handleNewUser(userId: string) {
+  const supabase = await createSupabaseClient()
+  try {
+    const { data: existingUser } = await supabase
+      .from('User')
+      .select('id')
+      .eq('userId', userId)
+      .single();
+
+    if (!existingUser) {
+      // Create new user record
+      const { error: createError } = await supabase
+        .from('User')
+        .insert({
+          userId,
+          role: 'pending',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+
+      if (createError) throw createError;
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('[NEW_USER_ERROR]', {
+      userId,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    throw error;
   }
 } 

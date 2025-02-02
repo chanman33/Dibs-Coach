@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ROLES } from './utils/roles/roles'
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
 
 // Import config and define its type
 type AppConfig = {
@@ -30,17 +32,18 @@ const CALENDLY_ROUTES = [
   '/api/calendly/availability/free',
   '/api/calendly/invitees',
   '/api/calendly/sessions'
-] as const
+] as const;
 
 // Public routes that don't require auth
 const PUBLIC_ROUTES = [
   '/api/auth/webhook',
   '/api/calendly/webhooks'
-] as const
+] as const;
 
-// Add role-specific route patterns
-const COACH_ROUTES = ['/dashboard/coach(.*)'] as const
-const REALTOR_ROUTES = ['/dashboard/realtor(.*)'] as const
+// Role-specific route patterns
+const COACH_ROUTES = ['/dashboard/(role-specific)/coach(.*)'] as const;
+const MENTEE_ROUTES = ['/dashboard/(role-specific)/mentee(.*)'] as const;
+const ADMIN_ROUTES = ['/dashboard/admin(.*)'] as const;
 
 let clerkMiddleware: any, createRouteMatcher: any;
 
@@ -82,19 +85,52 @@ export default function middleware(req: NextRequest) {
       return resolvedAuth.redirectToSignIn();
     }
 
+    // Special handling for new signups
+    if (pathname === '/dashboard' && resolvedAuth.userId) {
+      const cookieStore = await cookies();
+      const supabase = createServerClient(
+        process.env.SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_KEY!,
+        {
+          cookies: {
+            get(name: string) {
+              return cookieStore.get(name)?.value;
+            },
+          },
+        }
+      );
+
+      // Check if user exists in database
+      const { data: user } = await supabase
+        .from('User')
+        .select('role')
+        .eq('userId', resolvedAuth.userId)
+        .single();
+
+      // If user doesn't exist yet, redirect to onboarding
+      if (!user) {
+        return NextResponse.redirect(new URL('/onboarding', req.url));
+      }
+    }
+
     // Handle role-specific routes
     const role = resolvedAuth.sessionClaims?.role;
     if (role) {
+      // Protect admin routes
+      if (ADMIN_ROUTES.some(route => pathname.match(route)) && role !== ROLES.ADMIN) {
+        return new NextResponse('Access denied. Admin role required.', { status: 403 });
+      }
+
       // Protect coach routes
       if (COACH_ROUTES.some(route => pathname.match(route)) && 
-          role !== ROLES.REALTOR_COACH && role !== ROLES.LOAN_OFFICER_COACH && role !== ROLES.ADMIN) {
+          role !== ROLES.COACH && role !== ROLES.ADMIN) {
         return new NextResponse('Access denied. Coach role required.', { status: 403 });
       }
 
-      // Protect realtor routes
-      if (REALTOR_ROUTES.some(route => pathname.match(route)) && 
-          role !== ROLES.REALTOR) {
-        return new NextResponse('Access denied. Realtor role required.', { status: 403 });
+      // Protect mentee routes
+      if (MENTEE_ROUTES.some(route => pathname.match(route)) && 
+          role !== ROLES.MENTEE && role !== ROLES.ADMIN) {
+        return new NextResponse('Access denied. Mentee role required.', { status: 403 });
       }
     }
 
