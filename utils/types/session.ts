@@ -1,44 +1,32 @@
 import { z } from "zod";
-import { Currency } from "@prisma/client";
+import { Currency, SessionStatus, SessionType } from "@prisma/client";
 
-export const SessionStatus = z.enum([
-  "scheduled",
-  "completed",
-  "cancelled",
-  "no_show",
-]);
-export type SessionStatus = z.infer<typeof SessionStatus>;
-
-export const SessionType = z.enum([
-  "PEER_TO_PEER",
-  "MENTORSHIP",
-  "GROUP",
-]);
-export type SessionType = z.infer<typeof SessionType>;
-
-export const SessionSchema = z.object({
-  id: z.number().optional(),
-  coachDbId: z.number(),
+export const sessionSchema = z.object({
+  id: z.number().describe("Internal database ID"),
   menteeDbId: z.number(),
-  startTime: z.string().datetime(),
-  endTime: z.string().datetime(),
-  durationMinutes: z.number().min(15).max(240),
-  status: SessionStatus.default("scheduled"),
-  description: z.string().optional(),
-  sessionType: SessionType.default("MENTORSHIP"),
+  coachDbId: z.number(),
+  startTime: z.date(),
+  endTime: z.date(),
+  status: z.nativeEnum(SessionStatus).default("scheduled"),
+  sessionNotes: z.string().nullable(),
+  zoomMeetingId: z.string().nullable(),
+  zoomMeetingUrl: z.string().nullable(),
   
-  // Integration fields
-  calendlyEventId: z.string().optional(),
-  calendlyEventUri: z.string().optional(),
-  calendlyInviteeUri: z.string().optional(),
-  calendlySchedulingUrl: z.string().optional(),
-  zoomMeetingId: z.string().optional(),
-  zoomJoinUrl: z.string().optional(),
-  zoomStartUrl: z.string().optional(),
+  // Payment fields
+  priceAmount: z.number().nullable(),
+  currency: z.string().default("usd"),
+  platformFeeAmount: z.number().nullable(),
+  coachPayoutAmount: z.number().nullable(),
+  stripePaymentIntentId: z.string().nullable(),
+  paymentStatus: z.string().default("pending"),
+  payoutStatus: z.string().nullable(),
+  
+  createdAt: z.date(),
+  updatedAt: z.date(),
 });
 
-export type Session = z.infer<typeof SessionSchema> & {
-  id: number;
+// Extended session type with relations
+export type SessionWithRelations = z.infer<typeof sessionSchema> & {
   coach: {
     id: number;
     firstName: string | null;
@@ -59,37 +47,40 @@ export type Session = z.infer<typeof SessionSchema> & {
   } | null;
 };
 
-export const CreateSessionSchema = SessionSchema.omit({
-  id: true,
-  status: true,
-  calendlyEventId: true,
-  calendlyEventUri: true,
-  calendlyInviteeUri: true,
-  calendlySchedulingUrl: true,
-  zoomMeetingId: true,
-  zoomJoinUrl: true,
-  zoomStartUrl: true,
+export const sessionCreateSchema = z.object({
+  menteeDbId: z.number(),
+  coachDbId: z.number(),
+  startTime: z.date(),
+  endTime: z.date(),
+  priceAmount: z.number(),
+  sessionType: z.nativeEnum(SessionType).default("MENTORSHIP"),
 });
 
-export type CreateSession = z.infer<typeof CreateSessionSchema>;
-
-export const UpdateSessionSchema = SessionSchema.partial().extend({
-  id: z.number(),
+export const sessionUpdateSchema = z.object({
+  status: z.nativeEnum(SessionStatus).optional(),
+  sessionNotes: z.string().optional(),
+  zoomMeetingId: z.string().optional(),
+  zoomMeetingUrl: z.string().optional(),
+  paymentStatus: z.string().optional(),
+  payoutStatus: z.string().optional(),
 });
 
-export type UpdateSession = z.infer<typeof UpdateSessionSchema>;
+// Type exports
+export type Session = z.infer<typeof sessionSchema>;
+export type SessionCreate = z.infer<typeof sessionCreateSchema>;
+export type SessionUpdate = z.infer<typeof sessionUpdateSchema>;
 
 // Session rate calculation
-export const SessionRateSchema = z.object({
+export const sessionRateSchema = z.object({
   baseRate: z.number().min(0),
   duration: z.number().min(15).max(240),
-  currency: z.nativeEnum(Currency).default(Currency.USD),
+  currency: z.nativeEnum(Currency).default("USD"),
 });
 
-export type SessionRate = z.infer<typeof SessionRateSchema>;
+export type SessionRate = z.infer<typeof sessionRateSchema>;
 
 // Session metrics
-export const SessionMetricsSchema = z.object({
+export const sessionMetricsSchema = z.object({
   totalSessions: z.number(),
   completedSessions: z.number(),
   cancelledSessions: z.number(),
@@ -99,4 +90,4 @@ export const SessionMetricsSchema = z.object({
   completionRate: z.number(),
 });
 
-export type SessionMetrics = z.infer<typeof SessionMetricsSchema>; 
+export type SessionMetrics = z.infer<typeof sessionMetricsSchema>; 

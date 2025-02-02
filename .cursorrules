@@ -203,24 +203,32 @@ server:
 
 # Type System
 types:
-  base_location: "utils/types.ts"
-  validation: "Zod schemas"
-  required_types:
-    base: ["DatabaseUser", "UserRelation"]
-    user:
-      clerk_id: "string"
-      database_id: "number"
-      relationships: "number (foreign keys)"
-  schema_enforcement:
-    models:
-      user:
-        primary_key: "id Int @id @default(autoincrement())"
-        auth_field: "userId String @unique"
-        required_fields: ["email", "role", "status"]
+  organization:
+    base_location: "utils/types"
+    structure:
+      - "Domain-specific files in utils/types/"
+      - "Root types.ts only re-exports and common utilities"
+    naming:
+      schemas: "camelCase with Schema suffix (e.g., userSchema)"
+      types: "PascalCase (e.g., User, SessionWithRelations)"
+      files: "domain name in singular form (e.g., user.ts, session.ts)"
     validation:
-      zod_schemas:
-        naming: "modelNameSchema"
-        required: ["email", "ids", "dates"]
+      - "Use Zod for all schema definitions"
+      - "Use Prisma native enums where available"
+      - "Export both schemas and inferred types"
+    required_patterns:
+      base_schemas:
+        - "createSchema for creation"
+        - "updateSchema for updates"
+        - "base schema for full model"
+      common_fields:
+        - "id: z.number() for database IDs"
+        - "createdAt/updatedAt as dates"
+        - "Proper nullability with .nullable()"
+    imports:
+      - "Import Prisma types from @prisma/client"
+      - "Import Zod from zod"
+      - "No cross-importing between domain files"
 
 # Error Handling
 errors:

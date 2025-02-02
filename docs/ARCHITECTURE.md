@@ -190,3 +190,37 @@ CREATE TABLE CalendlyWebhookEvent (
 - Edge-ready architecture
 - Scalable database design
 - Caching strategies
+
+## Type System Architecture
+### Organization
+Types are organized by domain in `/utils/types/`:
+- Domain-specific files (user.ts, session.ts, etc.)
+- Root types.ts for re-exports and common utilities
+- No cross-domain type dependencies
+
+### Type Definitions
+Each domain file follows a consistent pattern:
+```typescript
+// Schema definitions
+export const entitySchema = z.object({...});
+export const entityCreateSchema = z.object({...});
+export const entityUpdateSchema = z.object({...});
+
+// Type exports
+export type Entity = z.infer<typeof entitySchema>;
+export type EntityCreate = z.infer<typeof entityCreateSchema>;
+export type EntityUpdate = z.infer<typeof entityUpdateSchema>;
+```
+
+### Validation
+- Zod schemas for runtime validation
+- Prisma native enums for type safety
+- Consistent nullability handling
+- Proper date and ID types
+
+### Best Practices
+1. Use domain-specific files for related types
+2. Follow naming conventions consistently
+3. Include proper JSDoc documentation
+4. Export both schemas and inferred types
+5. Use Prisma enums where available

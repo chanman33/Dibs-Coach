@@ -12,7 +12,7 @@ import Link from 'next/link'
 
 
 // Add this import
-import UnifiedSidebar from '@/app/dashboard/_components/unified-sidebar'
+import { UnifiedSidebar } from '@/app/dashboard/_components/unified-sidebar'
 import AdminSidebar from '@/app/dashboard/admin/_components/admin-sidebar'
 
 export default function DashboardTopNav({ children }: { children: ReactNode }) {
@@ -23,8 +23,7 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
     if (pathname.startsWith('/dashboard/admin')) {
       return <AdminSidebar />
     }
-    // TODO: Pass the correct userRole from auth context
-    return <UnifiedSidebar userRole={pathname.includes('/coach') ? 'realtor_coach' : 'realtor'} />
+    return <UnifiedSidebar />
   }
 
   // Update getPortalTitle to include admin case

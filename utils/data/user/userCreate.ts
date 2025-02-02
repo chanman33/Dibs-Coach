@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
-import { userCreateProps } from "@/utils/types";
+import { UserCreate } from "@/utils/types";
 
 export const userCreate = async ({
   email,
@@ -11,7 +11,7 @@ export const userCreate = async ({
   profileImageUrl,
   userId,
   role,
-}: userCreateProps) => {
+}: UserCreate) => {
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.SUPABASE_URL!,
