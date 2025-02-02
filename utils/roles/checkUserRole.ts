@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { ROLES, type UserRole, type UserRoles, validateRoles } from "./roles";
+import { ROLES, type UserRole, type UserRoles, validateRoles, rolePermissions, Permission } from "./roles";
 import config from '@/config';
 
 const MAX_RETRIES = 3;

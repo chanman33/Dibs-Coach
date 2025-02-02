@@ -1,5 +1,5 @@
 "server only";
-import { userUpdateProps } from "@/utils/types";
+import { UserUpdate } from "@/utils/types";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
@@ -9,7 +9,7 @@ export const userUpdate = async ({
   lastName,
   profileImageUrl,
   userId,
-}: userUpdateProps) => {
+}: UserUpdate) => {
   const cookieStore = await cookies();
 
   const supabase = createServerClient(

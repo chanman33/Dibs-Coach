@@ -24,4 +24,15 @@ export type PaginatedResponse<T> = {
   page: number;
   pageSize: number;
   hasMore: boolean;
+};
+
+export type UserUpdate = {
+  userId: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  profileImageUrl?: string;
+  phoneNumber?: string;
+  companyName?: string;
+  licenseNumber?: string;
 }; 

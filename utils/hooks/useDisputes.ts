@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
-import type { Dispute } from '@/utils/types'
+import type { Dispute } from '@/utils/types/stripe'
 
 export function useDisputes() {
     const [isLoading, setIsLoading] = useState(false)

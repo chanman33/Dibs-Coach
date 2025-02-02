@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
-import type { PaymentMethod } from '@/utils/types'
+import type { PaymentMethod } from '@/utils/types/stripe'
 
-export function usePaymentMethods() {
+export default function usePaymentMethods() {
     const [isLoading, setIsLoading] = useState(false)
     const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([])
 
@@ -92,4 +92,4 @@ export function usePaymentMethods() {
         removePaymentMethod,
         setDefaultPaymentMethod
     }
-} 
+}

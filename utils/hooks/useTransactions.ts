@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { toast } from 'react-hot-toast'
-import type { Transaction } from '@/utils/types'
+import type { Transaction } from '@/utils/types/stripe'
 
 export function useTransactions() {
     const [isLoading, setIsLoading] = useState(false)

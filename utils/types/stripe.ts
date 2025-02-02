@@ -176,4 +176,38 @@ export const WebhookEventTypeEnum = z.enum([
   'charge.refunded',
 ]);
 
-export type WebhookEventType = z.infer<typeof WebhookEventTypeEnum>; 
+export type WebhookEventType = z.infer<typeof WebhookEventTypeEnum>;
+
+/**
+ * @description Represents a dispute in our application,
+ * consistent with the Dispute model in our Prisma schema.
+ * 
+ * @property {number} id - Database unique identifier.
+ * @property {string} stripeDisputeId - Unique identifier from Stripe.
+ * @property {number | undefined} sessionId - Optional associated session id.
+ * @property {number} amount - The disputed amount.
+ * @property {string} currency - Currency code.
+ * @property {'open' | 'resolved' | 'rejected'} status - Current dispute status.
+ * @property {string} reason - Reason for dispute.
+ * @property {Date} evidenceDueBy - Deadline for submitting evidence.
+ * @property {any} evidence - Evidence details (stored as JSON).
+ * @property {string} stripePaymentIntentId - Payment intent id associated with the dispute.
+ * @property {Date} createdAt - Timestamp when the dispute was created.
+ * @property {Date} updatedAt - Timestamp when the dispute was last updated.
+ * @property {number | undefined} paymentId - Optional associated payment record id.
+ */
+export type Dispute = {
+  id: number;
+  stripeDisputeId: string;
+  sessionId?: number;
+  amount: number;
+  currency: string;
+  status: 'open' | 'resolved' | 'rejected';
+  reason: string;
+  evidenceDueBy: Date;
+  evidence: any;
+  stripePaymentIntentId: string;
+  createdAt: Date;
+  updatedAt: Date;
+  paymentId?: number;
+}; 

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Session } from '@prisma/client'
-import { SessionType } from './session'
+import { SessionRate } from './session'
 
 // Base Calendly Types
 export interface CalendlyStatus {
@@ -9,13 +9,13 @@ export interface CalendlyStatus {
   expiresAt?: string
   isExpired?: boolean
   isMockData?: boolean
-  eventTypes?: CalendlyEventType[]
+  eventTypes?: ICalendlyEventType[]
   needsReconnect?: boolean
   error?: string
   userUri?: string
 }
 
-export interface CalendlyEventType {
+export interface ICalendlyEventType {
   uri: string
   name: string
   description: string
@@ -26,7 +26,7 @@ export interface CalendlyEventType {
   active: boolean
   scheduling_url: string
   custom_questions: any[]
-  sessionType: SessionType
+  sessionType: SessionRate
   minimumDuration: number
   maximumDuration: number
   bufferBeforeMinutes: number
@@ -78,7 +78,7 @@ export enum WebhookEventType {
 export interface WebhookEvent {
   event: WebhookEventType
   payload: {
-    event_type: CalendlyEventType
+    event_type: ICalendlyEventType
     invitee: CalendlyInvitee
     scheduled_event: CalendlyScheduledEvent
   }
@@ -113,7 +113,7 @@ export const CalendlyEventTypeSchema = z.object({
   active: z.boolean(),
   scheduling_url: z.string(),
   custom_questions: z.array(z.any()).optional(),
-  sessionType: SessionType.optional(),
+  sessionType: z.enum(['FREE', 'PAID', 'PACKAGE']).optional(),
   minimumDuration: z.number().optional(),
   maximumDuration: z.number().optional(),
   bufferBeforeMinutes: z.number().optional(),
@@ -234,7 +234,7 @@ export interface ExtendedSession {
 // Event type mapping configuration
 export const EventTypeMappingSchema = z.object({
   eventTypeUri: z.string(),
-  sessionType: SessionType,
+  sessionType: z.enum(['FREE', 'PAID', 'PACKAGE']),
   durationConstraints: z.object({
     minimum: z.number(),
     maximum: z.number(),

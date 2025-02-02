@@ -102,6 +102,12 @@ enum ReviewStatus {
   HIDDEN
 }
 
+enum CoachApplicationStatus {
+  pending
+  approved
+  rejected
+}
+
 // Models
 model User {
   id                     Int      @id @default(autoincrement())
@@ -235,7 +241,8 @@ model Session {
   coachDbId      Int
   startTime      DateTime @db.Timestamptz
   endTime        DateTime @db.Timestamptz
-  status         String   @default("scheduled") // scheduled, completed, cancelled
+  status         SessionStatus @default(scheduled)
+  sessionType    SessionType?
   sessionNotes   String?
   zoomMeetingId  String?
   zoomMeetingUrl String?
@@ -317,9 +324,9 @@ model Review {
 }
 
 model CoachApplication {
-  id              Int       @id @default(autoincrement())
+  id              Int                   @id @default(autoincrement())
   applicantDbId   Int
-  status          String    @default("pending")
+  status          CoachApplicationStatus @default(pending)
   experience      String
   specialties     String[]  @default([])
   applicationDate DateTime  @default(now())

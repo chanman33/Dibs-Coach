@@ -13,8 +13,9 @@ export const sessionSchema = z.object({
   zoomMeetingUrl: z.string().nullable(),
   
   // Payment fields
-  priceAmount: z.number().nullable(),
-  currency: z.string().default("usd"),
+  priceAmount: z.number(),
+  priceInCents: z.number().optional().describe("Computed field from priceAmount"),
+  currency: z.nativeEnum(Currency).default("USD"),
   platformFeeAmount: z.number().nullable(),
   coachPayoutAmount: z.number().nullable(),
   stripePaymentIntentId: z.string().nullable(),
@@ -57,6 +58,7 @@ export const sessionCreateSchema = z.object({
 });
 
 export const sessionUpdateSchema = z.object({
+  id: z.number(),
   status: z.nativeEnum(SessionStatus).optional(),
   sessionNotes: z.string().optional(),
   zoomMeetingId: z.string().optional(),
@@ -66,7 +68,9 @@ export const sessionUpdateSchema = z.object({
 });
 
 // Type exports
-export type Session = z.infer<typeof sessionSchema>;
+export type Session = z.infer<typeof sessionSchema> & {
+  durationMinutes: number;
+};
 export type SessionCreate = z.infer<typeof sessionCreateSchema>;
 export type SessionUpdate = z.infer<typeof sessionUpdateSchema>;
 
@@ -90,4 +94,16 @@ export const sessionMetricsSchema = z.object({
   completionRate: z.number(),
 });
 
-export type SessionMetrics = z.infer<typeof sessionMetricsSchema>; 
+export type SessionMetrics = z.infer<typeof sessionMetricsSchema>;
+
+// Update the SessionWithCoach type
+export type SessionWithCoach = z.infer<typeof sessionSchema> & {
+  coach: {
+    id: number;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+    stripeConnectAccountId?: string | null;
+  };
+  // ... other relations ...
+}; 

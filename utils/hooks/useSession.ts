@@ -4,8 +4,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   Session,
-  CreateSession,
-  UpdateSession,
+  SessionCreate,
+  SessionUpdate,
   SessionMetrics,
 } from "../types/session";
 
@@ -15,8 +15,8 @@ interface UseSessionReturn {
   isLoading: boolean;
   error: Error | null;
   fetchSessions: () => Promise<void>;
-  createSession: (data: CreateSession) => Promise<Session | null>;
-  updateSession: (data: UpdateSession) => Promise<Session | null>;
+  createSession: (data: SessionCreate) => Promise<Session | null>;
+  updateSession: (data: SessionUpdate) => Promise<Session | null>;
   calculateMetrics: (sessions: Session[]) => SessionMetrics;
 }
 
@@ -66,10 +66,19 @@ export function useSession(): UseSessionReturn {
         throw new Error("Failed to fetch sessions");
       }
       const { data } = await response.json();
-      setSessions(data);
+
+      // Add durationMinutes to each session
+      const sessionsWithDuration = data.map((session: Session) => ({
+        ...session,
+        durationMinutes: Math.round(
+          (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)
+        ),
+      }));
+
+      setSessions(sessionsWithDuration);
 
       // Calculate and set metrics
-      const newMetrics = calculateMetrics(data);
+      const newMetrics = calculateMetrics(sessionsWithDuration);
       setMetrics(newMetrics);
     } catch (err) {
       setError(err as Error);
@@ -79,7 +88,7 @@ export function useSession(): UseSessionReturn {
     }
   };
 
-  const createSession = async (data: CreateSession) => {
+  const createSession = async (data: SessionCreate) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -113,7 +122,7 @@ export function useSession(): UseSessionReturn {
     }
   };
 
-  const updateSession = async (data: UpdateSession) => {
+  const updateSession = async (data: SessionUpdate) => {
     try {
       setIsLoading(true);
       setError(null);

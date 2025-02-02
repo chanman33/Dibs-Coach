@@ -88,10 +88,15 @@ type Database = {
 
 interface SessionWithCoach {
   id: number;
+  priceAmount: number;
+  priceInCents?: number;
+  currency: string;
   coachDbId: number;
+  startTime: Date;
   coach: {
-    stripeConnectAccountId: string;
+    stripeConnectAccountId?: string | null;
   };
+  // ... other fields ...
 }
 
 interface UserData {
@@ -123,6 +128,16 @@ interface SessionPaymentConfig {
   coachId: number;
   clientId: number;
   connectedAccountId: string;
+  sessionStartTime: string;
+}
+
+interface CreateSessionPaymentIntentParams {
+  amount: number;
+  currency: string;
+  sessionDbId: number;
+  coachId: number;
+  clientId: number;
+  connectedAccountId?: string | null;
   sessionStartTime: string;
 }
 
@@ -171,6 +186,9 @@ export class StripeService {
         .from('Session')
         .select(`
           id,
+          priceAmount,
+          currency,
+          startTime,
           coachDbId,
           coach:User!Session_coachDbId_fkey (
             stripeConnectAccountId
@@ -180,14 +198,25 @@ export class StripeService {
         .single();
 
       if (error) throw this.createError('Failed to fetch session', error);
-      
       if (!data) return null;
 
-      const result = data as unknown as SessionQueryResult;
+      const result = data as unknown as {
+        id: number;
+        priceAmount: number;
+        currency: string;
+        startTime: string;
+        coachDbId: number;
+        coach: {
+          stripeConnectAccountId?: string | null;
+        };
+      };
 
       // Transform the data to match the SessionWithCoach type
       return {
         id: result.id,
+        priceAmount: result.priceAmount,
+        currency: result.currency,
+        startTime: new Date(result.startTime),
         coachDbId: result.coachDbId,
         coach: {
           stripeConnectAccountId: result.coach?.stripeConnectAccountId || '',
@@ -327,7 +356,6 @@ export class StripeService {
         payment_method_types: paymentMethods.allowedTypes,
         payment_method_options: {
           us_bank_account: {
-            preferred: paymentMethods.preferredType === 'us_bank_account',
             financial_connections: {
               permissions: ['payment_method']
             }
