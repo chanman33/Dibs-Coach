@@ -91,6 +91,22 @@ export async function POST(req: Request) {
           throw new Error('Missing required userId in webhook payload');
         }
 
+        // Check if user already exists first
+        const { data: existingUser } = await supabase
+          .from("User")
+          .select("id")
+          .eq("userId", payload.data.id)
+          .single();
+
+        if (existingUser) {
+          console.log('[CLERK_WEBHOOK] User already exists:', existingUser);
+          return NextResponse.json({
+            status: 200,
+            message: 'User already exists',
+            data: existingUser
+          });
+        }
+
         const result = await userCreate({
           email: payload?.data?.email_addresses?.[0]?.email_address,
           firstName: payload?.data?.first_name,

@@ -1,15 +1,15 @@
 "use client"
 
-import { AdminSidebar } from "./_components/admin-sidebar"
+import { MenteeSidebar } from "./_components/mentee-sidebar"
 
-export default function AdminLayout({
+export default function MenteeLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
     <div className="flex h-screen">
-      <AdminSidebar />
+      <MenteeSidebar />
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>

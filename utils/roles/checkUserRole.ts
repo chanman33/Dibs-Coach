@@ -30,7 +30,7 @@ function logMetrics(metric: RoleCheckMetrics) {
   });
 }
 
-export async function getUserRoles(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRoles> {
+export async function getUserRoles(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRoles | null> {
   const startTime = Date.now();
 
   // If roles are disabled, return default role for development
@@ -61,7 +61,7 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
     const { data, error } = await supabase
       .from("User")
       .select("role")
-      .eq("userId", userId)
+      .eq("userId", `${userId}`)
       .single();
 
     if (error) {
@@ -74,7 +74,7 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
           success: true,
           duration: Date.now() - startTime
         });
-        return [ROLES.MENTEE];
+        return null;
       }
       throw error;
     }

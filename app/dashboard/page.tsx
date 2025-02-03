@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
-import { getUserRoles } from "@/utils/roles/checkUserRole";
 import { ROLES, hasAnyRole } from "@/utils/roles/roles";
 import { redirect } from "next/navigation";
+import { ensureUserExists } from "@/utils/auth";
 
 export default async function DashboardPage() {
   const { userId } = await auth();
@@ -9,18 +9,32 @@ export default async function DashboardPage() {
     redirect("/sign-in");
   }
 
-  const roles = await getUserRoles(userId);
-
-  // Route based on highest privilege role
-  if (hasAnyRole(roles, [ROLES.ADMIN])) {
-    redirect("/dashboard/admin");
-  } else if (hasAnyRole(roles, [ROLES.COACH])) {
-    redirect("/dashboard/(role-specific)/coach");
-  } else {
-    // Default to mentee dashboard
-    redirect("/dashboard/(role-specific)/mentee");
+  let user;
+  try {
+    // This will create the user if they don't exist
+    user = await ensureUserExists();
+  } catch (error) {
+    console.error('[DASHBOARD_ERROR] Error setting up user:', error);
+    redirect("/error?code=setup_failed");
   }
 
-  // This point should never be reached due to redirects
-  return null;
+  // Route based on user's role
+  const roles = [user.role];
+  
+  // Route to role-specific dashboard
+  if (hasAnyRole(roles, [ROLES.ADMIN])) {
+    redirect("/dashboard/admin");
+  } 
+  
+  if (hasAnyRole(roles, [ROLES.COACH])) {
+    redirect("/dashboard/coach");
+  } 
+  
+  if (hasAnyRole(roles, [ROLES.MENTEE])) {
+    redirect("/dashboard/mentee");
+  }
+
+  // No valid role found
+  console.error('[DASHBOARD_ERROR] Invalid role for user:', { userId, role: user.role });
+  redirect("/error?code=invalid_role");
 } 

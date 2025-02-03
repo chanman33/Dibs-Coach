@@ -1,19 +1,19 @@
 "use client";
 
-import { ResoMemberForm } from "@/components/profile/ResoMemberForm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export default function ProfilePage() {
+export default function MenteeProfilePage() {
   return (
     <div className="container mx-auto py-6">
-      <h1 className="text-3xl font-bold mb-6">Profile Settings</h1>
+      <h1 className="text-3xl font-bold mb-6">Mentee Profile Settings</h1>
       
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="reso">RESO Member Info</TabsTrigger>
-          <TabsTrigger value="preferences">Preferences</TabsTrigger>
+          <TabsTrigger value="preferences">Coaching Preferences</TabsTrigger>
+          <TabsTrigger value="goals">Goals & Milestones</TabsTrigger>
+          <TabsTrigger value="billing">Billing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -27,24 +27,35 @@ export default function ProfilePage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="reso">
+        <TabsContent value="preferences">
           <Card>
             <CardHeader>
-              <CardTitle>RESO Member Information</CardTitle>
+              <CardTitle>Coaching Preferences</CardTitle>
             </CardHeader>
             <CardContent>
-              <ResoMemberForm />
+              {/* Coaching preferences - preferred coaching style, areas of focus */}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="preferences">
+        <TabsContent value="goals">
           <Card>
             <CardHeader>
-              <CardTitle>Preferences</CardTitle>
+              <CardTitle>Goals & Milestones</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Preferences form component */}
+              {/* Goals tracking and milestone settings */}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="billing">
+          <Card>
+            <CardHeader>
+              <CardTitle>Billing Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* Billing settings - payment methods, history */}
             </CardContent>
           </Card>
         </TabsContent>

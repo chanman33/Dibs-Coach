@@ -1,25 +1,26 @@
-"use client"
+'use client'
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { withRole } from "@/components/wrapper/with-role"
 import { ROLES } from "@/utils/roles/roles"
-import { BarChart, Users, Building2, ActivitySquare, ArrowUpRight } from "lucide-react"
+import { Users, Target, Clock, TrendingUp, ArrowUpRight } from "lucide-react"
 import Link from 'next/link'
 
-function AdminDashboard() {
+function MenteeDashboard() {
   return (
     <div className='flex flex-col justify-center items-start flex-wrap px-4 pt-4 gap-4'>
       <Card className='w-[20rem]'>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
-            System Overview
+            Mentee Overview
           </CardTitle>
-          <ActivitySquare className="h-4 w-4 text-muted-foreground" />
+          <Target className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">99.9%</div>
+          <div className="text-2xl font-bold">4</div>
           <p className="text-xs text-muted-foreground">
-            System Uptime
+            Active Goals
           </p>
         </CardContent>
       </Card>
@@ -28,45 +29,45 @@ function AdminDashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 w-full">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">12</div>
+            <p className="text-xs text-muted-foreground">This month</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Goals Progress</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">75%</div>
+            <p className="text-xs text-muted-foreground">Average completion</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Growth Score</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">82</div>
+            <p className="text-xs text-muted-foreground">Out of 100</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Coach Meetings</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1,234</div>
-            <p className="text-xs text-muted-foreground">+12% from last month</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Properties</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">845</div>
-            <p className="text-xs text-muted-foreground">Across all realtors</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">System Health</CardTitle>
-            <BarChart className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">99.9%</div>
-            <p className="text-xs text-muted-foreground">Uptime this month</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Recent Activity</CardTitle>
-            <ActivitySquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">284</div>
-            <p className="text-xs text-muted-foreground">Actions today</p>
+            <div className="text-2xl font-bold">3</div>
+            <p className="text-xs text-muted-foreground">Scheduled this week</p>
           </CardContent>
         </Card>
       </div>
@@ -75,13 +76,13 @@ function AdminDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
-              <CardTitle>Recent Activity</CardTitle>
+              <CardTitle>Upcoming Sessions</CardTitle>
               <CardDescription>
-                Latest system and user activities
+                Your scheduled coaching sessions
               </CardDescription>
             </div>
             <Button asChild size="sm" className="ml-auto gap-1">
-              <Link href="/dashboard-admin/activity">
+              <Link href="/dashboard/sessions">
                 View All
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
@@ -92,17 +93,10 @@ function AdminDashboard() {
               <div className="space-y-8">
                 <div className="flex items-center">
                   <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">New User Registration</p>
-                    <p className="text-sm text-muted-foreground">john.doe@example.com</p>
+                    <p className="text-sm font-medium leading-none">Career Development Session</p>
+                    <p className="text-sm text-muted-foreground">Tomorrow at 3:00 PM</p>
                   </div>
-                  <div className="ml-auto font-medium">2 min ago</div>
-                </div>
-                <div className="flex items-center">
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">Property Update</p>
-                    <p className="text-sm text-muted-foreground">123 Main St modified</p>
-                  </div>
-                  <div className="ml-auto font-medium">15 min ago</div>
+                  <div className="ml-auto font-medium">Coach Smith</div>
                 </div>
               </div>
             </div>
@@ -112,13 +106,13 @@ function AdminDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
-              <CardTitle>System Notifications</CardTitle>
+              <CardTitle>Current Goals</CardTitle>
               <CardDescription>
-                Important system updates and alerts
+                Track your progress
               </CardDescription>
             </div>
             <Button asChild size="sm" className="ml-auto gap-1">
-              <Link href="/dashboard-admin/notifications">
+              <Link href="/dashboard/goals">
                 View All
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
@@ -129,17 +123,10 @@ function AdminDashboard() {
               <div className="space-y-8">
                 <div className="flex items-center">
                   <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">Database Backup</p>
-                    <p className="text-sm text-muted-foreground">Completed successfully</p>
+                    <p className="text-sm font-medium leading-none">Complete Market Analysis</p>
+                    <p className="text-sm text-muted-foreground">75% Complete</p>
                   </div>
-                  <div className="ml-auto font-medium">Success</div>
-                </div>
-                <div className="flex items-center">
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">System Update</p>
-                    <p className="text-sm text-muted-foreground">Version 2.1.0 available</p>
-                  </div>
-                  <div className="ml-auto font-medium">Pending</div>
+                  <div className="ml-auto font-medium">Due in 5 days</div>
                 </div>
               </div>
             </div>
@@ -149,5 +136,5 @@ function AdminDashboard() {
     </div>
   )
 }
-export default withRole(AdminDashboard, [ROLES.ADMIN])
 
+export default withRole(MenteeDashboard, [ROLES.MENTEE]) 

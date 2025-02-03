@@ -15,7 +15,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const roles = await getUserRoles(userId, { isInitialSignup });
-    return NextResponse.json({ roles });
+    
+    // If roles is null, it means user doesn't exist
+    if (!roles) {
+      return NextResponse.json({ exists: false }, { status: 404 });
+    }
+    
+    return NextResponse.json({ exists: true, roles });
   } catch (error) {
     console.error("[GET_USER_ROLES] Error:", error);
     return NextResponse.json(
