@@ -14,7 +14,8 @@ import {
   Building2,
   ChevronDown,
   ChevronUp,
-  Calculator
+  Calculator,
+  Target
 } from "lucide-react"
 
 export function MenteeSidebar() {
@@ -51,11 +52,14 @@ export function MenteeSidebar() {
             <NavLink href="/dashboard/mentee/profile" icon={UserCircle}>
               Profile
             </NavLink>
-            <NavLink href="/dashboard/calendar" icon={CalendarDays}>
+            <NavLink href="/dashboard/mentee/calendar" icon={CalendarDays}>
               Calendar
             </NavLink>
-            <NavLink href="/dashboard/messages" icon={MessageSquare}>
+            <NavLink href="/dashboard/mentee/messages" icon={MessageSquare}>
               Messages
+            </NavLink>
+            <NavLink href="/dashboard/goals" icon={Target}>
+              Goals
             </NavLink>
 
             {/* Coaching */}
@@ -67,12 +71,7 @@ export function MenteeSidebar() {
                 </span>
               </div>
             </NavLink>
-            <NavLink href="/dashboard/mentee/sessions" icon={CalendarDays}>
-              My Sessions
-            </NavLink>
-            <NavLink href="/dashboard/mentee/coaches" icon={GraduationCap}>
-              Find Coaches
-            </NavLink>
+
 
             {/* Tools */}
             <Separator className="my-3" />

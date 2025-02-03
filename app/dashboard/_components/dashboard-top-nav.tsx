@@ -12,8 +12,8 @@ import Link from 'next/link'
 
 
 // Add this import
-import { UnifiedSidebar } from '@/app/dashboard/_components/unified-sidebar'
-import AdminSidebar from '@/app/dashboard/admin/_components/admin-sidebar'
+import { AdminSidebar } from '@/app/dashboard/admin/_components/admin-sidebar'
+import { CoachSidebar } from '@/app/dashboard/coach/_components/coach-sidebar'
 
 export default function DashboardTopNav({ children }: { children: ReactNode }) {
   const pathname = usePathname()
@@ -23,7 +23,11 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
     if (pathname.startsWith('/dashboard/admin')) {
       return <AdminSidebar />
     }
-    return <UnifiedSidebar />
+    if (pathname.startsWith('/dashboard/coach')) {
+      return <CoachSidebar />
+    }
+    // For now, return null for realtor path until realtor sidebar is implemented
+    return null
   }
 
   // Update getPortalTitle to include admin case
