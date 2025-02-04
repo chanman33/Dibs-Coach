@@ -1,15 +1,13 @@
 'use server'
 
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { Webhook } from 'svix'
 import { WebhookEvent } from '@clerk/nextjs/server'
-import { ROLES } from '@/utils/roles/roles'
-import { userCreate } from '@/utils/data/user/userCreate'
-import { userUpdate } from '@/utils/data/user/userUpdate'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
-async function createSupabaseClient() {
+// Create a reusable Supabase client for webhook operations
+async function createWebhookClient() {
   const cookieStore = await cookies()
   return createServerClient(
     process.env.SUPABASE_URL!,
@@ -19,6 +17,12 @@ async function createSupabaseClient() {
         get(name: string) {
           return cookieStore.get(name)?.value
         },
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: '', ...options })
+        },
       },
     }
   )
@@ -27,7 +31,6 @@ async function createSupabaseClient() {
 export async function POST(req: Request) {
   console.log('[CLERK_WEBHOOK] Received webhook request')
 
-  const supabase = await createSupabaseClient()
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET
 
   if (!WEBHOOK_SECRET) {
@@ -78,6 +81,7 @@ export async function POST(req: Request) {
   }
 
   const eventType = evt.type
+  const supabase = await createWebhookClient()
 
   switch (eventType) {
     case 'user.created': {
@@ -91,11 +95,11 @@ export async function POST(req: Request) {
           throw new Error('Missing required userId in webhook payload');
         }
 
-        // Check if user already exists first
+        // Check if user exists
         const { data: existingUser } = await supabase
-          .from("User")
-          .select("id")
-          .eq("userId", payload.data.id)
+          .from('User')
+          .select('*')
+          .eq('userId', payload.data.id)
           .single();
 
         if (existingUser) {
@@ -107,21 +111,31 @@ export async function POST(req: Request) {
           });
         }
 
-        const result = await userCreate({
-          email: payload?.data?.email_addresses?.[0]?.email_address,
-          firstName: payload?.data?.first_name,
-          lastName: payload?.data?.last_name,
-          profileImageUrl: payload?.data?.image_url,
-          userId: payload?.data?.id,
-          role: ROLES.MENTEE,
-        });
+        // Create new user
+        const { data: newUser, error: createError } = await supabase
+          .from('User')
+          .insert({
+            userId: payload.data.id,
+            email: payload.data.email_addresses?.[0]?.email_address,
+            firstName: payload.data.first_name,
+            lastName: payload.data.last_name,
+            profileImageUrl: payload.data.image_url,
+            role: 'mentee',
+            memberStatus: 'active',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          })
+          .select()
+          .single();
 
-        console.log('[CLERK_WEBHOOK] User created successfully:', result);
+        if (createError) throw createError;
+
+        console.log('[CLERK_WEBHOOK] User created successfully:', newUser);
 
         return NextResponse.json({
           status: 200,
           message: 'User created successfully',
-          data: result
+          data: newUser
         });
       } catch (error: any) {
         console.error('[CLERK_WEBHOOK_ERROR] Failed to create user:', {
@@ -138,33 +152,44 @@ export async function POST(req: Request) {
 
     case 'user.updated': {
       try {
-        const result = await userUpdate({
-          email: payload?.data?.email_addresses?.[0]?.email_address,
-          firstName: payload?.data?.first_name,
-          lastName: payload?.data?.last_name,
-          profileImageUrl: payload?.data?.image_url,
-          userId: payload?.data?.id,
-        })
+        if (!payload?.data?.id) {
+          throw new Error('Missing required userId in webhook payload');
+        }
+
+        const { data: updatedUser, error: updateError } = await supabase
+          .from('User')
+          .update({
+            email: payload.data.email_addresses?.[0]?.email_address,
+            firstName: payload.data.first_name,
+            lastName: payload.data.last_name,
+            profileImageUrl: payload.data.image_url,
+            updatedAt: new Date().toISOString()
+          })
+          .eq('userId', payload.data.id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
 
         return NextResponse.json({
           status: 200,
           message: 'User updated successfully',
-          data: result
-        })
+          data: updatedUser
+        });
       } catch (error: any) {
-        console.error('[CLERK_WEBHOOK_ERROR] Failed to update user:', error)
+        console.error('[CLERK_WEBHOOK_ERROR] Failed to update user:', error);
         return NextResponse.json({
           status: 500,
           error: error.message || 'Failed to update user'
-        })
+        });
       }
     }
 
     default:
-      console.warn('[CLERK_WEBHOOK_WARNING] Unhandled event type:', eventType)
+      console.warn('[CLERK_WEBHOOK_WARNING] Unhandled event type:', eventType);
       return NextResponse.json({
         status: 400,
         error: `Unhandled webhook event type: ${eventType}`
-      })
+      });
   }
 }

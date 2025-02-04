@@ -58,9 +58,7 @@ export function MenteeSidebar() {
             <NavLink href="/dashboard/mentee/messages" icon={MessageSquare}>
               Messages
             </NavLink>
-            <NavLink href="/dashboard/goals" icon={Target}>
-              Goals
-            </NavLink>
+
 
             {/* Coaching */}
             <NavLink href="/dashboard/mentee/browse-coaches" icon={GraduationCap}>
@@ -84,10 +82,10 @@ export function MenteeSidebar() {
             </button>
             {isToolsExpanded && (
               <div className="pl-3">
-                <NavLink href="/dashboard/mentee/ai-listings" icon={Building2}>
+                <NavLink href="/dashboard/ai-listings" icon={Building2}>
                   AI Listing Generator
                 </NavLink>
-                <NavLink href="/dashboard/mentee/income-calc" icon={Calculator}>
+                <NavLink href="/dashboard/income-calc" icon={Calculator}>
                   Income Calculator
                 </NavLink>
               </div>

@@ -14,6 +14,8 @@ export const rolePermissions = {
     canBookSessions: true,
     canAccessProfile: true,
     canAccessSettings: true,
+    canAccessAiTools: true,
+    canAccessCalculators: true,
   },
   [ROLES.COACH]: {
     canAccessDashboard: true,
@@ -23,6 +25,8 @@ export const rolePermissions = {
     canAccessSettings: true,
     canSetAvailability: true,
     canViewAnalytics: true,
+    canAccessAiTools: true,
+    canAccessCalculators: true,
   },
   [ROLES.ADMIN]: {
     canAccessDashboard: true,
@@ -34,6 +38,8 @@ export const rolePermissions = {
     canManageRoles: true,
     canViewAnalytics: true,
     canManageSystem: true,
+    canAccessAiTools: true,
+    canAccessCalculators: true,
   },
 } as const;
 

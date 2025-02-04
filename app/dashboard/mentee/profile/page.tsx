@@ -1,19 +1,48 @@
-"use client";
+"use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import GeneralForm from "./_components/GeneralForm"
+import SpecializationPreferences from "./_components/SpecializationPreferences"
+import ListingsAndAchievements from "./_components/ListingsAchievements"
+import MarketingInformation from "./_components/MarketingInfo"
 
-export default function MenteeProfilePage() {
+
+export default function AgentProfilePage() {
+  const [generalInfo, setGeneralInfo] = useState({})
+  const [specializations, setSpecializations] = useState({})
+  const [listings, setListings] = useState({})
+  const [marketing, setMarketing] = useState({})
+
+  const handleSubmit = (formData: any, formType: string) => {
+    switch (formType) {
+      case "general":
+        setGeneralInfo(formData)
+        break
+      case "specializations":
+        setSpecializations(formData)
+        break
+      case "listings":
+        setListings(formData)
+        break
+      case "marketing":
+        setMarketing(formData)
+        break
+    }
+    console.log(`${formType} form submitted:`, formData)
+  }
+
   return (
     <div className="container mx-auto py-6">
-      <h1 className="text-3xl font-bold mb-6">Mentee Profile Settings</h1>
-      
+      <h1 className="text-3xl font-bold mb-6">Real Estate Agent Profile Settings</h1>
+
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="preferences">Coaching Preferences</TabsTrigger>
-          <TabsTrigger value="goals">Goals & Milestones</TabsTrigger>
-          <TabsTrigger value="billing">Billing</TabsTrigger>
+          <TabsTrigger value="specializations">Specializations</TabsTrigger>
+          <TabsTrigger value="listings">Listings & Achievements</TabsTrigger>
+          <TabsTrigger value="marketing">Marketing</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -22,44 +51,45 @@ export default function MenteeProfilePage() {
               <CardTitle>General Information</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* General profile form component */}
+              <GeneralForm onSubmit={(data) => handleSubmit(data, "general")} />
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="preferences">
+        <TabsContent value="specializations">
           <Card>
             <CardHeader>
-              <CardTitle>Coaching Preferences</CardTitle>
+              <CardTitle>Specializations & Expertise</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Coaching preferences - preferred coaching style, areas of focus */}
+              <SpecializationPreferences onSubmit={(data) => handleSubmit(data, "specializations")} />
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="goals">
+        <TabsContent value="listings">
           <Card>
             <CardHeader>
-              <CardTitle>Goals & Milestones</CardTitle>
+              <CardTitle>Listings & Achievements</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Goals tracking and milestone settings */}
+              <ListingsAndAchievements onSubmit={(data) => handleSubmit(data, "listings")} />
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="billing">
+        <TabsContent value="marketing">
           <Card>
             <CardHeader>
-              <CardTitle>Billing Information</CardTitle>
+              <CardTitle>Marketing Information</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Billing settings - payment methods, history */}
+              <MarketingInformation onSubmit={(data) => handleSubmit(data, "marketing")} />
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
     </div>
-  );
-} 
+  )
+}
+

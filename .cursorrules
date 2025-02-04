@@ -22,13 +22,32 @@ core:
 auth:
   clerk:
     import: "import { auth } from '@clerk/nextjs/server'"
+    core_utilities:
+      location: "utils/auth.ts"
+      functions:
+        - "createAuthClient: reusable Supabase client for auth"
+        - "ensureUserExists: handle user creation/updates"
+        - "getUserDbIdAndRole: fetch user role info"
+        - "updateUser: handle profile updates"
     rules:
       - "await auth() required"
       - "Server-side auth checks"
       - "Webhook event handling"
-      - "Supabase user sync"
+      - "Supabase user sync via ensureUserExists"
       - "Protected routes in middleware"
       - "No @clerk/nextjs without server"
+    sign_up:
+      location: "app/(auth)/sign-up/[[...sign-up]]/page.tsx"
+      flow:
+        - "Clerk SignUp component for auth"
+        - "Redirect to onboarding"
+        - "Server-side user creation via after-signup API"
+    after_signup:
+      location: "app/api/auth/after-signup/route.ts"
+      flow:
+        - "Verify auth status"
+        - "Call ensureUserExists"
+        - "Handle errors appropriately"
 
 database:
   # General Rules
@@ -41,6 +60,7 @@ database:
       config:
         url: "process.env.SUPABASE_URL"
         key: "process.env.SUPABASE_SERVICE_KEY"
+      implementation: "Use createAuthClient from utils/auth.ts"
   
   prisma:
     allowed_for: "schema management and migrations only"
@@ -153,6 +173,7 @@ database:
   # Best Practices
   best_practices:
     auth:
+      - "Use ensureUserExists for user management"
       - "Convert Clerk ID to database ID early in API routes"
       - "Use database IDs for all internal operations"
       - "Keep auth logic separate from database logic"
@@ -164,6 +185,11 @@ database:
       - "Use BIGINT for all IDs and foreign keys"
       - "Use TEXT for Clerk userId and other string identifiers"
       - "Use TIMESTAMP WITH TIME ZONE for all timestamps"
+    error_handling:
+      - "Use consistent error logging format"
+      - "Include context in error messages"
+      - "Handle edge cases appropriately"
+      - "Proper error responses in API routes"
   
   # Migrations
   migrations:
