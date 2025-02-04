@@ -42,7 +42,7 @@ export default function MarketingInformation({ onSubmit }: { onSubmit: (data: an
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label htmlFor="slogan">Marketing Slogan</Label>
+        <Label htmlFor="slogan">Byline or Slogan</Label>
         <Input id="slogan" name="slogan" value={formData.slogan} onChange={handleChange} />
       </div>
       <div>
