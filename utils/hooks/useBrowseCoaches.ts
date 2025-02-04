@@ -65,25 +65,30 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
         }
 
         const formattedCoaches: BrowseCoachData[] = coachesData.map(coach => {
-          const profile = Array.isArray(coach.RealtorCoachProfile) 
-            ? coach.RealtorCoachProfile[0] 
-            : coach.RealtorCoachProfile;
+          const coachProfile = coach.CoachProfile;
+          const realtorProfile = coach.RealtorProfile;
+
+          // Get primary specialty from coach specialties or default to first specialization
+          const primarySpecialty = coachProfile?.coachingSpecialties?.[0] || 
+                                 realtorProfile?.specializations?.[0] || 
+                                 'General Coach';
 
           return {
             id: coach.id,
             userId: coach.userId,
             name: `${coach.firstName || ''} ${coach.lastName || ''}`.trim(),
-            strength: profile?.specialty || 'General Coach',
+            strength: primarySpecialty,
             imageUrl: coach.profileImageUrl,
-            bio: profile?.bio,
-            experience: profile?.experience,
-            certifications: profile?.certifications || [],
-            availability: profile?.availability,
-            sessionLength: profile?.sessionLength,
-            specialties: profile?.specialties ? JSON.parse(profile.specialties) : [],
-            calendlyUrl: profile?.calendlyUrl,
-            eventTypeUrl: profile?.eventTypeUrl,
-            rate: profile?.hourlyRate ? parseFloat(profile.hourlyRate.toString()) : null
+            bio: realtorProfile?.bio || null,
+            experience: realtorProfile?.yearsExperience?.toString() || coachProfile?.yearsCoaching?.toString() || null,
+            certifications: realtorProfile?.certifications || null,
+            // Default to 60 minutes if no duration is specified
+            availability: '60 minutes',
+            sessionLength: '60 minutes',
+            specialties: coachProfile?.coachingSpecialties || realtorProfile?.specializations || [],
+            calendlyUrl: coachProfile?.calendlyUrl || null,
+            eventTypeUrl: coachProfile?.eventTypeUrl || null,
+            rate: coachProfile?.hourlyRate ? parseFloat(coachProfile.hourlyRate.toString()) : null
           };
         });
 
@@ -92,10 +97,19 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
           coach.name && coach.strength && (!coach.specialties || Array.isArray(coach.specialties))
         );
 
-        setBookedCoaches(validCoaches.slice(0, 2));
-        setRecommendedCoaches(validCoaches.slice(2));
-        setFilteredBookedCoaches(validCoaches.slice(0, 2));
-        setFilteredRecommendedCoaches(validCoaches.slice(2));
+        // Sort coaches by those with complete profiles first
+        const sortedCoaches = validCoaches.sort((a, b) => {
+          const aComplete = !!(a.bio && a.experience && a.specialties.length && a.rate);
+          const bComplete = !!(b.bio && b.experience && b.specialties.length && b.rate);
+          if (aComplete && !bComplete) return -1;
+          if (!aComplete && bComplete) return 1;
+          return 0;
+        });
+
+        setBookedCoaches(sortedCoaches.slice(0, 2));
+        setRecommendedCoaches(sortedCoaches.slice(2));
+        setFilteredBookedCoaches(sortedCoaches.slice(0, 2));
+        setFilteredRecommendedCoaches(sortedCoaches.slice(2));
       } catch (error) {
         console.error('[FETCH_COACHES_ERROR]', error);
         setError('An unexpected error occurred. Please try again later.');

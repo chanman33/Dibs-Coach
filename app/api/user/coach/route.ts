@@ -25,7 +25,19 @@ interface CoachData {
   firstName: string | null
   lastName: string | null
   profileImageUrl: string | null
-  RealtorCoachProfile: RealtorCoachProfile
+  CoachProfile: {
+    hourlyRate: number | null
+    coachingSpecialties: string[] | null
+    yearsCoaching: number | null
+    calendlyUrl: string | null
+    eventTypeUrl: string | null
+  } | null
+  RealtorProfile: {
+    bio: string | null
+    yearsExperience: number | null
+    specializations: string[] | null
+    certifications: string[] | null
+  } | null
 }
 
 export async function fetchCoaches() {
@@ -54,21 +66,23 @@ export async function fetchCoaches() {
         firstName,
         lastName,
         profileImageUrl,
-        RealtorCoachProfile!inner (
-          specialty,
-          bio,
-          experience,
-          certifications,
-          availability,
-          sessionLength,
-          specialties,
+        CoachProfile (
+          hourlyRate,
+          coachingSpecialties,
+          yearsCoaching,
           calendlyUrl,
-          eventTypeUrl,
-          hourlyRate
+          eventTypeUrl
+        ),
+        RealtorProfile (
+          bio,
+          yearsExperience,
+          specializations,
+          certifications
         )
       `)
-      .eq('role', 'realtor_coach')
-      .not('RealtorCoachProfile', 'is', null)
+      .eq('role', 'COACH')
+      .eq('status', 'active')
+      .not('CoachProfile', 'is', null)
 
     if (error) {
       console.error('[FETCH_COACHES_ERROR] Database error:', error)
@@ -103,8 +117,8 @@ export async function fetchCoaches() {
     updatedCoachesData.forEach(coach => {
       console.log(`[DEBUG] Coach ${coach.id} profile:`, {
         name: `${coach.firstName} ${coach.lastName}`,
-        hasProfile: !!coach.RealtorCoachProfile,
-        profileData: coach.RealtorCoachProfile,
+        hasProfile: !!coach.RealtorProfile,
+        profileData: coach.RealtorProfile,
         imageUrl: coach.profileImageUrl
       });
     });
@@ -145,7 +159,7 @@ export async function fetchCoachByClerkId(clerkId: string): Promise<{ data: Coac
         firstName,
         lastName,
         profileImageUrl,
-        RealtorCoachProfile (
+        RealtorProfile (
           specialty,
           bio,
           experience,
@@ -160,7 +174,7 @@ export async function fetchCoachByClerkId(clerkId: string): Promise<{ data: Coac
       `)
       .eq('userId', clerkId)
       .eq('role', 'realtor_coach')
-      .not('RealtorCoachProfile', 'is', null)
+      .not('RealtorProfile', 'is', null)
       .single()
 
     if (error) {
