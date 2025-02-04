@@ -509,4 +509,4 @@ function AIListingGenerator() {
   )
 }
 
-export default withRole(AIListingGenerator, [ROLES.REALTOR]) 
+export default withRole(AIListingGenerator, [ROLES.MENTEE]) 

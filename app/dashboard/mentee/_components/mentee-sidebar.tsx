@@ -82,10 +82,10 @@ export function MenteeSidebar() {
             </button>
             {isToolsExpanded && (
               <div className="pl-3">
-                <NavLink href="/dashboard/ai-listings" icon={Building2}>
+                <NavLink href="/dashboard/mentee/tools/ai-listings" icon={Building2}>
                   AI Listing Generator
                 </NavLink>
-                <NavLink href="/dashboard/income-calc" icon={Calculator}>
+                <NavLink href="/dashboard/mentee/tools/income-calc" icon={Calculator}>
                   Income Calculator
                 </NavLink>
               </div>

@@ -42,6 +42,8 @@ const PROTECTED_ROUTES = [
 const COACH_ROUTES = ['/dashboard/coach(.*)'] as const;
 const MENTEE_ROUTES = ['/dashboard/mentee(.*)'] as const;
 const ADMIN_ROUTES = ['/dashboard/admin(.*)'] as const;
+
+// Note: We keep SHARED_TOOL_ROUTES for direct access, though it should be rare
 const SHARED_TOOL_ROUTES = ['/dashboard/tools(.*)'] as const;
 
 let clerkMiddleware: any, createRouteMatcher: any;
@@ -126,7 +128,8 @@ export default function middleware(req: NextRequest) {
       }
 
       // Handle shared tool routes - allow access for both coaches and mentees
-      if (SHARED_TOOL_ROUTES.some(route => pathname.match(route))) {
+      // This covers both direct /dashboard/tools/* access and role-specific /dashboard/{role}/tools/* access
+      if (SHARED_TOOL_ROUTES.some(route => pathname.match(route)) || pathname.match(/\/dashboard\/(coach|mentee)\/tools\/.*/)) {
         const hasToolAccess = role === ROLES.COACH || role === ROLES.MENTEE || role === ROLES.ADMIN;
         if (!hasToolAccess) {
           return new NextResponse('Access denied. Coach or Mentee role required.', { status: 403 });

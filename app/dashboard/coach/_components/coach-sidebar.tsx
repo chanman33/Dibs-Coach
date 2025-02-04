@@ -15,6 +15,8 @@ import {
   BarChart,
   ChevronDown,
   ChevronUp,
+  Building2,
+  Calculator,
 } from "lucide-react"
 
 export function CoachSidebar() {
@@ -80,6 +82,17 @@ export function CoachSidebar() {
                 </NavLink>
               </div>
             )}
+
+            {/* Shared Tools */}
+            <Separator className="my-3" />
+            <div className="pl-3 grid gap-1">
+              <NavLink href="/dashboard/coach/tools/ai-listings" icon={Building2}>
+                AI Listing Generator
+              </NavLink>
+              <NavLink href="/dashboard/coach/tools/income-calc" icon={Calculator}>
+                Income Calculator
+              </NavLink>
+            </div>
           </nav>
         </div>
       </div>
