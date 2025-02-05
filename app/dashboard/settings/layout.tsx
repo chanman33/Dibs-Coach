@@ -1,59 +1,61 @@
 "use client"
 
 import { ReactNode } from "react"
-import { Settings, Bell, CreditCard, Calendar } from "lucide-react"
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import clsx from "clsx"
+import { useUser } from "@clerk/nextjs"
+import { AdminSidebar } from "../admin/_components/admin-sidebar"
+import { CoachSidebar } from "../coach/_components/coach-sidebar"
+import { MenteeSidebar } from "../mentee/_components/mentee-sidebar"
+import { useEffect, useState } from "react"
+import { ROLES, type UserRole } from "@/utils/roles/roles"
+import config from "@/config"
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
-  const pathname = usePathname()
+  const { user } = useUser()
+  const [userRoles, setUserRoles] = useState<UserRole[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const links = [
-    {
-      href: "/dashboard/settings",
-      label: "Account", 
-      icon: Settings
-    },
-    {
-      href: "/dashboard/settings/notifications",
-      label: "Notifications",
-      icon: Bell
-    },
-    {
-      href: "/dashboard/settings/subscription", 
-      label: "Subscription",
-      icon: CreditCard
-    },
-    {
-      href: "/dashboard/settings/calendly",
-      label: "Calendly",
-      icon: Calendar
+  useEffect(() => {
+    async function fetchUserRoles() {
+      if (user?.id) {
+        try {
+          const response = await fetch(`/api/user/role?userId=${user.id}`)
+          const data = await response.json()
+          setUserRoles(data.roles)
+        } catch (error) {
+          console.error("[ROLE_FETCH_ERROR]", error)
+          setUserRoles([ROLES.MENTEE])
+        }
+        setLoading(false)
+      }
     }
-  ]
+
+    fetchUserRoles()
+  }, [user?.id])
+
+  if (loading) {
+    return <div>Loading...</div>
+  }
+
+  const renderSidebar = () => {
+    if (!userRoles) return null
+
+    if (userRoles.includes(ROLES.ADMIN)) {
+      return <AdminSidebar />
+    }
+    if (userRoles.includes(ROLES.COACH)) {
+      return <CoachSidebar />
+    }
+    return <MenteeSidebar />
+  }
 
   return (
-    <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0 p-8">
-      <aside className="-mx-4 lg:w-1/5">
-        <nav className="flex space-x-2 lg:flex-col lg:space-x-0 lg:space-y-1">
-          {links.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={clsx(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-500 transition-all hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50",
-                pathname === link.href && "bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-50"
-              )}
-            >
-              <div className="border rounded-lg dark:bg-black dark:border-gray-800 border-gray-400 p-1 bg-white">
-                <link.icon className="h-3 w-3" />
-              </div>
-              {link.label}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-      <div className="flex-1">{children}</div>
+    <div className="flex h-screen">
+      {renderSidebar()}
+      <div className="flex-1 overflow-auto">
+        <div className="container mx-auto p-8">
+          {children}
+        </div>
+      </div>
     </div>
   )
 } 
