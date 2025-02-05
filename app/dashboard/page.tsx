@@ -19,8 +19,15 @@ export default async function DashboardPage() {
   }
 
   // Route based on user's role
-  const roles = [user.role];
+  const roles = Array.isArray(user.role) ? user.role : [user.role];
   
+  // Log roles for debugging
+  console.log('[DASHBOARD_DEBUG] Processing roles:', {
+    userId,
+    roles,
+    validRoles: Object.values(ROLES)
+  });
+
   // Route to role-specific dashboard
   if (hasAnyRole(roles, [ROLES.ADMIN])) {
     redirect("/dashboard/admin");
@@ -34,7 +41,11 @@ export default async function DashboardPage() {
     redirect("/dashboard/mentee");
   }
 
-  // No valid role found
-  console.error('[DASHBOARD_ERROR] Invalid role for user:', { userId, role: user.role });
+  // No valid role found - this will only execute if none of the above redirects happen
+  console.error('[DASHBOARD_ERROR] Invalid role for user:', { 
+    userId, 
+    roles,
+    validRoles: Object.values(ROLES)
+  });
   redirect("/error?code=invalid_role");
 } 

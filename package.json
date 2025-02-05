@@ -10,10 +10,13 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "seed": "tsx prisma/seed.ts"
+    "seed": "yarn tsx prisma/seed.ts",
+    "seed-admin": "tsx prisma/seed-admin.ts",
+    "db:push": "yarn prisma db push",
+    "db:studio": "yarn prisma studio"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "yarn tsx prisma/seed.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.0.2",
@@ -104,7 +107,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@types/jest": "^29.5.14",
-    "@types/node": "^22.10.2",
+    "@types/node": "^22.13.1",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "autoprefixer": "latest",

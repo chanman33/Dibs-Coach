@@ -108,6 +108,36 @@ enum CoachApplicationStatus {
   rejected
 }
 
+enum Role {
+  USER
+  COACH
+  ADMIN
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ActivityType {
+  USER
+  COACH
+  SYSTEM
+  SECURITY
+}
+
+enum ActivitySeverity {
+  INFO
+  WARNING
+  ERROR
+}
+
 // Models
 model User {
   id                     Int      @id @default(autoincrement())
@@ -179,9 +209,13 @@ model User {
   invoices             Invoice[]
   calendlyEvents       CalendlyEvent[]
 
+  // Admin relations
+  adminAuditLogs       AdminAuditLog[]    @relation("AdminAuditLogs")
+
   @@index([userId])
   @@index([email])
   @@index([role])
+  @@index([status])
   @@map("User")
 }
 
@@ -827,4 +861,97 @@ model Transaction {
   @@index([coachDbId])
   @@index([sessionDbId])
   @@map("Transaction")
+}
+
+model SystemHealth {
+  id            BigInt    @id @default(autoincrement())
+  status        Int
+  activeSessions Int
+  pendingReviews Int
+  securityAlerts Int
+  uptime        Float
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@map("SystemHealth")
+}
+
+model AdminMetrics {
+  id                Int       @id @default(autoincrement())
+  totalUsers        Int
+  activeUsers       Int
+  totalCoaches      Int
+  activeCoaches     Int
+  pendingCoaches    Int
+  totalSessions     Int
+  completedSessions Int
+  totalRevenue      Float
+  monthlyRevenue    Float
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@map("AdminMetrics")
+}
+
+model SystemActivity {
+  id          BigInt    @id @default(autoincrement())
+  type        String    // Enum in application layer
+  title       String
+  description String
+  severity    String?   // Optional enum in application layer
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([type, createdAt])
+  @@index([severity, createdAt])
+  @@map("SystemActivity")
+}
+
+model SystemAlerts {
+  id          BigInt    @id @default(autoincrement())
+  type        String    // Enum in application layer
+  title       String
+  message     String
+  severity    String    // Enum in application layer
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([type, createdAt])
+  @@index([severity, createdAt])
+  @@map("SystemAlerts")
+}
+
+// Admin Dashboard MVP Models
+model AdminActivity {
+  id          Int       @id @default(autoincrement())
+  type        String    // USER_ACTION, COACH_APPLICATION, SESSION, SYSTEM
+  title       String
+  description String
+  userDbId    Int?      // Optional reference to user who performed action
+  severity    String    // LOW, MEDIUM, HIGH
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([type])
+  @@index([createdAt])
+  @@map("AdminActivity")
+}
+
+// Keep track of important admin actions for audit
+model AdminAuditLog {
+  id          Int       @id @default(autoincrement())
+  adminDbId   Int       // Admin who performed the action
+  admin       User      @relation("AdminAuditLogs", fields: [adminDbId], references: [id])
+  action      String    // Type of action performed
+  targetType  String    // What was affected (user, coach, application, etc)
+  targetId    Int       // ID of the affected record
+  details     Json      // Additional details about the action
+  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([adminDbId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("AdminAuditLog")
 }

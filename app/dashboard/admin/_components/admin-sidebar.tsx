@@ -8,8 +8,11 @@ import {
   Users,
   Settings,
   HomeIcon,
-  UserCircle,
   ClipboardCheck,
+  Shield,
+  Activity,
+  DollarSign,
+  FileText,
 } from "lucide-react"
 
 export function AdminSidebar() {
@@ -38,25 +41,45 @@ export function AdminSidebar() {
         </div>
         <div className="flex-1 overflow-auto py-2">
           <nav className="grid items-start px-4 text-sm font-medium gap-1">
-            {/* Main Navigation */}
+            {/* Overview */}
             <NavLink href="/dashboard/admin" icon={HomeIcon}>
               Dashboard
             </NavLink>
-            <NavLink href="/dashboard/admin/profile" icon={UserCircle}>
-              Profile
-            </NavLink>
 
-            <Separator className="my-3" />
+            <Separator className="my-2" />
             
-            {/* Admin Features */}
-            <NavLink href="/dashboard/admin/users" icon={Users}>
-              User Management
-            </NavLink>
-            <NavLink href="/dashboard/admin/settings" icon={Settings}>
-              System Settings
+            {/* User Management */}
+            <div className="text-xs uppercase text-gray-500 mt-2 mb-1">User Management</div>
+            <NavLink href="/dashboard/admin/user-mgmt" icon={Users}>
+              Users Overview
             </NavLink>
             <NavLink href="/dashboard/admin/coach-applications" icon={ClipboardCheck}>
               Coach Applications
+            </NavLink>
+            <NavLink href="/dashboard/admin/roles" icon={Shield}>
+              Roles & Permissions
+            </NavLink>
+
+            <Separator className="my-2" />
+
+            {/* Analytics */}
+            <div className="text-xs uppercase text-gray-500 mt-2 mb-1">Analytics</div>
+            <NavLink href="/dashboard/admin/analytics/revenue" icon={DollarSign}>
+              Revenue Analytics
+            </NavLink>
+            <NavLink href="/dashboard/admin/analytics/reports" icon={FileText}>
+              Reports
+            </NavLink>
+
+            <Separator className="my-2" />
+
+            {/* System */}
+            <div className="text-xs uppercase text-gray-500 mt-2 mb-1">System</div>
+            <NavLink href="/dashboard/admin/monitoring" icon={Activity}>
+              System Health
+            </NavLink>
+            <NavLink href="/dashboard/admin/settings" icon={Settings}>
+              Settings
             </NavLink>
           </nav>
         </div>

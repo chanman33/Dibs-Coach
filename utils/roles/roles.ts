@@ -72,13 +72,13 @@ export function getRolePermissions(userRoles: UserRoles): Set<Permission> {
 
 // Validation
 export function isValidRole(role: string): role is UserRole {
-  return Object.values(ROLES).includes(role as UserRole);
+  return Object.values(ROLES).includes(role.toUpperCase() as UserRole);
 }
 
 export function validateRoles(roles: string[]): UserRole[] {
-  const validRoles = roles.filter(isValidRole);
+  const validRoles = roles.map(role => role.toUpperCase()).filter(isValidRole);
   if (validRoles.length === 0) {
     throw new Error('At least one valid role must be provided');
   }
-  return validRoles;
+  return validRoles as UserRole[];
 } 
