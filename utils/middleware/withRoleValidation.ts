@@ -25,6 +25,10 @@ export function withRoleValidation(
 
       // Check roles if specified
       if (options.requiredRoles?.length) {
+        if (!userRoles) {
+          return NextResponse.json({ error: "User roles not found" }, { status: 403 });
+        }
+
         const hasRoles = options.requireAll
           ? hasAnyRole(userRoles, options.requiredRoles)
           : hasAnyRole(userRoles, options.requiredRoles);
@@ -39,6 +43,10 @@ export function withRoleValidation(
 
       // Check permissions if specified
       if (options.requiredPermissions?.length) {
+        if (!userRoles) {
+          return NextResponse.json({ error: "User roles not found" }, { status: 403 });
+        }
+
         const hasRequiredPermissions = hasPermissions(
           userRoles,
           options.requiredPermissions
