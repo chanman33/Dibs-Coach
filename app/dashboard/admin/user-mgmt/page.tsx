@@ -2,9 +2,12 @@ import { auth } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DataTable } from "@/components/ui/data-table"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { fetchUserAnalytics } from "@/utils/actions/admin-actions"
+import { UserManagementTable } from "./_components/user-management-table"
+import { AnalyticsDashboard } from "./_components/analytics-dashboard"
+import { ReportingDashboard } from "./_components/reporting-dashboard"
 import { 
   Users, 
   UserPlus, 
@@ -42,8 +45,17 @@ export default async function AdminUserManagement() {
   const { userId } = await auth()
   if (!userId) redirect("/sign-in")
 
-  // Fetch analytics data here
-  const analytics: UserAnalytics = await fetchUserAnalytics()
+  // Fetch analytics data
+  const { data: analytics, error } = await fetchUserAnalytics()
+  if (error) {
+    console.error("[USER_ANALYTICS_ERROR]", error)
+    // You might want to handle this error differently
+    return <div>Error loading analytics</div>
+  }
+  
+  if (!analytics) {
+    return <div>No analytics data available</div>
+  }
 
   return (
     <div className="space-y-6 p-6">

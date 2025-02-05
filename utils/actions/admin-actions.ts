@@ -7,7 +7,7 @@ import { DashboardData, AdminMetrics, AdminActivity } from "../types/admin"
 import { revalidatePath } from "next/cache"
 
 // Type for user analytics
-type UserAnalytics = {
+export type UserAnalytics = {
   totalUsers: number;
   activeUsers: number;
   newUsersThisMonth: number;
@@ -236,11 +236,24 @@ export async function updateUserStatus(
   status: "active" | "inactive"
 ) {
   try {
-    const { userId } = await auth()
-    if (!userId) throw new Error("Unauthorized")
+    // Get admin's Clerk ID for audit log
+    const { userId: adminClerkId } = await auth()
+    if (!adminClerkId) throw new Error("Unauthorized")
 
     const supabase = await createServerClient(cookies())
     
+    // Get admin's database ID for audit log
+    const { data: adminUser, error: adminError } = await supabase
+      .from("User")
+      .select("id")
+      .eq("userId", adminClerkId)
+      .single()
+
+    if (adminError || !adminUser) {
+      console.error("[UPDATE_USER_STATUS_ERROR] Admin lookup:", adminError)
+      throw new Error("Admin user not found")
+    }
+
     // Update user status
     const { error: updateError } = await supabase
       .from("User")
@@ -256,7 +269,7 @@ export async function updateUserStatus(
     const { error: logError } = await supabase
       .from("AdminAuditLog")
       .insert({
-        adminDbId: userId,
+        adminDbId: adminUser.id, // Use admin's database ID
         action: "USER_STATUS_UPDATE",
         targetType: "User",
         targetId: userDbId,
@@ -286,8 +299,7 @@ export async function refreshDashboardData(): Promise<void> {
 }
 
 /**
- * @description Fetches user analytics for admin dashboard
- * Following .cursorrules for database operations and error handling
+ * @description Fetches user analytics data for the admin dashboard
  */
 export async function fetchUserAnalytics(): Promise<{ data: UserAnalytics | null; error: Error | null }> {
   try {
@@ -299,72 +311,149 @@ export async function fetchUserAnalytics(): Promise<{ data: UserAnalytics | null
     const cookieStore = cookies()
     const supabase = await createServerClient(cookieStore)
 
-    // Following .cursorrules: PascalCase table names
-    const { data: users, error: usersError } = await supabase
+    // Fetch total users and roles
+    const { data: userData, error: userError } = await supabase
       .from("User")
-      .select("role, status, createdAt")
+      .select("id, role, status, createdAt")
 
-    if (usersError) {
-      console.error("[DB_ERROR] User Analytics:", usersError)
-      throw usersError
+    if (userError) {
+      console.error("[DB_ERROR] User:", userError)
+      throw userError
     }
 
-    // Fetch session and revenue data
-    const { data: sessions, error: sessionsError } = await supabase
-      .from("Session")
-      .select("status, price, createdAt")
-
-    if (sessionsError) {
-      console.error("[DB_ERROR] Session Analytics:", sessionsError)
-      throw sessionsError
-    }
-
-    // Calculate analytics
+    // Get current date and first day of month for new users calculation
     const now = new Date()
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
 
-    const completedSessions = sessions?.filter(s => s.status === "completed") || []
-    const canceledSessions = sessions?.filter(s => s.status === "canceled") || []
-    const totalRevenue = completedSessions.reduce((sum, s) => sum + (s.price || 0), 0)
-    const monthlyRevenue = completedSessions
-      .filter(s => new Date(s.createdAt) >= firstDayOfMonth)
-      .reduce((sum, s) => sum + (s.price || 0), 0)
+    // Calculate user metrics
+    const totalUsers = userData.length
+    const activeUsers = userData.filter(user => user.status === "active").length
+    const newUsersThisMonth = userData.filter(
+      user => new Date(user.createdAt) >= firstDayOfMonth
+    ).length
+
+    // Calculate users by role
+    const usersByRole = {
+      mentee: userData.filter(user => user.role === "mentee").length,
+      coach: userData.filter(user => user.role === "coach").length,
+      admin: userData.filter(user => user.role === "admin").length,
+    }
+
+    // Fetch session data for metrics
+    const { data: sessionData, error: sessionError } = await supabase
+      .from("Session")
+      .select("status, priceAmount, createdAt")
+
+    if (sessionError) {
+      console.error("[DB_ERROR] Session:", sessionError)
+      throw sessionError
+    }
+
+    // Calculate session metrics
+    const totalSessions = sessionData.length
+    const completedSessions = sessionData.filter(session => session.status === "completed").length
+    const canceledSessions = sessionData.filter(session => session.status === "cancelled").length
+
+    const completionRate = totalSessions > 0 
+      ? Math.round((completedSessions / totalSessions) * 100) 
+      : 0
+    const cancelationRate = totalSessions > 0
+      ? Math.round((canceledSessions / totalSessions) * 100)
+      : 0
+
+    // Calculate revenue metrics
+    const totalRevenue = sessionData.reduce((sum, session) => sum + (session.priceAmount || 0), 0)
+    const monthlyRevenue = sessionData
+      .filter(session => new Date(session.createdAt) >= firstDayOfMonth)
+      .reduce((sum, session) => sum + (session.priceAmount || 0), 0)
+    const averageSessionValue = completedSessions > 0
+      ? Math.round(totalRevenue / completedSessions)
+      : 0
 
     const analytics: UserAnalytics = {
-      totalUsers: users.length,
-      activeUsers: users.filter(u => u.status === "active").length,
-      newUsersThisMonth: users.filter(u => new Date(u.createdAt) >= firstDayOfMonth).length,
-      usersByRole: {
-        mentee: users.filter(u => u.role === "mentee").length,
-        coach: users.filter(u => u.role === "coach").length,
-        admin: users.filter(u => u.role === "admin").length,
-      },
+      totalUsers,
+      activeUsers,
+      newUsersThisMonth,
+      usersByRole,
       usersByStatus: {
-        active: users.filter(u => u.status === "active").length,
-        inactive: users.filter(u => u.status === "inactive").length,
-        suspended: users.filter(u => u.status === "suspended").length,
+        active: userData.filter(user => user.status === "active").length,
+        inactive: userData.filter(user => user.status === "inactive").length,
+        suspended: userData.filter(user => user.status === "suspended").length,
       },
       revenueMetrics: {
         totalRevenue,
         monthlyRevenue,
-        averageSessionValue: completedSessions.length > 0 
-          ? totalRevenue / completedSessions.length 
-          : 0,
+        averageSessionValue,
       },
       sessionMetrics: {
-        totalSessions: sessions?.length || 0,
-        completionRate: sessions?.length 
-          ? (completedSessions.length / sessions.length) * 100 
-          : 0,
-        cancelationRate: sessions?.length 
-          ? (canceledSessions.length / sessions.length) * 100 
-          : 0,
-      },
+        totalSessions,
+        completionRate,
+        cancelationRate,
+      }
     }
 
     return { data: analytics, error: null }
   } catch (error) {
     console.error("[USER_ANALYTICS_ERROR]", error)
+    return { data: null, error: error as Error }
+  }
+}
+
+/**
+ * @description Fetches users with pagination and filtering
+ */
+export async function fetchUsers(): Promise<{ 
+  data: Array<{
+    id: number;
+    name: string;
+    email: string;
+    role: "admin" | "coach" | "mentee";
+    status: "active" | "inactive" | "suspended";
+    createdAt: string;
+  }> | null; 
+  error: Error | null 
+}> {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      throw new Error("Unauthorized: User not authenticated")
+    }
+
+    const cookieStore = cookies()
+    const supabase = await createServerClient(cookieStore)
+
+    // Following .cursorrules table naming convention (PascalCase)
+    const { data: users, error } = await supabase
+      .from("User")
+      .select(`
+        id,
+        firstName,
+        lastName,
+        email,
+        role,
+        status,
+        createdAt
+      `)
+      .order("createdAt", { ascending: false })
+
+    if (error) {
+      console.error("[DB_ERROR] User:", error)
+      throw error
+    }
+
+    // Transform the response to match our expected types
+    const typedUsers = users.map(user => ({
+      id: user.id,
+      name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'No name',
+      email: user.email,
+      role: user.role.toLowerCase() as "admin" | "coach" | "mentee",
+      status: user.status.toLowerCase() as "active" | "inactive" | "suspended",
+      createdAt: user.createdAt
+    }))
+
+    return { data: typedUsers, error: null }
+  } catch (error) {
+    console.error("[FETCH_USERS_ERROR]", error)
     return { data: null, error: error as Error }
   }
 } 
