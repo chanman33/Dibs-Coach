@@ -103,26 +103,6 @@ export const AdminActivitySchema = z.object({
 
 export type AdminActivity = z.infer<typeof AdminActivitySchema>
 
-// Coach Application Schema
-export const CoachApplicationSchema = z.object({
-  id: z.number(),
-  userDbId: z.number(),
-  status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
-  experience: z.string(),
-  specialties: z.array(z.string()),
-  notes: z.string().nullable(),
-  reviewedBy: z.number().nullable(),
-  reviewedAt: z.string().datetime().nullable(),
-  createdAt: z.string().datetime(),
-  user: z.object({
-    firstName: z.string().nullable(),
-    lastName: z.string().nullable(),
-    email: z.string(),
-  }).optional(),
-})
-
-export type CoachApplication = z.infer<typeof CoachApplicationSchema>
-
 // Admin Audit Log Schema
 export const AdminAuditLogSchema = z.object({
   id: z.number(),

@@ -85,7 +85,7 @@
     "react": "latest",
     "react-big-calendar": "^1.17.1",
     "react-calendly": "^4.3.1",
-    "react-day-picker": "^9.5.0",
+    "react-day-picker": "^9.5.1",
     "react-dom": "latest",
     "react-hook-form": "^7.51.3",
     "react-hot-toast": "^2.4.1",

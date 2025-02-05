@@ -3,33 +3,35 @@
 import { createServerClient } from "@/utils/supabase/server"
 import { cookies } from "next/headers"
 import { auth } from "@clerk/nextjs/server"
-import { DashboardData } from "../types/admin"
+import { DashboardData, AdminMetrics, AdminActivity } from "../types/admin"
 import { revalidatePath } from "next/cache"
-import { z } from "zod"
-import { AdminMetrics, AdminActivity } from "@/utils/types/admin"
 
-// Validation schemas
-const AdminMetricsSchema = z.object({
-  totalUsers: z.number(),
-  activeUsers: z.number(),
-  totalCoaches: z.number(),
-  activeCoaches: z.number(),
-  pendingCoaches: z.number(),
-  totalSessions: z.number(),
-  completedSessions: z.number(),
-  totalRevenue: z.number(),
-  monthlyRevenue: z.number(),
-  updatedAt: z.string().datetime(),
-})
-
-const CoachApplicationSchema = z.object({
-  status: z.enum(["pending", "approved", "rejected"]),
-  experience: z.string(),
-  specialties: z.array(z.string()),
-  notes: z.string().optional(),
-})
-
-type CoachApplication = z.infer<typeof CoachApplicationSchema>
+// Type for user analytics
+type UserAnalytics = {
+  totalUsers: number;
+  activeUsers: number;
+  newUsersThisMonth: number;
+  usersByRole: {
+    mentee: number;
+    coach: number;
+    admin: number;
+  };
+  usersByStatus: {
+    active: number;
+    inactive: number;
+    suspended: number;
+  };
+  revenueMetrics: {
+    totalRevenue: number;
+    monthlyRevenue: number;
+    averageSessionValue: number;
+  };
+  sessionMetrics: {
+    totalSessions: number;
+    completionRate: number;
+    cancelationRate: number;
+  };
+}
 
 /**
  * @description Fetches all dashboard data using Supabase
@@ -227,85 +229,6 @@ export async function fetchAdminActivity(limit = 10): Promise<{ data: AdminActiv
 }
 
 /**
- * @description Fetches pending coach applications
- */
-export async function fetchPendingApplications() {
-  try {
-    const { userId } = await auth()
-    if (!userId) throw new Error("Unauthorized")
-
-    const supabase = await createServerClient(cookies())
-    const { data, error } = await supabase
-      .from("CoachApplication")
-      .select(`
-        *,
-        user:userDbId (
-          firstName,
-          lastName,
-          email
-        )
-      `)
-      .eq("status", "pending")
-      .order("createdAt", { ascending: false })
-
-    if (error) throw error
-
-    return { data, error: null }
-  } catch (error) {
-    console.error("[COACH_APPLICATIONS_ERROR]", error)
-    return { data: null, error: error as Error }
-  }
-}
-
-/**
- * @description Reviews a coach application
- */
-export async function reviewCoachApplication(
-  applicationId: number,
-  { status, notes }: { status: "approved" | "rejected"; notes?: string }
-) {
-  try {
-    const { userId } = await auth()
-    if (!userId) throw new Error("Unauthorized")
-
-    const supabase = await createServerClient(cookies())
-    
-    // Update application
-    const { error: updateError } = await supabase
-      .from("CoachApplication")
-      .update({
-        status,
-        notes,
-        reviewedBy: userId,
-        reviewedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-      .eq("id", applicationId)
-
-    if (updateError) throw updateError
-
-    // Log the action
-    const { error: logError } = await supabase
-      .from("AdminAuditLog")
-      .insert({
-        adminDbId: userId,
-        action: `COACH_APPLICATION_${status.toUpperCase()}`,
-        targetType: "CoachApplication",
-        targetId: applicationId,
-        details: { status, notes },
-      })
-
-    if (logError) throw logError
-
-    revalidatePath("/dashboard/admin/coach-applications")
-    return { success: true, error: null }
-  } catch (error) {
-    console.error("[REVIEW_APPLICATION_ERROR]", error)
-    return { success: false, error: error as Error }
-  }
-}
-
-/**
  * @description Updates user status (active/inactive)
  */
 export async function updateUserStatus(
@@ -359,5 +282,89 @@ export async function refreshDashboardData(): Promise<void> {
   } catch (error) {
     console.error("[REFRESH_DASHBOARD_ERROR]", error)
     throw error
+  }
+}
+
+/**
+ * @description Fetches user analytics for admin dashboard
+ * Following .cursorrules for database operations and error handling
+ */
+export async function fetchUserAnalytics(): Promise<{ data: UserAnalytics | null; error: Error | null }> {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      throw new Error("Unauthorized: User not authenticated")
+    }
+
+    const cookieStore = cookies()
+    const supabase = await createServerClient(cookieStore)
+
+    // Following .cursorrules: PascalCase table names
+    const { data: users, error: usersError } = await supabase
+      .from("User")
+      .select("role, status, createdAt")
+
+    if (usersError) {
+      console.error("[DB_ERROR] User Analytics:", usersError)
+      throw usersError
+    }
+
+    // Fetch session and revenue data
+    const { data: sessions, error: sessionsError } = await supabase
+      .from("Session")
+      .select("status, price, createdAt")
+
+    if (sessionsError) {
+      console.error("[DB_ERROR] Session Analytics:", sessionsError)
+      throw sessionsError
+    }
+
+    // Calculate analytics
+    const now = new Date()
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+
+    const completedSessions = sessions?.filter(s => s.status === "completed") || []
+    const canceledSessions = sessions?.filter(s => s.status === "canceled") || []
+    const totalRevenue = completedSessions.reduce((sum, s) => sum + (s.price || 0), 0)
+    const monthlyRevenue = completedSessions
+      .filter(s => new Date(s.createdAt) >= firstDayOfMonth)
+      .reduce((sum, s) => sum + (s.price || 0), 0)
+
+    const analytics: UserAnalytics = {
+      totalUsers: users.length,
+      activeUsers: users.filter(u => u.status === "active").length,
+      newUsersThisMonth: users.filter(u => new Date(u.createdAt) >= firstDayOfMonth).length,
+      usersByRole: {
+        mentee: users.filter(u => u.role === "mentee").length,
+        coach: users.filter(u => u.role === "coach").length,
+        admin: users.filter(u => u.role === "admin").length,
+      },
+      usersByStatus: {
+        active: users.filter(u => u.status === "active").length,
+        inactive: users.filter(u => u.status === "inactive").length,
+        suspended: users.filter(u => u.status === "suspended").length,
+      },
+      revenueMetrics: {
+        totalRevenue,
+        monthlyRevenue,
+        averageSessionValue: completedSessions.length > 0 
+          ? totalRevenue / completedSessions.length 
+          : 0,
+      },
+      sessionMetrics: {
+        totalSessions: sessions?.length || 0,
+        completionRate: sessions?.length 
+          ? (completedSessions.length / sessions.length) * 100 
+          : 0,
+        cancelationRate: sessions?.length 
+          ? (canceledSessions.length / sessions.length) * 100 
+          : 0,
+      },
+    }
+
+    return { data: analytics, error: null }
+  } catch (error) {
+    console.error("[USER_ANALYTICS_ERROR]", error)
+    return { data: null, error: error as Error }
   }
 } 
