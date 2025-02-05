@@ -24,10 +24,11 @@ import {
     LayoutDashboard
 } from "lucide-react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 
 export function UserProfile() {
     const router = useRouter()
+    const pathname = usePathname()
     const { user, isLoaded } = useUser();
 
     if (!config?.auth?.enabled) {
@@ -37,6 +38,18 @@ export function UserProfile() {
     if (!isLoaded || !user) {
         return null;
     }
+
+    // Determine role from pathname
+    const getRole = () => {
+        if (pathname.includes('/dashboard/admin')) return 'admin'
+        if (pathname.includes('/dashboard/coach')) return 'coach'
+        if (pathname.includes('/dashboard/mentee')) return 'mentee'
+        return 'mentee' // default to mentee if no role found
+    }
+
+    const role = getRole()
+    const profilePath = `/dashboard/${role}/profile`
+    const settingsPath = `/dashboard/${role}/settings`
 
     return (
         <DropdownMenu>
@@ -56,13 +69,13 @@ export function UserProfile() {
                             <span>Dashboard</span>
                         </DropdownMenuItem>
                     </Link>
-                    <Link href="/dashboard/profile">
+                    <Link href={profilePath}>
                         <DropdownMenuItem>
                             <UserCircle className="mr-2 h-4 w-4" />
                             <span>Profile</span>
                         </DropdownMenuItem>
                     </Link>
-                    <Link href="/dashboard/settings">
+                    <Link href={settingsPath}>
                         <DropdownMenuItem>
                             <Settings className="mr-2 h-4 w-4" />
                             <span>Settings</span>
