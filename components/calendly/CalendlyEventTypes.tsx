@@ -1,14 +1,22 @@
 'use client'
 
-import { Card } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react'
-import { useCalendly } from '@/utils/hooks/useCalendly'
+import { Loader2, ExternalLink } from 'lucide-react'
+import { useCalendlyConnection, useEventTypes } from '@/utils/hooks/useCalendly'
+import { useEffect } from 'react'
 
 export function CalendlyEventTypes() {
-  const { status, isLoading } = useCalendly()
+  const { status } = useCalendlyConnection()
+  const { loading, eventTypes, fetchEventTypes } = useEventTypes()
 
-  if (isLoading) {
+  useEffect(() => {
+    if (status?.connected) {
+      fetchEventTypes()
+    }
+  }, [status?.connected, fetchEventTypes])
+
+  if (loading) {
     return (
       <div className="flex items-center justify-center p-4">
         <Loader2 className="h-6 w-6 animate-spin" />
@@ -18,69 +26,65 @@ export function CalendlyEventTypes() {
 
   if (!status?.connected) {
     return (
-      <Card className="p-6">
-        <div className="text-center">
-          <h3 className="text-lg font-semibold mb-2">Connect Your Calendly Account</h3>
-          <p className="text-muted-foreground mb-4">
-            You need to connect your Calendly account to manage your event types.
-          </p>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Event Types</CardTitle>
+          <CardDescription>
+            Connect your Calendly account to view and manage your event types.
+          </CardDescription>
+        </CardHeader>
       </Card>
     )
   }
 
   return (
-    <Card className="p-6">
-      <div className="space-y-6">
-        <div>
-          <h3 className="text-lg font-semibold mb-2">Event Types</h3>
-          <p className="text-muted-foreground">
-            Manage your coaching session types and durations.
-          </p>
-        </div>
-
-        <div className="space-y-4">
-          {status.eventTypes?.map((eventType) => (
-            <div
-              key={eventType.uri}
-              className="flex items-center justify-between p-4 border rounded-lg"
-            >
-              <div>
-                <h4 className="font-medium">{eventType.name}</h4>
-                <p className="text-sm text-muted-foreground">
-                  {eventType.duration} minutes
-                </p>
-              </div>
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(eventType.url, '_blank')}
-                >
-                  View
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(`${status.schedulingUrl}/event_types/${eventType.uri}/edit`, '_blank')}
-                >
-                  Edit
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex justify-between items-center border-t pt-6">
-          <p className="text-sm text-muted-foreground">
-            Need to create a new event type?
-          </p>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Event Types</span>
           <Button
             variant="outline"
-            onClick={() => window.open(`${status.schedulingUrl}/event_types/new`, '_blank')}
+            onClick={() => window.open(`${status.schedulingUrl}/event_types`, '_blank')}
+            className="flex items-center gap-2"
           >
-            Create Event Type
+            <span>Manage in Calendly</span>
+            <ExternalLink className="h-4 w-4" />
           </Button>
-        </div>
-      </div>
+        </CardTitle>
+        <CardDescription>
+          View and manage your Calendly event types
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {eventTypes.length > 0 ? (
+          <div className="space-y-4">
+            {eventTypes.map((eventType) => (
+              <div
+                key={eventType.uri}
+                className="flex items-center justify-between p-4 rounded-lg border bg-card/50"
+              >
+                <div className="space-y-1">
+                  <p className="font-medium">{eventType.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {eventType.duration} minutes
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => window.open(eventType.scheduling_url, '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground">
+            No event types found
+          </div>
+        )}
+      </CardContent>
     </Card>
   )
 } 

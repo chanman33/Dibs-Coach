@@ -2,10 +2,10 @@
 
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
-import { useCalendly } from '@/utils/hooks/useCalendly'
+import { useCalendlyConnection } from '@/utils/hooks/useCalendly'
 
 export function ConnectCalendly() {
-  const { status, isLoading, isConnecting, handleConnect } = useCalendly()
+  const { status, isLoading, isConnecting, handleConnect } = useCalendlyConnection()
 
   if (isLoading) {
     return (

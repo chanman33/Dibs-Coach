@@ -49,7 +49,7 @@ export function UserProfile() {
 
     const role = getRole()
     const profilePath = `/dashboard/${role}/profile`
-    const settingsPath = `/dashboard/${role}/settings`
+    const settingsPath = `/dashboard/settings`
 
     return (
         <DropdownMenu>
