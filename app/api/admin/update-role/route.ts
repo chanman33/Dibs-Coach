@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     // Check if user is admin
     const { data: adminCheck, error: adminCheckError } = await supabase
       .from("User")
-      .select("role")
+      .select("id, role")
       .eq("userId", session.userId)
       .single();
 
@@ -103,10 +103,11 @@ export async function POST(req: Request) {
 
     // Log the role change in admin audit log
     const { error: auditError } = await supabase.from("AdminAuditLog").insert({
-      adminId: session.userId,
+      adminDbId: adminCheck.id,
       action: "UPDATE_ROLE",
+      targetType: "user",
+      targetId: validatedData.userId,
       details: {
-        userId: validatedData.userId,
         oldRole: user.role,
         newRole: validatedData.role,
         timestamp: new Date().toISOString(),

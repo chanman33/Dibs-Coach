@@ -9,6 +9,16 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Types for our data
 type UserWithRole = {
@@ -19,6 +29,13 @@ type UserWithRole = {
   role: string;
   status: string;
 };
+
+type PendingRoleChange = {
+  userId: number;
+  currentRole: string;
+  newRole: string;
+  email: string;
+} | null;
 
 // Create server action for updating user role
 async function updateUserRole(userId: number, newRole: string) {
@@ -36,7 +53,8 @@ async function updateUserRole(userId: number, newRole: string) {
       throw new Error(error);
     }
 
-    return { success: true };
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error("[UPDATE_ROLE_ERROR]", error);
     throw error;
@@ -48,6 +66,7 @@ export default function PermissionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [pendingRoleChange, setPendingRoleChange] = useState<PendingRoleChange>(null);
 
   useEffect(() => {
     async function fetchUsers() {
@@ -78,6 +97,28 @@ export default function PermissionsPage() {
     );
   });
 
+  // Handle role change confirmation
+  const handleRoleChange = async () => {
+    if (!pendingRoleChange) return;
+
+    try {
+      const { userId, newRole } = pendingRoleChange;
+      const result = await updateUserRole(userId, newRole);
+      toast.success(result.message || "Role updated successfully");
+      
+      // Update local state
+      setUsers(users.map(user => 
+        user.id === userId ? { ...user, role: newRole } : user
+      ));
+      
+      router.refresh();
+    } catch (error) {
+      toast.error("Failed to update role");
+    } finally {
+      setPendingRoleChange(null);
+    }
+  };
+
   // Define table columns
   const columns: ColumnDef<UserWithRole>[] = [
     {
@@ -100,24 +141,23 @@ export default function PermissionsPage() {
         return (
           <Select
             defaultValue={user.role}
-            onValueChange={async (newRole) => {
-              try {
-                // Only allow admin role for @wedibs.com or @dibs.coach emails
-                if (
-                  newRole === "ADMIN" &&
-                  !user.email.endsWith("@wedibs.com") &&
-                  !user.email.endsWith("@dibs.coach")
-                ) {
-                  toast.error("Only @wedibs.com or @dibs.coach emails can be assigned admin role");
-                  return;
-                }
-
-                await updateUserRole(user.id, newRole);
-                toast.success("Role updated successfully");
-                router.refresh();
-              } catch (error) {
-                toast.error("Failed to update role");
+            onValueChange={(newRole) => {
+              // Only allow admin role for @wedibs.com or @dibs.coach emails
+              if (
+                newRole === "ADMIN" &&
+                !user.email.endsWith("@wedibs.com") &&
+                !user.email.endsWith("@dibs.coach")
+              ) {
+                toast.error("Only @wedibs.com or @dibs.coach emails can be assigned admin role");
+                return;
               }
+
+              setPendingRoleChange({
+                userId: user.id,
+                currentRole: user.role,
+                newRole,
+                email: user.email,
+              });
             }}
           >
             <SelectTrigger>
@@ -171,6 +211,24 @@ export default function PermissionsPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!pendingRoleChange} onOpenChange={() => setPendingRoleChange(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Role Change</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to change the role of user{" "}
+              <span className="font-medium">{pendingRoleChange?.email}</span> from{" "}
+              <span className="font-medium">{pendingRoleChange?.currentRole}</span> to{" "}
+              <span className="font-medium">{pendingRoleChange?.newRole}</span>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRoleChange}>Confirm Change</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
