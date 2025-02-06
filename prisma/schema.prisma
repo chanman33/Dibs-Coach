@@ -590,6 +590,11 @@ model CalendlyIntegration {
   refreshToken String
   scope        String
   organization String?
+  expiresAt    DateTime @db.Timestamptz
+  lastSyncAt   DateTime? @db.Timestamptz
+  failedRefreshCount Int @default(0)
+  status       String @default("active")
+  schedulingUrl String?
   createdAt    DateTime @default(now()) @db.Timestamptz
   updatedAt    DateTime @updatedAt @db.Timestamptz
 

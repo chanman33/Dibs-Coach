@@ -32,7 +32,7 @@ export default function Settings() {
           setUserRoles(data.roles)
         } catch (error) {
           console.error("[ROLE_FETCH_ERROR]", error)
-          setUserRoles([ROLES.MENTEE])
+          setUserRoles(['MENTEE'])
         }
         setLoadingRoles(false)
       }
