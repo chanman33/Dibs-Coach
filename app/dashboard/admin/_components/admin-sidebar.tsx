@@ -67,9 +67,9 @@ export function AdminSidebar() {
             <NavLink href="/dashboard/admin/analytics/revenue" icon={DollarSign}>
               Revenue Analytics
             </NavLink>
-            <NavLink href="/dashboard/admin/analytics/reports" icon={FileText}>
+            {/* <NavLink href="/dashboard/admin/analytics/reports" icon={FileText}>
               Reports
-            </NavLink>
+            </NavLink> */}
 
             <Separator className="my-2" />
 
