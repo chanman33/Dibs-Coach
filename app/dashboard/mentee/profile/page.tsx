@@ -3,11 +3,11 @@
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import GeneralForm from "./_components/GeneralForm"
-import SpecializationPreferences from "./_components/SpecializationPreferences"
-import ListingsForm from "./_components/ListingsForm"
-import MarketingInformation from "./_components/MarketingInfo"
-import GoalsForm from "./_components/GoalsForm"
+import GeneralForm from "../../../../components/profile/GeneralForm"
+import SpecializationPreferences from "../../../../components/profile/SpecializationPreferences"
+import ListingsForm from "../../../../components/profile/ListingsForm"
+import MarketingInformation from "../../../../components/profile/MarketingInfo"
+import GoalsForm from "../../../../components/profile/GoalsForm"
 
 export default function AgentProfilePage() {
   const [generalInfo, setGeneralInfo] = useState({})
