@@ -12,6 +12,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { MoreHorizontal, UserCog, Loader2 } from "lucide-react"
 import { updateUserStatus, fetchUsers } from "@/utils/actions/admin-actions"
 import { toast } from "react-hot-toast"
@@ -179,5 +185,31 @@ export function UserManagementTable() {
     )
   }
 
-  return <DataTable columns={columns} data={users} searchKey="email" />
+  return <DataTable 
+    columns={columns} 
+    data={users} 
+    searchKey="email" 
+    actions={
+      <div className="flex gap-2">
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" disabled>Export</Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Coming soon</p>
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" disabled>Filter</Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Coming soon</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    }
+  />
 } 

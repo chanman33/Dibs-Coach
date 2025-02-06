@@ -10,6 +10,12 @@ import {
   Calendar,
 } from "lucide-react"
 import { DateRangePicker } from "@/components/ui/date-range-picker"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 export function ReportingDashboard() {
   const handleGenerateReport = (type: string) => {
@@ -26,8 +32,26 @@ export function ReportingDashboard() {
         <CardContent>
           <div className="space-y-4">
             <div className="flex items-center gap-4">
-              <DateRangePicker />
-              <Button variant="outline">Apply Range</Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span>
+                      <DateRangePicker disabled />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Coming soon</p>
+                  </TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" disabled>Apply Range</Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Coming soon</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
             
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -39,14 +63,23 @@ export function ReportingDashboard() {
                     <p className="text-sm text-muted-foreground text-center">
                       Detailed user engagement and activity metrics
                     </p>
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => handleGenerateReport("activity")}
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Generate
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            disabled
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Generate
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Coming soon</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </CardContent>
               </Card>
@@ -59,14 +92,23 @@ export function ReportingDashboard() {
                     <p className="text-sm text-muted-foreground text-center">
                       Comprehensive analytics and insights
                     </p>
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => handleGenerateReport("analytics")}
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Generate
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            disabled
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Generate
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Coming soon</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </CardContent>
               </Card>
@@ -79,14 +121,23 @@ export function ReportingDashboard() {
                     <p className="text-sm text-muted-foreground text-center">
                       Session completion and revenue data
                     </p>
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => handleGenerateReport("sessions")}
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Generate
-                    </Button>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            disabled
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Generate
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Coming soon</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </CardContent>
               </Card>

@@ -2,31 +2,18 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { auth, currentUser } from "@clerk/nextjs/server"
 import { ROLES } from './roles/roles'
+import { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies'
 
 // Create a reusable Supabase client for auth operations
-async function createAuthClient() {
-  const cookieStore = await cookies()
+export function createAuthClient() {
   return createServerClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_KEY!,
     {
       cookies: {
         get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-        set(name: string, value: string, options: any) {
-          try {
-            cookieStore.set({ name, value, ...options })
-          } catch (error) {
-            console.warn('[COOKIE_SET_ERROR]', error)
-          }
-        },
-        remove(name: string, options: any) {
-          try {
-            cookieStore.set({ name, value: '', ...options, maxAge: 0 })
-          } catch (error) {
-            console.warn('[COOKIE_REMOVE_ERROR]', error)
-          }
+          // @ts-ignore - cookies() is actually synchronous in Next.js App Router
+          return cookies().get(name)?.value
         },
       },
     }

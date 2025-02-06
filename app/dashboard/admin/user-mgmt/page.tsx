@@ -144,16 +144,6 @@ export default async function AdminUserManagement() {
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <Input
-              placeholder="Search users..."
-              className="max-w-sm"
-            />
-            <div className="flex gap-2">
-              <Button variant="outline">Export</Button>
-              <Button variant="outline">Filter</Button>
-            </div>
-          </div>
           <UserManagementTable />
         </TabsContent>
 

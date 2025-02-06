@@ -15,13 +15,15 @@ interface DateRangePickerProps {
   onChange?: (date: DateRange | undefined) => void;
   className?: string;
   placeholder?: string;
+  disabled?: boolean;
 }
 
 export function DateRangePicker({ 
   value, 
   onChange, 
   className,
-  placeholder = "Pick a date range" 
+  placeholder = "Pick a date range",
+  disabled = false
 }: DateRangePickerProps) {
   const [month, setMonth] = useState<Date>(value?.from || new Date());
   const [open, setOpen] = useState(false);
@@ -48,6 +50,7 @@ export function DateRangePicker({
             !value && "text-muted-foreground",
             className
           )}
+          disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
           {value?.from ? (

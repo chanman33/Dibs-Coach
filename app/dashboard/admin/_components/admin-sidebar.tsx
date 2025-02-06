@@ -56,7 +56,7 @@ export function AdminSidebar() {
             <NavLink href="/dashboard/admin/coach-applications" icon={ClipboardCheck}>
               Coach Applications
             </NavLink>
-            <NavLink href="/dashboard/admin/roles" icon={Shield}>
+            <NavLink href="/dashboard/admin/permissions" icon={Shield}>
               Roles & Permissions
             </NavLink>
 
