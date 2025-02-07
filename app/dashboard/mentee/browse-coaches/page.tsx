@@ -3,6 +3,6 @@
 import { BrowseCoaches } from '@/components/coaching/browse/BrowseCoaches'
 
 export default function MenteeBrowseCoachesPage() {
-  return <BrowseCoaches role="mentee" />;
+  return <BrowseCoaches role="MENTEE" />;
 }
 

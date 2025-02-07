@@ -9,7 +9,7 @@ interface PostgrestError {
 }
 
 interface UseBrowseCoachesProps {
-  role: 'coach' | 'mentee';
+  role: 'COACH' | 'MENTEE';
 }
 
 interface UseBrowseCoachesReturn {

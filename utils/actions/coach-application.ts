@@ -256,7 +256,7 @@ export async function getCoachApplication() {
     console.log('[DEBUG] User role check in getCoachApplication:', {
       userId: userData.id,
       role: userData.role,
-      isAdmin: userData.role?.toUpperCase() === 'ADMIN'
+      isAdmin: userData.role === 'ADMIN'
     });
 
     // If admin, return all applications, otherwise return only user's applications
@@ -289,7 +289,7 @@ export async function getCoachApplication() {
 
     console.log('[DEBUG] Applications query result:', {
       userRole: userData.role,
-      isAdmin: userData.role === 'admin',
+      isAdmin: userData.role === 'ADMIN',
       applicationCount: applications?.length,
       applications
     });
@@ -325,8 +325,10 @@ export async function reviewCoachApplication(data: {
           email: clerkUser.emailAddresses[0]?.emailAddress,
           firstName: clerkUser.firstName,
           lastName: clerkUser.lastName,
-          role: 'admin', // Note: This won't override existing role
+          role: 'ADMIN', // Note: This won't override existing role
           status: 'active',
+          memberStatus: 'active', // Required field
+          designations: [], // Required field
           updatedAt: new Date().toISOString()
         },
         {
@@ -337,8 +339,13 @@ export async function reviewCoachApplication(data: {
       .select('id, role')
       .single();
 
-    if (userError || !userData || userData.role !== 'admin') {
-      throw new Error('Unauthorized');
+    if (userError) {
+      console.error('[REVIEW_COACH_APPLICATION_ERROR] Admin user error:', userError);
+      throw new Error('Failed to verify admin user');
+    }
+
+    if (!userData || userData.role?.toUpperCase() !== 'ADMIN') {
+      throw new Error('Unauthorized: User is not an admin');
     }
 
     // Update application status
@@ -359,7 +366,12 @@ export async function reviewCoachApplication(data: {
       .single();
 
     if (applicationError) {
-      throw new Error('Failed to update application');
+      console.error('[REVIEW_COACH_APPLICATION_ERROR] Application update error:', applicationError);
+      throw new Error('Failed to update application status');
+    }
+
+    if (!application) {
+      throw new Error('Application not found');
     }
 
     // If approved, update user role to coach
@@ -367,12 +379,13 @@ export async function reviewCoachApplication(data: {
       const { error: updateError } = await supabase
         .from('User')
         .update({
-          role: 'realtor_coach',
+          role: 'COACH',
           updatedAt: new Date().toISOString(),
         })
         .eq('id', application.applicantDbId);
 
       if (updateError) {
+        console.error('[REVIEW_COACH_APPLICATION_ERROR] User role update error:', updateError);
         throw new Error('Failed to update user role');
       }
     }
@@ -381,6 +394,6 @@ export async function reviewCoachApplication(data: {
     return application;
   } catch (error) {
     console.error('[REVIEW_COACH_APPLICATION_ERROR]', error);
-    throw new Error('Failed to review application');
+    throw error; // Throw the original error to preserve the error message
   }
 } 

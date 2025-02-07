@@ -6,9 +6,16 @@ import { Coach } from '@/components/dashboard/Coach'
 import { SearchAndFilter } from '@/components/SearchAndFilter'
 import { CoachProfileModal } from '@/components/dashboard/CoachProfileModal'
 import { useBrowseCoaches } from '@/utils/hooks/useBrowseCoaches'
-import { BrowseCoachData, BrowseCoachProps, SessionConfig } from '@/utils/types/browse-coaches'
+import { BrowseCoachData, SessionConfig } from '@/utils/types/browse-coaches'
 import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ROLES } from '@/utils/roles/roles'
+
+
+export interface BrowseCoachProps {
+  role: keyof typeof ROLES;
+  isBooked?: boolean;
+}
 
 export function BrowseCoaches({ role }: BrowseCoachProps) {
   const {
@@ -19,7 +26,8 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
     handleSearch,
     handleFilter,
     allSpecialties,
-  } = useBrowseCoaches({ role });
+  } = useBrowseCoaches({ role: role as 'COACH' | 'MENTEE' });
+
 
   const [selectedCoach, setSelectedCoach] = useState<BrowseCoachData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -90,7 +98,7 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
             renderCoaches(filteredBookedCoaches, true)
           ) : (
             <p className="text-center text-muted-foreground py-12">
-              {role === 'mentee' 
+              {role === ROLES.MENTEE 
                 ? "You haven't booked any coaches yet. Browse our recommended coaches below!"
                 : "You haven't connected with any other coaches yet. Browse our recommended coaches below!"}
             </p>
@@ -111,10 +119,11 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
             renderCoaches(filteredRecommendedCoaches)
           ) : (
             <p className="text-center text-muted-foreground py-12">
-              {role === 'mentee'
+              {role === ROLES.MENTEE
                 ? "No coaches available at the moment. Please check back later!"
                 : "No other coaches available at the moment. Please check back later!"}
             </p>
+
           )}
         </CardContent>
       </Card>

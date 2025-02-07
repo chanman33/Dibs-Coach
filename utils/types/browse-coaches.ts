@@ -29,7 +29,7 @@ export interface SessionConfig {
 }
 
 export interface BrowseCoachProps {
-  role: 'coach' | 'mentee';
+  role: 'COACH' | 'MENTEE';
   isBooked?: boolean;
 }
 
