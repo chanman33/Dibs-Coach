@@ -34,6 +34,22 @@ export type UserAnalytics = {
 }
 
 /**
+ * Default metrics when no data exists
+ */
+const DEFAULT_ADMIN_METRICS: AdminMetrics = {
+  totalUsers: 0,
+  activeUsers: 0,
+  totalCoaches: 0,
+  activeCoaches: 0,
+  pendingCoaches: 0,
+  totalSessions: 0,
+  completedSessions: 0,
+  totalRevenue: 0,
+  monthlyRevenue: 0,
+  updatedAt: new Date().toISOString(),
+}
+
+/**
  * @description Fetches all dashboard data using Supabase
  * @returns Promise with dashboard data or error
  */
@@ -169,25 +185,30 @@ export async function fetchAdminMetrics(): Promise<{ data: AdminMetrics | null; 
       .select("*")
       .order("createdAt", { ascending: false })
       .limit(1)
-      .single()
+
+    // If no data exists, return default metrics
+    if (error?.code === 'PGRST116' || !data || data.length === 0) {
+      return { data: DEFAULT_ADMIN_METRICS, error: null }
+    }
 
     if (error) {
       console.error("[DB_ERROR] AdminMetrics:", error)
       throw error
     }
 
+    const metrics = data[0]
     return { 
       data: {
-        totalUsers: data.totalUsers,
-        activeUsers: data.activeUsers,
-        totalCoaches: data.totalCoaches,
-        activeCoaches: data.activeCoaches,
-        pendingCoaches: data.pendingCoaches,
-        totalSessions: data.totalSessions,
-        completedSessions: data.completedSessions,
-        totalRevenue: data.totalRevenue,
-        monthlyRevenue: data.monthlyRevenue,
-        updatedAt: data.updatedAt,
+        totalUsers: metrics.totalUsers,
+        activeUsers: metrics.activeUsers,
+        totalCoaches: metrics.totalCoaches,
+        activeCoaches: metrics.activeCoaches,
+        pendingCoaches: metrics.pendingCoaches,
+        totalSessions: metrics.totalSessions,
+        completedSessions: metrics.completedSessions,
+        totalRevenue: metrics.totalRevenue,
+        monthlyRevenue: metrics.monthlyRevenue,
+        updatedAt: metrics.updatedAt,
       }, 
       error: null 
     }

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Loader2, CheckCircle, XCircle, ExternalLink, User, Users } from 'lucide-react';
-import { COACH_APPLICATION_STATUS, type CoachApplicationStatusType } from '@/utils/types/coach';
+import { COACH_APPLICATION_STATUS } from '@/utils/types/coach-application';
 import type { CoachApplication } from '@/utils/types/coach-application';
 import { getCoachApplication, reviewCoachApplication } from '@/utils/actions/coach-application';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Pagination } from '@/components/ui/pagination';
 import Link from 'next/link';
+
+type CoachApplicationStatusType = (typeof COACH_APPLICATION_STATUS)[keyof typeof COACH_APPLICATION_STATUS];
+type ReviewStatusType = 'pending' | 'approved' | 'rejected';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -54,7 +57,7 @@ export default function CoachApplicationsPage() {
     fetchApplications();
   }, []);
 
-  const handleReview = async (applicationId: number, status: CoachApplicationStatusType) => {
+  const handleReview = async (applicationId: number, status: ReviewStatusType) => {
     setProcessingIds(prev => [...prev, applicationId]);
     try {
       const result = await reviewCoachApplication({
@@ -126,7 +129,7 @@ export default function CoachApplicationsPage() {
   }, [search, statusFilter, sortBy, sortOrder]);
 
   // Handle bulk actions
-  const handleBulkAction = async (status: CoachApplicationStatusType) => {
+  const handleBulkAction = async (status: ReviewStatusType) => {
     if (!selectedIds.length) return;
     
     const confirmed = window.confirm(

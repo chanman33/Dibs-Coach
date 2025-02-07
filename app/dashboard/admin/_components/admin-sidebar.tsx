@@ -78,7 +78,7 @@ export function AdminSidebar() {
             <NavLink href="/dashboard/admin/monitoring" icon={Activity}>
               System Health
             </NavLink>
-            <NavLink href="/dashboard/admin/settings" icon={Settings}>
+            <NavLink href="/dashboard/settings" icon={Settings}>
               Settings
             </NavLink>
           </nav>

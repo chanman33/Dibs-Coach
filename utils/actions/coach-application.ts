@@ -21,10 +21,20 @@ async function getSupabaseClient() {
   );
 }
 
-export async function submitCoachApplication(formData: {
-  experience: string;
-  specialties: string[];
-}) {
+interface CoachApplicationData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phoneNumber: string;
+  resume: File;
+  linkedIn?: string;
+  primarySocialMedia?: string;
+  yearsOfExperience: string;
+  expertise: string;
+  additionalInfo: string;
+}
+
+async function createCoachApplication(data: CoachApplicationData & { status?: string, applicationId?: string }) {
   const { userId: clerkUserId } = await auth();
   const clerkUser = await currentUser();
   
@@ -32,90 +42,168 @@ export async function submitCoachApplication(formData: {
     throw new Error('Unauthorized');
   }
 
-  try {
-    const supabase = await getSupabaseClient();
+  const supabase = await getSupabaseClient();
 
-    // First check if user exists
-    const { data: existingUser, error: fetchError } = await supabase
-      .from('User')
-      .select('id, role')
-      .eq('userId', clerkUserId)
+  // Get or create user
+  const { data: userData } = await supabase
+    .from('User')
+    .select('id')
+    .eq('userId', clerkUserId)
+    .single();
+
+  // Update user information
+  await supabase
+    .from('User')
+    .update({
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+      updatedAt: new Date().toISOString()
+    })
+    .eq('id', userData?.id);
+
+  // Upload resume to Supabase Storage if provided
+  let resumePath = null;
+  if (data.resume) {
+    const fileExt = data.resume.name.split('.').pop()?.toLowerCase();
+    if (fileExt !== 'pdf') {
+      throw new Error('Only PDF files are allowed');
+    }
+
+    // Create a unique file path that includes user ID for better organization and security
+    const fileName = `${userData?.id}/${Date.now()}-${data.resume.name}`;
+    
+    try {
+      const { error: uploadError } = await supabase
+        .storage
+        .from('resumes')
+        .upload(fileName, data.resume, {
+          contentType: 'application/pdf',
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('[RESUME_UPLOAD_ERROR]', uploadError);
+        throw new Error('Failed to upload resume');
+      }
+
+      resumePath = fileName;
+    } catch (error) {
+      console.error('[RESUME_UPLOAD_ERROR]', error);
+      throw new Error('Failed to upload resume');
+    }
+  }
+
+  const applicationData = {
+    applicantDbId: userData?.id,
+    experience: data.yearsOfExperience,
+    specialties: data.expertise.split(',').map(s => s.trim()),
+    resumeUrl: resumePath,
+    linkedIn: data.linkedIn,
+    primarySocialMedia: data.primarySocialMedia,
+    additionalInfo: data.additionalInfo,
+    isDraft: data.status === 'draft',
+    lastSavedAt: data.status === 'draft' ? new Date().toISOString() : null,
+    status: data.status === 'draft' ? 'pending' : data.status || 'pending',
+    draftData: data.status === 'draft' ? {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+      resumePath,
+      linkedIn: data.linkedIn,
+      primarySocialMedia: data.primarySocialMedia,
+      yearsOfExperience: data.yearsOfExperience,
+      expertise: data.expertise,
+      additionalInfo: data.additionalInfo,
+      version: 1
+    } : null,
+    updatedAt: new Date().toISOString()
+  };
+
+  // If updating existing application
+  if (data.applicationId) {
+    const { data: existingApp } = await supabase
+      .from('CoachApplication')
+      .select('draftVersion')
+      .eq('id', data.applicationId)
       .single();
 
-    let userData;
-
-    if (existingUser) {
-      // Update user while preserving their role
-      const { data: updatedUser, error: updateError } = await supabase
-        .from('User')
-        .update({
-          email: clerkUser.emailAddresses[0]?.emailAddress,
-          firstName: clerkUser.firstName,
-          lastName: clerkUser.lastName,
-          status: 'active',
-          updatedAt: new Date().toISOString()
-        })
-        .eq('userId', clerkUserId)
-        .select('id')
-        .single();
-
-      if (updateError) {
-        console.error('[SUBMIT_COACH_APPLICATION_ERROR] User update:', updateError);
-        throw new Error('Failed to update user');
-      }
-      userData = updatedUser;
-    } else {
-      // Create new user with default realtor role
-      const { data: newUser, error: createError } = await supabase
-        .from('User')
-        .insert({
-          userId: clerkUserId,
-          email: clerkUser.emailAddresses[0]?.emailAddress,
-          firstName: clerkUser.firstName,
-          lastName: clerkUser.lastName,
-          role: 'realtor', // Only set realtor role for new users
-          status: 'active',
-          updatedAt: new Date().toISOString()
-        })
-        .select('id')
-        .single();
-
-      if (createError) {
-        console.error('[SUBMIT_COACH_APPLICATION_ERROR] User creation:', createError);
-        throw new Error('Failed to create user');
-      }
-      userData = newUser;
-    }
-
-    if (!userData) {
-      throw new Error('Failed to create/update user record');
-    }
-
-    // Create coach application
-    const { data: application, error: applicationError } = await supabase
+    const { data: application, error } = await supabase
       .from('CoachApplication')
-      .insert({
-        applicantDbId: userData.id,
-        status: COACH_APPLICATION_STATUS.PENDING,
-        experience: formData.experience,
-        specialties: formData.specialties,
-        applicationDate: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      .update({
+        ...applicationData,
+        draftVersion: data.status === 'draft' ? (existingApp?.draftVersion || 1) + 1 : 1
       })
+      .eq('id', data.applicationId)
       .select()
       .single();
 
-    if (applicationError) {
-      console.error('[SUBMIT_COACH_APPLICATION_ERROR] Application creation:', applicationError);
-      throw new Error('Failed to create application');
+    if (error) throw error;
+    return application;
+  }
+
+  // Create new application
+  const { data: application, error } = await supabase
+    .from('CoachApplication')
+    .insert(applicationData)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return application;
+}
+
+// Helper function to get a signed URL for resume access
+export async function getSignedResumeUrl(filePath: string) {
+  const supabase = await getSupabaseClient();
+  
+  try {
+    const { data, error } = await supabase
+      .storage
+      .from('resumes')
+      .createSignedUrl(filePath, 60);
+
+    if (error || !data) {
+      console.error('[SIGNED_URL_ERROR]', error);
+      return null;
     }
 
-    revalidatePath('/dashboard/profile');
-    return application;
+    return data.signedUrl;
   } catch (error) {
-    console.error('[SUBMIT_COACH_APPLICATION_ERROR]', error);
-    throw error instanceof Error ? error : new Error('Failed to submit application');
+    console.error('[SIGNED_URL_ERROR]', error);
+    return null;
   }
+}
+
+export async function submitCoachApplication(formData: FormData) {
+  const resume = formData.get('resume') as File;
+  const status = formData.get('status') as string;
+  const applicationId = formData.get('applicationId') as string;
+
+  // Only require resume for final submission
+  if (!resume && status !== 'draft') {
+    throw new Error('Resume is required');
+  }
+
+  const applicationData = {
+    firstName: formData.get('firstName') as string,
+    lastName: formData.get('lastName') as string,
+    email: formData.get('email') as string,
+    phoneNumber: formData.get('phoneNumber') as string,
+    resume,
+    linkedIn: formData.get('linkedIn') as string,
+    primarySocialMedia: formData.get('primarySocialMedia') as string,
+    yearsOfExperience: formData.get('yearsOfExperience') as string,
+    expertise: formData.get('expertise') as string,
+    additionalInfo: formData.get('additionalInfo') as string,
+    status,
+    applicationId
+  };
+
+  return await createCoachApplication(applicationData);
 }
 
 export async function getCoachApplication() {
@@ -215,7 +303,7 @@ export async function getCoachApplication() {
 
 export async function reviewCoachApplication(data: {
   applicationId: number;
-  status: typeof COACH_APPLICATION_STATUS[keyof typeof COACH_APPLICATION_STATUS];
+  status: 'pending' | 'approved' | 'rejected';
   notes?: string;
 }) {
   const { userId: clerkUserId } = await auth();

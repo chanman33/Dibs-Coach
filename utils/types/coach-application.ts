@@ -1,16 +1,33 @@
 import { z } from "zod"
 import { CoachApplicationStatus } from "./coach"
 
+// Update CoachApplicationStatus to include draft
+export const COACH_APPLICATION_STATUS = {
+  DRAFT: 'draft',
+  PENDING: 'pending',
+  APPROVED: 'approved',
+  REJECTED: 'rejected'
+} as const;
+
 // Coach Application Schema
 export const CoachApplicationSchema = z.object({
   id: z.number(),
   applicantDbId: z.number(),
-  status: z.nativeEnum(CoachApplicationStatus),
+  status: z.enum([
+    COACH_APPLICATION_STATUS.DRAFT,
+    COACH_APPLICATION_STATUS.PENDING,
+    COACH_APPLICATION_STATUS.APPROVED,
+    COACH_APPLICATION_STATUS.REJECTED
+  ]),
   experience: z.string(),
   specialties: z.array(z.string()),
   notes: z.string().nullable(),
-  reviewedBy: z.string().nullable(),
-  reviewedAt: z.string().datetime().nullable(),
+  reviewerDbId: z.number().nullable(),
+  reviewDate: z.string().datetime().nullable(),
+  resumeUrl: z.string().nullable(),
+  linkedIn: z.string().nullable(),
+  primarySocialMedia: z.string().nullable(),
+  additionalInfo: z.string().nullable(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   applicant: z.object({
@@ -25,7 +42,11 @@ export type CoachApplication = z.infer<typeof CoachApplicationSchema>;
 // Review Application Input Schema
 export const ReviewApplicationInputSchema = z.object({
   applicationId: z.number(),
-  status: z.nativeEnum(CoachApplicationStatus),
+  status: z.enum([
+    COACH_APPLICATION_STATUS.PENDING,
+    COACH_APPLICATION_STATUS.APPROVED,
+    COACH_APPLICATION_STATUS.REJECTED
+  ]),
   notes: z.string().optional(),
 });
 

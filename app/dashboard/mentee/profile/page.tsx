@@ -8,8 +8,11 @@ import SpecializationPreferences from "../../../../components/profile/Specializa
 import ListingsForm from "../../../../components/profile/ListingsForm"
 import MarketingInformation from "../../../../components/profile/MarketingInfo"
 import GoalsForm from "../../../../components/profile/GoalsForm"
+import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
 
 export default function AgentProfilePage() {
+  const router = useRouter()
   const [generalInfo, setGeneralInfo] = useState({})
   const [specializations, setSpecializations] = useState({})
   const [listings, setListings] = useState({})
@@ -101,6 +104,19 @@ export default function AgentProfilePage() {
             </CardHeader>
             <CardContent>
               <GoalsForm onSubmit={(data) => handleSubmit(data, "goals")} />
+              <div className="mt-6 p-4 border rounded-lg bg-muted/50">
+                <h3 className="text-lg font-semibold mb-2">Interested in Becoming a Coach?</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Share your real estate expertise and help others succeed in their journey. Apply to become a coach today.
+                </p>
+                <Button
+                  onClick={() => router.push('/apply-coach')}
+                  variant="default"
+                  className="w-full sm:w-auto"
+                >
+                  Apply to Become a Coach
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

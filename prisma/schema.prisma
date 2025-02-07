@@ -145,7 +145,7 @@ model User {
   email                  String   @unique
   firstName              String?
   lastName               String?
-  role                   String   @default("mentee")
+  role                   String   @default("MENTEE")
   stripeCustomerId       String?  @unique
   stripeConnectAccountId String?  @unique
   createdAt              DateTime @default(now()) @db.Timestamptz
@@ -411,6 +411,18 @@ model CoachApplication {
   reviewerDbId    Int?
   reviewDate      DateTime?
   notes           String?
+  
+  // Draft-specific fields
+  isDraft         Boolean   @default(false)
+  lastSavedAt     DateTime? @db.Timestamptz
+  draftData       Json?     // Store draft-specific data
+  draftVersion    Int       @default(1)
+  
+  // Application fields
+  resumeUrl         String?  // Store the URL to the PDF in Supabase Storage
+  linkedIn          String?
+  primarySocialMedia String?
+  additionalInfo    String?
 
   applicant User  @relation("Applicant", fields: [applicantDbId], references: [id], onDelete: Cascade)
   reviewer  User? @relation("Reviewer", fields: [reviewerDbId], references: [id], onDelete: SetNull)
@@ -420,6 +432,7 @@ model CoachApplication {
 
   @@index([applicantDbId])
   @@index([reviewerDbId])
+  @@index([isDraft, applicantDbId])
 }
 
 model Note {

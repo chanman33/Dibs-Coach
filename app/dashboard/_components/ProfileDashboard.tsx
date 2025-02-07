@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
-import CoachApplicationForm from '@/components/dashboard/CoachApplicationForm'
+import CoachApplicationForm from '@/app/apply-coach/_components/CoachApplicationForm'
 import { getCoachApplication } from '@/utils/actions/coach-application'
 import { useRouter } from 'next/navigation'
 

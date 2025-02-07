@@ -120,7 +120,7 @@ export async function POST(req: Request) {
             firstName: payload.data.first_name,
             lastName: payload.data.last_name,
             profileImageUrl: payload.data.image_url,
-            role: 'mentee',
+            role: 'MENTEE',
             memberStatus: 'active',
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
