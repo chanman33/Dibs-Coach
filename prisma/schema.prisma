@@ -145,6 +145,7 @@ model User {
   email                  String   @unique
   firstName              String?
   lastName               String?
+  displayName            String?  // Display name for profile
   role                   String   @default("MENTEE")
   stripeCustomerId       String?  @unique
   stripeConnectAccountId String?  @unique
@@ -156,7 +157,7 @@ model User {
   memberStatus  String // RESO: MemberStatus
   designations  String[] // RESO: Designations (CRS, GRI, etc.)
   licenseNumber String?  @unique
-  companyName   String?
+  companyName   String? // Brokerage Name?
   phoneNumber   String?
 
   // Application-specific fields

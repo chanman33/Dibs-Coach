@@ -94,6 +94,7 @@ export async function ensureUserExists() {
       email: user.emailAddresses[0]?.emailAddress,
       firstName: user.firstName,
       lastName: user.lastName,
+      displayName: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}`.trim() : user.emailAddresses[0]?.emailAddress?.split('@')[0],
       profileImageUrl: user.imageUrl,
       role: ROLES.MENTEE,
       memberStatus: 'active',

@@ -6,6 +6,15 @@ import { WebhookEvent } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
+interface UserUpdateData {
+  email?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  displayName?: string;
+  profileImageUrl?: string | null;
+  updatedAt: string;
+}
+
 // Create a reusable Supabase client for webhook operations
 async function createWebhookClient() {
   const cookieStore = await cookies()
@@ -156,15 +165,35 @@ export async function POST(req: Request) {
           throw new Error('Missing required userId in webhook payload');
         }
 
+        // Get current user data to check if displayName was manually set
+        const { data: currentUser } = await supabase
+          .from('User')
+          .select('displayName, firstName, lastName')
+          .eq('userId', payload.data.id)
+          .single();
+
+        // Only update displayName if it matches the old name pattern
+        const oldNamePattern = currentUser?.firstName && currentUser?.lastName ? 
+          `${currentUser.firstName} ${currentUser.lastName}`.trim() : null;
+        
+        const updateData: UserUpdateData = {
+          email: payload.data.email_addresses?.[0]?.email_address,
+          firstName: payload.data.first_name,
+          lastName: payload.data.last_name,
+          profileImageUrl: payload.data.image_url,
+          updatedAt: new Date().toISOString()
+        };
+
+        // If displayName matches old name pattern, update it with new name
+        if (currentUser?.displayName === oldNamePattern) {
+          updateData.displayName = payload.data.first_name && payload.data.last_name ? 
+            `${payload.data.first_name} ${payload.data.last_name}`.trim() :
+            currentUser.displayName;
+        }
+
         const { data: updatedUser, error: updateError } = await supabase
           .from('User')
-          .update({
-            email: payload.data.email_addresses?.[0]?.email_address,
-            firstName: payload.data.first_name,
-            lastName: payload.data.last_name,
-            profileImageUrl: payload.data.image_url,
-            updatedAt: new Date().toISOString()
-          })
+          .update(updateData)
           .eq('userId', payload.data.id)
           .select()
           .single();

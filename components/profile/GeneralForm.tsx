@@ -1,23 +1,60 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
-export default function GeneralForm({ onSubmit }: { onSubmit: (data: any) => void }) {
+interface UserData {
+  firstName?: string | null
+  lastName?: string | null
+  displayName?: string | null
+  licenseNumber?: string
+  companyName?: string
+  yearsOfExperience?: string
+  bio?: string
+  primaryMarket?: string
+}
+
+export default function GeneralForm({ 
+  onSubmit, 
+  initialData,
+  isSubmitting = false
+}: { 
+  onSubmit: (data: any) => void
+  initialData?: UserData
+  isSubmitting?: boolean
+}) {
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
+    displayName: "",
     licenseNumber: "",
-    brokerage: "",
+    companyName: "",
     yearsOfExperience: "",
     bio: "",
     primaryMarket: "",
   })
 
+  useEffect(() => {
+    if (initialData) {
+      // Set default display name if not already set
+      const defaultDisplayName = initialData.displayName || 
+        (initialData.firstName || initialData.lastName ? 
+          `${initialData.firstName || ''} ${initialData.lastName || ''}`.trim() : 
+          '')
+
+      setFormData({
+        displayName: defaultDisplayName,
+        licenseNumber: initialData.licenseNumber || "",
+        companyName: initialData.companyName || "",
+        yearsOfExperience: initialData.yearsOfExperience || "",
+        bio: initialData.bio || "",
+        primaryMarket: initialData.primaryMarket || "",
+      })
+    }
+  }, [initialData])
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -28,16 +65,19 @@ export default function GeneralForm({ onSubmit }: { onSubmit: (data: any) => voi
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label htmlFor="name">Full Name</Label>
-        <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
-      </div>
-      <div>
-        <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} required />
-      </div>
-      <div>
-        <Label htmlFor="phone">Phone</Label>
-        <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleChange} required />
+        <Label htmlFor="displayName">Profile Display Name</Label>
+        <Input 
+          id="displayName" 
+          name="displayName" 
+          value={formData.displayName} 
+          onChange={handleChange} 
+          required 
+          placeholder="Enter your preferred display name"
+          disabled={isSubmitting}
+        />
+        <p className="text-sm text-muted-foreground mt-1">
+          This is how your name will appear publicly on your profile. By default, we use your full name.
+        </p>
       </div>
       <div>
         <Label htmlFor="licenseNumber">License Number</Label>
@@ -47,11 +87,19 @@ export default function GeneralForm({ onSubmit }: { onSubmit: (data: any) => voi
           value={formData.licenseNumber}
           onChange={handleChange}
           required
+          disabled={isSubmitting}
         />
       </div>
       <div>
-        <Label htmlFor="brokerage">Brokerage</Label>
-        <Input id="brokerage" name="brokerage" value={formData.brokerage} onChange={handleChange} required />
+        <Label htmlFor="companyName">Brokerage</Label>
+        <Input 
+          id="companyName" 
+          name="companyName" 
+          value={formData.companyName} 
+          onChange={handleChange} 
+          required 
+          disabled={isSubmitting}
+        />
       </div>
       <div>
         <Label htmlFor="yearsOfExperience">Years of Experience</Label>
@@ -62,6 +110,9 @@ export default function GeneralForm({ onSubmit }: { onSubmit: (data: any) => voi
           value={formData.yearsOfExperience}
           onChange={handleChange}
           required
+          disabled={isSubmitting}
+          min="0"
+          max="100"
         />
       </div>
       <div>
@@ -73,13 +124,24 @@ export default function GeneralForm({ onSubmit }: { onSubmit: (data: any) => voi
           onChange={handleChange}
           placeholder="e.g. Greater Los Angeles Area"
           required
+          disabled={isSubmitting}
         />
       </div>
       <div>
         <Label htmlFor="bio">Professional Bio</Label>
-        <Textarea id="bio" name="bio" value={formData.bio} onChange={handleChange} />
+        <Textarea 
+          id="bio" 
+          name="bio" 
+          value={formData.bio} 
+          onChange={handleChange}
+          disabled={isSubmitting}
+          placeholder="Tell us about your professional background and expertise"
+          rows={4}
+        />
       </div>
-      <Button type="submit">Save General Information</Button>
+      <Button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? "Saving..." : "Save General Information"}
+      </Button>
     </form>
   )
 }

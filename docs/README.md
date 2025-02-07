@@ -139,10 +139,25 @@ The marketplace incorporates features such as user-friendly navigation, real-tim
 
 7. Open your browser and navigate to `http://localhost:3000` to see your application running.
 
+8. Webhooks and HTTP Tunnel Setup
+
+- Webhooks: Set up webhooks for Clerk (if using auth) at `/api/auth/webhook` and for Stripe (if using payments) at `/api/payments/webhook`.
+- HTTP Tunnel: Use ngrok to create a secure tunnel to your local server. (ngrok http 3000)
+- Set the frontend url in the .env file.
+
+Or Cloudflare Tunnel
+- Install Cloudflare CLI
+- yarn dev
+- Run `cloudflared tunnel --url http://localhost:3000`
+- Set the frontend url in the .env file.
+
+
 ## Additional Configuration
 
 - Webhooks: Set up webhooks for Clerk (if using auth) at `/api/auth/webhook` and for Stripe (if using payments) at `/api/payments/webhook`.
 - Customize the landing page, dashboard, and other components as needed.
+
+
 - Modify the Prisma schema in `prisma/schema.prisma` if you need to change the database structure.
 
 ## Important Security Notes

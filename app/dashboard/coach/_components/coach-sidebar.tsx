@@ -53,10 +53,11 @@ export function CoachSidebar() {
             <NavLink href="/dashboard/coach/profile" icon={UserCircle}>
               Profile
             </NavLink>
-            <NavLink href="/dashboard/calendar" icon={CalendarDays}>
+            <NavLink href="/dashboard/coach/calendar" icon={CalendarDays}>
               Calendar
             </NavLink>
-            <NavLink href="/dashboard/messages" icon={MessageSquare}>
+            <NavLink href="/dashboard/coach/messages" icon={MessageSquare}>
+
               Messages
             </NavLink>
 
