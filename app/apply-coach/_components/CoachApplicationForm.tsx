@@ -95,7 +95,7 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
   };
 
   const handleReturnToDashboard = () => {
-    router.push('/dashboard/realtor');
+    router.push('/dashboard');
   };
 
   if (submitted) {
@@ -140,14 +140,6 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
                 {existingApplication.status.charAt(0).toUpperCase() + existingApplication.status.slice(1)}
               </p>
             </div>
-            <div>
-              <Label>Experience</Label>
-              <p className="mt-1">{existingApplication.experience}</p>
-            </div>
-            <div>
-              <Label>Specialties</Label>
-              <p className="mt-1">{existingApplication.specialties.join(', ')}</p>
-            </div>
             <Button 
               onClick={handleReturnToDashboard}
               className="w-full mt-4"
@@ -179,39 +171,33 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
         <form onSubmit={handleSubmit((data) => onSubmit(data, false))} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="firstName">First Name *</Label>
+              <Label htmlFor="firstName">First Name</Label>
               <Input
                 id="firstName"
-                {...register('firstName', { required: 'First name is required' })}
-                className={errors.firstName ? 'border-red-500' : ''}
+                {...register('firstName')}
+                readOnly
+                className="bg-gray-50"
               />
-              {errors.firstName && (
-                <p className="text-sm text-red-500">{errors.firstName.message}</p>
-              )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="lastName">Last Name *</Label>
+              <Label htmlFor="lastName">Last Name</Label>
               <Input
                 id="lastName"
-                {...register('lastName', { required: 'Last name is required' })}
-                className={errors.lastName ? 'border-red-500' : ''}
+                {...register('lastName')}
+                readOnly
+                className="bg-gray-50"
               />
-              {errors.lastName && (
-                <p className="text-sm text-red-500">{errors.lastName.message}</p>
-              )}
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
+            <Label htmlFor="email">Email</Label>
             <Input
               id="email"
-              {...register('email', { required: 'Email is required' })}
-              className={errors.email ? 'border-red-500' : ''}
+              {...register('email')}
+              readOnly
+              className="bg-gray-50"
             />
-            {errors.email && (
-              <p className="text-sm text-red-500">{errors.email.message}</p>
-            )}
           </div>
 
           <div className="space-y-2">

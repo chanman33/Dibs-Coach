@@ -256,7 +256,7 @@ export async function getCoachApplication() {
     console.log('[DEBUG] User role check in getCoachApplication:', {
       userId: userData.id,
       role: userData.role,
-      isAdmin: userData.role === 'admin'
+      isAdmin: userData.role?.toUpperCase() === 'ADMIN'
     });
 
     // If admin, return all applications, otherwise return only user's applications
@@ -276,7 +276,7 @@ export async function getCoachApplication() {
         )
       `);
 
-    if (userData.role !== 'admin') {
+    if (userData.role?.toUpperCase() !== 'ADMIN') {
       query.eq('applicantDbId', userData.id);
     }
 

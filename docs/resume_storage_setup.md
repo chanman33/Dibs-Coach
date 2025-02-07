@@ -69,6 +69,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Drop existing trigger if it exists
+DROP TRIGGER IF EXISTS update_coach_application_resume_trigger ON storage.objects;
+
 -- Create the trigger on storage.objects
 CREATE TRIGGER update_coach_application_resume_trigger
 AFTER INSERT ON storage.objects
