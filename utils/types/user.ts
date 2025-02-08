@@ -1,5 +1,16 @@
 import { z } from "zod";
-import { UserRole, UserStatus } from "@prisma/client";
+
+export enum UserRole {
+  MENTEE = "MENTEE",
+  COACH = "COACH",
+  ADMIN = "ADMIN"
+}
+
+export enum UserStatus {
+  active = "active",
+  inactive = "inactive",
+  suspended = "suspended"
+}
 
 export const userSchema = z.object({
   id: z.number().describe("Internal database ID"),
@@ -7,8 +18,8 @@ export const userSchema = z.object({
   email: z.string().email(),
   firstName: z.string().nullable(),
   lastName: z.string().nullable(),
-  role: z.nativeEnum(UserRole).default("MENTEE"),
-  status: z.nativeEnum(UserStatus).default("active"),
+  role: z.nativeEnum(UserRole).default(UserRole.MENTEE),
+  status: z.nativeEnum(UserStatus).default(UserStatus.active),
   profileImageUrl: z.string().nullable(),
   stripeCustomerId: z.string().nullable(),
   stripeConnectAccountId: z.string().nullable(),
@@ -34,7 +45,7 @@ export const userCreateSchema = z.object({
     .min(1, { message: "Last name is required" })
     .regex(/^[a-zA-Z]+$/, { message: "Last name must only contain letters" }),
   userId: z.string().describe("Clerk user ID"),
-  role: z.nativeEnum(UserRole).default("MENTEE"),
+  role: z.nativeEnum(UserRole).default(UserRole.MENTEE),
   profileImageUrl: z.string().url().nullable(),
 });
 

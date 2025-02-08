@@ -102,7 +102,7 @@ export default function GeneralForm({
         />
       </div>
       <div>
-        <Label htmlFor="yearsOfExperience">Years of Real Estate Experience</Label>
+        <Label htmlFor="yearsOfExperience">Years of Total Real Estate Experience</Label>
         <Input
           id="yearsOfExperience"
           name="yearsOfExperience"

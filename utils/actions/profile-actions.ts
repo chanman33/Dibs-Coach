@@ -196,92 +196,92 @@ export async function updateGeneralProfile(data: GeneralFormData) {
   }
 }
 
-export async function updateCoachProfile(data: CoachProfileFormData) {
+export async function updateCoachProfile(formData: any) {
   try {
+    console.log('[DEBUG] Starting updateCoachProfile with formData:', formData)
     const { userId } = await auth()
     if (!userId) {
       throw new Error('Unauthorized')
     }
-
+    
     const supabase = await createAuthClient()
-
-    // First get the user's database ID
-    const { data: user, error: userQueryError } = await supabase
+    
+    // Get the user's database ID
+    const { data: userData, error: userError } = await supabase
       .from('User')
       .select('id')
       .eq('userId', userId)
       .single()
 
-    if (userQueryError) {
-      console.error('[UPDATE_COACH_PROFILE] Error fetching user:', userQueryError)
-      throw userQueryError
+    if (userError) {
+      console.error('[DEBUG] Error fetching user:', userError)
+      throw userError
     }
 
-    if (!user?.id) {
-      throw new Error('User not found')
+    console.log('[DEBUG] Found user:', userData)
+
+    // Prepare coach profile data
+    const coachProfileData = {
+      userDbId: userData.id,
+      coachingSpecialties: formData.specialties,
+      yearsCoaching: formData.yearsCoaching,
+      hourlyRate: formData.hourlyRate,
+      calendlyUrl: formData.calendlyUrl,
+      eventTypeUrl: formData.eventTypeUrl,
+      defaultDuration: formData.defaultDuration,
+      minimumDuration: formData.minimumDuration,
+      maximumDuration: formData.maximumDuration,
+      allowCustomDuration: formData.allowCustomDuration,
+      certifications: formData.certifications,
+      updatedAt: new Date().toISOString(),
     }
 
-    // Check if CoachProfile exists
-    const { data: existingProfile, error: profileQueryError } = await supabase
+    console.log('[DEBUG] Prepared coach profile data:', coachProfileData)
+
+    // Prepare realtor profile data
+    const realtorProfileData = {
+      userDbId: userData.id,
+      achievements: formData.achievements,
+      languages: formData.languages,
+      bio: formData.marketExpertise,
+      updatedAt: new Date().toISOString(),
+    }
+
+    console.log('[DEBUG] Prepared realtor profile data:', realtorProfileData)
+
+    // Update CoachProfile
+    const { data: coachData, error: coachError } = await supabase
       .from('CoachProfile')
-      .select('*')
-      .eq('userDbId', user.id)
-      .single()
+      .upsert(coachProfileData)
+      .select()
 
-    let profileResult
-    if (!existingProfile) {
-      // Create new profile
-      profileResult = await supabase
-        .from('CoachProfile')
-        .insert({
-          userDbId: user.id,
-          coachingSpecialties: data.coachingSpecialties,
-          yearsCoaching: data.yearsCoaching,
-          hourlyRate: data.hourlyRate,
-          defaultDuration: data.defaultDuration,
-          minimumDuration: data.minimumDuration,
-          maximumDuration: data.maximumDuration,
-          allowCustomDuration: data.allowCustomDuration,
-          calendlyUrl: data.calendlyUrl,
-          eventTypeUrl: data.eventTypeUrl,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        })
-        .select()
-        .single()
-    } else {
-      // Update existing profile
-      profileResult = await supabase
-        .from('CoachProfile')
-        .update({
-          coachingSpecialties: data.coachingSpecialties,
-          yearsCoaching: data.yearsCoaching,
-          hourlyRate: data.hourlyRate,
-          defaultDuration: data.defaultDuration,
-          minimumDuration: data.minimumDuration,
-          maximumDuration: data.maximumDuration,
-          allowCustomDuration: data.allowCustomDuration,
-          calendlyUrl: data.calendlyUrl,
-          eventTypeUrl: data.eventTypeUrl,
-          updatedAt: new Date().toISOString()
-        })
-        .eq('id', existingProfile.id)
-        .select()
-        .single()
+    if (coachError) {
+      console.error('[DEBUG] Error updating coach profile:', coachError)
+      throw coachError
     }
 
-    if (profileResult.error) {
-      console.error('[UPDATE_COACH_PROFILE] Error with profile:', profileResult.error)
-      throw profileResult.error
+    console.log('[DEBUG] Coach profile update result:', coachData)
+
+    // Update RealtorProfile achievements
+    const { data: realtorData, error: realtorError } = await supabase
+      .from('RealtorProfile')
+      .upsert(realtorProfileData)
+      .select()
+
+    if (realtorError) {
+      console.error('[DEBUG] Error updating realtor profile:', realtorError)
+      throw realtorError
     }
 
+    console.log('[DEBUG] Realtor profile update result:', realtorData)
+
+    // Revalidate the profile page
     revalidatePath('/dashboard/coach/profile')
 
-    return { success: true, data: profileResult.data }
+    return { success: true }
   } catch (error) {
-    console.error('[UPDATE_COACH_PROFILE_ERROR]', error)
-    return { success: false, error }
+    console.error('[COACH_PROFILE_UPDATE_ERROR]', error)
+    throw error
   }
 }
 

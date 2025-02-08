@@ -30,7 +30,6 @@ export type UpdateCoachProfile = z.infer<typeof UpdateCoachProfileSchema>;
 
 // Specialties and certifications options
 export const COACH_SPECIALTIES = [
-  "Real Estate Sales",
   "Residential Properties",
   "Commercial Properties",
   "Property Management",

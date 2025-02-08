@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import GeneralForm from "../../../../components/profile/GeneralForm"
-import SpecializationPreferences from "../../../../components/profile/SpecializationPreferences"
 import ListingsForm from "../../../../components/profile/ListingsForm"
 import MarketingInformation from "../../../../components/profile/MarketingInfo"
 import GoalsForm from "../../../../components/profile/GoalsForm"
@@ -77,6 +76,7 @@ export default function CoachProfilePage() {
           break;
 
         case "coaching":
+          console.log('[DEBUG] Submitting coach profile data:', formData);
           const coachResult = await updateCoachProfile(formData);
           if (!coachResult.success) {
             throw new Error('Failed to update coach profile');
@@ -87,7 +87,6 @@ export default function CoachProfilePage() {
             description: "Your coaching profile has been updated",
           });
           break;
-
 
         case "listings":
           setListings(formData)
@@ -100,10 +99,10 @@ export default function CoachProfilePage() {
           break
       }
     } catch (error) {
-      console.error(`[PROFILE_UPDATE_ERROR] ${formType}:`, error);
+      console.error('[PROFILE_UPDATE_ERROR]', error);
       toast({
         title: "Error",
-        description: `Failed to update ${formType} profile. Please try again.`,
+        description: "Failed to update profile. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -112,26 +111,19 @@ export default function CoachProfilePage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="container mx-auto py-6">
-        <h1 className="text-3xl font-bold mb-6">Loading profile...</h1>
-      </div>
-    )
+    return <div>Loading...</div>;
   }
 
   return (
-    <div className="container mx-auto py-6">
-      <h1 className="text-3xl font-bold mb-6">Real Estate Coach Profile Settings</h1>
-
+    <div className="container mx-auto py-10">
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="coaching">Coach Profile</TabsTrigger>
-          <TabsTrigger value="listings">Property Listings</TabsTrigger>
+          <TabsTrigger value="coaching">Coaching</TabsTrigger>
+          <TabsTrigger value="listings">Listings</TabsTrigger>
           <TabsTrigger value="marketing">Marketing</TabsTrigger>
           <TabsTrigger value="goals">Goals</TabsTrigger>
         </TabsList>
-
 
         <TabsContent value="general">
           <Card>
@@ -139,10 +131,10 @@ export default function CoachProfilePage() {
               <CardTitle>General Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <GeneralForm 
-                onSubmit={(data) => handleSubmit(data, "general")} 
-                isSubmitting={isSubmitting}
+              <GeneralForm
                 initialData={generalInfo}
+                onSubmit={(data) => handleSubmit(data, "general")}
+                isSubmitting={isSubmitting}
               />
             </CardContent>
           </Card>
@@ -151,10 +143,17 @@ export default function CoachProfilePage() {
         <TabsContent value="coaching">
           <Card>
             <CardHeader>
-              <CardTitle>Coach Profile</CardTitle>
+              <CardTitle>Coaching Profile</CardTitle>
             </CardHeader>
             <CardContent>
-              <CoachProfileForm onSubmit={(data) => handleSubmit(data, "coaching")} />
+              <CoachProfileForm
+                initialData={{
+                  coachProfile: coachingInfo,
+                  realtorProfile: generalInfo
+                }}
+                onSubmit={(data) => handleSubmit(data, "coaching")}
+                isSubmitting={isSubmitting}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -162,11 +161,12 @@ export default function CoachProfilePage() {
         <TabsContent value="listings">
           <Card>
             <CardHeader>
-              <CardTitle>Property Listings</CardTitle>
+              <CardTitle>Listings</CardTitle>
             </CardHeader>
             <CardContent>
-              <ListingsForm onSubmit={(data) => handleSubmit(data, "listings")} />
-
+              <ListingsForm
+                onSubmit={(data) => handleSubmit(data, "listings")}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -177,7 +177,9 @@ export default function CoachProfilePage() {
               <CardTitle>Marketing Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <MarketingInformation onSubmit={(data) => handleSubmit(data, "marketing")} />
+              <MarketingInformation
+                onSubmit={(data) => handleSubmit(data, "marketing")}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -185,10 +187,12 @@ export default function CoachProfilePage() {
         <TabsContent value="goals">
           <Card>
             <CardHeader>
-              <CardTitle>Career Goals</CardTitle>
+              <CardTitle>Goals</CardTitle>
             </CardHeader>
             <CardContent>
-              <GoalsForm onSubmit={(data) => handleSubmit(data, "goals")} />
+              <GoalsForm
+                onSubmit={(data) => handleSubmit(data, "goals")}
+              />
             </CardContent>
           </Card>
         </TabsContent>
