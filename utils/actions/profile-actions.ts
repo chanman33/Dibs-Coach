@@ -220,10 +220,24 @@ export async function updateCoachProfile(formData: any) {
 
     console.log('[DEBUG] Found user:', userData)
 
+    // Get existing realtor profile for geographicFocus
+    const { data: existingProfile } = await supabase
+      .from('RealtorProfile')
+      .select('geographicFocus')
+      .eq('userDbId', userData.id)
+      .single()
+
+    // Get existing coach profile
+    const { data: existingCoachProfile } = await supabase
+      .from('CoachProfile')
+      .select('id')
+      .eq('userDbId', userData.id)
+      .single()
+
     // Prepare coach profile data
     const coachProfileData = {
       userDbId: userData.id,
-      coachingSpecialties: formData.specialties,
+      coachingSpecialties: formData.coachingSpecialties,
       yearsCoaching: formData.yearsCoaching,
       hourlyRate: formData.hourlyRate,
       calendlyUrl: formData.calendlyUrl,
@@ -232,27 +246,38 @@ export async function updateCoachProfile(formData: any) {
       minimumDuration: formData.minimumDuration,
       maximumDuration: formData.maximumDuration,
       allowCustomDuration: formData.allowCustomDuration,
-      certifications: formData.certifications,
       updatedAt: new Date().toISOString(),
     }
-
-    console.log('[DEBUG] Prepared coach profile data:', coachProfileData)
 
     // Prepare realtor profile data
     const realtorProfileData = {
       userDbId: userData.id,
-      achievements: formData.achievements,
-      languages: formData.languages,
-      bio: formData.marketExpertise,
+      achievements: formData.achievements || [],
+      languages: formData.languages || [],
+      bio: formData.marketExpertise || '',
+      certifications: formData.certifications || [],
+      propertyTypes: [],
+      specializations: [],
+      marketingAreas: [],
+      testimonials: [],  // Required JSON field
+      featuredListings: [],  // Required JSON field
+      geographicFocus: existingProfile?.geographicFocus || {
+        cities: [],
+        neighborhoods: [],
+        counties: []
+      },
       updatedAt: new Date().toISOString(),
     }
 
+    console.log('[DEBUG] Prepared coach profile data:', coachProfileData)
     console.log('[DEBUG] Prepared realtor profile data:', realtorProfileData)
 
     // Update CoachProfile
     const { data: coachData, error: coachError } = await supabase
       .from('CoachProfile')
-      .upsert(coachProfileData)
+      .upsert(coachProfileData, {
+        onConflict: 'userDbId'
+      })
       .select()
 
     if (coachError) {
@@ -262,10 +287,12 @@ export async function updateCoachProfile(formData: any) {
 
     console.log('[DEBUG] Coach profile update result:', coachData)
 
-    // Update RealtorProfile achievements
+    // Update RealtorProfile
     const { data: realtorData, error: realtorError } = await supabase
       .from('RealtorProfile')
-      .upsert(realtorProfileData)
+      .upsert(realtorProfileData, {
+        onConflict: 'userDbId'
+      })
       .select()
 
     if (realtorError) {
@@ -277,7 +304,6 @@ export async function updateCoachProfile(formData: any) {
 
     // Revalidate the profile page
     revalidatePath('/dashboard/coach/profile')
-
     return { success: true }
   } catch (error) {
     console.error('[COACH_PROFILE_UPDATE_ERROR]', error)

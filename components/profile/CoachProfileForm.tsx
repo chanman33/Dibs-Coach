@@ -37,20 +37,26 @@ import type { RealtorProfile } from "@/utils/types/realtor"
 // Combined form schema for both coach and realtor profile data
 const coachProfileFormSchema = z.object({
   // Coach Profile Specific Fields
-  specialties: CoachProfileSchema.shape.specialties,
-  yearsCoaching: CoachProfileSchema.shape.yearsCoaching,
-  hourlyRate: CoachProfileSchema.shape.hourlyRate,
-  calendlyUrl: CoachProfileSchema.shape.calendlyUrl,
-  eventTypeUrl: CoachProfileSchema.shape.eventTypeUrl,
-  defaultDuration: CoachProfileSchema.shape.defaultDuration,
-  minimumDuration: CoachProfileSchema.shape.minimumDuration,
-  maximumDuration: CoachProfileSchema.shape.maximumDuration,
-  allowCustomDuration: CoachProfileSchema.shape.allowCustomDuration,
-  certifications: CoachProfileSchema.shape.certifications,
+  specialties: z.array(z.string()).min(1, "Select at least one specialty"),
+  yearsCoaching: z.number().min(0, "Years must be 0 or greater"),
+  hourlyRate: z.number().min(0, "Rate must be 0 or greater"),
+  
+  // Calendly Integration
+  calendlyUrl: z.string().optional(),
+  eventTypeUrl: z.string().optional(),
+  
+  // Session Configuration
+  defaultDuration: z.number().min(30).max(120).default(60),
+  minimumDuration: z.number().min(30).max(60).default(30),
+  maximumDuration: z.number().min(60).max(120).default(120),
+  allowCustomDuration: z.boolean().default(false),
+  
+  // Professional Information
+  certifications: z.array(z.string()),
   languages: z.array(z.string()),
-  marketExpertise: z.string(),
-
-  // Achievement and Awards (from RealtorProfile)
+  marketExpertise: z.string().optional(),
+  
+  // Achievements and Awards
   achievements: z.array(z.object({
     title: z.string().min(1, "Achievement title is required"),
     year: z.string().min(1, "Year is required"),
@@ -89,7 +95,7 @@ export function CoachProfileForm({
       // Coach Profile defaults
       specialties: initialData?.coachProfile?.specialties || [],
       yearsCoaching: initialData?.coachProfile?.yearsCoaching || 0,
-      hourlyRate: initialData?.coachProfile?.hourlyRate || 0,
+      hourlyRate: Number(initialData?.coachProfile?.hourlyRate) || 0,
       calendlyUrl: initialData?.coachProfile?.calendlyUrl || "",
       eventTypeUrl: initialData?.coachProfile?.eventTypeUrl || "",
       defaultDuration: initialData?.coachProfile?.defaultDuration || 60,
@@ -97,12 +103,27 @@ export function CoachProfileForm({
       maximumDuration: initialData?.coachProfile?.maximumDuration || 120,
       allowCustomDuration: initialData?.coachProfile?.allowCustomDuration || false,
       certifications: initialData?.coachProfile?.certifications || [],
+      
+      // Realtor Profile defaults
       languages: initialData?.realtorProfile?.languages || [],
       marketExpertise: initialData?.realtorProfile?.bio || "",
-
-      // Realtor Profile defaults
-      achievements: initialData?.realtorProfile?.achievements || [],
-      awards: [], // Add if you have awards in your realtor profile
+      
+      // Parse achievements and awards from the JSON data
+      achievements: (initialData?.realtorProfile?.achievements as any[] || [])
+        .filter(a => !a.type || a.type !== 'award')
+        .map(a => ({
+          title: a.title,
+          year: a.year,
+          description: a.description || ''
+        })),
+      awards: (initialData?.realtorProfile?.achievements as any[] || [])
+        .filter(a => a.type === 'award')
+        .map(a => ({
+          name: a.title,
+          year: a.year,
+          organization: a.description?.split('-')[0]?.trim() || '',
+          description: a.description?.split('-')[1]?.trim() || ''
+        }))
     },
   })
 
@@ -134,11 +155,25 @@ export function CoachProfileForm({
 
   async function handleSubmit(data: CoachProfileFormValues) {
     try {
-      await onSubmit(data)
-      toast.success("Coach profile updated successfully")
+      // Format achievements and awards for JSON storage
+      const formattedData = {
+        ...data,
+        achievements: [
+          ...data.achievements,
+          ...data.awards.map(award => ({
+            title: award.name,
+            year: award.year,
+            description: `${award.organization} - ${award.description || ''}`.trim(),
+            type: 'award'
+          }))
+        ]
+      };
+
+      await onSubmit(formattedData);
+      toast.success("Profile updated successfully");
     } catch (error) {
-      toast.error("Failed to update coach profile")
-      console.error("[COACH_PROFILE_ERROR]", error)
+      console.error("[COACH_PROFILE_ERROR]", error);
+      toast.error("Failed to update profile");
     }
   }
 

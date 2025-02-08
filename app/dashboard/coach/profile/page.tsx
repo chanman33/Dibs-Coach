@@ -59,6 +59,37 @@ export default function CoachProfilePage() {
     loadProfile();
   }, [toast]);
 
+  const handleProfileSubmit = async (data: any) => {
+    try {
+      // Update coach profile
+      const coachResult = await updateCoachProfile({
+        // Coach-specific fields
+        coachingSpecialties: data.specialties,
+        yearsCoaching: data.yearsCoaching,
+        hourlyRate: data.hourlyRate,
+        calendlyUrl: data.calendlyUrl,
+        eventTypeUrl: data.eventTypeUrl,
+        defaultDuration: data.defaultDuration,
+        minimumDuration: data.minimumDuration,
+        maximumDuration: data.maximumDuration,
+        allowCustomDuration: data.allowCustomDuration,
+        // Realtor profile fields
+        languages: data.languages,
+        bio: data.marketExpertise,
+        achievements: data.achievements,
+        certifications: data.certifications,
+        updatedAt: new Date().toISOString()
+      });
+
+      if (!coachResult.success) {
+        throw new Error('Failed to update coach profile');
+      }
+    } catch (error) {
+      console.error('[PROFILE_UPDATE_ERROR]', error);
+      throw error;
+    }
+  };
+
   const handleSubmit = async (formData: any, formType: string): Promise<void> => {
     setIsSubmitting(true);
     try {
@@ -77,10 +108,7 @@ export default function CoachProfilePage() {
 
         case "coaching":
           console.log('[DEBUG] Submitting coach profile data:', formData);
-          const coachResult = await updateCoachProfile(formData);
-          if (!coachResult.success) {
-            throw new Error('Failed to update coach profile');
-          }
+          await handleProfileSubmit(formData);
           setCoachingInfo(formData);
           toast({
             title: "Success",
@@ -151,7 +179,7 @@ export default function CoachProfilePage() {
                   coachProfile: coachingInfo,
                   realtorProfile: generalInfo
                 }}
-                onSubmit={(data) => handleSubmit(data, "coaching")}
+                onSubmit={handleProfileSubmit}
                 isSubmitting={isSubmitting}
               />
             </CardContent>

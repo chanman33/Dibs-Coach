@@ -14,6 +14,7 @@ import Link from 'next/link'
 // Add this import
 import { AdminSidebar } from '@/app/dashboard/admin/_components/admin-sidebar'
 import { CoachSidebar } from '@/app/dashboard/coach/_components/coach-sidebar'
+import { MenteeSidebar } from '../mentee/_components/mentee-sidebar'
 
 export default function DashboardTopNav({ children }: { children: ReactNode }) {
   const pathname = usePathname()
@@ -26,8 +27,11 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
     if (pathname.startsWith('/dashboard/coach')) {
       return <CoachSidebar />
     }
-    // For now, return null for realtor path until realtor sidebar is implemented
+    if (pathname.startsWith('/dashboard/mentee')) {
+      return <MenteeSidebar />
+    }
     return null
+
   }
 
   // Update getPortalTitle to include admin case
@@ -35,8 +39,8 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
     if (pathname.startsWith('/dashboard/admin')) {
       return 'Admin Portal'
     }
-    if (pathname.startsWith('/dashboard/realtor')) {
-      return 'Realtor Portal'
+    if (pathname.startsWith('/dashboard/mentee')) {
+      return 'Mentee Portal'
     }
     if (pathname.startsWith('/dashboard/coach')) {
       return 'Coach Portal'
