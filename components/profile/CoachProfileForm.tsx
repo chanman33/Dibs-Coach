@@ -1,183 +1,411 @@
-'use client';
+"use client"
 
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { MultiSelect } from '@/components/ui/multi-select';
-import { toast } from 'sonner';
-import { ConnectCalendly } from '@/components/calendly/ConnectCalendly';
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
+import { Button } from "@/components/ui/button"
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+import { Switch } from "@/components/ui/switch"
+import { toast } from "sonner"
+import { ConnectCalendly } from "@/components/calendly/ConnectCalendly"
+import { X } from "lucide-react"
 
-// Coaching specialties options
-const COACHING_SPECIALTIES = [
-  { label: 'Residential Sales', value: 'residential_sales' },
-  { label: 'Commercial Real Estate', value: 'commercial_real_estate' },
-  { label: 'Property Management', value: 'property_management' },
-  { label: 'Investment Properties', value: 'investment_properties' },
-  { label: 'Luxury Real Estate', value: 'luxury_real_estate' },
-  { label: 'First-Time Homebuyers', value: 'first_time_homebuyers' },
-  { label: 'Marketing & Lead Generation', value: 'marketing_leads' },
-  { label: 'Business Development', value: 'business_development' },
-  { label: 'Team Building', value: 'team_building' },
-  { label: 'Technology & Tools', value: 'technology_tools' },
-];
+const coachProfileSchema = z.object({
+  // Professional Information
+  primarySpecialization: z.enum([
+    "RESIDENTIAL",
+    "COMMERCIAL",
+    "LUXURY",
+    "INVESTMENT",
+    "NEW_CONSTRUCTION",
+    "FORECLOSURES",
+    "INTERNATIONAL",
+  ], {
+    required_error: "Please select a primary specialization",
+  }),
+  secondarySpecializations: z.string().min(1, "Please list your secondary specializations"),
+  yearsExperience: z.string().min(1, "Years of experience is required"),
+  certifications: z.string().optional(),
+  languages: z.string().min(1, "Please list languages you speak"),
+  marketExpertise: z.string().min(1, "Please describe your market expertise"),
+  
+  // Coaching Specific
+  yearsCoaching: z.number().min(0, "Must be 0 or greater"),
+  hourlyRate: z.number().min(0, "Must be 0 or greater"),
+  
+  // Session Configuration
+  defaultDuration: z.number().min(15, "Minimum duration is 15 minutes"),
+  minimumDuration: z.number().min(15, "Minimum duration is 15 minutes"),
+  maximumDuration: z.number().min(15, "Minimum duration is 15 minutes"),
+  allowCustomDuration: z.boolean(),
+  calendlyUrl: z.string().optional(),
+  eventTypeUrl: z.string().optional(),
+
+  // Achievements & Awards
+  achievements: z.array(z.object({
+    title: z.string().min(1, "Achievement title is required"),
+    year: z.string().min(1, "Year is required"),
+    description: z.string().optional(),
+  })),
+  awards: z.array(z.object({
+    name: z.string().min(1, "Award name is required"),
+    year: z.string().min(1, "Year is required"),
+    organization: z.string().min(1, "Organization is required"),
+    description: z.string().optional(),
+  })),
+})
+
+type CoachProfileFormValues = z.infer<typeof coachProfileSchema>
 
 interface CoachProfileFormProps {
-  initialData?: {
-    coachingSpecialties: string[];
-    yearsCoaching: number;
-    hourlyRate: number;
-    defaultDuration: number;
-    minimumDuration: number;
-    maximumDuration: number;
-    allowCustomDuration: boolean;
-    calendlyUrl?: string;
-    eventTypeUrl?: string;
-  };
-  onSubmit: (data: any) => Promise<void>;
+  initialData?: Partial<CoachProfileFormValues>;
+  onSubmit: (data: CoachProfileFormValues) => Promise<void>;
 }
 
 export function CoachProfileForm({ initialData, onSubmit }: CoachProfileFormProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState(initialData || {
-    coachingSpecialties: [],
-    yearsCoaching: 0,
-    hourlyRate: 0,
-    defaultDuration: 60,
-    minimumDuration: 30,
-    maximumDuration: 120,
-    allowCustomDuration: false,
-    calendlyUrl: "",
-    eventTypeUrl: "",
-  });
+  const form = useForm<CoachProfileFormValues>({
+    resolver: zodResolver(coachProfileSchema),
+    defaultValues: {
+      // Professional Information
+      primarySpecialization: initialData?.primarySpecialization,
+      secondarySpecializations: initialData?.secondarySpecializations || "",
+      yearsExperience: initialData?.yearsExperience || "",
+      certifications: initialData?.certifications || "",
+      languages: initialData?.languages || "",
+      marketExpertise: initialData?.marketExpertise || "",
+      
+      // Coaching Specific
+      yearsCoaching: initialData?.yearsCoaching || 0,
+      hourlyRate: initialData?.hourlyRate || 0,
+      
+      // Session Configuration
+      defaultDuration: initialData?.defaultDuration || 60,
+      minimumDuration: initialData?.minimumDuration || 30,
+      maximumDuration: initialData?.maximumDuration || 120,
+      allowCustomDuration: initialData?.allowCustomDuration || false,
+      calendlyUrl: initialData?.calendlyUrl || "",
+      eventTypeUrl: initialData?.eventTypeUrl || "",
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+      // Achievements & Awards
+      achievements: initialData?.achievements || [],
+      awards: initialData?.awards || [],
+    },
+  })
+
+  const addAchievement = () => {
+    const currentAchievements = form.getValues("achievements")
+    form.setValue("achievements", [
+      ...currentAchievements,
+      { title: "", year: "", description: "" },
+    ])
+  }
+
+  const removeAchievement = (index: number) => {
+    const currentAchievements = form.getValues("achievements")
+    form.setValue("achievements", currentAchievements.filter((_, i) => i !== index))
+  }
+
+  const addAward = () => {
+    const currentAwards = form.getValues("awards")
+    form.setValue("awards", [
+      ...currentAwards,
+      { name: "", year: "", organization: "", description: "" },
+    ])
+  }
+
+  const removeAward = (index: number) => {
+    const currentAwards = form.getValues("awards")
+    form.setValue("awards", currentAwards.filter((_, i) => i !== index))
+  }
+
+  async function handleSubmit(data: CoachProfileFormValues) {
     try {
-      await onSubmit(formData);
+      await onSubmit(data);
       toast.success("Coach profile updated successfully");
     } catch (error) {
       toast.error("Failed to update coach profile");
-      console.error("Error updating coach profile:", error);
-    } finally {
-      setIsLoading(false);
+      console.error("[COACH_PROFILE_ERROR]", error);
     }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Professional Information */}
-      <div className="space-y-4">
-        <p>Manage your coaching specialties, rates, and session preferences</p>
+    <div className="space-y-6">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
+          {/* Professional Information */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Professional Information</h3>
+            
+            <FormField
+              control={form.control}
+              name="primarySpecialization"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Primary Specialization</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select your primary focus" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="RESIDENTIAL">Residential</SelectItem>
+                      <SelectItem value="COMMERCIAL">Commercial</SelectItem>
+                      <SelectItem value="LUXURY">Luxury</SelectItem>
+                      <SelectItem value="INVESTMENT">Investment</SelectItem>
+                      <SelectItem value="NEW_CONSTRUCTION">New Construction</SelectItem>
+                      <SelectItem value="FORECLOSURES">Foreclosures</SelectItem>
+                      <SelectItem value="INTERNATIONAL">International</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <h3 className="text-lg font-semibold">Professional Information</h3>
+            <FormField
+              control={form.control}
+              name="secondarySpecializations"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Secondary Specializations</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., First-time buyers, Vacation homes" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <div className="space-y-2">
-          <Label htmlFor="coachingSpecialties">Coaching Specialties</Label>
-          <MultiSelect
-            id="coachingSpecialties"
-            options={COACHING_SPECIALTIES}
-            value={formData.coachingSpecialties}
-            onChange={(value: string[]) => setFormData({ ...formData, coachingSpecialties: value })}
-            placeholder="Select your specialties"
-          />
-        </div>
+            <FormField
+              control={form.control}
+              name="yearsExperience"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Years of Experience</FormLabel>
+                  <FormControl>
+                    <Input type="number" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="yearsCoaching">Years of Coaching Experience</Label>
-            <Input
-              id="yearsCoaching"
-              type="number"
-              min="0"
-              value={formData.yearsCoaching}
-              onChange={(e) => setFormData({ ...formData, yearsCoaching: parseInt(e.target.value) })}
+            <FormField
+              control={form.control}
+              name="certifications"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Professional Certifications</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., CRS, ABR, GRI" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="languages"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Languages Spoken</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., English, Spanish" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="marketExpertise"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Market Expertise</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Describe your specific market knowledge and areas of expertise..."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="hourlyRate">Hourly Rate (USD)</Label>
-            <Input
-              id="hourlyRate"
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.hourlyRate}
-              onChange={(e) => setFormData({ ...formData, hourlyRate: parseFloat(e.target.value) })}
-            />
+          <Separator />
+
+          
+          {/* Achievements */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium">Achievements</h3>
+              <Button type="button" variant="outline" onClick={addAchievement}>
+                Add Achievement
+              </Button>
+            </div>
+
+            {form.watch("achievements").map((_, index) => (
+              <div key={index} className="space-y-4 p-4 border rounded-lg relative">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-2 text-muted-foreground hover:text-destructive"
+                  onClick={() => removeAchievement(index)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <FormField
+                  control={form.control}
+                  name={`achievements.${index}.title`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Achievement Title</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Top Producer" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`achievements.${index}.year`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Year</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`achievements.${index}.description`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Details about the achievement..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            ))}
           </div>
-        </div>
-      </div>
 
-      {/* Session Configuration */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Session Configuration</h3>
+          <Separator />
 
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="defaultDuration">Default Duration (min)</Label>
-            <Input
-              id="defaultDuration"
-              type="number"
-              min="15"
-              step="15"
-              value={formData.defaultDuration}
-              onChange={(e) => setFormData({ ...formData, defaultDuration: parseInt(e.target.value) })}
-            />
+          {/* Awards */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium">Awards</h3>
+              <Button type="button" variant="outline" onClick={addAward}>
+                Add Award
+              </Button>
+            </div>
+
+            {form.watch("awards").map((_, index) => (
+              <div key={index} className="space-y-4 p-4 border rounded-lg relative">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-2 text-muted-foreground hover:text-destructive"
+                  onClick={() => removeAward(index)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <FormField
+                  control={form.control}
+                  name={`awards.${index}.name`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Award Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Diamond Circle Award" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`awards.${index}.year`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Year</FormLabel>
+                      <FormControl>
+                        <Input type="number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`awards.${index}.organization`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Organization</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., National Association of Realtors" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name={`awards.${index}.description`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea placeholder="Details about the award..." {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            ))}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="minimumDuration">Minimum Duration (min)</Label>
-            <Input
-              id="minimumDuration"
-              type="number"
-              min="15"
-              step="15"
-              value={formData.minimumDuration}
-              onChange={(e) => setFormData({ ...formData, minimumDuration: parseInt(e.target.value) })}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="maximumDuration">Maximum Duration (min)</Label>
-            <Input
-              id="maximumDuration"
-              type="number"
-              min="15"
-              step="15"
-              value={formData.maximumDuration}
-              onChange={(e) => setFormData({ ...formData, maximumDuration: parseInt(e.target.value) })}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Switch
-            id="allowCustomDuration"
-            checked={formData.allowCustomDuration}
-            onCheckedChange={(checked) => setFormData({ ...formData, allowCustomDuration: checked })}
-          />
-          <Label htmlFor="allowCustomDuration">Allow Custom Session Duration</Label>
-        </div>
-      </div>
-
-      {/* Calendly Integration */}
-      <div className="space-y-4">
-        <ConnectCalendly />
-      </div>
-
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? "Saving..." : "Save Changes"}
-      </Button>
-
-    </form >
-  );
+          <Button type="submit" className="w-full">Save Changes</Button>
+        </form>
+      </Form>
+    </div>
+  )
 } 

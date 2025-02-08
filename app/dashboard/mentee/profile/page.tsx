@@ -4,9 +4,6 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import GeneralForm from "../../../../components/profile/GeneralForm"
-import SpecializationPreferences from "../../../../components/profile/SpecializationPreferences"
-import ListingsForm from "../../../../components/profile/ListingsForm"
-import MarketingInformation from "../../../../components/profile/MarketingInfo"
 import GoalsForm from "../../../../components/profile/GoalsForm"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
@@ -14,24 +11,13 @@ import { useRouter } from "next/navigation"
 export default function AgentProfilePage() {
   const router = useRouter()
   const [generalInfo, setGeneralInfo] = useState({})
-  const [specializations, setSpecializations] = useState({})
-  const [listings, setListings] = useState({})
-  const [marketing, setMarketing] = useState({})
   const [goals, setGoals] = useState({})
+
 
   const handleSubmit = (formData: any, formType: string) => {
     switch (formType) {
       case "general":
         setGeneralInfo(formData)
-        break
-      case "specializations":
-        setSpecializations(formData)
-        break
-      case "listings":
-        setListings(formData)
-        break
-      case "marketing":
-        setMarketing(formData)
         break
       case "goals":
         setGoals(formData)
@@ -47,9 +33,6 @@ export default function AgentProfilePage() {
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="specializations">Specializations & Achievements</TabsTrigger>
-          <TabsTrigger value="listings">Property Listings</TabsTrigger>
-          <TabsTrigger value="marketing">Marketing</TabsTrigger>
           <TabsTrigger value="goals">Goals</TabsTrigger>
         </TabsList>
 
@@ -60,39 +43,6 @@ export default function AgentProfilePage() {
             </CardHeader>
             <CardContent>
               <GeneralForm onSubmit={(data) => handleSubmit(data, "general")} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="specializations">
-          <Card>
-            <CardHeader>
-              <CardTitle>Specializations, Expertise & Achievements</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SpecializationPreferences onSubmit={(data) => handleSubmit(data, "specializations")} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="listings">
-          <Card>
-            <CardHeader>
-              <CardTitle>Property Listings History</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ListingsForm onSubmit={(data) => handleSubmit(data, "listings")} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="marketing">
-          <Card>
-            <CardHeader>
-              <CardTitle>Marketing Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MarketingInformation onSubmit={(data) => handleSubmit(data, "marketing")} />
             </CardContent>
           </Card>
         </TabsContent>

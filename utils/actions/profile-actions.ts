@@ -13,6 +13,18 @@ interface GeneralFormData {
   primaryMarket: string
 }
 
+interface CoachProfileFormData {
+  coachingSpecialties: string[];
+  yearsCoaching: number;
+  hourlyRate: number;
+  defaultDuration: number;
+  minimumDuration: number;
+  maximumDuration: number;
+  allowCustomDuration: boolean;
+  calendlyUrl?: string;
+  eventTypeUrl?: string;
+}
+
 export async function fetchUserProfile() {
   try {
     const { userId } = await auth()
@@ -180,6 +192,156 @@ export async function updateGeneralProfile(data: GeneralFormData) {
     return { success: true, data: { user, profile: profileResult.data } }
   } catch (error) {
     console.error('[UPDATE_PROFILE_ERROR]', error)
+    return { success: false, error }
+  }
+}
+
+export async function updateCoachProfile(data: CoachProfileFormData) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      throw new Error('Unauthorized')
+    }
+
+    const supabase = await createAuthClient()
+
+    // First get the user's database ID
+    const { data: user, error: userQueryError } = await supabase
+      .from('User')
+      .select('id')
+      .eq('userId', userId)
+      .single()
+
+    if (userQueryError) {
+      console.error('[UPDATE_COACH_PROFILE] Error fetching user:', userQueryError)
+      throw userQueryError
+    }
+
+    if (!user?.id) {
+      throw new Error('User not found')
+    }
+
+    // Check if CoachProfile exists
+    const { data: existingProfile, error: profileQueryError } = await supabase
+      .from('CoachProfile')
+      .select('*')
+      .eq('userDbId', user.id)
+      .single()
+
+    let profileResult
+    if (!existingProfile) {
+      // Create new profile
+      profileResult = await supabase
+        .from('CoachProfile')
+        .insert({
+          userDbId: user.id,
+          coachingSpecialties: data.coachingSpecialties,
+          yearsCoaching: data.yearsCoaching,
+          hourlyRate: data.hourlyRate,
+          defaultDuration: data.defaultDuration,
+          minimumDuration: data.minimumDuration,
+          maximumDuration: data.maximumDuration,
+          allowCustomDuration: data.allowCustomDuration,
+          calendlyUrl: data.calendlyUrl,
+          eventTypeUrl: data.eventTypeUrl,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+        .select()
+        .single()
+    } else {
+      // Update existing profile
+      profileResult = await supabase
+        .from('CoachProfile')
+        .update({
+          coachingSpecialties: data.coachingSpecialties,
+          yearsCoaching: data.yearsCoaching,
+          hourlyRate: data.hourlyRate,
+          defaultDuration: data.defaultDuration,
+          minimumDuration: data.minimumDuration,
+          maximumDuration: data.maximumDuration,
+          allowCustomDuration: data.allowCustomDuration,
+          calendlyUrl: data.calendlyUrl,
+          eventTypeUrl: data.eventTypeUrl,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('id', existingProfile.id)
+        .select()
+        .single()
+    }
+
+    if (profileResult.error) {
+      console.error('[UPDATE_COACH_PROFILE] Error with profile:', profileResult.error)
+      throw profileResult.error
+    }
+
+    revalidatePath('/dashboard/coach/profile')
+
+    return { success: true, data: profileResult.data }
+  } catch (error) {
+    console.error('[UPDATE_COACH_PROFILE_ERROR]', error)
+    return { success: false, error }
+  }
+}
+
+// Function to fetch coach profile data
+export async function fetchCoachProfile() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      throw new Error('Unauthorized')
+    }
+
+    const supabase = await createAuthClient()
+
+    // Fetch user and their coach profile
+    const { data, error } = await supabase
+      .from('User')
+      .select(`
+        *,
+        coachProfile:CoachProfile (*)
+      `)
+      .eq('userId', userId)
+      .single()
+
+    if (error) throw error
+
+    const coachProfile = data.coachProfile
+
+    if (!coachProfile) {
+      return {
+        success: true,
+        data: {
+          coachingSpecialties: [],
+          yearsCoaching: 0,
+          hourlyRate: 0,
+          defaultDuration: 60,
+          minimumDuration: 30,
+          maximumDuration: 120,
+          allowCustomDuration: false,
+          calendlyUrl: "",
+          eventTypeUrl: "",
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        coachingSpecialties: coachProfile.coachingSpecialties || [],
+        yearsCoaching: coachProfile.yearsCoaching || 0,
+        hourlyRate: coachProfile.hourlyRate || 0,
+        defaultDuration: coachProfile.defaultDuration || 60,
+        minimumDuration: coachProfile.minimumDuration || 30,
+        maximumDuration: coachProfile.maximumDuration || 120,
+        allowCustomDuration: coachProfile.allowCustomDuration || false,
+        calendlyUrl: coachProfile.calendlyUrl || "",
+        eventTypeUrl: coachProfile.eventTypeUrl || "",
+      }
+    }
+  } catch (error) {
+    console.error('[FETCH_COACH_PROFILE_ERROR]', error)
     return { success: false, error }
   }
 } 
