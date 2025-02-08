@@ -34,6 +34,10 @@ import {
 } from "@/utils/types/coach"
 import type { CoachProfile } from "@/utils/types/coach"
 import type { RealtorProfile } from "@/utils/types/realtor"
+import { 
+  ProfessionalRecognition, 
+  ProfessionalRecognitionSchema 
+} from "@/utils/types/realtor"
 
 // Combined form schema for both coach and realtor profile data
 const coachProfileFormSchema = z.object({
@@ -57,18 +61,8 @@ const coachProfileFormSchema = z.object({
   languages: z.array(z.string()),
   marketExpertise: z.string().optional(),
   
-  // Achievements and Awards
-  achievements: z.array(z.object({
-    title: z.string().min(1, "Achievement title is required"),
-    year: z.string().min(1, "Year is required"),
-    description: z.string().optional(),
-  })),
-  awards: z.array(z.object({
-    name: z.string().min(1, "Award name is required"),
-    year: z.string().min(1, "Year is required"),
-    organization: z.string().min(1, "Organization is required"),
-    description: z.string().optional(),
-  })),
+  // Professional Recognitions (formerly achievements/awards)
+  professionalRecognitions: z.array(ProfessionalRecognitionSchema),
 })
 
 type CoachProfileFormValues = z.infer<typeof coachProfileFormSchema>
@@ -90,8 +84,7 @@ export function CoachProfileForm({
   onSubmit,
   isSubmitting = false
 }: CoachProfileFormProps) {
-  const [editingAchievement, setEditingAchievement] = useState<number | null>(null);
-  const [editingAward, setEditingAward] = useState<number | null>(null);
+  const [editingRecognition, setEditingRecognition] = useState<number | null>(null);
 
   const form = useForm<CoachProfileFormValues>({
     resolver: zodResolver(coachProfileFormSchema),
@@ -116,91 +109,63 @@ export function CoachProfileForm({
         : [],
       marketExpertise: initialData?.realtorProfile?.bio || "",
       
-      // Parse achievements and awards from the JSON data
-      achievements: (initialData?.realtorProfile?.achievements as any[] || [])
-        .filter(a => !a.type || a.type !== 'award')
-        .map(a => ({
-          title: a.title,
-          year: a.year,
-          description: a.description || ''
-        })),
-      awards: (initialData?.realtorProfile?.achievements as any[] || [])
-        .filter(a => a.type === 'award')
-        .map(a => ({
-          name: a.title,
-          year: a.year,
-          organization: a.description?.split('-')[0]?.trim() || '',
-          description: a.description?.split('-')[1]?.trim() || ''
+      // Parse professional recognitions from the JSON data
+      professionalRecognitions: (initialData?.realtorProfile?.professionalRecognitions || [])
+        .map((recognition: ProfessionalRecognition) => ({
+          id: recognition.id,
+          title: recognition.title,
+          type: recognition.type,
+          year: Number(recognition.year),
+          organization: recognition.organization,
+          description: recognition.description,
         }))
     },
   })
 
-  const addAchievement = () => {
-    const currentAchievements = form.getValues("achievements")
-    const newIndex = currentAchievements.length
-    form.setValue("achievements", [
-      ...currentAchievements,
-      { title: "", year: "", description: "" },
+  const addRecognition = () => {
+    const currentRecognitions = form.getValues("professionalRecognitions")
+    const newIndex = currentRecognitions.length
+    form.setValue("professionalRecognitions", [
+      ...currentRecognitions,
+      { 
+        title: "", 
+        year: new Date().getFullYear(),
+        organization: "", 
+        description: "", 
+        type: "ACHIEVEMENT" as const 
+      },
     ])
-    // Automatically set the new achievement to edit mode
-    setEditingAchievement(newIndex)
+    setEditingRecognition(newIndex)
   }
 
-  const addAward = () => {
-    const currentAwards = form.getValues("awards")
-    const newIndex = currentAwards.length
-    form.setValue("awards", [
-      ...currentAwards,
-      { name: "", year: "", organization: "", description: "" },
-    ])
-    // Automatically set the new award to edit mode
-    setEditingAward(newIndex)
-  }
-
-  const removeAchievement = (index: number) => {
-    const currentAchievements = form.getValues("achievements")
-    form.setValue("achievements", currentAchievements.filter((_, i) => i !== index))
+  const removeRecognition = (index: number) => {
+    const currentRecognitions = form.getValues("professionalRecognitions")
+    form.setValue("professionalRecognitions", currentRecognitions.filter((_, i) => i !== index))
     // Reset editing state if we're removing the item being edited
-    if (editingAchievement === index) {
-      setEditingAchievement(null)
-    } else if (editingAchievement && editingAchievement > index) {
+    if (editingRecognition === index) {
+      setEditingRecognition(null)
+    } else if (editingRecognition && editingRecognition > index) {
       // Adjust editing index if we're removing an item before the one being edited
-      setEditingAchievement(editingAchievement - 1)
-    }
-  }
-
-  const removeAward = (index: number) => {
-    const currentAwards = form.getValues("awards")
-    form.setValue("awards", currentAwards.filter((_, i) => i !== index))
-    // Reset editing state if we're removing the item being edited
-    if (editingAward === index) {
-      setEditingAward(null)
-    } else if (editingAward && editingAward > index) {
-      // Adjust editing index if we're removing an item before the one being edited
-      setEditingAward(editingAward - 1)
+      setEditingRecognition(editingRecognition - 1)
     }
   }
 
   async function handleSubmit(data: CoachProfileFormValues) {
     try {
-      // Format achievements and awards for JSON storage
+      // Format the data to match the new schema
       const formattedData = {
         ...data,
-        achievements: [
-          ...data.achievements,
-          ...data.awards.map(award => ({
-            title: award.name,
-            year: award.year,
-            description: `${award.organization} - ${award.description || ''}`.trim(),
-            type: 'award'
-          }))
-        ]
+        professionalRecognitions: data.professionalRecognitions.map(recognition => ({
+          title: recognition.title,
+          type: recognition.type,
+          year: recognition.year,
+          organization: recognition.organization,
+          description: recognition.description,
+        }))
       };
 
       await onSubmit(formattedData);
-      // Reset editing states after successful save
-      setEditingAchievement(null);
-      setEditingAward(null);
+      setEditingRecognition(null);
       toast.success("Profile updated successfully");
     } catch (error) {
       console.error("[COACH_PROFILE_ERROR]", error);
@@ -208,48 +173,17 @@ export function CoachProfileForm({
     }
   }
 
-  const renderAchievementDisplay = (achievement: any, index: number) => (
+  const renderRecognitionDisplay = (recognition: ProfessionalRecognition, index: number) => (
     <div key={index} className="p-4 border rounded-lg space-y-2">
       <div className="flex justify-between items-start">
         <div>
-          <h4 className="font-medium">{achievement.title}</h4>
-          <p className="text-sm text-muted-foreground">Year: {achievement.year}</p>
-          {achievement.description && (
-            <p className="text-sm mt-1">{achievement.description}</p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setEditingAchievement(index)}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => removeAchievement(index)}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderAwardDisplay = (award: any, index: number) => (
-    <div key={index} className="p-4 border rounded-lg space-y-2">
-      <div className="flex justify-between items-start">
-        <div>
-          <h4 className="font-medium">{award.name}</h4>
+          <h4 className="font-medium">{recognition.title}</h4>
           <p className="text-sm text-muted-foreground">
-            {award.organization} • {award.year}
+            {recognition.type} • {recognition.year}
+            {recognition.organization && ` • ${recognition.organization}`}
           </p>
-          {award.description && (
-            <p className="text-sm mt-1">{award.description}</p>
+          {recognition.description && (
+            <p className="text-sm mt-1">{recognition.description}</p>
           )}
         </div>
         <div className="flex gap-2">
@@ -257,7 +191,7 @@ export function CoachProfileForm({
             type="button"
             variant="ghost"
             size="icon"
-            onClick={() => setEditingAward(index)}
+            onClick={() => setEditingRecognition(index)}
           >
             <Pencil className="h-4 w-4" />
           </Button>
@@ -265,7 +199,7 @@ export function CoachProfileForm({
             type="button"
             variant="ghost"
             size="icon"
-            onClick={() => removeAward(index)}
+            onClick={() => removeRecognition(index)}
           >
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
@@ -274,7 +208,7 @@ export function CoachProfileForm({
     </div>
   );
 
-  const renderAchievementForm = (index: number) => (
+  const renderRecognitionForm = (index: number) => (
     <div key={index} className="space-y-4 p-4 border rounded-lg relative">
       <Button
         type="button"
@@ -282,10 +216,10 @@ export function CoachProfileForm({
         size="icon"
         className="absolute right-2 top-2 text-muted-foreground hover:text-destructive"
         onClick={() => {
-          if (editingAchievement === index) {
-            setEditingAchievement(null);
+          if (editingRecognition === index) {
+            setEditingRecognition(null);
           } else {
-            removeAchievement(index);
+            removeRecognition(index);
           }
         }}
       >
@@ -293,10 +227,10 @@ export function CoachProfileForm({
       </Button>
       <FormField
         control={form.control}
-        name={`achievements.${index}.title`}
+        name={`professionalRecognitions.${index}.title`}
         render={({ field }) => (
           <FormItem>
-            <FormLabel>Achievement Title</FormLabel>
+            <FormLabel>Recognition Title</FormLabel>
             <FormControl>
               <Input placeholder="e.g., Top Producer" {...field} />
             </FormControl>
@@ -307,12 +241,19 @@ export function CoachProfileForm({
 
       <FormField
         control={form.control}
-        name={`achievements.${index}.year`}
+        name={`professionalRecognitions.${index}.year`}
         render={({ field }) => (
           <FormItem>
             <FormLabel>Year</FormLabel>
             <FormControl>
-              <Input type="number" {...field} />
+              <Input 
+                type="number"
+                min={1900}
+                max={new Date().getFullYear()}
+                {...field}
+                onChange={(e) => field.onChange(Number(e.target.value))}
+                value={field.value || ''}
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -321,68 +262,7 @@ export function CoachProfileForm({
 
       <FormField
         control={form.control}
-        name={`achievements.${index}.description`}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Description</FormLabel>
-            <FormControl>
-              <Textarea placeholder="Details about the achievement..." {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </div>
-  );
-
-  const renderAwardForm = (index: number) => (
-    <div key={index} className="space-y-4 p-4 border rounded-lg relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="absolute right-2 top-2 text-muted-foreground hover:text-destructive"
-        onClick={() => {
-          if (editingAward === index) {
-            setEditingAward(null);
-          } else {
-            removeAward(index);
-          }
-        }}
-      >
-        <X className="h-4 w-4" />
-      </Button>
-      <FormField
-        control={form.control}
-        name={`awards.${index}.name`}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Award Name</FormLabel>
-            <FormControl>
-              <Input placeholder="e.g., Diamond Circle Award" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name={`awards.${index}.year`}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Year</FormLabel>
-            <FormControl>
-              <Input type="number" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name={`awards.${index}.organization`}
+        name={`professionalRecognitions.${index}.organization`}
         render={({ field }) => (
           <FormItem>
             <FormLabel>Organization</FormLabel>
@@ -396,12 +276,12 @@ export function CoachProfileForm({
 
       <FormField
         control={form.control}
-        name={`awards.${index}.description`}
+        name={`professionalRecognitions.${index}.description`}
         render={({ field }) => (
           <FormItem>
             <FormLabel>Description</FormLabel>
             <FormControl>
-              <Textarea placeholder="Details about the award..." {...field} />
+              <Textarea placeholder="Details about the recognition..." {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -540,48 +420,24 @@ export function CoachProfileForm({
 
         <Separator />
 
-        {/* Achievements Section */}
+        {/* Professional Recognitions Section */}
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium">Achievements</h3>
+            <h3 className="text-lg font-medium">Professional Recognitions</h3>
             <Button 
               type="button" 
               variant="outline" 
-              onClick={addAchievement}
+              onClick={addRecognition}
             >
-              Add Achievement
+              Add Recognition
             </Button>
           </div>
 
           <div className="space-y-4">
-            {form.watch("achievements").map((achievement, index) => (
-              editingAchievement === index 
-                ? renderAchievementForm(index)
-                : renderAchievementDisplay(achievement, index)
-            ))}
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Awards Section */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium">Awards</h3>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={addAward}
-            >
-              Add Award
-            </Button>
-          </div>
-
-          <div className="space-y-4">
-            {form.watch("awards").map((award, index) => (
-              editingAward === index 
-                ? renderAwardForm(index)
-                : renderAwardDisplay(award, index)
+            {form.watch("professionalRecognitions").map((recognition, index) => (
+              editingRecognition === index 
+                ? renderRecognitionForm(index)
+                : renderRecognitionDisplay(recognition, index)
             ))}
           </div>
         </div>
