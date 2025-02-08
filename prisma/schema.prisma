@@ -138,6 +138,24 @@ enum ActivitySeverity {
   ERROR
 }
 
+enum ListingStatus {
+  ACTIVE
+  PENDING
+  SOLD
+  WITHDRAWN
+  EXPIRED
+}
+
+enum PropertyType {
+  SINGLE_FAMILY
+  MULTI_FAMILY
+  CONDO
+  TOWNHOUSE
+  LAND
+  COMMERCIAL
+  OTHER
+}
+
 // Models
 model User {
   id                     Int      @id @default(autoincrement())
@@ -248,14 +266,21 @@ model RealtorProfile {
   testimonials      Json    // Will store array of {author, content}
 
   // Listings and Achievements
-  featuredListings  Json    // Will store array of {address, price, status}
-  achievements      Json    // Will store array of {year, description}
+  listings          Listing[]    // New relation to Listing model
 
   // Relations
   user User @relation(fields: [userDbId], references: [id], onDelete: Cascade)
 
+  // Add MLS Integration fields
+  mlsId             String?      @unique  // MLS Member ID
+  mlsName           String?      // Name of MLS System
+  mlsStatus         String?      // Active, Pending, Suspended
+
   createdAt DateTime @default(now()) @db.Timestamptz
   updatedAt DateTime @updatedAt @db.Timestamptz
+
+  // Add the new relation
+  professionalRecognitions ProfessionalRecognition[]
 
   @@index([userDbId])
   @@map("RealtorProfile")
@@ -747,23 +772,48 @@ model Goal {
   @@index([status])
 }
 
+// Application-specific achievements
 model Achievement {
-  id          Int             @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   userDbId    Int
-  title       String
-  description String
-  earnedAt    DateTime        @default(now())
-  type        AchievementType
-  icon        String
+  type        String   // e.g., "SESSION_MILESTONE", "RATING_MILESTONE"
+  milestone   String   // e.g., "10_SESSIONS", "100_FIVE_STAR_REVIEWS"
+  earnedAt    DateTime @default(now()) @db.Timestamptz
+  metadata    Json?    // Additional achievement-specific data
 
-  // Relationships
-  user User @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
 
   @@index([userDbId])
   @@index([type])
+  @@map("Achievement")
+}
+
+// Professional recognition (formerly stored in RealtorProfile.achievements)
+model ProfessionalRecognition {
+  id               Int      @id @default(autoincrement())
+  realtorProfileId Int
+  title            String
+  type             RecognitionType // AWARD or ACHIEVEMENT
+  year             Int
+  organization     String?
+  description      String?
+  
+  realtorProfile   RealtorProfile @relation(fields: [realtorProfileId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime @default(now()) @db.Timestamptz
+  updatedAt        DateTime @updatedAt @db.Timestamptz
+
+  @@index([realtorProfileId])
+  @@index([type])
+  @@map("ProfessionalRecognition")
+}
+
+enum RecognitionType {
+  AWARD        // e.g., "Top Producer Award"
+  ACHIEVEMENT  // e.g., "Sold $10M in Properties"
 }
 
 model CoachingAvailabilitySchedule {
@@ -973,4 +1023,62 @@ model AdminAuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("AdminAuditLog")
+}
+
+// New Listing model
+model Listing {
+  id                Int           @id @default(autoincrement())
+  listingKey        String?      @unique // Will be required for MLS integration
+  
+  // Core Details (RESO Standard Fields)
+  propertyType      PropertyType
+  propertySubType   String?
+  status            ListingStatus @default(ACTIVE)
+  listPrice         Decimal       @db.Decimal(10,2)
+  originalListPrice Decimal?      @db.Decimal(10,2)
+  closePrice        Decimal?      @db.Decimal(10,2)
+  listingContractDate DateTime?   @db.Timestamptz
+  closeDate         DateTime?     @db.Timestamptz
+  
+  // Location (RESO Standard Fields)
+  city              String
+  stateOrProvince   String
+  postalCode        String
+  streetName        String
+  streetNumber      String
+  unit              String?
+  
+  // Property Characteristics (RESO Standard Fields)
+  bedroomsTotal     Int
+  bathroomsTotal    Decimal      @db.Decimal(3,1)
+  livingArea        Decimal?     @db.Decimal(10,2)
+  lotSize           Decimal?     @db.Decimal(10,2)
+  yearBuilt         Int?
+  
+  // Media
+  photos            Json?        // Array of photo URLs
+  virtualTours      Json?        // Array of virtual tour URLs
+  
+  // Featured Status
+  isFeatured        Boolean      @default(false)
+  featuredOrder     Int?         // For ordering featured listings
+  
+  // Source Information
+  source            String       @default("MANUAL") // enum: ["MANUAL", "MLS"]
+  mlsSource         String?      // Which MLS system the data came from
+  mlsId             String?      // MLS-specific ID
+  
+  // Relations
+  realtorProfileId  Int
+  realtorProfile    RealtorProfile @relation(fields: [realtorProfileId], references: [id], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt         DateTime     @default(now()) @db.Timestamptz
+  updatedAt         DateTime     @updatedAt @db.Timestamptz
+
+  @@index([realtorProfileId])
+  @@index([listingKey])
+  @@index([status])
+  @@index([isFeatured])
+  @@map("Listing")
 }

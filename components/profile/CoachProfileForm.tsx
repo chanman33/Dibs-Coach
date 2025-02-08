@@ -157,83 +157,27 @@ export function CoachProfileForm({
     setEditingAward(newIndex)
   }
 
-  const removeAchievement = async (index: number) => {
-    try {
-      const currentAchievements = form.getValues("achievements")
-      const updatedAchievements = currentAchievements.filter((_, i) => i !== index)
-      form.setValue("achievements", updatedAchievements)
-
-      // Create formatted data for the database update
-      const formattedData = {
-        ...form.getValues(),
-        achievements: [
-          ...updatedAchievements,
-          ...form.getValues("awards").map(award => ({
-            title: award.name,
-            year: award.year,
-            description: `${award.organization} - ${award.description || ''}`.trim(),
-            type: 'award'
-          }))
-        ]
-      };
-
-      // Update the database
-      await onSubmit(formattedData);
-      
-      // Reset editing state if we're removing the item being edited
-      if (editingAchievement === index) {
-        setEditingAchievement(null)
-      } else if (editingAchievement && editingAchievement > index) {
-        // Adjust editing index if we're removing an item before the one being edited
-        setEditingAchievement(editingAchievement - 1)
-      }
-
-      toast.success("Achievement removed successfully");
-    } catch (error) {
-      console.error("[REMOVE_ACHIEVEMENT_ERROR]", error);
-      toast.error("Failed to remove achievement");
-      // Revert the form state if the database update fails
-      form.setValue("achievements", form.getValues("achievements"));
+  const removeAchievement = (index: number) => {
+    const currentAchievements = form.getValues("achievements")
+    form.setValue("achievements", currentAchievements.filter((_, i) => i !== index))
+    // Reset editing state if we're removing the item being edited
+    if (editingAchievement === index) {
+      setEditingAchievement(null)
+    } else if (editingAchievement && editingAchievement > index) {
+      // Adjust editing index if we're removing an item before the one being edited
+      setEditingAchievement(editingAchievement - 1)
     }
   }
 
-  const removeAward = async (index: number) => {
-    try {
-      const currentAwards = form.getValues("awards")
-      const updatedAwards = currentAwards.filter((_, i) => i !== index)
-      form.setValue("awards", updatedAwards)
-
-      // Create formatted data for the database update
-      const formattedData = {
-        ...form.getValues(),
-        achievements: [
-          ...form.getValues("achievements"),
-          ...updatedAwards.map(award => ({
-            title: award.name,
-            year: award.year,
-            description: `${award.organization} - ${award.description || ''}`.trim(),
-            type: 'award'
-          }))
-        ]
-      };
-
-      // Update the database
-      await onSubmit(formattedData);
-
-      // Reset editing state if we're removing the item being edited
-      if (editingAward === index) {
-        setEditingAward(null)
-      } else if (editingAward && editingAward > index) {
-        // Adjust editing index if we're removing an item before the one being edited
-        setEditingAward(editingAward - 1)
-      }
-
-      toast.success("Award removed successfully");
-    } catch (error) {
-      console.error("[REMOVE_AWARD_ERROR]", error);
-      toast.error("Failed to remove award");
-      // Revert the form state if the database update fails
-      form.setValue("awards", form.getValues("awards"));
+  const removeAward = (index: number) => {
+    const currentAwards = form.getValues("awards")
+    form.setValue("awards", currentAwards.filter((_, i) => i !== index))
+    // Reset editing state if we're removing the item being edited
+    if (editingAward === index) {
+      setEditingAward(null)
+    } else if (editingAward && editingAward > index) {
+      // Adjust editing index if we're removing an item before the one being edited
+      setEditingAward(editingAward - 1)
     }
   }
 

@@ -52,7 +52,15 @@ export const realtorProfileSchema = z.object({
 
   // Listings and Achievements
   featuredListings: z.array(listingSchema),
-  achievements: z.array(achievementSchema),
+  professionalRecognitions: z.array(z.object({
+    id: z.number().optional(),
+    realtorProfileId: z.number(),
+    title: z.string().min(1, "Title is required"),
+    type: z.enum(["AWARD", "ACHIEVEMENT"]),
+    year: z.number().min(1900).max(new Date().getFullYear()),
+    organization: z.string().optional(),
+    description: z.string().optional(),
+  })),
 
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -78,6 +86,17 @@ export const coachProfileSchema = z.object({
   maximumDuration: z.number(),
   totalSessions: z.number(),
   averageRating: z.number().nullable(),
+  
+  // Replace achievements and awards with professionalRecognitions
+  professionalRecognitions: z.array(
+    z.object({
+      title: z.string().min(1, "Title is required"),
+      type: z.enum(["AWARD", "ACHIEVEMENT"]),
+      year: z.number().min(1900).max(new Date().getFullYear()),
+      organization: z.string().optional(),
+      description: z.string().optional(),
+    })
+  ),
   
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -135,4 +154,23 @@ export type MenteeFullProfile = z.infer<typeof menteeFullProfileSchema>;
 export type Testimonial = z.infer<typeof testimonialSchema>;
 export type Listing = z.infer<typeof listingSchema>;
 export type Achievement = z.infer<typeof achievementSchema>;
-export type GeographicFocus = z.infer<typeof geographicFocusSchema>; 
+export type GeographicFocus = z.infer<typeof geographicFocusSchema>;
+export type ProfessionalRecognition = z.infer<typeof professionalRecognitionSchema>;
+
+// Update the coach profile form schema
+export const coachProfileFormSchema = z.object({
+  // ... other fields ...
+  
+  // Replace achievements and awards with professionalRecognitions
+  professionalRecognitions: z.array(
+    z.object({
+      title: z.string().min(1, "Title is required"),
+      type: z.enum(["AWARD", "ACHIEVEMENT"]),
+      year: z.number().min(1900).max(new Date().getFullYear()),
+      organization: z.string().optional(),
+      description: z.string().optional(),
+    })
+  ),
+  
+  // ... other fields ...
+}); 
