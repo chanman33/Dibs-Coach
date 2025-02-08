@@ -102,10 +102,14 @@ export function CoachProfileForm({
       minimumDuration: initialData?.coachProfile?.minimumDuration || 30,
       maximumDuration: initialData?.coachProfile?.maximumDuration || 120,
       allowCustomDuration: initialData?.coachProfile?.allowCustomDuration || false,
-      certifications: initialData?.coachProfile?.certifications || [],
       
       // Realtor Profile defaults
-      languages: initialData?.realtorProfile?.languages || [],
+      certifications: Array.isArray(initialData?.realtorProfile?.certifications) 
+        ? initialData.realtorProfile.certifications 
+        : [],
+      languages: Array.isArray(initialData?.realtorProfile?.languages) 
+        ? initialData.realtorProfile.languages 
+        : [],
       marketExpertise: initialData?.realtorProfile?.bio || "",
       
       // Parse achievements and awards from the JSON data
@@ -287,10 +291,16 @@ export function CoachProfileForm({
               <FormControl>
                 <Input 
                   placeholder="e.g., English, Spanish" 
-                  value={field.value?.join(", ") || ""}
+                  value={Array.isArray(field.value) ? field.value.join(", ") : ""}
                   onChange={(e) => {
                     const value = e.target.value;
-                    field.onChange(value ? value.split(",").map(item => item.trim()) : []);
+                    const languagesArray = value
+                      ? value.split(",")
+                          .map(item => item.trim())
+                          .filter(item => item.length > 0)
+                      : [];
+                    console.log('[DEBUG] Setting languages to:', languagesArray);
+                    field.onChange(languagesArray);
                   }}
                 />
               </FormControl>
@@ -298,8 +308,6 @@ export function CoachProfileForm({
             </FormItem>
           )}
         />
-
-
 
         <Separator />
 

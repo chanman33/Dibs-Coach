@@ -10,10 +10,21 @@ import MarketingInformation from "../../../../components/profile/MarketingInfo"
 import GoalsForm from "../../../../components/profile/GoalsForm"
 import { CoachProfileForm } from "../../../../components/profile/CoachProfileForm"
 import { updateGeneralProfile, fetchUserProfile, fetchCoachProfile, updateCoachProfile } from "@/utils/actions/profile-actions"
+import type { CoachProfile } from "@/utils/types/coach"
+import type { RealtorProfile } from "@/utils/types/realtor"
+
+interface GeneralInfo {
+  displayName?: string;
+  licenseNumber?: string;
+  companyName?: string;
+  yearsOfExperience?: string;
+  bio?: string;
+  primaryMarket?: string;
+}
 
 export default function CoachProfilePage() {
-  const [generalInfo, setGeneralInfo] = useState({})
-  const [coachingInfo, setCoachingInfo] = useState({})
+  const [generalInfo, setGeneralInfo] = useState<GeneralInfo>({})
+  const [coachingInfo, setCoachingInfo] = useState<Partial<CoachProfile & RealtorProfile>>({})
   const [listings, setListings] = useState({})
   const [marketing, setMarketing] = useState({})
   const [goals, setGoals] = useState({})
@@ -24,20 +35,39 @@ export default function CoachProfilePage() {
   useEffect(() => {
     async function loadProfile() {
       try {
+        console.log('[DEBUG] Starting to load profile data...');
+        setIsLoading(true)
         const [generalResult, coachResult] = await Promise.all([
           fetchUserProfile(),
           fetchCoachProfile()
         ]);
 
+        console.log('[DEBUG] General profile result:', JSON.stringify(generalResult, null, 2));
+        console.log('[DEBUG] Coach profile result:', JSON.stringify(coachResult, null, 2));
+
         if (generalResult.success && generalResult.data) {
+          console.log('[DEBUG] Setting general info:', JSON.stringify(generalResult.data, null, 2));
           setGeneralInfo(generalResult.data);
         }
 
         if (coachResult.success && coachResult.data) {
-          setCoachingInfo(coachResult.data);
+          console.log('[DEBUG] Setting coach profile data:', JSON.stringify(coachResult.data, null, 2));
+          setCoachingInfo(prev => {
+            console.log('[DEBUG] Previous coaching info:', JSON.stringify(prev, null, 2));
+            const newData = {
+              ...coachResult.data,
+              // Ensure these fields are always arrays
+              languages: Array.isArray(coachResult.data.languages) ? coachResult.data.languages : [],
+              certifications: Array.isArray(coachResult.data.certifications) ? coachResult.data.certifications : [],
+              achievements: Array.isArray(coachResult.data.achievements) ? coachResult.data.achievements : []
+            };
+            console.log('[DEBUG] New coaching info:', JSON.stringify(newData, null, 2));
+            return newData;
+          });
         }
 
         if (!generalResult.success || !coachResult.success) {
+          console.error('[DEBUG] Failed to load profile data:', { generalResult, coachResult });
           toast({
             title: "Error",
             description: "Failed to load profile data. Please refresh the page.",
@@ -53,6 +83,11 @@ export default function CoachProfilePage() {
         });
       } finally {
         setIsLoading(false);
+        console.log('[DEBUG] Profile loading complete. States:', {
+          generalInfo: JSON.stringify(generalInfo, null, 2),
+          coachingInfo: JSON.stringify(coachingInfo, null, 2),
+          isLoading
+        });
       }
     }
 
@@ -61,32 +96,27 @@ export default function CoachProfilePage() {
 
   const handleProfileSubmit = async (data: any) => {
     try {
-      // Update coach profile
-      const coachResult = await updateCoachProfile({
-        // Coach-specific fields
-        coachingSpecialties: data.specialties,
-        yearsCoaching: data.yearsCoaching,
-        hourlyRate: data.hourlyRate,
-        calendlyUrl: data.calendlyUrl,
-        eventTypeUrl: data.eventTypeUrl,
-        defaultDuration: data.defaultDuration,
-        minimumDuration: data.minimumDuration,
-        maximumDuration: data.maximumDuration,
-        allowCustomDuration: data.allowCustomDuration,
-        // Realtor profile fields
-        languages: data.languages,
-        bio: data.marketExpertise,
-        achievements: data.achievements,
-        certifications: data.certifications,
-        updatedAt: new Date().toISOString()
+      setIsSubmitting(true);
+      console.log('[DEBUG] Submitting coach profile data:', JSON.stringify(data, null, 2));
+      await updateCoachProfile(data);
+      
+      // Update local state with the new data
+      console.log('[DEBUG] Updating coaching info state with:', JSON.stringify(data, null, 2));
+      setCoachingInfo(data);
+      
+      toast({
+        title: "Success",
+        description: "Your coaching profile has been updated",
       });
-
-      if (!coachResult.success) {
-        throw new Error('Failed to update coach profile');
-      }
     } catch (error) {
       console.error('[PROFILE_UPDATE_ERROR]', error);
-      throw error;
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -142,9 +172,18 @@ export default function CoachProfilePage() {
     return <div>Loading...</div>;
   }
 
+  console.log('[DEBUG] Rendering profile page with states:', {
+    generalInfo: JSON.stringify(generalInfo, null, 2),
+    coachingInfo: JSON.stringify(coachingInfo, null, 2),
+    isLoading
+  });
+
   return (
     <div className="container mx-auto py-10">
-      <Tabs defaultValue="general" className="space-y-4">
+      <Tabs defaultValue="general" className="space-y-4" onValueChange={(value) => {
+        console.log('[DEBUG] Tab changed to:', value);
+        console.log('[DEBUG] Current coaching info:', JSON.stringify(coachingInfo, null, 2));
+      }}>
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="coaching">Coaching</TabsTrigger>
@@ -176,8 +215,16 @@ export default function CoachProfilePage() {
             <CardContent>
               <CoachProfileForm
                 initialData={{
-                  coachProfile: coachingInfo,
-                  realtorProfile: generalInfo
+                  coachProfile: {
+                    ...coachingInfo,
+                    marketExpertise: generalInfo?.bio || ""
+                  },
+                  realtorProfile: {
+                    bio: generalInfo?.bio || "",
+                    languages: coachingInfo?.languages || [],
+                    certifications: coachingInfo?.certifications || [],
+                    achievements: coachingInfo?.achievements || []
+                  }
                 }}
                 onSubmit={handleProfileSubmit}
                 isSubmitting={isSubmitting}

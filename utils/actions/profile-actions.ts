@@ -234,10 +234,10 @@ export async function updateCoachProfile(formData: any) {
       .eq('userDbId', userData.id)
       .single()
 
-    // Prepare coach profile data
+    // Prepare coach profile data - map specialties back to coachingSpecialties
     const coachProfileData = {
       userDbId: userData.id,
-      coachingSpecialties: formData.coachingSpecialties,
+      coachingSpecialties: formData.specialties || [],
       yearsCoaching: formData.yearsCoaching,
       hourlyRate: formData.hourlyRate,
       calendlyUrl: formData.calendlyUrl,
@@ -252,10 +252,10 @@ export async function updateCoachProfile(formData: any) {
     // Prepare realtor profile data
     const realtorProfileData = {
       userDbId: userData.id,
-      achievements: formData.achievements || [],
-      languages: formData.languages || [],
+      achievements: Array.isArray(formData.achievements) ? formData.achievements : [],
+      languages: Array.isArray(formData.languages) ? formData.languages : [],
       bio: formData.marketExpertise || '',
-      certifications: formData.certifications || [],
+      certifications: Array.isArray(formData.certifications) ? formData.certifications : [],
       propertyTypes: [],
       specializations: [],
       marketingAreas: [],
@@ -314,57 +314,69 @@ export async function updateCoachProfile(formData: any) {
 // Function to fetch coach profile data
 export async function fetchCoachProfile() {
   try {
+    console.log('[DEBUG] Starting fetchCoachProfile...');
     const { userId } = await auth()
     if (!userId) {
+      console.error('[DEBUG] No userId found in auth');
       throw new Error('Unauthorized')
     }
 
+    console.log('[DEBUG] Fetching profiles for userId:', userId);
     const supabase = await createAuthClient()
 
-    // Fetch user and their coach profile
+    // Fetch user with both coach and realtor profiles
     const { data, error } = await supabase
       .from('User')
       .select(`
         *,
-        coachProfile:CoachProfile (*)
+        coachProfile:CoachProfile (*),
+        realtorProfile:RealtorProfile (*)
       `)
       .eq('userId', userId)
       .single()
 
-    if (error) throw error
-
-    const coachProfile = data.coachProfile
-
-    if (!coachProfile) {
-      return {
-        success: true,
-        data: {
-          coachingSpecialties: [],
-          yearsCoaching: 0,
-          hourlyRate: 0,
-          defaultDuration: 60,
-          minimumDuration: 30,
-          maximumDuration: 120,
-          allowCustomDuration: false,
-          calendlyUrl: "",
-          eventTypeUrl: "",
-        }
-      }
+    if (error) {
+      console.error('[DEBUG] Error fetching profiles:', error);
+      throw error;
     }
+
+    console.log('[DEBUG] Raw profile data:', data);
+    
+    // Handle array responses
+    const coachProfile = Array.isArray(data.coachProfile) ? data.coachProfile[0] : data.coachProfile;
+    const realtorProfile = Array.isArray(data.realtorProfile) ? data.realtorProfile[0] : data.realtorProfile;
+
+    console.log('[DEBUG] Extracted profiles:', { coachProfile, realtorProfile });
+
+    // Combine both profiles into a single response
+    const responseData = {
+      // Coach profile fields
+      specialties: coachProfile?.coachingSpecialties || [],
+      yearsCoaching: coachProfile?.yearsCoaching || 0,
+      hourlyRate: Number(coachProfile?.hourlyRate) || 0,
+      defaultDuration: coachProfile?.defaultDuration || 60,
+      minimumDuration: coachProfile?.minimumDuration || 30,
+      maximumDuration: coachProfile?.maximumDuration || 120,
+      allowCustomDuration: coachProfile?.allowCustomDuration || false,
+      calendlyUrl: coachProfile?.calendlyUrl || "",
+      eventTypeUrl: coachProfile?.eventTypeUrl || "",
+      
+      // Realtor profile fields
+      languages: Array.isArray(realtorProfile?.languages) ? realtorProfile.languages : [],
+      certifications: Array.isArray(realtorProfile?.certifications) ? realtorProfile.certifications : [],
+      marketExpertise: realtorProfile?.bio || "",
+      achievements: Array.isArray(realtorProfile?.achievements) ? realtorProfile.achievements : [],
+
+      // Include raw profiles for debugging
+      _rawCoachProfile: coachProfile,
+      _rawRealtorProfile: realtorProfile
+    };
+
+    console.log('[DEBUG] Formatted response data:', responseData);
 
     return {
       success: true,
-      data: {
-        coachingSpecialties: coachProfile.coachingSpecialties || [],
-        yearsCoaching: coachProfile.yearsCoaching || 0,
-        hourlyRate: coachProfile.hourlyRate || 0,
-        defaultDuration: coachProfile.defaultDuration || 60,
-        minimumDuration: coachProfile.minimumDuration || 30,
-        maximumDuration: coachProfile.maximumDuration || 120,
-        allowCustomDuration: coachProfile.allowCustomDuration || false,
-        calendlyUrl: coachProfile.calendlyUrl || "",
-        eventTypeUrl: coachProfile.eventTypeUrl || "",
-      }
+      data: responseData
     }
   } catch (error) {
     console.error('[FETCH_COACH_PROFILE_ERROR]', error)
