@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { CoachProfileModal } from './CoachProfileModal'
+import { DEFAULT_AVATARS } from '@/utils/constants'
+import { SessionConfig } from '@/utils/types/browse-coaches'
 
 const DEFAULT_IMAGE_URL = '/placeholder.svg'
 
@@ -43,6 +45,7 @@ interface CoachProps {
   eventTypeUrl: string | null
   isBooked?: boolean
   onProfileClick?: () => void
+  sessionConfig: SessionConfig
 }
 
 export function Coach(props: CoachProps) {
@@ -69,7 +72,7 @@ export function Coach(props: CoachProps) {
       userId: props.userId
     })
     setImgError(true)
-    setCurrentImageUrl(DEFAULT_IMAGE_URL)
+    setCurrentImageUrl(DEFAULT_AVATARS.COACH)
   }
 
   const isPlaceholder = currentImageUrl === DEFAULT_IMAGE_URL

@@ -13,7 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { DEFAULT_AVATARS } from '@/utils/constants'
 
+const DEFAULT_AVATAR = "https://utfs.io/f/[your-default-avatar-url]" // Replace with your default avatar URL
 
 function CoachDashboard() {
   return (
@@ -126,7 +128,16 @@ function CoachDashboard() {
               <div className="space-y-6">
                 <div className="flex items-center">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src="/avatars/01.png" alt="Avatar" />
+                    <AvatarImage 
+                      src={DEFAULT_AVATARS.COACH} 
+                      alt="Avatar"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = DEFAULT_AVATARS.PLACEHOLDER;
+                        target.onerror = null; // Prevents infinite loop if default image also fails
+                      }}
+
+                    />
                     <AvatarFallback>JS</AvatarFallback>
                   </Avatar>
                   <div className="ml-4 space-y-1">
@@ -144,7 +155,16 @@ function CoachDashboard() {
 
                 <div className="flex items-center">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src="/avatars/05.png" alt="Avatar" />
+                    <AvatarImage 
+                      src={DEFAULT_AVATARS.COACH} 
+                      alt="Avatar"
+
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = DEFAULT_AVATAR;
+                        target.onerror = null; // Prevents infinite loop if default image also fails
+                      }}
+                    />
                     <AvatarFallback>AW</AvatarFallback>
                   </Avatar>
                   <div className="ml-4 space-y-1">
@@ -162,7 +182,15 @@ function CoachDashboard() {
 
                 <div className="flex items-center">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src="/avatars/06.png" alt="Avatar" />
+                    <AvatarImage 
+                      src={DEFAULT_AVATARS.COACH} 
+                      alt="Avatar"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = DEFAULT_AVATARS.PLACEHOLDER;
+                        target.onerror = null; // Prevents infinite loop if default image also fails
+                      }}
+                    />
                     <AvatarFallback>RK</AvatarFallback>
                   </Avatar>
                   <div className="ml-4 space-y-1">
@@ -210,9 +238,17 @@ function CoachDashboard() {
             <div style={{ maxHeight: "320px", overflowY: "auto" }}>
               <div className="space-y-6">
                 <div className="flex items-center">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src="/avatars/02.png" alt="Avatar" />
-                    <AvatarFallback>SJ</AvatarFallback>
+                <Avatar className="h-9 w-9">
+                    <AvatarImage 
+                      src={DEFAULT_AVATARS.COACH} 
+                      alt="Avatar"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = DEFAULT_AVATARS.PLACEHOLDER;
+                        target.onerror = null; // Prevents infinite loop if default image also fails
+                      }}
+                    />
+                    <AvatarFallback>RK</AvatarFallback>
                   </Avatar>
                   <div className="ml-4 space-y-1">
                     <p className="text-sm font-medium leading-none">Sarah Johnson</p>
@@ -229,8 +265,16 @@ function CoachDashboard() {
 
                 <div className="flex items-center">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src="/avatars/03.png" alt="Avatar" />
-                    <AvatarFallback>MR</AvatarFallback>
+                    <AvatarImage 
+                      src={DEFAULT_AVATARS.COACH} 
+                      alt="Avatar"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = DEFAULT_AVATARS.PLACEHOLDER;
+                        target.onerror = null; // Prevents infinite loop if default image also fails
+                      }}
+                    />
+                    <AvatarFallback>RK</AvatarFallback>
                   </Avatar>
                   <div className="ml-4 space-y-1">
                     <p className="text-sm font-medium leading-none">Michael Rodriguez</p>
@@ -247,7 +291,15 @@ function CoachDashboard() {
 
                 <div className="flex items-center">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src="/avatars/04.png" alt="Avatar" />
+                    <AvatarImage 
+                      src={DEFAULT_AVATARS.COACH} 
+                      alt="Avatar"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = DEFAULT_AVATARS.PLACEHOLDER;
+                        target.onerror = null; // Prevents infinite loop if default image also fails
+                      }}
+                    />
                     <AvatarFallback>EL</AvatarFallback>
                   </Avatar>
                   <div className="ml-4 space-y-1">
