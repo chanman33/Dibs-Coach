@@ -345,7 +345,7 @@ export async function GET(req: Request) {
     }
 
     // Allow both realtor_coach and loan_officer_coach roles
-    if (!['realtor_coach', 'loan_officer_coach'].includes(userData.role)) {
+    if (!['COACH'].includes(userData.role)) {
       return new NextResponse('Unauthorized - Not a coach', { status: 403 });
     }
 
