@@ -46,7 +46,7 @@ export async function GET(
       return new NextResponse('User not found', { status: 404 })
     }
 
-    if (userData.role !== ROLES.REALTOR_COACH) {
+    if (userData.role !== ROLES.COACH) {
       return new NextResponse('Unauthorized - Not a coach', { status: 403 })
     }
 

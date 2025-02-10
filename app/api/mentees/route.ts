@@ -3,6 +3,8 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { ROLES } from '@/utils/roles/roles'
+import { getUserDbIdAndRole } from '@/utils/auth'
+import { createAuthClient } from '@/utils/auth'
 
 interface RealtorProfile {
   id: number
@@ -27,81 +29,70 @@ interface Session {
 
 export async function GET() {
   try {
-    // Auth check
-    const { userId } = await auth()
+    const { userId } = await auth();
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
-
-    // Get coach's database ID and verify role
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('id, role')
-      .eq('userId', userId)
-      .single()
-
-    if (userError || !userData) {
-      console.error('[MENTEES_GET_ERROR] User lookup:', userError)
-      return new NextResponse('User not found', { status: 404 })
+    const { userDbId, role } = await getUserDbIdAndRole(userId);
+    if (!userDbId || !role) {
+      console.error("[MENTEES_ERROR] Failed to get user");
+      return NextResponse.json({ error: "Failed to get user" }, { status: 500 });
     }
 
-    if (userData.role !== ROLES.REALTOR_COACH) {
-      return new NextResponse('Unauthorized - Not a coach', { status: 403 })
+    if (role !== ROLES.COACH) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Get all sessions with mentee info and their realtor profiles
-    const { data: sessions, error: sessionsError } = await supabase
-      .from('Session')
+    const supabase = await createAuthClient();
+    
+    // First get all mentee IDs from sessions
+    const { data: sessionMentees, error: sessionError } = await supabase
+      .from("Session")
+      .select("menteeDbId")
+      .eq("coachDbId", userDbId)
+      .order("createdAt", { ascending: false });
+
+    if (sessionError) {
+      console.error("[MENTEES_ERROR] Failed to fetch session mentees:", sessionError);
+      return NextResponse.json({ error: "Failed to fetch mentees" }, { status: 500 });
+    }
+
+    // If no sessions found, return empty array
+    if (!sessionMentees || sessionMentees.length === 0) {
+      return NextResponse.json({ data: [] });
+    }
+
+    // Get unique mentee IDs
+    const uniqueMenteeIds = Array.from(new Set(sessionMentees.map(s => s.menteeDbId)));
+
+    // Fetch mentee details
+    const { data: mentees, error: menteesError } = await supabase
+      .from("User")
       .select(`
-        menteeDbId,
-        mentee:User!Session_menteeDbId_fkey (
+        id,
+        firstName,
+        lastName,
+        email,
+        profileImageUrl,
+        realtorProfile:RealtorProfile (
           id,
-          firstName,
-          lastName,
-          email,
-          profileImageUrl,
-          realtorProfile:RealtorProfile!inner (
-            id,
-            companyName,
-            licenseNumber,
-            phoneNumber
-          )
+          companyName,
+          licenseNumber,
+          phoneNumber
         )
       `)
-      .eq('coachDbId', userData.id)
-      .order('createdAt', { ascending: false }) as { data: Session[] | null, error: any }
+      .in("id", uniqueMenteeIds);
 
-    if (sessionsError) {
-      console.error('[MENTEES_GET_ERROR] Sessions lookup:', sessionsError)
-      return new NextResponse('Failed to fetch mentees', { status: 500 })
+    if (menteesError) {
+      console.error("[MENTEES_ERROR] Failed to fetch mentee details:", menteesError);
+      return NextResponse.json({ error: "Failed to fetch mentee details" }, { status: 500 });
     }
 
-    // Extract unique mentees from sessions
-    const menteeMap = new Map<number, Mentee>()
-    sessions?.forEach(session => {
-      if (!menteeMap.has(session.menteeDbId)) {
-        menteeMap.set(session.menteeDbId, session.mentee)
-      }
-    })
-
-    const mentees = Array.from(menteeMap.values())
-
-    return NextResponse.json(mentees)
+    // Return empty array instead of error when no mentees found
+    return NextResponse.json({ data: mentees || [] });
   } catch (error) {
-    console.error('[MENTEES_GET_ERROR]', error)
-    return new NextResponse('Internal server error', { status: 500 })
+    console.error("[MENTEES_ERROR] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 } 
