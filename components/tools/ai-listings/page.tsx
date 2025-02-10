@@ -34,7 +34,7 @@ const propertyFormSchema = z.object({
   mainRoomImage: z.any().optional(),
 })
 
-function AIListingGenerator() {
+export default function AIListingGenerator() {
   const [generatedListing, setGeneratedListing] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
   const [frontImagePreview, setFrontImagePreview] = useState<string | null>(null)
@@ -508,5 +508,3 @@ function AIListingGenerator() {
     </div>
   )
 }
-
-export default withRole(AIListingGenerator, [ROLES.MENTEE]) 

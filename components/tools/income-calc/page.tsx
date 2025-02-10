@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar, Cell } from "recharts"
 import { ResponsiveSankey } from '@nivo/sankey'
+import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 const formatNumber = (num: number) => {
   return new Intl.NumberFormat("en-US", {
@@ -19,34 +20,28 @@ const formatNumber = (num: number) => {
   }).format(Math.round(num))
 }
 
-const calculateTax = (income: number) => {
+const calculateTax = (income: number, rate: number) => {
+  // Calculate self-employment tax (15.3% of income)
   const selfEmploymentTax = income * 0.153
+  
+  // Calculate income tax based on user-defined rate
+  const incomeTax = income * rate
 
-  // 2023 tax brackets (simplified for example)
-  const brackets = [
-    { limit: 11000, rate: 0.1 },
-    { limit: 44725, rate: 0.12 },
-    { limit: 95375, rate: 0.22 },
-    { limit: 182100, rate: 0.24 },
-    { limit: 231250, rate: 0.32 },
-    { limit: 578125, rate: 0.35 },
-    { limit: Number.POSITIVE_INFINITY, rate: 0.37 },
-  ]
-
-  let remainingIncome = income
-  let incomeTax = 0
-
-  for (const bracket of brackets) {
-    if (remainingIncome > 0) {
-      const taxableInThisBracket = Math.min(remainingIncome, bracket.limit)
-      incomeTax += taxableInThisBracket * bracket.rate
-      remainingIncome -= taxableInThisBracket
-    } else {
-      break
-    }
-  }
-
+  // Return total tax (self-employment tax + income tax)
   return selfEmploymentTax + incomeTax
+}
+
+const formatInputNumber = (num: number) => {
+  // Format the number with commas, starting from the fourth digit
+  const numStr = num.toString();
+  const [integerPart, decimalPart] = numStr.split('.');
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return decimalPart ? `${formattedInteger}.${decimalPart}` : formattedInteger;
+}
+
+const parseInputNumber = (value: string) => {
+  // Remove commas and convert to number
+  return Number(value.replace(/,/g, ""));
 }
 
 export default function RealtorIncomeCalculator() {
@@ -57,6 +52,8 @@ export default function RealtorIncomeCalculator() {
   const [marketingExpenses, setMarketingExpenses] = useState(1000)
   const [includeTaxes, setIncludeTaxes] = useState(false)
   const [view, setView] = useState('monthly')
+  const [taxRate, setTaxRate] = useState(0.25);
+  const [tooltipOpen, setTooltipOpen] = useState(false);
 
   const grossCommission = transactions * propertyValue * (commissionRate / 100)
   const brokerageFees = grossCommission * (brokerageFeeRate / 100)
@@ -67,7 +64,7 @@ export default function RealtorIncomeCalculator() {
   const annualNetIncomeBeforeTax = annualGrossIncome - annualExpenses
   const monthlyNetIncomeBeforeTax = annualNetIncomeBeforeTax / 12
 
-  const annualTaxes = includeTaxes ? calculateTax(annualNetIncomeBeforeTax) : 0
+  const annualTaxes = includeTaxes ? calculateTax(annualNetIncomeBeforeTax, taxRate) : 0
   const monthlyTaxes = annualTaxes / 12
   const annualNetIncomeAfterTax = annualNetIncomeBeforeTax - annualTaxes
   const monthlyNetIncomeAfterTax = annualNetIncomeAfterTax / 12
@@ -170,9 +167,9 @@ export default function RealtorIncomeCalculator() {
             <Label htmlFor="propertyValue">Average Property Value</Label>
             <Input
               id="propertyValue"
-              type="number"
-              value={propertyValue}
-              onChange={(e) => setPropertyValue(Number(e.target.value))}
+              type="text"
+              value={formatInputNumber(propertyValue)}
+              onChange={(e) => setPropertyValue(parseInputNumber(e.target.value))}
               className="font-mono"
             />
             <span className="text-sm text-muted-foreground mt-1">{formatNumber(propertyValue)}</span>
@@ -205,9 +202,9 @@ export default function RealtorIncomeCalculator() {
             <Label htmlFor="marketingExpenses">Monthly Marketing Expenses</Label>
             <Input
               id="marketingExpenses"
-              type="number"
-              value={marketingExpenses}
-              onChange={(e) => setMarketingExpenses(Number(e.target.value))}
+              type="text"
+              value={formatInputNumber(marketingExpenses)}
+              onChange={(e) => setMarketingExpenses(parseInputNumber(e.target.value))}
               className="font-mono"
             />
             <span className="text-sm text-muted-foreground mt-1">{formatNumber(marketingExpenses)}</span>
@@ -216,6 +213,51 @@ export default function RealtorIncomeCalculator() {
             <Switch id="include-taxes" checked={includeTaxes} onCheckedChange={setIncludeTaxes} />
             <Label htmlFor="include-taxes">Include Tax Calculations</Label>
           </div>
+          {includeTaxes && (
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="taxRate">Estimated Tax Rate (%)</Label>
+                <TooltipProvider>
+                  <UiTooltip open={tooltipOpen} onOpenChange={setTooltipOpen}>
+                    <TooltipTrigger 
+                      className="text-sm text-muted-foreground underline cursor-help"
+                      onMouseEnter={() => setTooltipOpen(true)}
+                      onMouseLeave={() => setTooltipOpen(false)}
+                      onClick={() => setTooltipOpen(!tooltipOpen)}
+                    >
+                      What's my tax rate?
+                    </TooltipTrigger>
+                    <TooltipContent 
+                      className="max-w-[400px] p-4"
+                      onPointerDownOutside={() => setTooltipOpen(false)}
+                      onEscapeKeyDown={() => setTooltipOpen(false)}
+                    >
+                      <div className="space-y-2">
+                        <p className="text-sm">
+                          Commissions you're paid as a real estate agent are taxed like any self-employment income. <strong>You'll owe 15.3% self-employment tax plus your income tax rate</strong>, which is based on your tax bracket determined by how much you earn.... the income tax rate, which is between 10% and 37% depending on your taxable income.
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Source: <a href="https://www.collective.com/blog/real-estate-agents-tax-guide#:~:text=Commissions%20you're%20paid%20as,by%20how%20much%20you%20earn." target="_blank" rel="noopener noreferrer" className="underline">Collective</a>
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2 italic">
+                          Note: This calculator provides estimates only. Please consult with a qualified tax professional or accountant for accurate tax advice specific to your situation.
+                        </p>
+                      </div>
+                    </TooltipContent>
+                  </UiTooltip>
+                </TooltipProvider>
+              </div>
+              <Slider
+                id="taxRate"
+                min={0}
+                max={0.5}
+                step={0.01}
+                value={[taxRate]}
+                onValueChange={(value) => setTaxRate(value[0])}
+              />
+              <span className="text-sm text-muted-foreground">{(taxRate * 100).toFixed(1)}%</span>
+            </div>
+          )}
         </div>
 
         <Tabs defaultValue="monthly" className="mt-6" onValueChange={setView}>
