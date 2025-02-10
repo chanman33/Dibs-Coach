@@ -7,5 +7,5 @@ function CoachCRMPage() {
   return <CoachCRMDashboard />
 }
 
-export default withRole(CoachCRMPage, [ROLES.REALTOR_COACH])
+export default withRole(CoachCRMPage, [ROLES.COACH])
 

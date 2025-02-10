@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ArrowDownIcon, ArrowUpIcon, DollarSign } from 'lucide-react';
+import type { Transaction } from '@/utils/types/stripe';
 
 // Transaction types
 const TRANSACTION_TYPES = ['session_payment', 'bundle_payment', 'payout', 'refund'] as const;
@@ -15,32 +16,13 @@ const TRANSACTION_STATUS = ['completed', 'pending', 'failed', 'refunded', 'dispu
 type TransactionStatus = typeof TRANSACTION_STATUS[number];
 
 // Filter types
-const FILTER_TYPES = ['all', 'completed', 'pending', 'failed', 'payouts', 'refunds'] as const;
+const FILTER_TYPES = ['all', 'completed', 'pending', 'failed', 'refunded'] as const;
 type FilterType = typeof FILTER_TYPES[number];
-
-interface Transaction {
-  id: number;
-  type: TransactionType;
-  status: TransactionStatus;
-  amount: number;
-  currency: string;
-  createdAt: string;
-  metadata?: {
-    sessionId?: number;
-    bundleId?: number;
-    payoutId?: number;
-    refundReason?: string;
-  };
-  counterparty?: {
-    name: string;
-    role: 'coach' | 'mentee';
-  };
-}
 
 interface TransactionHistoryProps {
   transactions: Transaction[];
-  userRole: 'coach' | 'mentee';
-  isLoading?: boolean;
+  userRole: 'COACH' | 'MENTEE';
+  isLoading: boolean;
   onFilterChange?: (filter: FilterType) => void;
 }
 
@@ -106,44 +88,55 @@ export function TransactionHistory({
   };
 
   const renderTransactionItem = (transaction: Transaction) => {
-    const isIncoming = 
-      userRole === 'coach' 
-        ? ['session_payment', 'bundle_payment'].includes(transaction.type)
-        : transaction.type === 'refund';
+    const isIncoming = userRole === 'COACH' && transaction.type === 'session_payment';
+    
 
     return (
-      <div
-        key={transaction.id}
-        className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center space-x-4">
-          <div className="p-2 bg-gray-100 rounded-full">
-            {getTransactionIcon(transaction.type, isIncoming)}
+      <div key={transaction.metadata?.id} className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center gap-4">
+          <div className={`p-2 rounded-full ${isIncoming ? 'bg-green-100' : 'bg-red-100'}`}>
+            {isIncoming ? (
+              <ArrowDownIcon className="h-4 w-4 text-green-600" />
+            ) : (
+              <ArrowUpIcon className="h-4 w-4 text-red-600" />
+            )}
           </div>
           <div>
             <p className="font-medium">
-              {typeLabels[transaction.type]}
-              {transaction.counterparty && (
-                <span className="text-gray-500 ml-1">
-                  with {transaction.counterparty.name}
-                </span>
-              )}
+              {transaction.type === 'session_payment' ? 'Session Payment' : 'Subscription Payment'}
             </p>
-            <p className="text-sm text-gray-500">
-              {format(new Date(transaction.createdAt), 'MMM d, yyyy h:mm a')}
+            <p className="text-sm text-muted-foreground">
+              {transaction.metadata?.date ? format(new Date(transaction.metadata.date), 'MMM d, yyyy') : 'N/A'}
             </p>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <p className={`font-medium ${isIncoming ? 'text-green-600' : 'text-red-600'}`}>
-            {isIncoming ? '+' : '-'}{formatAmount(transaction.amount, transaction.currency)}
-          </p>
-          <Badge className={statusColors[transaction.status]}>
-            {transaction.status}
-          </Badge>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="font-medium">
+              {isIncoming ? '+' : '-'}{transaction.amount} {transaction.currency}
+            </p>
+            <Badge variant={getStatusVariant(transaction.status)}>
+              {transaction.status}
+            </Badge>
+          </div>
         </div>
       </div>
     );
+  };
+
+  const getStatusVariant = (status: Transaction['status']) => {
+    switch (status) {
+      case 'completed':
+        return 'default';
+      case 'pending':
+        return 'secondary';
+      case 'failed':
+        return 'destructive';
+      case 'refunded':
+        return 'outline';
+      default:
+        return 'default';
+    }
   };
 
   if (loadingState.error) {
@@ -178,9 +171,11 @@ export function TransactionHistory({
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
               <SelectItem value="failed">Failed</SelectItem>
-              {userRole === 'coach' && (
+              {userRole === 'COACH' && (
                 <SelectItem value="payouts">Payouts</SelectItem>
               )}
+
+
               <SelectItem value="refunds">Refunds</SelectItem>
             </SelectContent>
           </Select>

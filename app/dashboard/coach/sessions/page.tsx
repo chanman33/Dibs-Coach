@@ -7,4 +7,4 @@ function CoachSessionsPage() {
   return <CoachSessionsDashboard />
 }
 
-export default withRole(CoachSessionsPage, [ROLES.REALTOR_COACH])
+export default withRole(CoachSessionsPage, [ROLES.COACH])

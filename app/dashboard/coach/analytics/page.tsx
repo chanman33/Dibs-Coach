@@ -34,11 +34,12 @@ export default function CoachAnalyticsPage() {
 
         const user = await response.json()
 
-        if (!user || !['realtor_coach', 'loan_officer_coach'].includes(user.role)) {
+        if (!user || !['COACH'].includes(user.role)) {
           console.log('Redirecting because:', !user ? 'user not found' : `role ${user.role} not allowed`)
           redirect('/dashboard')
           return
         }
+
 
         setUserDbId(user.id)
       } catch (error) {

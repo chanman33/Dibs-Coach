@@ -117,7 +117,7 @@ function CoachDashboard() {
               <CardDescription>Your scheduled coaching sessions for the next 7 days</CardDescription>
             </div>
             <Button asChild size="sm" className="ml-auto gap-1">
-              <Link href="/dashboard-coach/sessions">
+              <Link href="/dashboard/coach/sessions">
                 View All
                 <ArrowUpRight className="h-4 w-4" />
               </Link>

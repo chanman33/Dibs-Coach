@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { format } from 'date-fns';
 import { TransactionHistory } from '@/components/payments/TransactionHistory';
-import { useTransactions } from '@/hooks/use-transactions';
+import { useTransactions } from '@/utils/hooks/useTransactions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type Payment = {
@@ -385,10 +385,11 @@ export function CoachAnalyticsDashboard({ userDbId }: { userDbId: number }) {
         <TabsContent value="transactions">
           <TransactionHistory
             transactions={transactions}
-            userRole="coach"
+            userRole="COACH"
             isLoading={isLoadingTransactions}
           />
         </TabsContent>
+
       </Tabs>
     </div>
   );
