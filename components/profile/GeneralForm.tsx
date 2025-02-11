@@ -59,7 +59,13 @@ export default function GeneralForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(formData)
+    // Only include non-empty values in the submission
+    const submissionData = {
+      ...formData,
+      // Only include bio if it's not an empty string
+      bio: formData.bio.trim() || null
+    }
+    onSubmit(submissionData)
   }
 
   return (
@@ -132,7 +138,7 @@ export default function GeneralForm({
         <Textarea 
           id="bio" 
           name="bio" 
-          value={formData.bio} 
+          value={formData.bio || ''}
           onChange={handleChange}
           disabled={isSubmitting}
           placeholder="Tell us about your professional background and expertise"

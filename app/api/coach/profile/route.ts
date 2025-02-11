@@ -180,7 +180,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const data = await req.json();
-    console.log("[DEBUG] Received update data:", data);
+    console.log("[DEBUG] Starting updateCoachProfile with formData:", data);
 
     const cookieStore = cookies();
     const supabase = createServerClient(
@@ -197,7 +197,7 @@ export async function PUT(req: NextRequest) {
     );
 
     // Get user and profile IDs
-    const { data: userData, error: userError } = await supabase
+    const { data: user, error: userError } = await supabase
       .from("User")
       .select(`
         id,
@@ -206,116 +206,119 @@ export async function PUT(req: NextRequest) {
       .eq("userId", userId)
       .single();
 
-    if (userError || !userData?.realtorProfile?.[0]?.id) {
+    if (userError || !user?.realtorProfile?.[0]?.id) {
       console.error("[USER_FETCH_ERROR]", userError);
       return new NextResponse("Profile not found", { status: 404 });
     }
 
+    const realtorProfileId = user.realtorProfile[0].id;
+
+    // Handle soft delete if a recognition is being archived
+    if (data.archivedRecognitionId) {
+      const { error: archiveError } = await supabase
+        .from("ProfessionalRecognition")
+        .update({ 
+          archivedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
+        .eq("id", data.archivedRecognitionId)
+        .eq("realtorProfileId", realtorProfileId);
+
+      if (archiveError) {
+        console.error("[ARCHIVE_RECOGNITION_ERROR]", archiveError);
+        throw archiveError;
+      }
+    }
+
     // 1. Update CoachProfile
-    const coachProfileUpdate = {
+    const coachProfileData = {
+      userDbId: user.id,
       coachingSpecialties: data.specialties,
       yearsCoaching: data.yearsCoaching,
       hourlyRate: data.hourlyRate,
-      calendlyUrl: data.calendlyUrl || null,
-      eventTypeUrl: data.eventTypeUrl || null,
+      calendlyUrl: data.calendlyUrl || "",
+      eventTypeUrl: data.eventTypeUrl || "",
       defaultDuration: data.defaultDuration,
       minimumDuration: data.minimumDuration,
       maximumDuration: data.maximumDuration,
       allowCustomDuration: data.allowCustomDuration,
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
 
     const { error: coachError } = await supabase
       .from("CoachProfile")
-      .update(coachProfileUpdate)
-      .eq("userDbId", userData.id);
+      .update(coachProfileData)
+      .eq("userDbId", user.id);
 
     if (coachError) {
       console.error("[COACH_PROFILE_UPDATE_ERROR]", coachError);
       throw coachError;
     }
 
-    // 2. Update RealtorProfile - remove achievements completely from the data object
-    const realtorProfileUpdate = {
+    // 2. Update RealtorProfile
+    const realtorProfileData = {
       languages: data.languages || [],
-      certifications: data.certifications || [],
       bio: data.marketExpertise || null,
-      updatedAt: new Date().toISOString(),
-      // Only include valid fields that exist in the schema
-      geographicFocus: data.geographicFocus || { cities: [], counties: [], neighborhoods: [] },
+      certifications: data.certifications || [],
       propertyTypes: data.propertyTypes || [],
       specializations: data.specializations || [],
       marketingAreas: data.marketingAreas || [],
       testimonials: data.testimonials || [],
+      geographicFocus: data.geographicFocus || { cities: [], counties: [], neighborhoods: [] },
+      updatedAt: new Date().toISOString()
     };
 
     const { error: realtorError } = await supabase
       .from("RealtorProfile")
-      .update(realtorProfileUpdate)
-      .eq("id", userData.realtorProfile[0].id);
+      .update(realtorProfileData)
+      .eq("id", realtorProfileId);
 
     if (realtorError) {
-      console.error("[REALTOR_PROFILE_UPDATE_ERROR]", realtorError);
+      console.error("[DEBUG] Error updating realtor profile:", realtorError);
       throw realtorError;
     }
 
-    // 3. Handle Professional Recognitions - first delete existing
-    const { error: deleteError } = await supabase
-      .from("ProfessionalRecognition")
-      .delete()
-      .eq("realtorProfileId", userData.realtorProfile[0].id);
-
-    if (deleteError) {
-      console.error("[DELETE_RECOGNITIONS_ERROR]", deleteError);
-      throw deleteError;
-    }
-
-    // Then insert new recognitions if any exist
-    if (Array.isArray(data.professionalRecognitions) && data.professionalRecognitions.length > 0) {
-      console.log("[DEBUG] Inserting professional recognitions:", data.professionalRecognitions);
-      
-      const recognitionsToInsert = data.professionalRecognitions.map((recognition: FormRecognition) => ({
-        realtorProfileId: userData.realtorProfile[0].id,
-        title: recognition.title,
-        type: recognition.type,
-        year: recognition.year,
-        organization: recognition.organization || null,
-        description: recognition.description || null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }));
-
-      const { data: insertedRecognitions, error: insertError } = await supabase
+    // 3. Handle Professional Recognitions
+    if (data.professionalRecognitions && !data.archivedRecognitionId) {
+      // First delete existing non-archived recognitions
+      const { error: deleteError } = await supabase
         .from("ProfessionalRecognition")
-        .insert(recognitionsToInsert)
-        .select();
+        .delete()
+        .eq("realtorProfileId", realtorProfileId)
+        .is("archivedAt", null);
 
-      if (insertError) {
-        console.error("[INSERT_RECOGNITIONS_ERROR]", insertError);
-        throw insertError;
+      if (deleteError) {
+        console.error("[DELETE_RECOGNITIONS_ERROR]", deleteError);
+        throw deleteError;
       }
 
-      console.log("[DEBUG] Inserted professional recognitions:", insertedRecognitions);
+      // Then insert new recognitions if any exist
+      if (Array.isArray(data.professionalRecognitions) && data.professionalRecognitions.length > 0) {
+        const recognitionsToInsert = data.professionalRecognitions.map((recognition: any) => ({
+          realtorProfileId: realtorProfileId,
+          title: recognition.title,
+          type: recognition.type,
+          year: recognition.year,
+          organization: recognition.organization || null,
+          description: recognition.description || null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }));
+
+        const { error: insertError } = await supabase
+          .from("ProfessionalRecognition")
+          .insert(recognitionsToInsert);
+
+        if (insertError) {
+          console.error("[INSERT_RECOGNITIONS_ERROR]", insertError);
+          throw insertError;
+        }
+      }
     }
 
-    return NextResponse.json({ 
-      success: true,
-      message: "Profile updated successfully"
-    });
-
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[PROFILE_UPDATE_ERROR]", error);
-    return new NextResponse(
-      JSON.stringify({ 
-        error: "Failed to update profile",
-        details: error instanceof Error ? error.message : String(error)
-      }), 
-      { 
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
+    return new NextResponse(JSON.stringify(error), { status: 500 });
   }
 } 

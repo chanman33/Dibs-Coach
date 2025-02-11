@@ -805,6 +805,7 @@ model ProfessionalRecognition {
 
   createdAt        DateTime @default(now()) @db.Timestamptz
   updatedAt        DateTime @updatedAt @db.Timestamptz
+  archivedAt       DateTime? @db.Timestamptz
 
   @@index([realtorProfileId])
   @@index([type])

@@ -59,7 +59,6 @@ export default function CoachProfilePage() {
               // Ensure these fields are always arrays
               languages: Array.isArray(coachResult.data.languages) ? coachResult.data.languages : [],
               certifications: Array.isArray(coachResult.data.certifications) ? coachResult.data.certifications : [],
-              achievements: Array.isArray(coachResult.data.achievements) ? coachResult.data.achievements : []
             };
             console.log('[DEBUG] New coaching info:', JSON.stringify(newData, null, 2));
             return newData;
@@ -180,98 +179,107 @@ export default function CoachProfilePage() {
 
   return (
     <div className="container mx-auto py-10">
-      <Tabs defaultValue="general" className="space-y-4" onValueChange={(value) => {
-        console.log('[DEBUG] Tab changed to:', value);
-        console.log('[DEBUG] Current coaching info:', JSON.stringify(coachingInfo, null, 2));
-      }}>
-        <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="coaching">Coaching</TabsTrigger>
-          <TabsTrigger value="listings">Listings</TabsTrigger>
-          <TabsTrigger value="marketing">Marketing</TabsTrigger>
-          <TabsTrigger value="goals">Goals</TabsTrigger>
-        </TabsList>
+      <div className="space-y-6">
+        <Tabs defaultValue="general" className="space-y-4" onValueChange={(value) => {
+          console.log('[DEBUG] Tab changed to:', value);
+          console.log('[DEBUG] Current coaching info:', JSON.stringify(coachingInfo, null, 2));
+        }}>
+          <TabsList>
+            <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="coaching">Coaching</TabsTrigger>
+            <TabsTrigger value="listings">Listings</TabsTrigger>
+            <TabsTrigger value="marketing">Marketing</TabsTrigger>
+            <TabsTrigger value="goals">Goals</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="general">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <GeneralForm
-                initialData={generalInfo}
-                onSubmit={(data) => handleSubmit(data, "general")}
-                isSubmitting={isSubmitting}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <TabsContent value="general">
+            <Card>
+              <CardHeader>
+                <CardTitle>General Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <GeneralForm
+                  initialData={generalInfo}
+                  onSubmit={(data) => handleSubmit(data, "general")}
+                  isSubmitting={isSubmitting}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="coaching">
-          <Card>
-            <CardHeader>
-              <CardTitle>Coaching Profile</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CoachProfileForm
-                initialData={{
-                  coachProfile: {
-                    ...coachingInfo,
-                    marketExpertise: generalInfo?.bio || ""
-                  },
-                  realtorProfile: {
-                    bio: generalInfo?.bio || "",
-                    languages: coachingInfo?.languages || [],
-                    certifications: coachingInfo?.certifications || [],
-                    achievements: coachingInfo?.achievements || []
-                  }
-                }}
-                onSubmit={handleProfileSubmit}
-                isSubmitting={isSubmitting}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <TabsContent value="coaching">
+            <Card>
+              <CardHeader>
+                <CardTitle>Coaching Profile</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CoachProfileForm
+                  initialData={{
+                    coachProfile: {
+                      specialties: coachingInfo?.specialties || [],
+                      yearsCoaching: coachingInfo?.yearsCoaching || 0,
+                      hourlyRate: coachingInfo?.hourlyRate || 0,
+                      defaultDuration: coachingInfo?.defaultDuration || 60,
+                      minimumDuration: coachingInfo?.minimumDuration || 30,
+                      maximumDuration: coachingInfo?.maximumDuration || 120,
+                      allowCustomDuration: coachingInfo?.allowCustomDuration || false,
+                      calendlyUrl: coachingInfo?.calendlyUrl || "",
+                      eventTypeUrl: coachingInfo?.eventTypeUrl || "",
+                    },
+                    realtorProfile: {
+                      languages: coachingInfo?.languages || [],
+                      bio: coachingInfo?.bio || "",
+                      certifications: coachingInfo?.certifications || [],
+                      professionalRecognitions: coachingInfo?.professionalRecognitions || []
+                    }
+                  }}
+                  onSubmit={handleProfileSubmit}
+                  isSubmitting={isSubmitting}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="listings">
-          <Card>
-            <CardHeader>
-              <CardTitle>Listings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ListingsForm
-                onSubmit={(data) => handleSubmit(data, "listings")}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <TabsContent value="listings">
+            <Card>
+              <CardHeader>
+                <CardTitle>Listings</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ListingsForm
+                  onSubmit={(data) => handleSubmit(data, "listings")}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="marketing">
-          <Card>
-            <CardHeader>
-              <CardTitle>Marketing Information</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <MarketingInformation
-                onSubmit={(data) => handleSubmit(data, "marketing")}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <TabsContent value="marketing">
+            <Card>
+              <CardHeader>
+                <CardTitle>Marketing Information</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <MarketingInformation
+                  onSubmit={(data) => handleSubmit(data, "marketing")}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="goals">
-          <Card>
-            <CardHeader>
-              <CardTitle>Goals</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <GoalsForm
-                onSubmit={(data) => handleSubmit(data, "goals")}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="goals">
+            <Card>
+              <CardHeader>
+                <CardTitle>Goals</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <GoalsForm
+                  onSubmit={(data) => handleSubmit(data, "goals")}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   )
 }

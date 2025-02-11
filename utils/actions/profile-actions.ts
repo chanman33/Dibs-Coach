@@ -25,6 +25,18 @@ interface CoachProfileFormData {
   eventTypeUrl?: string;
 }
 
+interface ProfessionalRecognition {
+  id: number;
+  title: string;
+  type: "AWARD" | "ACHIEVEMENT";
+  year: number;
+  organization: string | null;
+  description: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  archivedAt?: string | null;
+}
+
 export async function fetchUserProfile() {
   try {
     const { userId } = await auth()
@@ -133,7 +145,7 @@ export async function updateGeneralProfile(data: GeneralFormData) {
         .from('RealtorProfile')
         .insert({
           userDbId: user.id,
-          bio: data.bio,
+          bio: data.bio || null,
           yearsExperience: parseInt(data.yearsOfExperience),
           primaryMarket: data.primaryMarket,
           propertyTypes: [],
@@ -154,28 +166,31 @@ export async function updateGeneralProfile(data: GeneralFormData) {
           marketingAreas: [],
           testimonials: [],
           featuredListings: [],
-          achievements: [],
+          professionalRecognitions: [],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         })
         .select()
         .single()
     } else {
-      // Update existing profile
+      // Update existing profile, preserving existing data
+      const updatedProfile = {
+        ...existingProfile,
+        bio: data.bio || existingProfile.bio,
+        yearsExperience: parseInt(data.yearsOfExperience),
+        primaryMarket: data.primaryMarket,
+        geographicFocus: data.primaryMarket !== existingProfile.primaryMarket
+          ? {
+              ...existingProfile.geographicFocus,
+              cities: Array.from(new Set([...(existingProfile.geographicFocus?.cities || []), data.primaryMarket]))
+            }
+          : existingProfile.geographicFocus,
+        updatedAt: new Date().toISOString()
+      }
+
       profileResult = await supabase
         .from('RealtorProfile')
-        .update({
-          bio: data.bio,
-          yearsExperience: parseInt(data.yearsOfExperience),
-          primaryMarket: data.primaryMarket,
-          geographicFocus: data.primaryMarket !== existingProfile.primaryMarket
-            ? {
-                ...existingProfile.geographicFocus,
-                cities: Array.from(new Set([...(existingProfile.geographicFocus?.cities || []), data.primaryMarket]))
-              }
-            : existingProfile.geographicFocus,
-          updatedAt: new Date().toISOString()
-        })
+        .update(updatedProfile)
         .eq('id', existingProfile.id)
         .select()
         .single()
@@ -206,10 +221,13 @@ export async function updateCoachProfile(formData: any) {
     
     const supabase = await createAuthClient()
     
-    // Get the user's database ID
+    // Get the user's database ID and realtor profile ID
     const { data: userData, error: userError } = await supabase
       .from('User')
-      .select('id')
+      .select(`
+        id,
+        realtorProfile:RealtorProfile!inner(id)
+      `)
       .eq('userId', userId)
       .single()
 
@@ -220,21 +238,9 @@ export async function updateCoachProfile(formData: any) {
 
     console.log('[DEBUG] Found user:', userData)
 
-    // Get existing realtor profile for geographicFocus
-    const { data: existingProfile } = await supabase
-      .from('RealtorProfile')
-      .select('geographicFocus')
-      .eq('userDbId', userData.id)
-      .single()
+    const realtorProfileId = userData.realtorProfile[0].id;
 
-    // Get existing coach profile
-    const { data: existingCoachProfile } = await supabase
-      .from('CoachProfile')
-      .select('id')
-      .eq('userDbId', userData.id)
-      .single()
-
-    // Prepare coach profile data - map specialties back to coachingSpecialties
+    // Prepare coach profile data
     const coachProfileData = {
       userDbId: userData.id,
       coachingSpecialties: formData.specialties || [],
@@ -252,16 +258,14 @@ export async function updateCoachProfile(formData: any) {
     // Prepare realtor profile data
     const realtorProfileData = {
       userDbId: userData.id,
-      achievements: Array.isArray(formData.achievements) ? formData.achievements : [],
       languages: Array.isArray(formData.languages) ? formData.languages : [],
       bio: formData.marketExpertise || '',
       certifications: Array.isArray(formData.certifications) ? formData.certifications : [],
       propertyTypes: [],
       specializations: [],
       marketingAreas: [],
-      testimonials: [],  // Required JSON field
-      featuredListings: [],  // Required JSON field
-      geographicFocus: existingProfile?.geographicFocus || {
+      testimonials: [],
+      geographicFocus: {
         cities: [],
         neighborhoods: [],
         counties: []
@@ -269,11 +273,8 @@ export async function updateCoachProfile(formData: any) {
       updatedAt: new Date().toISOString(),
     }
 
-    console.log('[DEBUG] Prepared coach profile data:', coachProfileData)
-    console.log('[DEBUG] Prepared realtor profile data:', realtorProfileData)
-
     // Update CoachProfile
-    const { data: coachData, error: coachError } = await supabase
+    const { error: coachError } = await supabase
       .from('CoachProfile')
       .upsert(coachProfileData, {
         onConflict: 'userDbId'
@@ -285,10 +286,8 @@ export async function updateCoachProfile(formData: any) {
       throw coachError
     }
 
-    console.log('[DEBUG] Coach profile update result:', coachData)
-
     // Update RealtorProfile
-    const { data: realtorData, error: realtorError } = await supabase
+    const { error: realtorError } = await supabase
       .from('RealtorProfile')
       .upsert(realtorProfileData, {
         onConflict: 'userDbId'
@@ -300,7 +299,95 @@ export async function updateCoachProfile(formData: any) {
       throw realtorError
     }
 
-    console.log('[DEBUG] Realtor profile update result:', realtorData)
+    // Handle Professional Recognitions
+    if (formData.professionalRecognitions && Array.isArray(formData.professionalRecognitions)) {
+      // Get existing recognitions
+      const { data: existingRecognitions, error: fetchError } = await supabase
+        .from('ProfessionalRecognition')
+        .select('*')
+        .eq('realtorProfileId', realtorProfileId)
+        .is('archivedAt', null)
+
+      if (fetchError) {
+        console.error('[DEBUG] Error fetching existing recognitions:', fetchError)
+        throw fetchError
+      }
+
+      // Handle archived recognition if specified
+      if (formData.archivedRecognitionId) {
+        const { error: archiveError } = await supabase
+          .from('ProfessionalRecognition')
+          .update({ 
+            archivedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          })
+          .eq('id', formData.archivedRecognitionId)
+          .eq('realtorProfileId', realtorProfileId)
+
+        if (archiveError) {
+          console.error('[DEBUG] Error archiving recognition:', archiveError)
+          throw archiveError
+        }
+        
+        // Return early as we're just archiving
+        return { success: true }
+      }
+
+      // Separate recognitions into existing and new
+      const existingIds = new Set(existingRecognitions?.map(r => r.id) || [])
+      const recognitionsToUpdate = []
+      const recognitionsToInsert = []
+
+      for (const recognition of formData.professionalRecognitions) {
+        const recognitionData = {
+          realtorProfileId,
+          title: recognition.title,
+          type: recognition.type,
+          year: recognition.year,
+          organization: recognition.organization || null,
+          description: recognition.description || null,
+          updatedAt: new Date().toISOString()
+        }
+
+        if (recognition.id && existingIds.has(recognition.id)) {
+          // Update existing recognition
+          recognitionsToUpdate.push({
+            ...recognitionData,
+            id: recognition.id
+          })
+        } else {
+          // Insert new recognition
+          recognitionsToInsert.push({
+            ...recognitionData,
+            createdAt: new Date().toISOString()
+          })
+        }
+      }
+
+      // Update existing recognitions
+      if (recognitionsToUpdate.length > 0) {
+        const { error: updateError } = await supabase
+          .from('ProfessionalRecognition')
+          .upsert(recognitionsToUpdate)
+
+        if (updateError) {
+          console.error('[DEBUG] Error updating recognitions:', updateError)
+          throw updateError
+        }
+      }
+
+      // Insert new recognitions
+      if (recognitionsToInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('ProfessionalRecognition')
+          .insert(recognitionsToInsert)
+
+        if (insertError) {
+          console.error('[DEBUG] Error inserting new recognitions:', insertError)
+          throw insertError
+        }
+      }
+    }
 
     // Revalidate the profile page
     revalidatePath('/dashboard/coach/profile')
@@ -330,7 +417,20 @@ export async function fetchCoachProfile() {
       .select(`
         *,
         coachProfile:CoachProfile (*),
-        realtorProfile:RealtorProfile (*)
+        realtorProfile:RealtorProfile (
+          *,
+          professionalRecognitions:ProfessionalRecognition (
+            id,
+            title,
+            type,
+            year,
+            organization,
+            description,
+            createdAt,
+            updatedAt,
+            archivedAt
+          )
+        )
       `)
       .eq('userId', userId)
       .single()
@@ -346,7 +446,12 @@ export async function fetchCoachProfile() {
     const coachProfile = Array.isArray(data.coachProfile) ? data.coachProfile[0] : data.coachProfile;
     const realtorProfile = Array.isArray(data.realtorProfile) ? data.realtorProfile[0] : data.realtorProfile;
 
-    console.log('[DEBUG] Extracted profiles:', { coachProfile, realtorProfile });
+    // Filter out archived recognitions in JavaScript
+    const activeRecognitions = realtorProfile?.professionalRecognitions?.filter(
+      (recognition: any) => !recognition.archivedAt
+    ) || [];
+
+    console.log('[DEBUG] Active recognitions:', activeRecognitions);
 
     // Combine both profiles into a single response
     const responseData = {
@@ -365,7 +470,17 @@ export async function fetchCoachProfile() {
       languages: Array.isArray(realtorProfile?.languages) ? realtorProfile.languages : [],
       certifications: Array.isArray(realtorProfile?.certifications) ? realtorProfile.certifications : [],
       marketExpertise: realtorProfile?.bio || "",
-      achievements: Array.isArray(realtorProfile?.achievements) ? realtorProfile.achievements : [],
+      professionalRecognitions: activeRecognitions.map((recognition: any) => ({
+        id: recognition.id,
+        title: recognition.title,
+        type: recognition.type,
+        year: recognition.year,
+        organization: recognition.organization || null,
+        description: recognition.description || null,
+        createdAt: recognition.createdAt,
+        updatedAt: recognition.updatedAt,
+        archivedAt: recognition.archivedAt
+      })),
 
       // Include raw profiles for debugging
       _rawCoachProfile: coachProfile,

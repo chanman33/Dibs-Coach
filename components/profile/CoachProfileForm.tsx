@@ -26,7 +26,7 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { toast } from "sonner"
 import { ConnectCalendly } from "@/components/calendly/ConnectCalendly"
-import { X, Pencil, Trash2 } from "lucide-react"
+import { X, Pencil, Archive } from "lucide-react"
 import {
   COACH_SPECIALTIES,
   COACH_CERTIFICATIONS,
@@ -36,8 +36,11 @@ import type { CoachProfile } from "@/utils/types/coach"
 import type { RealtorProfile } from "@/utils/types/realtor"
 import { 
   ProfessionalRecognition, 
-  ProfessionalRecognitionSchema 
+  ProfessionalRecognitionSchema,
+  RecognitionFormSchema
 } from "@/utils/types/realtor"
+import { ProfessionalRecognitions } from "./ProfessionalRecognitions"
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 
 // Combined form schema for both coach and realtor profile data
 const coachProfileFormSchema = z.object({
@@ -61,8 +64,18 @@ const coachProfileFormSchema = z.object({
   languages: z.array(z.string()),
   marketExpertise: z.string().optional(),
   
-  // Professional Recognitions (formerly achievements/awards)
-  professionalRecognitions: z.array(ProfessionalRecognitionSchema),
+  // Professional Recognitions
+  professionalRecognitions: z.array(ProfessionalRecognitionSchema).default([]),
+  newRecognition: RecognitionFormSchema.extend({
+    organization: z.string().default(""),
+    description: z.string().default("")
+  }).default({
+    title: "",
+    type: "AWARD",
+    year: new Date().getFullYear(),
+    organization: "",
+    description: ""
+  })
 })
 
 type CoachProfileFormValues = z.infer<typeof coachProfileFormSchema>
@@ -79,12 +92,27 @@ interface CoachProfileFormProps {
   isSubmitting?: boolean
 }
 
+interface ProfessionalRecognitionFormData {
+  id?: number;
+  title: string;
+  type: "AWARD" | "ACHIEVEMENT";
+  year: number;
+  organization: string | null;
+  description: string | null;
+  realtorProfileId?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  deletedAt?: string | null;
+}
+
 export function CoachProfileForm({
   initialData,
   onSubmit,
   isSubmitting = false
 }: CoachProfileFormProps) {
-  const [editingRecognition, setEditingRecognition] = useState<number | null>(null);
+  const [showRecognitionForm, setShowRecognitionForm] = useState(false);
+  const [isAddingRecognition, setIsAddingRecognition] = useState(false);
+  const [editingRecognition, setEditingRecognition] = useState<ProfessionalRecognitionFormData | null>(null);
 
   const form = useForm<CoachProfileFormValues>({
     resolver: zodResolver(coachProfileFormSchema),
@@ -110,45 +138,331 @@ export function CoachProfileForm({
       marketExpertise: initialData?.realtorProfile?.bio || "",
       
       // Parse professional recognitions from the JSON data
-      professionalRecognitions: (initialData?.realtorProfile?.professionalRecognitions || [])
-        .map((recognition: ProfessionalRecognition) => ({
-          id: recognition.id,
-          title: recognition.title,
-          type: recognition.type,
-          year: Number(recognition.year),
-          organization: recognition.organization,
-          description: recognition.description,
-        }))
+      professionalRecognitions: initialData?.realtorProfile?.professionalRecognitions 
+        ? initialData.realtorProfile.professionalRecognitions.map((recognition: ProfessionalRecognition) => ({
+            id: recognition.id,
+            title: recognition.title,
+            type: recognition.type,
+            year: Number(recognition.year),
+            organization: recognition.organization || undefined,
+            description: recognition.description || undefined,
+          }))
+        : [],
+      newRecognition: {
+        title: "",
+        type: "AWARD" as const,
+        year: new Date().getFullYear(),
+        organization: "",
+        description: ""
+      }
     },
   })
 
-  const addRecognition = () => {
-    const currentRecognitions = form.getValues("professionalRecognitions")
-    const newIndex = currentRecognitions.length
-    form.setValue("professionalRecognitions", [
-      ...currentRecognitions,
-      { 
-        title: "", 
-        year: new Date().getFullYear(),
-        organization: "", 
-        description: "", 
-        type: "ACHIEVEMENT" as const 
-      },
-    ])
-    setEditingRecognition(newIndex)
-  }
+  const handleEditRecognition = (recognition: ProfessionalRecognition) => {
+    const formData: ProfessionalRecognitionFormData = {
+      id: recognition.id,
+      title: recognition.title,
+      type: recognition.type,
+      year: recognition.year,
+      organization: recognition.organization,
+      description: recognition.description,
+      realtorProfileId: recognition.realtorProfileId,
+      createdAt: recognition.createdAt,
+      updatedAt: recognition.updatedAt,
+      deletedAt: recognition.deletedAt
+    };
+    setEditingRecognition(formData);
+    form.setValue("newRecognition", {
+      title: recognition.title,
+      type: recognition.type,
+      year: recognition.year,
+      organization: recognition.organization ?? "",
+      description: recognition.description ?? ""
+    });
+  };
 
-  const removeRecognition = (index: number) => {
-    const currentRecognitions = form.getValues("professionalRecognitions")
-    form.setValue("professionalRecognitions", currentRecognitions.filter((_, i) => i !== index))
-    // Reset editing state if we're removing the item being edited
-    if (editingRecognition === index) {
-      setEditingRecognition(null)
-    } else if (editingRecognition && editingRecognition > index) {
-      // Adjust editing index if we're removing an item before the one being edited
-      setEditingRecognition(editingRecognition - 1)
+  const handleCancelEdit = () => {
+    setEditingRecognition(null);
+    form.setValue("newRecognition", {
+      title: "",
+      type: "AWARD" as const,
+      year: new Date().getFullYear(),
+      organization: "",
+      description: ""
+    });
+  };
+
+  const handleSaveRecognition = async () => {
+    const newRecognition = form.getValues("newRecognition");
+    console.log('[DEBUG] Saving recognition:', newRecognition);
+
+    if (newRecognition.title && newRecognition.type && newRecognition.year) {
+      try {
+        setIsAddingRecognition(true);
+        const currentRecognitions = form.getValues("professionalRecognitions") || [];
+        
+        let updatedRecognitions;
+        if (editingRecognition?.id) {
+          // Update existing recognition
+          updatedRecognitions = currentRecognitions.map((r: ProfessionalRecognition) => 
+            r.id === editingRecognition.id ? {
+              ...r,
+              title: newRecognition.title,
+              type: newRecognition.type,
+              year: newRecognition.year,
+              organization: newRecognition.organization || null,
+              description: newRecognition.description || null
+            } : r
+          );
+        } else {
+          // Add new recognition
+          const tempId = Math.max(0, ...currentRecognitions.map((r: ProfessionalRecognition) => r.id || 0)) + 1;
+          const recognitionToAdd: ProfessionalRecognition = {
+            id: tempId,
+            title: newRecognition.title,
+            type: newRecognition.type,
+            year: newRecognition.year,
+            organization: newRecognition.organization || null,
+            description: newRecognition.description || null
+          };
+          updatedRecognitions = [...currentRecognitions, recognitionToAdd];
+        }
+
+        // Create a partial form data with just the updated recognitions
+        const partialData = {
+          ...form.getValues(),
+          professionalRecognitions: updatedRecognitions
+        };
+
+        // Save to database
+        await onSubmit(partialData);
+        
+        // Update form state after successful save
+        form.setValue("professionalRecognitions", updatedRecognitions);
+        
+        // Reset the form
+        form.setValue("newRecognition", {
+          title: "",
+          type: "AWARD" as const,
+          year: new Date().getFullYear(),
+          organization: "",
+          description: ""
+        });
+
+        // Reset editing state
+        setEditingRecognition(null);
+        setShowRecognitionForm(false);
+
+        toast.success(editingRecognition ? "Recognition updated successfully" : "Recognition added successfully");
+      } catch (error) {
+        console.error("[SAVE_RECOGNITION_ERROR]", error);
+        toast.error(editingRecognition ? "Failed to update recognition" : "Failed to add recognition");
+      } finally {
+        setIsAddingRecognition(false);
+      }
     }
-  }
+  };
+
+  const handleArchiveRecognition = async () => {
+    if (!editingRecognition?.id) return;
+
+    try {
+      setIsAddingRecognition(true); // Reuse the loading state
+      const currentRecognitions = form.getValues("professionalRecognitions") || [];
+      
+      // Filter out the recognition being archived
+      const updatedRecognitions = currentRecognitions.filter(r => r.id !== editingRecognition.id);
+
+      // Create a partial form data with just the updated recognitions
+      const partialData = {
+        ...form.getValues(),
+        professionalRecognitions: updatedRecognitions,
+        archivedRecognitionId: editingRecognition.id // Pass the ID to be marked as archived
+      };
+
+      // Save to database
+      await onSubmit(partialData);
+      
+      // Update form state after successful save
+      form.setValue("professionalRecognitions", updatedRecognitions);
+      
+      // Reset editing state
+      setEditingRecognition(null);
+      setShowRecognitionForm(false);
+
+      toast.success("Recognition archived successfully");
+    } catch (error) {
+      console.error("[ARCHIVE_RECOGNITION_ERROR]", error);
+      toast.error("Failed to archive recognition");
+    } finally {
+      setIsAddingRecognition(false);
+    }
+  };
+
+  const renderEditForm = () => (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold">
+          {editingRecognition ? "Edit Recognition" : "Add New Recognition"}
+        </h3>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={handleCancelEdit}
+        >
+          Cancel
+        </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <FormField
+          control={form.control}
+          name="newRecognition.title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Title</FormLabel>
+              <FormControl>
+                <Input placeholder="Award or Achievement Title" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="newRecognition.type"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Type</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="AWARD">Award</SelectItem>
+                  <SelectItem value="ACHIEVEMENT">Achievement</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="newRecognition.year"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Year</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  placeholder="Year" 
+                  {...field}
+                  onChange={e => field.onChange(parseInt(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="newRecognition.organization"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Organization (Optional)</FormLabel>
+              <FormControl>
+                <Input placeholder="Organization Name" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <div className="md:col-span-2">
+          <FormField
+            control={form.control}
+            name="newRecognition.description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description (Optional)</FormLabel>
+                <FormControl>
+                  <Textarea 
+                    placeholder="Brief description of the recognition" 
+                    className="resize-none" 
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center mt-4">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={handleSaveRecognition}
+          disabled={isAddingRecognition}
+        >
+          {isAddingRecognition ? 
+            (editingRecognition ? "Saving..." : "Adding...") : 
+            (editingRecognition ? "Save Recognition" : "Add Recognition")
+          }
+        </Button>
+
+        {editingRecognition && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleArchiveRecognition}
+            disabled={isAddingRecognition}
+            className="hover:bg-muted"
+          >
+            <Archive className="h-4 w-4 mr-2" />
+            Archive
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+
+  // Update the professionalRecognitionFields to handle inline editing
+  const professionalRecognitionFields = (
+    <div className="space-y-6">
+      {/* Display existing recognitions */}
+      <div className="space-y-4">
+        {/* Debug logging */}
+        {(() => {
+          const recognitions = form.watch("professionalRecognitions");
+          console.log('[DEBUG] Recognitions in form:', recognitions);
+          return null;
+        })()}
+        
+        <ProfessionalRecognitions 
+          recognitions={form.watch("professionalRecognitions") || []} 
+          onEdit={(recognition: ProfessionalRecognition) => handleEditRecognition(recognition)}
+          editingId={editingRecognition?.id}
+          editForm={editingRecognition ? renderEditForm() : undefined}
+        />
+      </div>
+
+      {/* Add New Recognition Form */}
+      {showRecognitionForm && !editingRecognition && (
+        <div className="space-y-4 border rounded-lg p-4 mt-4">
+          {renderEditForm()}
+        </div>
+      )}
+    </div>
+  );
 
   async function handleSubmit(data: CoachProfileFormValues) {
     try {
@@ -172,123 +486,6 @@ export function CoachProfileForm({
       toast.error("Failed to update profile");
     }
   }
-
-  const renderRecognitionDisplay = (recognition: ProfessionalRecognition, index: number) => (
-    <div key={index} className="p-4 border rounded-lg space-y-2">
-      <div className="flex justify-between items-start">
-        <div>
-          <h4 className="font-medium">{recognition.title}</h4>
-          <p className="text-sm text-muted-foreground">
-            {recognition.type} • {recognition.year}
-            {recognition.organization && ` • ${recognition.organization}`}
-          </p>
-          {recognition.description && (
-            <p className="text-sm mt-1">{recognition.description}</p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => setEditingRecognition(index)}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => removeRecognition(index)}
-          >
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderRecognitionForm = (index: number) => (
-    <div key={index} className="space-y-4 p-4 border rounded-lg relative">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="absolute right-2 top-2 text-muted-foreground hover:text-destructive"
-        onClick={() => {
-          if (editingRecognition === index) {
-            setEditingRecognition(null);
-          } else {
-            removeRecognition(index);
-          }
-        }}
-      >
-        <X className="h-4 w-4" />
-      </Button>
-      <FormField
-        control={form.control}
-        name={`professionalRecognitions.${index}.title`}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Recognition Title</FormLabel>
-            <FormControl>
-              <Input placeholder="e.g., Top Producer" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name={`professionalRecognitions.${index}.year`}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Year</FormLabel>
-            <FormControl>
-              <Input 
-                type="number"
-                min={1900}
-                max={new Date().getFullYear()}
-                {...field}
-                onChange={(e) => field.onChange(Number(e.target.value))}
-                value={field.value || ''}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name={`professionalRecognitions.${index}.organization`}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Organization</FormLabel>
-            <FormControl>
-              <Input placeholder="e.g., National Association of Realtors" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name={`professionalRecognitions.${index}.description`}
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Description</FormLabel>
-            <FormControl>
-              <Textarea placeholder="Details about the recognition..." {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </div>
-  );
 
   return (
     <Form {...form}>
@@ -421,26 +618,26 @@ export function CoachProfileForm({
         <Separator />
 
         {/* Professional Recognitions Section */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium">Professional Recognitions</h3>
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={addRecognition}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="space-y-1">
+              <CardTitle>Professional Recognitions</CardTitle>
+              <CardDescription>
+                Your awards, certifications, and other professional achievements
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowRecognitionForm(!showRecognitionForm)}
             >
-              Add Recognition
+              {showRecognitionForm ? "Cancel" : "Add Recognition"}
             </Button>
-          </div>
-
-          <div className="space-y-4">
-            {form.watch("professionalRecognitions").map((recognition, index) => (
-              editingRecognition === index 
-                ? renderRecognitionForm(index)
-                : renderRecognitionDisplay(recognition, index)
-            ))}
-          </div>
-        </div>
+          </CardHeader>
+          <CardContent>
+            {professionalRecognitionFields}
+          </CardContent>
+        </Card>
 
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : "Save Changes"}

@@ -21,14 +21,24 @@ const geographicFocusSchema = z.object({
 // Professional Recognition Schema
 export const ProfessionalRecognitionSchema = z.object({
   id: z.number().optional(),
-  title: z.string().min(1, "Title is required"),
+  title: z.string(),
   type: z.enum(["AWARD", "ACHIEVEMENT"]),
-  year: z.number().min(1900, "Invalid year"),
-  organization: z.string().optional(),
-  description: z.string().optional(),
+  year: z.number(),
+  organization: z.string().nullable(),
+  description: z.string().nullable(),
   realtorProfileId: z.number().optional(),
-  createdAt: z.string().datetime().optional(),
-  updatedAt: z.string().datetime().optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
+  deletedAt: z.string().nullable().optional()
+});
+
+// Form data schema for new/editing recognition
+export const RecognitionFormSchema = z.object({
+  title: z.string(),
+  type: z.enum(["AWARD", "ACHIEVEMENT"]),
+  year: z.number(),
+  organization: z.string(),
+  description: z.string()
 });
 
 export type ProfessionalRecognition = z.infer<typeof ProfessionalRecognitionSchema>;
