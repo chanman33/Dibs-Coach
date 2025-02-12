@@ -23,12 +23,13 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Database, ImagePlus, Trophy, DollarSign, Calendar, Home } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
-import { createListingSchema, type CreateListing, listingFormFields } from "@/utils/types/listing"
+import { createListingSchema, type CreateListing, getValidSubTypes, PropertyTypeEnum } from "@/utils/types/listing"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useEffect } from "react"
 
 interface ListingsFormProps {
   onSubmit: (data: CreateListing) => void
@@ -457,7 +458,7 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Property Type</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value}>
                                   <FormControl>
                                     <SelectTrigger>
                                       <SelectValue placeholder="Select type" />
@@ -465,8 +466,40 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                                   </FormControl>
                                   <SelectContent>
                                     <SelectItem value="Residential">Residential</SelectItem>
-                                    <SelectItem value="Commercial">Commercial</SelectItem>
+                                    <SelectItem value="CommercialLease">Commercial (Lease)</SelectItem>
+                                    <SelectItem value="CommercialSale">Commercial (Sale)</SelectItem>
+                                    <SelectItem value="Farm">Farm</SelectItem>
                                     <SelectItem value="Land">Land</SelectItem>
+                                    <SelectItem value="ManufacturedInPark">Manufactured In Park</SelectItem>
+                                    <SelectItem value="BusinessOpportunity">Business Opportunity</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="propertySubType"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Property Sub-Type</FormLabel>
+                                <Select 
+                                  onValueChange={field.onChange} 
+                                  value={field.value || undefined}
+                                  disabled={!form.watch("propertyType")}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select sub-type" />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {getValidSubTypes(form.watch("propertyType")).map((subType) => (
+                                      <SelectItem key={subType} value={subType}>
+                                        {subType.replace(/([A-Z])/g, ' $1').trim()}
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                                 <FormMessage />

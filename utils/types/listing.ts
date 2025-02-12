@@ -44,6 +44,57 @@ export const PropertyTypeEnum = z.enum([
   "Residential",
 ]);
 
+export const PropertySubTypeEnum = z.enum([
+  // Residential subtypes
+  "Apartment",
+  "Cabin",
+  "Condominium",
+  "Duplex",
+  "ManufacturedHome",
+  "SingleFamilyDetached",
+  "SingleFamilyAttached",
+  "Mobile",
+  "Townhouse",
+  "Triplex",
+  "Quadruplex",
+  
+  // Commercial subtypes
+  "Hotel",
+  "CommercialIndustrial",
+  "CommercialMixedUse",
+  "MultiFamily",
+  "Office",
+  "Retail",
+  "Restaurant",
+  "Warehouse",
+  
+  // Land subtypes
+  "AgriculturalLand",
+  "CommercialLand",
+  "IndustrialLand",
+  "LandMixedUse",
+  "ResidentialLand",
+  
+  // Farm subtypes
+  "Equestrian",
+  "Ranch",
+  "TimberLand",
+  "Vineyard",
+  
+  // Business Opportunity subtypes
+  "BusinessOnly",
+  "BusinessWithProperty",
+  "BusinessWithRealEstate",
+  
+  // ManufacturedInPark subtypes
+  "DoubleWide",
+  "SingleWide",
+  "TripleWide",
+  
+  // Other
+  "Other"
+]);
+
 export const ListingStatusEnum = z.enum([
   "Active",
   "ActiveUnderContract",
@@ -191,7 +242,7 @@ export const listingBaseSchema = z.object({
 
   // Property Classification
   propertyType: PropertyTypeEnum,
-  propertySubType: resoString(50),
+  propertySubType: PropertySubTypeEnum.nullable(),
   status: ListingStatusEnum,
 
   // Location Information
@@ -516,4 +567,65 @@ export const listingFormFields: ListingFormField[] = [
     label: "Feature this Listing",
     type: "checkbox",
   },
-]; 
+];
+
+// Add helper function to get valid subtypes
+export const getValidSubTypes = (propertyType: PropertyType | undefined): string[] => {
+  switch (propertyType) {
+    case "Residential":
+      return [
+        "Apartment",
+        "Cabin",
+        "Condominium",
+        "Duplex",
+        "ManufacturedHome",
+        "SingleFamilyDetached",
+        "SingleFamilyAttached",
+        "Mobile",
+        "Townhouse",
+        "Triplex",
+        "Quadruplex",
+      ];
+    case "CommercialLease":
+    case "CommercialSale":
+      return [
+        "Hotel",
+        "CommercialIndustrial",
+        "CommercialMixedUse",
+        "MultiFamily",
+        "Office",
+        "Retail",
+        "Restaurant",
+        "Warehouse",
+      ];
+    case "Land":
+      return [
+        "AgriculturalLand",
+        "CommercialLand",
+        "IndustrialLand",
+        "LandMixedUse",
+        "ResidentialLand",
+      ];
+    case "Farm":
+      return [
+        "Equestrian",
+        "Ranch",
+        "TimberLand",
+        "Vineyard",
+      ];
+    case "BusinessOpportunity":
+      return [
+        "BusinessOnly",
+        "BusinessWithProperty",
+        "BusinessWithRealEstate",
+      ];
+    case "ManufacturedInPark":
+      return [
+        "DoubleWide",
+        "SingleWide",
+        "TripleWide",
+      ];
+    default:
+      return [];
+  }
+}; 

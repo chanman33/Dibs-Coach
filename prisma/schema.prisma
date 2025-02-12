@@ -162,6 +162,57 @@ enum PropertyType {
   Residential
 }
 
+enum PropertySubType {
+  // Residential subtypes
+  Apartment
+  Cabin
+  Condominium
+  Duplex
+  ManufacturedHome
+  SingleFamilyDetached
+  SingleFamilyAttached
+  Mobile
+  Townhouse
+  Triplex
+  Quadruplex
+  
+  // Commercial subtypes
+  Hotel
+  CommercialIndustrial
+  CommercialMixedUse
+  MultiFamily
+  Office
+  Retail
+  Restaurant
+  Warehouse
+  
+  // Land subtypes
+  AgriculturalLand
+  CommercialLand
+  IndustrialLand
+  LandMixedUse
+  ResidentialLand
+  
+  // Farm subtypes
+  Equestrian
+  Ranch
+  TimberLand
+  Vineyard
+  
+  // Business Opportunity subtypes
+  BusinessOnly
+  BusinessWithProperty
+  BusinessWithRealEstate
+  
+  // ManufacturedInPark subtypes
+  DoubleWide
+  SingleWide
+  TripleWide
+  
+  // Other
+  Other
+}
+
 enum FurnishedStatus {
   Furnished
   Negotiable
@@ -1112,8 +1163,8 @@ model Listing {
   taxLegalDescription String?     @db.VarChar(1000) // RESO: Full legal description
   
   // Property Classification (RESO format)
-  propertyType      PropertyType  // RESO: Primary property classification
-  propertySubType   String?       @db.VarChar(50) // RESO: Secondary classification
+  propertyType      PropertyType  // Primary classification
+  propertySubType   PropertySubType? // More specific classification
   status            ListingStatus @default(Active) // RESO: Current listing status
   
   // Location Information (RESO format)
