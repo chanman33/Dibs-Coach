@@ -1,9 +1,11 @@
 'use server'
 
 import { auth } from '@clerk/nextjs/server'
-import { createServerSupabase } from '../supabase/admin'
+import { createAdminClient } from '../supabase/admin'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { Database } from '@/types/supabase'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 interface User {
   id: number
@@ -29,8 +31,8 @@ interface SessionResponse {
 interface TransformedSession {
   id: number
   durationMinutes: number
-  status: string
-  calendlyEventId: string
+  status: Database['public']['Enums']['SessionStatus']
+  calendlyEventId: string | null
   startTime: string
   endTime: string
   createdAt: string
@@ -111,7 +113,7 @@ export async function fetchUserSessions(): Promise<TransformedSession[] | null> 
     const transformedSessions = (sessions as unknown as SessionResponse[]).map((session): TransformedSession => ({
       id: session.id,
       durationMinutes: session.durationMinutes,
-      status: session.status,
+      status: session.status as Database['public']['Enums']['SessionStatus'],
       calendlyEventId: session.calendlyEventId,
       startTime: session.startTime,
       endTime: session.endTime,
@@ -130,7 +132,7 @@ export async function fetchUserSessions(): Promise<TransformedSession[] | null> 
 
 export async function fetchCoachSessions(): Promise<TransformedSession[] | null> {
   'use server'
-  const { supabase } = await createServerSupabase()
+  const supabase = await createAdminClient() as SupabaseClient<Database>
   const { userId } = await auth()
   if (!userId) return null
 
@@ -139,19 +141,19 @@ export async function fetchCoachSessions(): Promise<TransformedSession[] | null>
     .select('id')
     .eq('userId', userId)
     .single()
+
   if (!user) return null
 
   const { data: sessions } = await supabase
     .from('Session')
     .select(`
       id,
-      durationMinutes,
-      status,
-      calendlyEventId,
       startTime,
       endTime,
       createdAt,
-      mentee:User!Session_menteeDbId_fkey (
+      status,
+      sessionType,
+      mentee:menteeDbId(
         id,
         firstName,
         lastName,
@@ -159,19 +161,19 @@ export async function fetchCoachSessions(): Promise<TransformedSession[] | null>
       )
     `)
     .eq('coachDbId', user.id)
-    .order('startTime', { ascending: false })
+    .order('startTime', { ascending: false } as const) as { data: Array<Database['public']['Tables']['Session']['Row'] & { mentee: Database['public']['Tables']['User']['Row'] }> | null }
 
   if (!sessions) return null
 
   return sessions.map(session => ({
     id: session.id,
-    durationMinutes: session.durationMinutes,
-    status: session.status,
-    calendlyEventId: session.calendlyEventId,
+    durationMinutes: Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)),
+    status: session.status as Database['public']['Enums']['SessionStatus'],
+    calendlyEventId: null,
     startTime: session.startTime,
     endTime: session.endTime,
     createdAt: session.createdAt,
     userRole: 'coach' as const,
-    otherParty: session.mentee[0]
+    otherParty: session.mentee
   }))
 } 
