@@ -139,21 +139,95 @@ enum ActivitySeverity {
 }
 
 enum ListingStatus {
-  ACTIVE
-  PENDING
-  SOLD
-  WITHDRAWN
-  EXPIRED
+  Active
+  ActiveUnderContract
+  Canceled
+  Closed
+  ComingSoon
+  Delete
+  Expired
+  Hold
+  Incomplete
+  Pending
+  Withdrawn
 }
 
 enum PropertyType {
-  SINGLE_FAMILY
-  MULTI_FAMILY
-  CONDO
-  TOWNHOUSE
-  LAND
-  COMMERCIAL
-  OTHER
+  BusinessOpportunity
+  CommercialLease
+  CommercialSale
+  Farm
+  Land
+  ManufacturedInPark
+  Residential
+}
+
+enum FurnishedStatus {
+  Furnished
+  Negotiable
+  Partially
+  Unfurnished
+}
+
+enum PropertyCondition {
+  Excellent
+  Good
+  Fair
+  NeedsWork
+  Renovated
+  Updated
+}
+
+enum ListingTerms {
+  Cash
+  Conventional
+  FHA
+  OwnerFinancing
+  VA
+}
+
+enum ListingAgreement {
+  Exclusive
+  OpenListing
+  PocketListing
+}
+
+// Add new enums for RESO compliance
+enum ArchitecturalStyle {
+  Colonial
+  Contemporary
+  Craftsman
+  Mediterranean
+  Modern
+  Ranch
+  Traditional
+  Victorian
+}
+
+enum BasementType {
+  Finished
+  Partially
+  Unfinished
+  None
+}
+
+enum RoofType {
+  Asphalt
+  Metal
+  Slate
+  Tile
+  Wood
+}
+
+enum ViewType {
+  City
+  Golf
+  Lake
+  Mountain
+  Ocean
+  Park
+  River
+  Woods
 }
 
 // Models
@@ -1026,57 +1100,125 @@ model AdminAuditLog {
   @@map("AdminAuditLog")
 }
 
-// New Listing model
+// New Listing model with RESO compliance
 model Listing {
+  // Core Identification (RESO format)
   id                Int           @id @default(autoincrement())
-  listingKey        String?      @unique // Will be required for MLS integration
+  listingKey        String?       @unique  // RESO: Unique identifier for MLS integration
+  parcelNumber      String?       @db.VarChar(50)  // RESO: Official parcel/tax ID
+  taxLot            String?       @db.VarChar(50)  // RESO: Tax lot number
+  taxBlock          String?       @db.VarChar(50)  // RESO: Tax block number
+  taxMapNumber      String?       @db.VarChar(50)  // RESO: Tax map reference
+  taxLegalDescription String?     @db.VarChar(1000) // RESO: Full legal description
   
-  // Core Details (RESO Standard Fields)
-  propertyType      PropertyType
-  propertySubType   String?
-  status            ListingStatus @default(ACTIVE)
-  listPrice         Decimal       @db.Decimal(10,2)
-  originalListPrice Decimal?      @db.Decimal(10,2)
-  closePrice        Decimal?      @db.Decimal(10,2)
-  listingContractDate DateTime?   @db.Timestamptz
-  closeDate         DateTime?     @db.Timestamptz
+  // Property Classification (RESO format)
+  propertyType      PropertyType  // RESO: Primary property classification
+  propertySubType   String?       @db.VarChar(50) // RESO: Secondary classification
+  status            ListingStatus @default(Active) // RESO: Current listing status
   
-  // Location (RESO Standard Fields)
-  city              String
-  stateOrProvince   String
-  postalCode        String
-  streetName        String
-  streetNumber      String
-  unit              String?
+  // Location Information (RESO format)
+  streetNumber      String        @db.VarChar(25)  // RESO: Street number component
+  streetName        String        @db.VarChar(50)  // RESO: Street name component
+  unitNumber        String?       @db.VarChar(25)  // RESO: Unit/apartment number
+  city              String        @db.VarChar(150) // RESO: City name
+  stateOrProvince   String        @db.VarChar(50)  // RESO: State/province
+  postalCode        String        @db.VarChar(10)  // RESO: Postal/ZIP code
   
-  // Property Characteristics (RESO Standard Fields)
-  bedroomsTotal     Int
-  bathroomsTotal    Decimal      @db.Decimal(3,1)
-  livingArea        Decimal?     @db.Decimal(10,2)
-  lotSize           Decimal?     @db.Decimal(10,2)
-  yearBuilt         Int?
+  // Price Information (RESO format)
+  listPrice         Decimal       @db.Decimal(12,2) // RESO: Current listing price
+  originalListPrice Decimal?      @db.Decimal(12,2) // RESO: Original price when listed
+  closePrice        Decimal?      @db.Decimal(12,2) // RESO: Final sale price
   
-  // Media
-  photos            Json?        // Array of photo URLs
-  virtualTours      Json?        // Array of virtual tour URLs
+  // Dates and Timestamps (RESO format)
+  listingContractDate DateTime?   @db.Timestamptz  // RESO: Contract start date
+  closeDate           DateTime?   @db.Timestamptz  // RESO: Property closing date
+  statusChangeTimestamp DateTime? @db.Timestamptz  // RESO: Last status change
+  priceChangeTimestamp  DateTime? @db.Timestamptz  // RESO: Last price change
+  modificationTimestamp DateTime? @db.Timestamptz  // RESO: Last modification
+  createdAt            DateTime   @default(now()) @db.Timestamptz
+  updatedAt            DateTime   @updatedAt @db.Timestamptz
   
-  // Featured Status
-  isFeatured        Boolean      @default(false)
-  featuredOrder     Int?         // For ordering featured listings
+  // Physical Characteristics (RESO format)
+  bedroomsTotal     Int?         // RESO: Total number of bedrooms
+  bathroomsTotal    Decimal?     @db.Decimal(3,1) // RESO: Total bathrooms (allows half baths)
+  livingArea        Decimal?     @db.Decimal(12,2) // RESO: Living space square footage
+  lotSize           Decimal?     @db.Decimal(12,2) // RESO: Lot size in square feet
+  lotSizeDimensions String?      @db.VarChar(50)  // RESO: Actual lot dimensions
+  lotDimensionsSource String?    @db.VarChar(50)  // RESO: Source of dimension data
+  yearBuilt         Int?         // RESO: Year property was built
+  stories           Int?         // RESO: Number of stories/levels
   
-  // Source Information
-  source            String       @default("MANUAL") // enum: ["MANUAL", "MLS"]
-  mlsSource         String?      // Which MLS system the data came from
-  mlsId             String?      // MLS-specific ID
+  // Structural Details (RESO format)
+  architecturalStyle ArchitecturalStyle? // RESO: Architectural style
+  basement          BasementType?     // RESO: Basement type
+  roofType          RoofType?         // RESO: Type of roof
+  view              ViewType[]        // RESO: Available views
+  
+  // Parking Information (RESO format)
+  parkingTotal      Decimal?     @db.Decimal(12,2) // RESO: Total parking spaces
+  garageSpaces      Decimal?     @db.Decimal(12,2) // RESO: Garage spaces
+  
+  // Property Features (RESO format)
+  furnished         FurnishedStatus? // RESO: Furnishing status
+  appliances        String[]        // RESO: Available appliances
+  interiorFeatures  String[]        // RESO: Interior features
+  exteriorFeatures  String[]        // RESO: Exterior features
+  heating           String[]        // RESO: Heating systems
+  cooling           String[]        // RESO: Cooling systems
+  
+  // Property Amenities (RESO format)
+  isWaterfront      Boolean        @default(false) // RESO: Waterfront property
+  hasFireplace      Boolean        @default(false) // RESO: Fireplace present
+  hasPatio          Boolean        @default(false) // RESO: Patio present
+  hasDeck           Boolean        @default(false) // RESO: Deck present
+  hasPorch          Boolean        @default(false) // RESO: Porch present
+  
+  // Property Condition and Terms (RESO format)
+  propertyCondition PropertyCondition[] // RESO: Current condition
+  listingTerms      ListingTerms[]     // RESO: Acceptable terms
+  listingAgreement  ListingAgreement?  // RESO: Type of listing agreement
+  
+  // Community Information (RESO format)
+  schoolDistrict    String?       @db.VarChar(100) // RESO: School district name
+  elementarySchool  String?       @db.VarChar(100) // RESO: Elementary school
+  middleSchool      String?       @db.VarChar(100) // RESO: Middle school
+  highSchool        String?       @db.VarChar(100) // RESO: High school
+  
+  // Financial Information (RESO format)
+  taxYear           Int?         // RESO: Tax assessment year
+  taxAnnualAmount   Decimal?     @db.Decimal(12,2) // RESO: Annual tax amount
+  hoaName           String?      @db.VarChar(100)  // RESO: HOA name
+  hoaFeeAmount      Decimal?     @db.Decimal(12,2) // RESO: HOA fee amount
+  hoaFeeFrequency   String?      @db.VarChar(50)   // RESO: HOA payment frequency
+  
+  // Utilities (RESO format)
+  electricityAvailable Boolean    @default(true) // RESO: Electricity status
+  gasAvailable        Boolean    @default(true) // RESO: Gas status
+  sewerAvailable      Boolean    @default(true) // RESO: Sewer status
+  waterAvailable      Boolean    @default(true) // RESO: Water status
+  
+  // Zoning Information (RESO format)
+  zoning             String?     @db.VarChar(25)  // RESO: Zoning code
+  zoningDescription  String?     @db.VarChar(255) // RESO: Zoning description
+  
+  // Marketing Information (RESO format)
+  publicRemarks      String?     @db.VarChar(4000) // RESO: Public description
+  privateRemarks     String?     @db.VarChar(4000) // RESO: Agent-only remarks
+  photos             Json?       // RESO: Property photos
+  virtualTours       Json?       // RESO: Virtual tour links
+  isFeatured         Boolean     @default(false)   // Custom: Featured listing flag
+  featuredOrder      Int?        // Custom: Featured listing order
+  
+  // Source Information (RESO format)
+  source             String     @default("MANUAL") // RESO: Data source
+  mlsSource          String?    // RESO: MLS system name
+  mlsId              String?    // RESO: MLS-specific ID
   
   // Relations
-  realtorProfileId  Int
-  realtorProfile    RealtorProfile @relation(fields: [realtorProfileId], references: [id], onDelete: Cascade)
+  realtorProfileId   Int
+  realtorProfile     RealtorProfile @relation(fields: [realtorProfileId], references: [id], onDelete: Cascade)
   
-  // Timestamps
-  createdAt         DateTime     @default(now()) @db.Timestamptz
-  updatedAt         DateTime     @updatedAt @db.Timestamptz
-
+  // Indexes for performance
   @@index([realtorProfileId])
   @@index([listingKey])
   @@index([status])

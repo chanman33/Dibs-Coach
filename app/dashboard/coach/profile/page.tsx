@@ -241,16 +241,16 @@ export default function CoachProfilePage() {
           </TabsContent>
 
           <TabsContent value="listings">
-            <Card>
+            {/* <Card>
               <CardHeader>
                 <CardTitle>Listings</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent> */}
                 <ListingsForm
                   onSubmit={(data) => handleSubmit(data, "listings")}
                 />
-              </CardContent>
-            </Card>
+              {/* </CardContent>
+            </Card> */}
           </TabsContent>
 
           <TabsContent value="marketing">
