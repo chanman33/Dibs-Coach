@@ -24,15 +24,17 @@ import { Badge } from "@/components/ui/badge"
 import { Database, ImagePlus, Trophy, DollarSign, Calendar, Home } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createListingSchema, type CreateListing, getValidSubTypes, PropertyTypeEnum } from "@/utils/types/listing"
+import { ListingWithRealtor } from "@/utils/supabase/types"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useEffect } from "react"
+import { useToast } from "@/components/ui/use-toast"
 
 interface ListingsFormProps {
-  onSubmit: (data: CreateListing) => void
+  onSubmit: (data: CreateListing) => Promise<{ data?: ListingWithRealtor; error?: string }>
   className?: string
   activeListings?: CreateListing[]
   successfulTransactions?: CreateListing[]
@@ -40,6 +42,7 @@ interface ListingsFormProps {
 }
 
 export default function ListingsForm({ onSubmit, className, activeListings = [], successfulTransactions = [], isSubmitting = false }: ListingsFormProps) {
+  const { toast } = useToast()
   const form = useForm<CreateListing>({
     resolver: zodResolver(createListingSchema),
     defaultValues: {
@@ -185,55 +188,39 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
   )
 
   const handleSubmit = async (data: CreateListing) => {
-    console.log("[LISTINGS_FORM_SUBMIT_START]", "Form submission started", {
-      listingKey: data.listingKey,
-      status: data.status,
-      propertyType: data.propertyType
-    });
+    console.log("[LISTINGS_FORM_SUBMIT_START]", "Form data:", data);
 
     try {
-      // Validate required fields
-      if (!data.listingKey) {
-        console.error("[LISTINGS_FORM_VALIDATION]", "Missing required field: listingKey");
+      // Call the server action
+      const result = await onSubmit(data);
+      
+      if (result.error) {
+        console.error("[LISTINGS_FORM_ERROR]", result.error);
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        });
         return;
       }
 
-      // Log the actual API request
-      console.log("[LISTINGS_FORM_API_REQUEST]", "Sending request to /api/listings");
+      console.log("[LISTINGS_FORM_SUCCESS]", "Listing created:", result.data);
       
-      const response = await fetch("/api/listings", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
+      toast({
+        title: "Success",
+        description: "Listing created successfully",
       });
 
-      const responseText = await response.text();
-      console.log("[LISTINGS_FORM_API_RESPONSE]", {
-        status: response.status,
-        ok: response.ok,
-        response: responseText
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to create listing: ${responseText}`);
-      }
-
-      const listing = JSON.parse(responseText);
-      console.log("[LISTINGS_FORM_SUCCESS]", "Listing created successfully", {
-        listingId: listing.id,
-        status: listing.status
-      });
-      
-      // Call the parent component's onSubmit handler
-      onSubmit(data);
-      
       // Reset form
       form.reset();
+
     } catch (error) {
-      console.error("[LISTINGS_FORM_ERROR]", "Failed to submit form:", error);
-      // Here you might want to show an error toast/notification to the user
+      console.error("[LISTINGS_FORM_ERROR]", "Submission failed:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create listing. Please try again.",
+        variant: "destructive",
+      });
     }
   }
 
@@ -294,7 +281,20 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
 
             <TabsContent value="add">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
+                <form 
+                  onSubmit={form.handleSubmit(
+                    handleSubmit,
+                    (errors) => {
+                      console.error("[LISTINGS_FORM_VALIDATION_ERROR]", errors);
+                      toast({
+                        title: "Validation Error",
+                        description: "Please check the form for errors",
+                        variant: "destructive",
+                      });
+                    }
+                  )} 
+                  className="space-y-8"
+                >
                   <ScrollArea className="h-[600px] pr-6">
                     <div className="space-y-8">
                       {/* MLS Information */}
@@ -580,6 +580,43 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                                     type="number" 
                                     {...field}
                                     value={field.value || ''}
+                                    onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="bedroomsTotal"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Bedrooms</FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    type="number" 
+                                    {...field}
+                                    value={field.value || ''}
+                                    onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="bathroomsTotal"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Bathrooms</FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    type="number" 
+                                    {...field}
+                                    value={field.value || ''}
+                                    step="0.5"
                                     onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
                                   />
                                 </FormControl>

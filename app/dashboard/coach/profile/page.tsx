@@ -13,6 +13,8 @@ import { updateGeneralProfile, fetchUserProfile, fetchCoachProfile, updateCoachP
 import type { CoachProfile } from "@/utils/types/coach"
 import type { RealtorProfile } from "@/utils/types/realtor"
 import type { CreateListing } from "@/utils/types/listing"
+import { createListing } from "@/utils/actions/listings"
+import { ListingWithRealtor } from "@/utils/supabase/types"
 
 interface GeneralInfo {
   displayName?: string;
@@ -23,13 +25,15 @@ interface GeneralInfo {
   primaryMarket?: string;
 }
 
+interface ListingsState {
+  activeListings: ListingWithRealtor[];
+  successfulTransactions: ListingWithRealtor[];
+}
+
 export default function CoachProfilePage() {
   const [generalInfo, setGeneralInfo] = useState<GeneralInfo>({})
   const [coachingInfo, setCoachingInfo] = useState<Partial<CoachProfile & RealtorProfile>>({})
-  const [listings, setListings] = useState<{
-    activeListings: CreateListing[],
-    successfulTransactions: CreateListing[]
-  }>({
+  const [listings, setListings] = useState<ListingsState>({
     activeListings: [],
     successfulTransactions: []
   })
@@ -175,23 +179,22 @@ export default function CoachProfilePage() {
 
         case "listings":
           console.log('[DEBUG] Handling new listing submission:', formData);
-          
-          // Update listings state based on status
-          setListings(prev => {
-            const newListings = { ...prev };
-            if (formData.status === 'Active') {
-              newListings.activeListings = [...prev.activeListings, formData];
-            } else if (formData.status === 'Closed') {
-              newListings.successfulTransactions = [...prev.successfulTransactions, formData];
-            }
-            return newListings;
-          });
-
+          const listingResult = await createListing(formData);
+          if (listingResult.error) {
+            throw new Error(listingResult.error);
+          }
+          // Update the listings state with the new listing
+          if (listingResult.data) {
+            setListings(prev => ({
+              ...prev,
+              activeListings: [...prev.activeListings, listingResult.data as ListingWithRealtor]
+            }));
+          }
           toast({
             title: "Success",
-            description: "Your listing has been published successfully",
+            description: "Listing created successfully",
           });
-          break;
+          return listingResult;
 
         case "marketing":
           setMarketing(formData)
