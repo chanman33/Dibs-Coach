@@ -397,6 +397,7 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                                     type="number" 
                                     {...field}
                                     value={field.value || ''}
+                                    onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -414,6 +415,7 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                                     type="number" 
                                     {...field}
                                     value={field.value || ''}
+                                    onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
                                   />
                                 </FormControl>
                                 <FormMessage />
@@ -517,6 +519,7 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                                     type="number" 
                                     {...field}
                                     value={field.value || ''}
+                                    onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
                                   />
                                 </FormControl>
                                 <FormMessage />

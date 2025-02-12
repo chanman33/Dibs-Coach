@@ -218,11 +218,21 @@ export const ViewTypeEnum = z.enum([
 // ==========================================
 // RESO Validation Rules
 // ==========================================
-const resoPrice = z.number()
-  .multipleOf(0.01)
-  .min(-999999999999.99)
-  .max(999999999999.99)
-  .nullable();
+const resoPrice = z.preprocess(
+  // First preprocess to handle string inputs and convert to number
+  (val) => {
+    if (typeof val === 'string') {
+      return val === '' ? null : parseFloat(val);
+    }
+    return val;
+  },
+  // Then validate the number
+  z.number()
+    .multipleOf(0.01)
+    .min(-999999999999.99)
+    .max(999999999999.99)
+    .nullable()
+);
 
 const resoString = (maxLength: number) => z.string().max(maxLength).nullable();
 
