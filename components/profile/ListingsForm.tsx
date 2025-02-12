@@ -34,10 +34,10 @@ import { useEffect } from "react"
 import { useToast } from "@/components/ui/use-toast"
 
 interface ListingsFormProps {
-  onSubmit: (data: CreateListing) => Promise<{ data?: ListingWithRealtor; error?: string }>
+  onSubmit: (data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void>
   className?: string
-  activeListings?: CreateListing[]
-  successfulTransactions?: CreateListing[]
+  activeListings?: ListingWithRealtor[]
+  successfulTransactions?: ListingWithRealtor[]
   isSubmitting?: boolean
 }
 
@@ -48,6 +48,11 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
     defaultValues: {
       // Core Identification
       listingKey: "",
+      parcelNumber: "",
+      taxLot: "",
+      taxBlock: "",
+      taxMapNumber: "",
+      taxLegalDescription: "",
       mlsId: "",
       mlsSource: null,
       status: "Active",
@@ -55,13 +60,13 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
       // Location Information
       streetNumber: "",
       streetName: "",
-      unitNumber: null,
+      unitNumber: "",
       city: "",
       stateOrProvince: "",
       postalCode: "",
 
       // Price Information
-      listPrice: null,
+      listPrice: 0,
       originalListPrice: null,
       closePrice: null,
 
@@ -70,9 +75,10 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
       closeDate: null,
 
       // Physical Characteristics
-      propertyType: undefined,
-      bedroomsTotal: null,
-      bathroomsTotal: null,
+      propertyType: "Residential" as const,
+      propertySubType: null,
+      bedroomsTotal: 0,
+      bathroomsTotal: 0,
       livingArea: null,
       yearBuilt: null,
 
@@ -81,7 +87,7 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
       isFeatured: false,
 
       // Source Information
-      source: "MANUAL",
+      source: "MANUAL" as const,
     },
   })
 
@@ -147,7 +153,7 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
     )
   }
 
-  const renderListingCard = (listing: CreateListing) => (
+  const renderListingCard = (listing: ListingWithRealtor | CreateListing) => (
     <Card key={listing.listingKey} className="mb-4">
       <CardContent className="pt-6">
         <div className="flex justify-between items-start mb-4">
@@ -188,13 +194,32 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
   )
 
   const handleSubmit = async (data: CreateListing) => {
-    console.log("[LISTINGS_FORM_SUBMIT_START]", "Form data:", data);
+    console.log("[LISTINGS_FORM_SUBMIT_START]", {
+      formData: data,
+      formState: form.formState,
+      errors: form.formState.errors
+    });
 
     try {
-      // Call the server action
-      const result = await onSubmit(data);
+      const validationResult = await createListingSchema.safeParseAsync(data);
       
-      if (result.error) {
+      if (!validationResult.success) {
+        console.error("[LISTINGS_FORM_VALIDATION_ERROR]", {
+          formData: data,
+          zodErrors: validationResult.error.errors,
+          formErrors: form.formState.errors
+        });
+        toast({
+          title: "Validation Error",
+          description: "Please check all required fields",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const result = await onSubmit(validationResult.data);
+      
+      if (result && 'error' in result && result.error) {
         console.error("[LISTINGS_FORM_ERROR]", result.error);
         toast({
           title: "Error",
@@ -204,16 +229,14 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
         return;
       }
 
-      console.log("[LISTINGS_FORM_SUCCESS]", "Listing created:", result.data);
-      
-      toast({
-        title: "Success",
-        description: "Listing created successfully",
-      });
-
-      // Reset form
-      form.reset();
-
+      if (result && 'data' in result && result.data) {
+        console.log("[LISTINGS_FORM_SUCCESS]", "Listing created:", result.data);
+        toast({
+          title: "Success",
+          description: "Listing created successfully",
+        });
+        form.reset();
+      }
     } catch (error) {
       console.error("[LISTINGS_FORM_ERROR]", "Submission failed:", error);
       toast({
@@ -285,10 +308,14 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                   onSubmit={form.handleSubmit(
                     handleSubmit,
                     (errors) => {
-                      console.error("[LISTINGS_FORM_VALIDATION_ERROR]", errors);
+                      console.error("[LISTINGS_FORM_VALIDATION_ERROR]", {
+                        formData: form.getValues(),
+                        validationErrors: errors,
+                        schema: createListingSchema
+                      });
                       toast({
                         title: "Validation Error",
-                        description: "Please check the form for errors",
+                        description: "Please check all required fields",
                         variant: "destructive",
                       });
                     }
@@ -390,9 +417,9 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                             name="streetNumber"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Street Number</FormLabel>
+                                <FormLabel>Street Number<span className="text-destructive ml-1">*</span></FormLabel>
                                 <FormControl>
-                                  <Input {...field} />
+                                  <Input {...field} required />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -403,9 +430,9 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                             name="streetName"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>Street Name</FormLabel>
+                                <FormLabel>Street Name<span className="text-destructive ml-1">*</span></FormLabel>
                                 <FormControl>
-                                  <Input {...field} />
+                                  <Input {...field} required />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -416,9 +443,9 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                             name="city"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>City</FormLabel>
+                                <FormLabel>City<span className="text-destructive ml-1">*</span></FormLabel>
                                 <FormControl>
-                                  <Input {...field} />
+                                  <Input {...field} required />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>
@@ -429,9 +456,22 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                             name="stateOrProvince"
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>State</FormLabel>
+                                <FormLabel>State<span className="text-destructive ml-1">*</span></FormLabel>
                                 <FormControl>
-                                  <Input {...field} />
+                                  <Input {...field} required />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="postalCode"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Postal Code<span className="text-destructive ml-1">*</span></FormLabel>
+                                <FormControl>
+                                  <Input {...field} required />
                                 </FormControl>
                                 <FormMessage />
                               </FormItem>

@@ -374,8 +374,9 @@ export async function reviewCoachApplication(data: {
       throw new Error('Application not found');
     }
 
-    // If approved, update user role to coach
+    // If approved, update user role to coach and ensure realtor profile exists
     if (data.status === COACH_APPLICATION_STATUS.APPROVED) {
+      // Update user role
       const { error: updateError } = await supabase
         .from('User')
         .update({
@@ -387,6 +388,38 @@ export async function reviewCoachApplication(data: {
       if (updateError) {
         console.error('[REVIEW_COACH_APPLICATION_ERROR] User role update error:', updateError);
         throw new Error('Failed to update user role');
+      }
+
+      // Check if realtor profile exists
+      const { data: existingProfile } = await supabase
+        .from('RealtorProfile')
+        .select('id')
+        .eq('userDbId', application.applicantDbId)
+        .single();
+
+      // If no realtor profile exists, create one
+      if (!existingProfile) {
+        const { error: profileError } = await supabase
+          .from('RealtorProfile')
+          .insert({
+            userDbId: application.applicantDbId,
+            bio: application.experience || '',
+            yearsExperience: 0,
+            propertyTypes: [],
+            specializations: [],
+            certifications: [],
+            languages: [],
+            geographicFocus: {},
+            marketingAreas: [],
+            testimonials: {},
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+
+        if (profileError) {
+          console.error('[REVIEW_COACH_APPLICATION_ERROR] Realtor profile creation error:', profileError);
+          throw new Error('Failed to create realtor profile');
+        }
       }
     }
 

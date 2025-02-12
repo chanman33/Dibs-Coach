@@ -11,7 +11,7 @@ export async function fetchListings(filters?: {
   propertyType?: string
   minPrice?: number
   maxPrice?: number
-}) {
+}): Promise<{ data: ListingWithRealtor[] | null, error: string | null }> {
   try {
     const { userId } = await auth()
     if (!userId) {
@@ -50,7 +50,7 @@ export async function fetchListings(filters?: {
 
     if (error) {
       console.error("[FETCH_LISTINGS_ERROR]", error)
-      throw new Error("Failed to fetch listings")
+      return { data: null, error: "Failed to fetch listings" }
     }
 
     return { data, error: null }
@@ -74,16 +74,22 @@ export async function createListing(data: CreateListing): Promise<{ data: Listin
       .from("User")
       .select(`
         id,
-        realtorProfile:RealtorProfile (
+        realtorProfile:RealtorProfile!inner (
           id
         )
       `)
       .eq("userId", userId)
-      .single() as { data: { id: number; realtorProfile: { id: number } } | null, error: any }
+      .single();
 
-    if (userError || !userData?.realtorProfile?.id) {
-      console.error("[CREATE_LISTING_ERROR]", "No realtor profile found", userError)
-      return { data: null, error: "Realtor profile not found" }
+    if (userError || !userData) {
+      console.error("[CREATE_LISTING_ERROR]", "Failed to fetch user data", userError);
+      return { data: null, error: "Failed to fetch user data" };
+    }
+
+    const realtorProfileId = userData.realtorProfile[0]?.id;
+    if (!realtorProfileId) {
+      console.error("[CREATE_LISTING_ERROR]", "No realtor profile found", { userData });
+      return { data: null, error: "Realtor profile not found. Please complete your realtor profile first." };
     }
 
     // Create the listing with the realtorProfileId
@@ -91,26 +97,26 @@ export async function createListing(data: CreateListing): Promise<{ data: Listin
       .from("Listing")
       .insert({
         ...data,
-        realtorProfileId: userData.realtorProfile.id,
+        realtorProfileId,
         updatedAt: new Date().toISOString(),
       })
       .select(`
         *,
-        realtorProfile:RealtorProfile (
+        realtorProfile:RealtorProfile!inner (
           id,
           userDbId,
           bio,
           yearsExperience
         )
       `)
-      .single()
+      .single();
 
     if (error) {
       console.error("[CREATE_LISTING_ERROR]", error)
       return { data: null, error: "Failed to create listing" }
     }
 
-    revalidatePath("/dashboard/listings")
+    revalidatePath("/dashboard/coach/profile")
     return { data: listing, error: null }
   } catch (error) {
     console.error("[CREATE_LISTING_ERROR]", error)
@@ -145,7 +151,7 @@ export async function updateListing(id: number, data: UpdateListing): Promise<{ 
       return { data: null, error: "Failed to update listing" }
     }
 
-    revalidatePath("/dashboard/listings")
+    revalidatePath("/dashboard/coach/profile")
     return { data: listing, error: null }
   } catch (error) {
     console.error("[UPDATE_LISTING_ERROR]", error)
@@ -167,7 +173,7 @@ export async function deleteListing(id: number): Promise<{ error: string | null 
       return { error: "Failed to delete listing" }
     }
 
-    revalidatePath("/dashboard/listings")
+    revalidatePath("/dashboard/coach/profile")
     return { error: null }
   } catch (error) {
     console.error("[DELETE_LISTING_ERROR]", error)

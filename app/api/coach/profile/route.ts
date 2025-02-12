@@ -128,7 +128,42 @@ export async function POST(req: NextRequest) {
       }
     );
 
-    // Check if profile already exists, explicitly type the result to include 'id'
+    // Check if realtor profile exists
+    const { data: realtorProfile } = await supabase
+      .from("RealtorProfile")
+      .select("id")
+      .eq("userDbId", userDbId)
+      .single();
+
+    // Create realtor profile if it doesn't exist
+    if (!realtorProfile) {
+      const { error: profileError } = await supabase
+        .from("RealtorProfile")
+        .insert({
+          userDbId,
+          bio: '',
+          yearsExperience: 0,
+          propertyTypes: [],
+          specializations: [],
+          certifications: [],
+          languages: [],
+          geographicFocus: {},
+          marketingAreas: [],
+          testimonials: {},
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+
+      if (profileError) {
+        console.error("[CREATE_COACH_PROFILE] Error creating realtor profile:", profileError);
+        return NextResponse.json(
+          { error: "Error creating realtor profile" },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Check if profile already exists
     const { data: existing } = await supabase
       .from("CoachProfile")
       .select("id")

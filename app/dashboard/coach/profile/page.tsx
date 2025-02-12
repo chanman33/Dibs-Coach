@@ -151,7 +151,7 @@ export default function CoachProfilePage() {
     }
   };
 
-  const handleSubmit = async (formData: any, formType: string): Promise<void> => {
+  const handleSubmit = async (formData: any, formType: string): Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void> => {
     setIsSubmitting(true);
     try {
       switch (formType) {
@@ -183,7 +183,6 @@ export default function CoachProfilePage() {
           if (listingResult.error) {
             throw new Error(listingResult.error);
           }
-          // Update the listings state with the new listing
           if (listingResult.data) {
             setListings(prev => ({
               ...prev,

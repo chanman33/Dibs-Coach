@@ -241,62 +241,62 @@ const resoString = (maxLength: number) => z.string().max(maxLength).nullable();
 // ==========================================
 export const listingBaseSchema = z.object({
   // Core Identification
-  listingKey: z.string().min(1, "MLS Key/ID is required"),
+  listingKey: z.string().nullable(),
   mlsSource: MLSSourceEnum.nullable(),
   mlsId: z.string().nullable(),
-  parcelNumber: resoString(50),
-  taxLot: resoString(50),
-  taxBlock: resoString(50),
-  taxMapNumber: resoString(50),
-  taxLegalDescription: resoString(1000),
+  parcelNumber: z.string().max(50).optional(),
+  taxLot: z.string().max(50).optional(),
+  taxBlock: z.string().max(50).optional(),
+  taxMapNumber: z.string().max(50).optional(),
+  taxLegalDescription: z.string().max(1000).optional(),
 
   // Property Classification
   propertyType: PropertyTypeEnum,
   propertySubType: PropertySubTypeEnum.nullable(),
-  status: ListingStatusEnum,
+  status: ListingStatusEnum.optional(),
 
-  // Location Information
+  // Location Information (Required by database)
   streetNumber: z.string().max(25),
   streetName: z.string().max(50),
-  unitNumber: resoString(25),
+  unitNumber: z.string().max(25).nullable(),
   city: z.string().max(150),
   stateOrProvince: z.string().max(50),
   postalCode: z.string().max(10),
 
-  // Price Information
-  listPrice: resoPrice,
-  originalListPrice: resoPrice.optional(),
-  closePrice: resoPrice.optional(),
+  // Price Information (listPrice required by database)
+  listPrice: z.number().positive("List price must be greater than 0"),
+  originalListPrice: z.number().positive().nullable(),
+  closePrice: z.number().positive().nullable(),
 
   // Dates
-  listingContractDate: z.date().nullable(),
-  closeDate: z.date().nullable(),
-  statusChangeTimestamp: z.date().nullable(),
-  priceChangeTimestamp: z.date().nullable(),
-  modificationTimestamp: z.date().nullable(),
+  listingContractDate: z.union([z.string(), z.date()]).nullable(),
+  closeDate: z.union([z.string(), z.date()]).nullable(),
+  statusChangeTimestamp: z.union([z.string(), z.date()]).nullable().optional(),
+  priceChangeTimestamp: z.union([z.string(), z.date()]).nullable().optional(),
+  modificationTimestamp: z.union([z.string(), z.date()]).nullable().optional(),
 
   // Physical Characteristics
-  bedroomsTotal: z.number().int().nullable(),
-  bathroomsTotal: z.number().multipleOf(0.1).nullable(),
-  livingArea: z.number().multipleOf(0.01).positive().nullable(),
-  lotSize: z.number().multipleOf(0.01).positive().nullable(),
-  lotSizeDimensions: resoString(50),
-  lotDimensionsSource: resoString(50),
+  bedroomsTotal: z.number().int().min(0).nullable(),
+  bathroomsTotal: z.number().multipleOf(0.5).min(0).nullable(),
+  livingArea: z.number().positive().nullable(),
+  lotSize: z.number().multipleOf(0.01).positive().nullable().optional(),
+  lotSizeDimensions: z.string().max(50).nullable().optional(),
+  lotDimensionsSource: z.string().max(50).nullable().optional(),
   yearBuilt: z.number().int().positive().nullable(),
-  stories: z.number().int().positive().nullable(),
+  stories: z.number().int().positive().nullable().optional(),
 
   // Structural Details
-  architecturalStyle: ArchitecturalStyleEnum.nullable(),
-  basement: BasementTypeEnum.nullable(),
-  roofType: RoofTypeEnum.nullable(),
+  architecturalStyle: ArchitecturalStyleEnum.nullable().optional(),
+  basement: BasementTypeEnum.nullable().optional(),
+  roofType: RoofTypeEnum.nullable().optional(),
   view: z.array(ViewTypeEnum).optional(),
 
   // Parking Information
-  parkingTotal: z.number().multipleOf(0.01).positive().nullable(),
-  garageSpaces: z.number().multipleOf(0.01).positive().nullable(),
+  parkingTotal: z.number().multipleOf(0.01).positive().nullable().optional(),
+  garageSpaces: z.number().multipleOf(0.01).positive().nullable().optional(),
 
   // Property Features
-  furnished: FurnishedStatusEnum.nullable(),
+  furnished: FurnishedStatusEnum.nullable().optional(),
   appliances: z.array(AppliancesEnum).optional(),
   interiorFeatures: z.array(z.string()).optional(),
   exteriorFeatures: z.array(z.string()).optional(),
@@ -313,20 +313,20 @@ export const listingBaseSchema = z.object({
   // Property Condition and Terms
   propertyCondition: z.array(PropertyConditionEnum).optional(),
   listingTerms: z.array(ListingTermsEnum).optional(),
-  listingAgreement: ListingAgreementEnum.nullable(),
+  listingAgreement: ListingAgreementEnum.nullable().optional(),
 
   // Community Information
-  schoolDistrict: resoString(100),
-  elementarySchool: resoString(100),
-  middleSchool: resoString(100),
-  highSchool: resoString(100),
+  schoolDistrict: z.string().max(100).nullable().optional(),
+  elementarySchool: z.string().max(100).nullable().optional(),
+  middleSchool: z.string().max(100).nullable().optional(),
+  highSchool: z.string().max(100).nullable().optional(),
 
   // Financial Information
-  taxYear: z.number().int().positive().nullable(),
-  taxAnnualAmount: resoPrice,
-  hoaName: resoString(100),
-  hoaFeeAmount: resoPrice,
-  hoaFeeFrequency: z.enum(["monthly", "quarterly", "annual"]).nullable(),
+  taxYear: z.number().int().positive().nullable().optional(),
+  taxAnnualAmount: z.number().positive().nullable().optional(),
+  hoaName: z.string().max(100).nullable().optional(),
+  hoaFeeAmount: z.number().positive().nullable().optional(),
+  hoaFeeFrequency: z.enum(["monthly", "quarterly", "annual"]).nullable().optional(),
 
   // Utilities
   electricityAvailable: z.boolean().default(true),
@@ -335,19 +335,19 @@ export const listingBaseSchema = z.object({
   waterAvailable: z.boolean().default(true),
 
   // Zoning Information
-  zoning: resoString(25),
-  zoningDescription: resoString(255),
+  zoning: z.string().max(25).nullable().optional(),
+  zoningDescription: z.string().max(255).nullable().optional(),
 
   // Marketing Information
-  publicRemarks: resoString(4000),
-  privateRemarks: resoString(4000),
+  publicRemarks: z.string().max(4000).optional(),
+  privateRemarks: z.string().max(4000).nullable().optional(),
   photos: z.array(z.string().url()).optional(),
   virtualTours: z.array(z.string().url()).optional(),
   isFeatured: z.boolean().default(false),
-  featuredOrder: z.number().int().nullable(),
+  featuredOrder: z.number().int().nullable().optional(),
 
   // Source Information
-  source: z.literal("MANUAL").default("MANUAL"),
+  source: z.literal("MANUAL"),
 });
 
 // ==========================================
