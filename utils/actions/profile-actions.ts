@@ -259,7 +259,7 @@ export async function updateCoachProfile(formData: any) {
     const realtorProfileData = {
       userDbId: userData.id,
       languages: Array.isArray(formData.languages) ? formData.languages : [],
-      bio: formData.marketExpertise || '',
+      bio: formData.marketExpertise === '' ? undefined : formData.marketExpertise,
       certifications: Array.isArray(formData.certifications) ? formData.certifications : [],
       propertyTypes: [],
       specializations: [],
@@ -301,18 +301,6 @@ export async function updateCoachProfile(formData: any) {
 
     // Handle Professional Recognitions
     if (formData.professionalRecognitions && Array.isArray(formData.professionalRecognitions)) {
-      // Get existing recognitions
-      const { data: existingRecognitions, error: fetchError } = await supabase
-        .from('ProfessionalRecognition')
-        .select('*')
-        .eq('realtorProfileId', realtorProfileId)
-        .is('archivedAt', null)
-
-      if (fetchError) {
-        console.error('[DEBUG] Error fetching existing recognitions:', fetchError)
-        throw fetchError
-      }
-
       // Handle archived recognition if specified
       if (formData.archivedRecognitionId) {
         const { error: archiveError } = await supabase
@@ -333,13 +321,28 @@ export async function updateCoachProfile(formData: any) {
         return { success: true }
       }
 
-      // Separate recognitions into existing and new
-      const existingIds = new Set(existingRecognitions?.map(r => r.id) || [])
-      const recognitionsToUpdate = []
-      const recognitionsToInsert = []
+      // First, get all existing recognitions (including archived) to check IDs
+      const { data: existingRecognitions, error: fetchError } = await supabase
+        .from('ProfessionalRecognition')
+        .select('*')  // Select all fields to get complete records
+        .eq('realtorProfileId', realtorProfileId);
 
-      for (const recognition of formData.professionalRecognitions) {
-        const recognitionData = {
+      if (fetchError) {
+        console.error('[DEBUG] Error fetching existing recognitions:', fetchError);
+        throw fetchError;
+      }
+
+      // Create a map of existing records
+      const existingRecordsMap = new Map(
+        existingRecognitions?.map(r => [r.id, r]) || []
+      );
+
+      // Separate records that need to be updated vs inserted
+      const recognitionsToUpdate: ProfessionalRecognition[] = [];
+      const recognitionsToInsert: Omit<ProfessionalRecognition, 'id'>[] = [];
+
+      formData.professionalRecognitions.forEach((recognition: ProfessionalRecognition) => {
+        const baseData = {
           realtorProfileId,
           title: recognition.title,
           type: recognition.type,
@@ -347,44 +350,53 @@ export async function updateCoachProfile(formData: any) {
           organization: recognition.organization || null,
           description: recognition.description || null,
           updatedAt: new Date().toISOString()
-        }
+        };
 
-        if (recognition.id && existingIds.has(recognition.id)) {
-          // Update existing recognition
+        const existingRecord = recognition.id ? existingRecordsMap.get(recognition.id) : null;
+
+        // If record exists and is not archived, update it
+        if (existingRecord && !existingRecord.archivedAt) {
           recognitionsToUpdate.push({
-            ...recognitionData,
-            id: recognition.id
-          })
+            ...baseData,
+            id: recognition.id,
+            createdAt: existingRecord.createdAt // Use the original createdAt
+          });
         } else {
-          // Insert new recognition
+          // Create new record
           recognitionsToInsert.push({
-            ...recognitionData,
+            ...baseData,
             createdAt: new Date().toISOString()
-          })
+          });
         }
-      }
+      });
 
-      // Update existing recognitions
+      console.log('[DEBUG] Records to update:', recognitionsToUpdate);
+      console.log('[DEBUG] Records to insert:', recognitionsToInsert);
+
+      // Update existing records
       if (recognitionsToUpdate.length > 0) {
         const { error: updateError } = await supabase
           .from('ProfessionalRecognition')
-          .upsert(recognitionsToUpdate)
+          .upsert(recognitionsToUpdate, {
+            onConflict: 'id',
+            ignoreDuplicates: false
+          });
 
         if (updateError) {
-          console.error('[DEBUG] Error updating recognitions:', updateError)
-          throw updateError
+          console.error('[DEBUG] Error updating recognitions:', updateError);
+          throw updateError;
         }
       }
 
-      // Insert new recognitions
+      // Insert new records
       if (recognitionsToInsert.length > 0) {
         const { error: insertError } = await supabase
           .from('ProfessionalRecognition')
-          .insert(recognitionsToInsert)
+          .insert(recognitionsToInsert);
 
         if (insertError) {
-          console.error('[DEBUG] Error inserting new recognitions:', insertError)
-          throw insertError
+          console.error('[DEBUG] Error inserting new recognitions:', insertError);
+          throw insertError;
         }
       }
     }

@@ -36,9 +36,10 @@ interface ListingsFormProps {
   className?: string
   activeListings?: CreateListing[]
   successfulTransactions?: CreateListing[]
+  isSubmitting?: boolean
 }
 
-export default function ListingsForm({ onSubmit, className, activeListings = [], successfulTransactions = [] }: ListingsFormProps) {
+export default function ListingsForm({ onSubmit, className, activeListings = [], successfulTransactions = [], isSubmitting = false }: ListingsFormProps) {
   const form = useForm<CreateListing>({
     resolver: zodResolver(createListingSchema),
     defaultValues: {
@@ -80,6 +81,13 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
       source: "MANUAL",
     },
   })
+
+  useEffect(() => {
+    console.log('[LISTINGS_FORM_MOUNT]', 'Form component mounted');
+    return () => {
+      console.log('[LISTINGS_FORM_UNMOUNT]', 'Form component unmounting');
+    };
+  }, []);
 
   const renderSuccessMetrics = () => {
     const totalVolume = successfulTransactions.reduce((sum, listing) => sum + (listing.closePrice || 0), 0)
@@ -176,6 +184,59 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
     </Card>
   )
 
+  const handleSubmit = async (data: CreateListing) => {
+    console.log("[LISTINGS_FORM_SUBMIT_START]", "Form submission started", {
+      listingKey: data.listingKey,
+      status: data.status,
+      propertyType: data.propertyType
+    });
+
+    try {
+      // Validate required fields
+      if (!data.listingKey) {
+        console.error("[LISTINGS_FORM_VALIDATION]", "Missing required field: listingKey");
+        return;
+      }
+
+      // Log the actual API request
+      console.log("[LISTINGS_FORM_API_REQUEST]", "Sending request to /api/listings");
+      
+      const response = await fetch("/api/listings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      const responseText = await response.text();
+      console.log("[LISTINGS_FORM_API_RESPONSE]", {
+        status: response.status,
+        ok: response.ok,
+        response: responseText
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to create listing: ${responseText}`);
+      }
+
+      const listing = JSON.parse(responseText);
+      console.log("[LISTINGS_FORM_SUCCESS]", "Listing created successfully", {
+        listingId: listing.id,
+        status: listing.status
+      });
+      
+      // Call the parent component's onSubmit handler
+      onSubmit(data);
+      
+      // Reset form
+      form.reset();
+    } catch (error) {
+      console.error("[LISTINGS_FORM_ERROR]", "Failed to submit form:", error);
+      // Here you might want to show an error toast/notification to the user
+    }
+  }
+
   return (
     <Card className={cn("w-full", className)}>
       <CardContent className="p-6">
@@ -233,7 +294,7 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
 
             <TabsContent value="add">
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
                   <ScrollArea className="h-[600px] pr-6">
                     <div className="space-y-8">
                       {/* MLS Information */}
@@ -598,11 +659,24 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                   </ScrollArea>
 
                   <div className="flex justify-end gap-4 pt-4 border-t">
-                    <Button type="button" variant="outline">
+                    <Button 
+                      type="button" 
+                      variant="outline"
+                      onClick={() => {
+                        const values = form.getValues();
+                        console.log("[LISTINGS_FORM_DRAFT]", "Saving as draft", {
+                          listingKey: values.listingKey,
+                          status: values.status
+                        });
+                      }}
+                    >
                       Save as Draft
                     </Button>
-                    <Button type="submit">
-                      Publish Listing
+                    <Button 
+                      type="submit"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? "Publishing..." : "Publish Listing"}
                     </Button>
                   </div>
                 </form>

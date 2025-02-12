@@ -12,6 +12,7 @@ import { CoachProfileForm } from "../../../../components/profile/CoachProfileFor
 import { updateGeneralProfile, fetchUserProfile, fetchCoachProfile, updateCoachProfile } from "@/utils/actions/profile-actions"
 import type { CoachProfile } from "@/utils/types/coach"
 import type { RealtorProfile } from "@/utils/types/realtor"
+import type { CreateListing } from "@/utils/types/listing"
 
 interface GeneralInfo {
   displayName?: string;
@@ -25,7 +26,13 @@ interface GeneralInfo {
 export default function CoachProfilePage() {
   const [generalInfo, setGeneralInfo] = useState<GeneralInfo>({})
   const [coachingInfo, setCoachingInfo] = useState<Partial<CoachProfile & RealtorProfile>>({})
-  const [listings, setListings] = useState({})
+  const [listings, setListings] = useState<{
+    activeListings: CreateListing[],
+    successfulTransactions: CreateListing[]
+  }>({
+    activeListings: [],
+    successfulTransactions: []
+  })
   const [marketing, setMarketing] = useState({})
   const [goals, setGoals] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -73,6 +80,27 @@ export default function CoachProfilePage() {
             variant: "destructive",
           });
         }
+
+        // Load listings data
+        try {
+          const response = await fetch('/api/listings');
+          if (response.ok) {
+            const listingsData = await response.json();
+            console.log('[DEBUG] Loaded listings data:', listingsData);
+            
+            // Split listings into active and successful transactions
+            const activeListings = listingsData.filter((l: any) => l.status === 'Active');
+            const successfulTransactions = listingsData.filter((l: any) => l.status === 'Closed');
+            
+            setListings({
+              activeListings,
+              successfulTransactions
+            });
+          }
+        } catch (error) {
+          console.error('[LISTINGS_LOAD_ERROR]', error);
+        }
+
       } catch (error) {
         console.error('[PROFILE_LOAD_ERROR]', error);
         toast({
@@ -98,11 +126,11 @@ export default function CoachProfilePage() {
       setIsSubmitting(true);
       console.log('[DEBUG] Submitting coach profile data:', JSON.stringify(data, null, 2));
       await updateCoachProfile(data);
-      
+
       // Update local state with the new data
       console.log('[DEBUG] Updating coaching info state with:', JSON.stringify(data, null, 2));
       setCoachingInfo(data);
-      
+
       toast({
         title: "Success",
         description: "Your coaching profile has been updated",
@@ -146,8 +174,25 @@ export default function CoachProfilePage() {
           break;
 
         case "listings":
-          setListings(formData)
-          break
+          console.log('[DEBUG] Handling new listing submission:', formData);
+          
+          // Update listings state based on status
+          setListings(prev => {
+            const newListings = { ...prev };
+            if (formData.status === 'Active') {
+              newListings.activeListings = [...prev.activeListings, formData];
+            } else if (formData.status === 'Closed') {
+              newListings.successfulTransactions = [...prev.successfulTransactions, formData];
+            }
+            return newListings;
+          });
+
+          toast({
+            title: "Success",
+            description: "Your listing has been published successfully",
+          });
+          break;
+
         case "marketing":
           setMarketing(formData)
           break
@@ -241,16 +286,13 @@ export default function CoachProfilePage() {
           </TabsContent>
 
           <TabsContent value="listings">
-            {/* <Card>
-              <CardHeader>
-                <CardTitle>Listings</CardTitle>
-              </CardHeader>
-              <CardContent> */}
-                <ListingsForm
-                  onSubmit={(data) => handleSubmit(data, "listings")}
-                />
-              {/* </CardContent>
-            </Card> */}
+            <ListingsForm
+              onSubmit={(data) => handleSubmit(data, "listings")}
+              activeListings={listings.activeListings}
+              successfulTransactions={listings.successfulTransactions}
+              className="w-full"
+              isSubmitting={isSubmitting}
+            />
           </TabsContent>
 
           <TabsContent value="marketing">
