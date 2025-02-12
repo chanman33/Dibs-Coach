@@ -241,7 +241,7 @@ const resoString = (maxLength: number) => z.string().max(maxLength).nullable();
 // ==========================================
 export const listingBaseSchema = z.object({
   // Core Identification
-  listingKey: z.string().nullable(),
+  listingKey: z.string().min(1, "Listing Key is required"),
   mlsSource: MLSSourceEnum.nullable(),
   mlsId: z.string().nullable(),
   parcelNumber: z.string().max(50).optional(),
