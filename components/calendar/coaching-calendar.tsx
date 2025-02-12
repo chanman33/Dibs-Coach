@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Calendar, momentLocalizer, View } from 'react-big-calendar'
+import { Calendar, momentLocalizer, View, ToolbarProps, ViewsProps } from 'react-big-calendar'
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
-import { Loader2, RefreshCw } from "lucide-react"
+import { Loader2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -215,10 +215,10 @@ export function CoachingCalendar({
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">{title}</h1>
       
-      <div className="grid grid-cols-[1fr,300px] gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr,300px] gap-4">
         <div>
-          <Card className="p-4">
-            <div className="h-[600px]">
+          <Card className="p-2 sm:p-4">
+            <div className="h-[600px] overflow-x-auto">
               <Calendar
                 localizer={localizer}
                 events={allEvents}
@@ -236,11 +236,13 @@ export function CoachingCalendar({
                 eventPropGetter={eventStyleGetter}
                 selectable={userRole === 'mentee'}
                 onSelectSlot={(slotInfo) => {
-                  // Handle slot selection for booking (mentee only)
                   if (userRole === 'mentee') {
-                    // TODO: Implement booking flow
                     console.log('Selected slot:', slotInfo)
                   }
+                }}
+                className="responsive-calendar"
+                components={{
+                  toolbar: CustomToolbar
                 }}
               />
             </div>
@@ -254,7 +256,7 @@ export function CoachingCalendar({
                 }}
                 disabled={isLoading || isCalendlyLoading}
                 variant="outline"
-                className="gap-2"
+                className="gap-2 w-full sm:w-auto"
               >
                 {isLoading || isCalendlyLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -301,4 +303,138 @@ export function CoachingCalendar({
       </div>
     </div>
   )
+}
+
+// Update the CustomToolbar interface
+interface CustomToolbarProps extends ToolbarProps<CalendarEvent, object> {}
+
+function CustomToolbar({ 
+  onNavigate, 
+  onView, 
+  view, 
+  views, 
+  label 
+}: CustomToolbarProps) {
+  const viewNames = {
+    month: 'Month',
+    week: 'Week',
+    day: 'Day'
+  }
+
+  // Full wide screen layout (1300px and up)
+  const FullWideLayout = (
+    <div className="hidden [@media(min-width:1300px)]:grid [@media(min-width:1300px)]:grid-cols-3 [@media(min-width:1300px)]:items-center [@media(min-width:1300px)]:gap-4">
+      {/* Left Section - Navigation */}
+      <div className="flex items-center gap-2 justify-start">
+        <Button
+          onClick={() => onNavigate('TODAY')}
+          variant="outline"
+          size="sm"
+          className="text-sm px-4"
+        >
+          Today
+        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            onClick={() => onNavigate('PREV')}
+            variant="outline"
+            size="sm"
+            className="px-3"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={() => onNavigate('NEXT')}
+            variant="outline"
+            size="sm"
+            className="px-3"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Center Section - Title */}
+      <span className="rbc-toolbar-label text-lg font-semibold text-center">
+        {label}
+      </span>
+
+      {/* Right Section - View Selection */}
+      <div className="flex items-center gap-1 justify-end">
+        {Object.entries(viewNames).map(([viewKey, viewLabel]) => (
+          <Button
+            key={viewKey}
+            onClick={() => onView(viewKey as View)}
+            variant={view === viewKey ? "default" : "outline"}
+            size="sm"
+            className="min-w-[70px] text-sm px-4"
+          >
+            {viewLabel}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+
+  // Compact layout for screens below 1300px
+  const CompactLayout = (
+    <div className="[@media(min-width:1300px)]:hidden space-y-3">
+      {/* Title and View Selection */}
+      <div className="space-y-2">
+        <span className="rbc-toolbar-label text-lg font-semibold block text-center">
+          {label}
+        </span>
+        <div className="flex items-center justify-center gap-1 border-b pb-2">
+          {Object.entries(viewNames).map(([viewKey, viewLabel]) => (
+            <Button
+              key={viewKey}
+              onClick={() => onView(viewKey as View)}
+              variant={view === viewKey ? "default" : "outline"}
+              size="sm"
+              className="flex-1 text-sm px-2 max-w-[120px]"
+            >
+              {viewLabel}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {/* Navigation Controls */}
+      <div className="flex items-center justify-between px-1">
+        <Button
+          onClick={() => onNavigate('TODAY')}
+          variant="outline"
+          size="sm"
+          className="text-sm px-3"
+        >
+          Today
+        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            onClick={() => onNavigate('PREV')}
+            variant="outline"
+            size="sm"
+            className="px-2"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={() => onNavigate('NEXT')}
+            variant="outline"
+            size="sm"
+            className="px-2"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="rbc-toolbar w-full p-2 sm:p-3 [@media(min-width:1300px)]:p-4">
+      {FullWideLayout}
+      {CompactLayout}
+    </div>
+  );
 } 
