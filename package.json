@@ -13,7 +13,8 @@
     "seed": "yarn tsx prisma/seed.ts",
     "seed-admin": "tsx prisma/seed-admin.ts",
     "db:push": "yarn prisma db push",
-    "db:studio": "yarn prisma studio"
+    "db:studio": "yarn prisma studio",
+    "update-types": "npx supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" > types/supabase.ts"
   },
   "prisma": {
     "seed": "yarn tsx prisma/seed.ts"
@@ -120,6 +121,7 @@
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "postcss": "latest",
+    "supabase": "^2.12.1",
     "tailwindcss": "^3.3.5",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.2",

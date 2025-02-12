@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server"
 import { createAuthClient } from "@/utils/auth"
 import { updateListingSchema } from "@/utils/types/listing"
 import { revalidatePath } from "next/cache"
-import { UserWithProfile, ListingWithRealtor } from "@/utils/types/database"
+import { UserWithProfile, ListingWithRealtor } from "@/utils/supabase/database"
 
 // GET /api/listings/[id] - Get a specific listing
 export async function GET(

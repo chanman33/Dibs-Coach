@@ -224,3 +224,70 @@ export type EntityUpdate = z.infer<typeof entityUpdateSchema>;
 3. Include proper JSDoc documentation
 4. Export both schemas and inferred types
 5. Use Prisma enums where available
+
+## Database Access
+
+### Supabase Client Usage
+
+1. **Client Initialization**
+```typescript
+// Always use createAuthClient from utils/auth.ts
+import { createAuthClient } from '@/utils/auth'
+import { cookies } from 'next/headers'
+
+const supabase = await createAuthClient(cookies())
+```
+
+2. **Core Principles**
+- Use Supabase for ALL database operations
+- Never use Prisma for data operations (schema/migrations only)
+- Always perform database operations server-side
+- Include proper error handling and logging
+
+3. **Query Patterns**
+```typescript
+// Table names must match exact PascalCase
+const result = await supabase
+  .from("User")
+  .select()
+  
+// Column names must match exact camelCase
+const user = await supabase
+  .from("User")
+  .select()
+  .eq("userId", clerkId)
+```
+
+4. **Required Fields**
+- Always include `updatedAt` in insert/update operations:
+```typescript
+await supabase
+  .from("User")
+  .update({ 
+    name: "New Name",
+    updatedAt: new Date().toISOString()
+  })
+```
+
+5. **Error Handling**
+```typescript
+try {
+  const { data, error } = await supabase.from("User").select()
+  if (error) {
+    console.error('[DB_ERROR]', error)
+    throw error
+  }
+  return data
+} catch (error) {
+  console.error('[DB_ERROR]', error)
+  throw error
+}
+```
+
+6. **Best Practices**
+- Use type-safe queries with proper column references
+- Implement proper error handling and logging
+- Include updatedAt in all mutations
+- Use proper casing for table/column names
+- Keep database logic in server components or API routes
+- Never expose Supabase client keys in client-side code
