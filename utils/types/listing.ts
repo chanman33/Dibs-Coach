@@ -345,6 +345,8 @@ export const listingBaseSchema = z.object({
   virtualTours: z.array(z.string().url()).optional(),
   isFeatured: z.boolean().default(false),
   featuredOrder: z.number().int().nullable().optional(),
+  mlsLink: z.string().url().nullable().optional(),
+  publicListingUrl: z.string().url().nullable().optional(),
 
   // Source Information
   source: z.literal("MANUAL"),

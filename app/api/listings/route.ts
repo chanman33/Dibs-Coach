@@ -56,4 +56,40 @@ export async function POST(request: Request) {
     console.error("[LISTINGS_POST_ERROR]", error)
     return new NextResponse("Internal error", { status: 500 })
   }
+}
+
+// PUT /api/listings/:id - Update a listing
+export async function PUT(request: Request) {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      return new NextResponse("Unauthorized", { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const listingId = searchParams.get("id")
+    
+    if (!listingId) {
+      return new NextResponse("Missing listing ID", { status: 400 })
+    }
+
+    const body = await request.json()
+    const validationResult = await createListingSchema.safeParseAsync(body)
+
+    if (!validationResult.success) {
+      return new NextResponse("Invalid listing data", { status: 400 })
+    }
+
+    // Use the server action
+    const { data, error } = await updateListing(parseInt(listingId), validationResult.data)
+
+    if (error) {
+      return new NextResponse(error, { status: 500 })
+    }
+
+    return NextResponse.json(data)
+  } catch (error) {
+    console.error("[LISTINGS_UPDATE_ERROR]", error)
+    return new NextResponse("Internal error", { status: 500 })
+  }
 } 

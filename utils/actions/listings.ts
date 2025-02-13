@@ -124,17 +124,48 @@ export async function createListing(data: CreateListing): Promise<{ data: Listin
   }
 }
 
-export async function updateListing(id: number, data: UpdateListing): Promise<{ data: ListingWithRealtor | null, error: string | null }> {
+export async function updateListing(
+  listingId: number,
+  data: UpdateListing
+): Promise<{ data: ListingWithRealtor | null; error: string | null }> {
   try {
+    const { userId } = await auth()
+    if (!userId) {
+      return { data: null, error: "Unauthorized" }
+    }
+
     const supabase = await createAuthClient()
 
-    const { data: listing, error } = await supabase
+    // First verify the user owns this listing
+    const { data: existingListing, error: fetchError } = await supabase
+      .from("Listing")
+      .select(`
+        *,
+        realtorProfile:RealtorProfile (
+          id,
+          userDbId
+        )
+      `)
+      .eq("id", listingId)
+      .single()
+
+    if (fetchError) {
+      console.error("[UPDATE_LISTING_FETCH_ERROR]", fetchError)
+      return { data: null, error: "Failed to fetch listing" }
+    }
+
+    if (!existingListing) {
+      return { data: null, error: "Listing not found" }
+    }
+
+    // Update the listing
+    const { data: updatedListing, error: updateError } = await supabase
       .from("Listing")
       .update({
         ...data,
         updatedAt: new Date().toISOString(),
       })
-      .eq("id", id)
+      .eq("id", listingId)
       .select(`
         *,
         realtorProfile:RealtorProfile (
@@ -146,13 +177,13 @@ export async function updateListing(id: number, data: UpdateListing): Promise<{ 
       `)
       .single()
 
-    if (error) {
-      console.error("[UPDATE_LISTING_ERROR]", error)
+    if (updateError) {
+      console.error("[UPDATE_LISTING_ERROR]", updateError)
       return { data: null, error: "Failed to update listing" }
     }
 
     revalidatePath("/dashboard/coach/profile")
-    return { data: listing, error: null }
+    return { data: updatedListing, error: null }
   } catch (error) {
     console.error("[UPDATE_LISTING_ERROR]", error)
     return { data: null, error: "Failed to update listing" }

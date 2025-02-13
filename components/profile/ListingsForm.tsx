@@ -19,9 +19,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Database, ImagePlus, Trophy, DollarSign, Calendar, Home } from "lucide-react"
+import { Database, ImagePlus, Trophy, DollarSign, Calendar, Home, Pencil } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createListingSchema, type CreateListing, getValidSubTypes, PropertyTypeEnum } from "@/utils/types/listing"
 import { ListingWithRealtor } from "@/utils/supabase/types"
@@ -30,19 +32,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useToast } from "@/components/ui/use-toast"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 
 interface ListingsFormProps {
   onSubmit: (data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void>
+  onUpdate?: (id: number, data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void>
   className?: string
   activeListings?: ListingWithRealtor[]
   successfulTransactions?: ListingWithRealtor[]
   isSubmitting?: boolean
 }
 
-export default function ListingsForm({ onSubmit, className, activeListings = [], successfulTransactions = [], isSubmitting = false }: ListingsFormProps) {
+export default function ListingsForm({ onSubmit, onUpdate, className, activeListings = [], successfulTransactions = [], isSubmitting = false }: ListingsFormProps) {
   const { toast } = useToast()
+  const [editingListing, setEditingListing] = useState<ListingWithRealtor | null>(null)
   const form = useForm<CreateListing>({
     resolver: zodResolver(createListingSchema),
     defaultValues: {
@@ -85,6 +90,8 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
       // Marketing Information
       publicRemarks: "",
       isFeatured: false,
+      mlsLink: null,
+      publicListingUrl: null,
 
       // Source Information
       source: "MANUAL" as const,
@@ -98,53 +105,135 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
     };
   }, []);
 
+  // Reset form when editingListing changes
+  useEffect(() => {
+    if (editingListing) {
+      // Map the listing data to match the form schema
+      const formData: CreateListing = {
+        listingKey: editingListing.listingKey || "",
+        mlsSource: editingListing.mlsSource as CreateListing['mlsSource'],
+        mlsId: editingListing.mlsId || null,
+        parcelNumber: editingListing.parcelNumber || undefined,
+        taxLot: editingListing.taxLot || undefined,
+        taxBlock: editingListing.taxBlock || undefined,
+        taxMapNumber: editingListing.taxMapNumber || undefined,
+        taxLegalDescription: editingListing.taxLegalDescription || undefined,
+        propertyType: editingListing.propertyType,
+        propertySubType: editingListing.propertySubType || null,
+        status: editingListing.status,
+        streetNumber: editingListing.streetNumber,
+        streetName: editingListing.streetName,
+        unitNumber: editingListing.unitNumber || null,
+        city: editingListing.city,
+        stateOrProvince: editingListing.stateOrProvince,
+        postalCode: editingListing.postalCode,
+        listPrice: editingListing.listPrice,
+        originalListPrice: editingListing.originalListPrice || null,
+        closePrice: editingListing.closePrice || null,
+        listingContractDate: editingListing.listingContractDate ? new Date(editingListing.listingContractDate) : null,
+        closeDate: editingListing.closeDate ? new Date(editingListing.closeDate) : null,
+        bedroomsTotal: editingListing.bedroomsTotal || null,
+        bathroomsTotal: editingListing.bathroomsTotal || null,
+        livingArea: editingListing.livingArea || null,
+        yearBuilt: editingListing.yearBuilt || null,
+        publicRemarks: editingListing.publicRemarks || "",
+        isFeatured: editingListing.isFeatured,
+        mlsLink: editingListing.mlsLink || null,
+        publicListingUrl: editingListing.publicListingUrl || null,
+        source: "MANUAL",
+        // Property Amenities with defaults
+        isWaterfront: editingListing.isWaterfront || false,
+        hasFireplace: editingListing.hasFireplace || false,
+        hasPatio: editingListing.hasPatio || false,
+        hasDeck: editingListing.hasDeck || false,
+        hasPorch: editingListing.hasPorch || false,
+        // Utilities with defaults
+        electricityAvailable: editingListing.electricityAvailable || true,
+        gasAvailable: editingListing.gasAvailable || true,
+        sewerAvailable: editingListing.sewerAvailable || true,
+        waterAvailable: editingListing.waterAvailable || true,
+      };
+      form.reset(formData);
+    } else {
+      form.reset({
+        // ... existing default values ...
+      });
+    }
+  }, [editingListing, form]);
+
   const renderSuccessMetrics = () => {
     const totalVolume = successfulTransactions.reduce((sum, listing) => sum + (listing.closePrice || 0), 0)
     const averagePrice = totalVolume / (successfulTransactions.length || 1)
     const thisYear = successfulTransactions.filter(l => l.closeDate && new Date(l.closeDate).getFullYear() === new Date().getFullYear())
     
+    const formatPrice = (price: number) => {
+      if (price >= 1000000) {
+        return `$${(price / 1000000).toFixed(1)}M`
+      }
+      return `$${(price / 1000).toFixed(0)}K`
+    }
+    
     return (
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Trophy className="h-4 w-4 text-yellow-500" />
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">Successful Transactions</p>
-                <p className="text-2xl font-bold">{successfulTransactions.length}</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <Card className="relative overflow-hidden group hover:shadow-md transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-yellow-100/50 dark:bg-yellow-500/20 rounded-lg group-hover:scale-105 transition-transform duration-300">
+                <Trophy className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Successful Transactions</p>
+                <p className="text-2xl font-bold tracking-tight text-yellow-600 dark:text-yellow-400">
+                  {successfulTransactions.length}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <DollarSign className="h-4 w-4 text-green-500" />
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">Total Volume</p>
-                <p className="text-2xl font-bold">${(totalVolume / 1000000).toFixed(1)}M</p>
+
+        <Card className="relative overflow-hidden group hover:shadow-md transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-emerald-100/50 dark:bg-emerald-500/20 rounded-lg group-hover:scale-105 transition-transform duration-300">
+                <DollarSign className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Total Volume</p>
+                <p className="text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+                  ${(totalVolume / 1000000).toFixed(1)}M
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Home className="h-4 w-4 text-blue-500" />
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">Average Price</p>
-                <p className="text-2xl font-bold">${(averagePrice / 1000).toFixed(0)}K</p>
+
+        <Card className="relative overflow-hidden group hover:shadow-md transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-blue-100/50 dark:bg-blue-500/20 rounded-lg group-hover:scale-105 transition-transform duration-300">
+                <Home className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">Average Price</p>
+                <p className="text-2xl font-bold tracking-tight text-blue-600 dark:text-blue-400">
+                  {formatPrice(averagePrice)}
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center space-x-2">
-              <Calendar className="h-4 w-4 text-purple-500" />
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">This Year</p>
-                <p className="text-2xl font-bold">{thisYear.length}</p>
+
+        <Card className="relative overflow-hidden group hover:shadow-md transition-all duration-300">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-purple-100/50 dark:bg-purple-500/20 rounded-lg group-hover:scale-105 transition-transform duration-300">
+                <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-muted-foreground">This Year</p>
+                <p className="text-2xl font-bold tracking-tight text-purple-600 dark:text-purple-400">
+                  {thisYear.length}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -153,21 +242,587 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
     )
   }
 
+  const handleEditSubmit = async (data: CreateListing) => {
+    if (!editingListing || !onUpdate) return
+
+    console.log("[LISTINGS_FORM_EDIT_START]", {
+      listingId: editingListing.id,
+      formData: data,
+      formState: form.formState,
+      errors: form.formState.errors
+    })
+
+    try {
+      const validationResult = await createListingSchema.safeParseAsync(data)
+      
+      if (!validationResult.success) {
+        console.error("[LISTINGS_FORM_VALIDATION_ERROR]", {
+          formData: data,
+          zodErrors: validationResult.error.errors,
+          formErrors: form.formState.errors
+        })
+        toast({
+          title: "Validation Error",
+          description: "Please check all required fields",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const result = await onUpdate(editingListing.id, validationResult.data)
+      
+      if (result && 'error' in result && result.error) {
+        console.error("[LISTINGS_FORM_ERROR]", result.error)
+        toast({
+          title: "Error",
+          description: result.error,
+          variant: "destructive",
+        })
+        return
+      }
+
+      if (result && 'data' in result && result.data) {
+        console.log("[LISTINGS_FORM_SUCCESS]", "Listing updated:", result.data)
+        toast({
+          title: "Success",
+          description: "Listing updated successfully",
+        })
+        setEditingListing(null)
+      }
+    } catch (error) {
+      console.error("[LISTINGS_FORM_ERROR]", "Update failed:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update listing. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const renderListingCard = (listing: ListingWithRealtor | CreateListing) => (
-    <Card key={listing.listingKey} className="mb-4">
+    <Card 
+      key={listing.listingKey} 
+      className={cn(
+        "mb-4 relative overflow-hidden transition-all duration-300",
+        listing.isFeatured && "border-2 border-primary shadow-md"
+      )}
+    >
       <CardContent className="pt-6">
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="font-semibold">
-              {listing.streetNumber} {listing.streetName} {listing.unitNumber && `#${listing.unitNumber}`}
-            </h3>
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-semibold">
+                {listing.streetNumber} {listing.streetName} {listing.unitNumber && `#${listing.unitNumber}`}
+              </h3>
+              {listing.isFeatured && (
+                <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20">
+                  Featured
+                </Badge>
+              )}
+            </div>
             <p className="text-sm text-muted-foreground">
               {listing.city}, {listing.stateOrProvince} {listing.postalCode}
             </p>
           </div>
-          <Badge variant={listing.status === "Active" ? "default" : "secondary"}>
-            {listing.status}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Dialog open={editingListing?.id === (listing as ListingWithRealtor).id} onOpenChange={(open) => !open && setEditingListing(null)}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8"
+                  onClick={() => setEditingListing(listing as ListingWithRealtor)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Edit Listing</DialogTitle>
+                </DialogHeader>
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(handleEditSubmit)} className="space-y-8">
+                    <ScrollArea className="h-[600px] pr-6">
+                      <div className="space-y-8">
+                        {/* MLS Information */}
+                        <div className="space-y-4">
+                          <div className="flex items-center">
+                            <h4 className="text-sm font-semibold">MLS Information</h4>
+                            <Separator className="flex-1 ml-3" />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name="listingKey"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>
+                                    MLS Key/ID
+                                    <span className="text-destructive ml-1">*</span>
+                                  </FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      {...field}
+                                      value={field.value || ''}
+                                      placeholder="Enter MLS listing key/ID"
+                                      required
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="mlsSource"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>MLS Source</FormLabel>
+                                  <Select 
+                                    onValueChange={field.onChange} 
+                                    value={field.value || undefined}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select MLS system" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {/* Major Regional MLS Systems */}
+                                      <SelectItem value="BRIGHT_MLS">Bright MLS (Mid-Atlantic)</SelectItem>
+                                      <SelectItem value="CRMLS">California Regional MLS</SelectItem>
+                                      <SelectItem value="STELLAR_MLS">Stellar MLS (Florida)</SelectItem>
+                                      <SelectItem value="NWMLS">Northwest MLS</SelectItem>
+                                      <SelectItem value="GAMLS">Georgia MLS</SelectItem>
+                                      <SelectItem value="HAR">Houston Association of REALTORS</SelectItem>
+                                      <SelectItem value="MRED">Midwest Real Estate Data</SelectItem>
+                                      <SelectItem value="ARMLS">Arizona Regional MLS</SelectItem>
+                                      <SelectItem value="MRIS">Metropolitan Regional Information Systems</SelectItem>
+                                      <SelectItem value="REALTRACS">RealTracs (Tennessee)</SelectItem>
+                                      <SelectItem value="URE">UtahRealEstate.com (Utah)</SelectItem>
+                                      <SelectItem value="WFRMLS">Wasatch Front Regional MLS (Utah)</SelectItem>
+                                      <SelectItem value="OTHER">Other MLS System</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Location Information */}
+                        <div className="space-y-4">
+                          <div className="flex items-center">
+                            <h4 className="text-sm font-semibold">Location</h4>
+                            <Separator className="flex-1 ml-3" />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name="streetNumber"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Street Number<span className="text-destructive ml-1">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input {...field} required />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="streetName"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Street Name<span className="text-destructive ml-1">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input {...field} required />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="city"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>City<span className="text-destructive ml-1">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input {...field} required />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="stateOrProvince"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>State<span className="text-destructive ml-1">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input {...field} required />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="postalCode"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Postal Code<span className="text-destructive ml-1">*</span></FormLabel>
+                                  <FormControl>
+                                    <Input {...field} required />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Price Information */}
+                        <div className="space-y-4">
+                          <div className="flex items-center">
+                            <h4 className="text-sm font-semibold">Price & Status</h4>
+                            <Separator className="flex-1 ml-3" />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name="listPrice"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>List Price</FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      type="number" 
+                                      {...field}
+                                      value={field.value || ''}
+                                      onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="closePrice"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Close Price (if sold)</FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      type="number" 
+                                      {...field}
+                                      value={field.value || ''}
+                                      onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="closeDate"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Close Date (if sold)</FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      type="date" 
+                                      {...field}
+                                      value={field.value ? (field.value instanceof Date ? field.value.toISOString().split('T')[0] : field.value.split('T')[0]) : ''}
+                                      onChange={e => field.onChange(e.target.value ? new Date(e.target.value) : null)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="status"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Status</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select status" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectGroup>
+                                        <SelectLabel>Active Statuses</SelectLabel>
+                                        <SelectItem value="Active">Active</SelectItem>
+                                        <SelectItem value="ActiveUnderContract">Active Under Contract</SelectItem>
+                                        <SelectItem value="ComingSoon">Coming Soon</SelectItem>
+                                      </SelectGroup>
+                                      
+                                      <SelectGroup>
+                                        <SelectLabel>Under Contract</SelectLabel>
+                                        <SelectItem value="Pending">Pending</SelectItem>
+                                        <SelectItem value="Hold">On Hold</SelectItem>
+                                      </SelectGroup>
+
+                                      <SelectGroup>
+                                        <SelectLabel>Completed</SelectLabel>
+                                        <SelectItem value="Closed">Closed</SelectItem>
+                                      </SelectGroup>
+
+                                      <SelectGroup>
+                                        <SelectLabel>Inactive</SelectLabel>
+                                        <SelectItem value="Canceled">Canceled</SelectItem>
+                                        <SelectItem value="Expired">Expired</SelectItem>
+                                        <SelectItem value="Withdrawn">Withdrawn</SelectItem>
+                                      </SelectGroup>
+
+                                      <SelectGroup>
+                                        <SelectLabel>Other</SelectLabel>
+                                        <SelectItem value="Incomplete">Incomplete</SelectItem>
+                                        <SelectItem value="Delete">Delete</SelectItem>
+                                      </SelectGroup>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Property Details */}
+                        <div className="space-y-4">
+                          <div className="flex items-center">
+                            <h4 className="text-sm font-semibold">Property Details</h4>
+                            <Separator className="flex-1 ml-3" />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <FormField
+                              control={form.control}
+                              name="propertyType"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Property Type</FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select type" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="Residential">Residential</SelectItem>
+                                      <SelectItem value="CommercialLease">Commercial (Lease)</SelectItem>
+                                      <SelectItem value="CommercialSale">Commercial (Sale)</SelectItem>
+                                      <SelectItem value="Farm">Farm</SelectItem>
+                                      <SelectItem value="Land">Land</SelectItem>
+                                      <SelectItem value="ManufacturedInPark">Manufactured In Park</SelectItem>
+                                      <SelectItem value="BusinessOpportunity">Business Opportunity</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="propertySubType"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Property Sub-Type</FormLabel>
+                                  <Select 
+                                    onValueChange={field.onChange} 
+                                    value={field.value || undefined}
+                                    disabled={!form.watch("propertyType")}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select sub-type" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      {getValidSubTypes(form.watch("propertyType")).map((subType) => (
+                                        <SelectItem key={subType} value={subType}>
+                                          {subType.replace(/([A-Z])/g, ' $1').trim()}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="livingArea"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Square Footage</FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      type="number" 
+                                      {...field}
+                                      value={field.value || ''}
+                                      onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="bedroomsTotal"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Bedrooms</FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      type="number" 
+                                      {...field}
+                                      value={field.value || ''}
+                                      onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : null)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="bathroomsTotal"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Bathrooms</FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      type="number" 
+                                      {...field}
+                                      value={field.value || ''}
+                                      step="0.5"
+                                      onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : null)}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Marketing Information */}
+                        <div className="space-y-4">
+                          <div className="flex items-center">
+                            <h4 className="text-sm font-semibold">Marketing</h4>
+                            <Separator className="flex-1 ml-3" />
+                          </div>
+                          <div className="grid grid-cols-1 gap-4">
+                            <FormField
+                              control={form.control}
+                              name="publicRemarks"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Public Description</FormLabel>
+                                  <FormControl>
+                                    <Textarea 
+                                      {...field}
+                                      value={field.value || ''}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="mlsLink"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>MLS Link</FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      {...field}
+                                      type="url"
+                                      value={field.value || ''}
+                                      placeholder="Enter MLS listing URL"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="publicListingUrl"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Public Listing URL</FormLabel>
+                                  <FormControl>
+                                    <Input 
+                                      {...field}
+                                      type="url"
+                                      value={field.value || ''}
+                                      placeholder="Enter Zillow, Redfin, or other public listing URL"
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="isFeatured"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                    />
+                                  </FormControl>
+                                  <div className="space-y-1 leading-none">
+                                    <FormLabel>
+                                      Feature this listing
+                                    </FormLabel>
+                                    <p className="text-sm text-muted-foreground">
+                                      Featured listings appear prominently on your profile
+                                    </p>
+                                  </div>
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </ScrollArea>
+                    <div className="flex justify-end gap-4 pt-4 border-t">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setEditingListing(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? "Saving..." : "Save Changes"}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </DialogContent>
+            </Dialog>
+            <Badge variant={listing.status === "Active" ? "default" : "secondary"}>
+              {listing.status}
+            </Badge>
+          </div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div>
@@ -284,7 +939,9 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                   {activeListings.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No active listings to display.</p>
                   ) : (
-                    activeListings.map(renderListingCard)
+                    [...activeListings]
+                      .sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0))
+                      .map(renderListingCard)
                   )}
                 </div>
               </ScrollArea>
@@ -296,7 +953,9 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                   {successfulTransactions.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">No successful transactions to display.</p>
                   ) : (
-                    successfulTransactions.map(renderListingCard)
+                    [...successfulTransactions]
+                      .sort((a, b) => (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0))
+                      .map(renderListingCard)
                   )}
                 </div>
               </ScrollArea>
@@ -525,6 +1184,24 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                           />
                           <FormField
                             control={form.control}
+                            name="closeDate"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Close Date (if sold)</FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    type="date" 
+                                    {...field}
+                                    value={field.value ? (field.value instanceof Date ? field.value.toISOString().split('T')[0] : field.value.split('T')[0]) : ''}
+                                    onChange={e => field.onChange(e.target.value ? new Date(e.target.value) : null)}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
                             name="status"
                             render={({ field }) => (
                               <FormItem>
@@ -536,9 +1213,36 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent>
-                                    <SelectItem value="Active">Active</SelectItem>
-                                    <SelectItem value="Closed">Closed</SelectItem>
-                                    <SelectItem value="Pending">Pending</SelectItem>
+                                    <SelectGroup>
+                                      <SelectLabel>Active Statuses</SelectLabel>
+                                      <SelectItem value="Active">Active</SelectItem>
+                                      <SelectItem value="ActiveUnderContract">Active Under Contract</SelectItem>
+                                      <SelectItem value="ComingSoon">Coming Soon</SelectItem>
+                                    </SelectGroup>
+                                    
+                                    <SelectGroup>
+                                      <SelectLabel>Under Contract</SelectLabel>
+                                      <SelectItem value="Pending">Pending</SelectItem>
+                                      <SelectItem value="Hold">On Hold</SelectItem>
+                                    </SelectGroup>
+
+                                    <SelectGroup>
+                                      <SelectLabel>Completed</SelectLabel>
+                                      <SelectItem value="Closed">Closed</SelectItem>
+                                    </SelectGroup>
+
+                                    <SelectGroup>
+                                      <SelectLabel>Inactive</SelectLabel>
+                                      <SelectItem value="Canceled">Canceled</SelectItem>
+                                      <SelectItem value="Expired">Expired</SelectItem>
+                                      <SelectItem value="Withdrawn">Withdrawn</SelectItem>
+                                    </SelectGroup>
+
+                                    <SelectGroup>
+                                      <SelectLabel>Other</SelectLabel>
+                                      <SelectItem value="Incomplete">Incomplete</SelectItem>
+                                      <SelectItem value="Delete">Delete</SelectItem>
+                                    </SelectGroup>
                                   </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -684,6 +1388,42 @@ export default function ListingsForm({ onSubmit, className, activeListings = [],
                                   <Textarea 
                                     {...field}
                                     value={field.value || ''}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="mlsLink"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>MLS Link</FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    {...field}
+                                    type="url"
+                                    value={field.value || ''}
+                                    placeholder="Enter MLS listing URL"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="publicListingUrl"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Public Listing URL</FormLabel>
+                                <FormControl>
+                                  <Input 
+                                    {...field}
+                                    type="url"
+                                    value={field.value || ''}
+                                    placeholder="Enter Zillow, Redfin, or other public listing URL"
                                   />
                                 </FormControl>
                                 <FormMessage />

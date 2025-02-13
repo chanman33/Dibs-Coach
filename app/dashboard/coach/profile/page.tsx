@@ -93,7 +93,7 @@ export default function CoachProfilePage() {
             console.log('[DEBUG] Loaded listings data:', listingsData);
             
             // Split listings into active and successful transactions
-            const activeListings = listingsData.filter((l: any) => l.status === 'Active');
+            const activeListings = listingsData.filter((l: any) => l.status !== 'Closed');
             const successfulTransactions = listingsData.filter((l: any) => l.status === 'Closed');
             
             setListings({
@@ -214,6 +214,68 @@ export default function CoachProfilePage() {
     }
   };
 
+  const handleUpdate = async (id: number, data: any): Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void> => {
+    try {
+      setIsSubmitting(true);
+      const response = await fetch(`/api/listings?id=${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error("[LISTING_UPDATE_ERROR]", error);
+        toast({
+          title: "Error",
+          description: "Failed to update listing. Please try again.",
+          variant: "destructive",
+        });
+        return { error };
+      }
+
+      const result = await response.json();
+      
+      // Refresh the listings data
+      try {
+        const response = await fetch('/api/listings');
+        if (response.ok) {
+          const listingsData = await response.json();
+          
+          // Split listings into active and successful transactions
+          const activeListings = listingsData.filter((l: any) => l.status !== 'Closed');
+          const successfulTransactions = listingsData.filter((l: any) => l.status === 'Closed');
+          
+          setListings({
+            activeListings,
+            successfulTransactions
+          });
+        }
+      } catch (error) {
+        console.error('[LISTINGS_LOAD_ERROR]', error);
+      }
+      
+      toast({
+        title: "Success",
+        description: "Listing updated successfully",
+      });
+
+      return { data: result };
+    } catch (error) {
+      console.error("[LISTING_UPDATE_ERROR]", error);
+      toast({
+        title: "Error",
+        description: "Failed to update listing. Please try again.",
+        variant: "destructive",
+      });
+      return { error: "Failed to update listing" };
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   if (isLoading) {
     return <div>Loading...</div>;
   }
@@ -290,9 +352,10 @@ export default function CoachProfilePage() {
           <TabsContent value="listings">
             <ListingsForm
               onSubmit={(data) => handleSubmit(data, "listings")}
+              onUpdate={handleUpdate}
+              className="w-full"
               activeListings={listings.activeListings}
               successfulTransactions={listings.successfulTransactions}
-              className="w-full"
               isSubmitting={isSubmitting}
             />
           </TabsContent>

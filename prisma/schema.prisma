@@ -1259,6 +1259,10 @@ model Listing {
   virtualTours       Json?       // RESO: Virtual tour links
   isFeatured         Boolean     @default(false)   // Custom: Featured listing flag
   featuredOrder      Int?        // Custom: Featured listing order
+
+  // Custom fields
+  mlsLink            String?     @db.VarChar(1000) // Custom: Direct link to MLS listing
+  publicListingUrl   String?     @db.VarChar(1000) // Custom: Link to public listing (Zillow, Redfin, etc.)
   
   // Source Information (RESO format)
   source             String     @default("MANUAL") // RESO: Data source
