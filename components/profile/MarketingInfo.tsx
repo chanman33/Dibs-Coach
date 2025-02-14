@@ -3,21 +3,33 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { updateMarketingInfo, removeTestimonial } from "@/utils/actions/marketing-actions"
+import { toast } from "sonner"
+import type { MarketingInfo as MarketingInfoType } from "@/utils/types/marketing"
 
-export default function MarketingInformation({ onSubmit }: { onSubmit: (data: any) => void }) {
-  const [formData, setFormData] = useState({
-    slogan: "",
-    websiteUrl: "",
-    facebookUrl: "",
-    instagramUrl: "",
-    linkedinUrl: "",
-    youtubeUrl: "",
-    marketingAreas: "",
-    testimonials: [{ author: "", content: "" }],
+export default function MarketingInformation({ initialData }: { initialData?: MarketingInfoType }) {
+  const [formData, setFormData] = useState<MarketingInfoType>({
+    slogan: initialData?.slogan ?? "",
+    websiteUrl: initialData?.websiteUrl ?? "",
+    facebookUrl: initialData?.facebookUrl ?? "",
+    instagramUrl: initialData?.instagramUrl ?? "",
+    linkedinUrl: initialData?.linkedinUrl ?? "",
+    youtubeUrl: initialData?.youtubeUrl ?? "",
+    marketingAreas: initialData?.marketingAreas ?? "",
+    testimonials: initialData?.testimonials?.length ? initialData.testimonials : [{ author: "", content: "" }],
   })
+  const [isRemoving, setIsRemoving] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+    const { name, value } = e.target
+    let finalValue = value
+
+    // Handle URL fields
+    if (name.endsWith("Url") && value && !value.startsWith("http")) {
+      finalValue = `https://${value}`
+    }
+
+    setFormData({ ...formData, [name]: finalValue })
   }
 
   const handleTestimonialChange = (index: number, field: string, value: string) => {
@@ -34,36 +46,127 @@ export default function MarketingInformation({ onSubmit }: { onSubmit: (data: an
     })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleRemoveTestimonial = async (index: number) => {
+    try {
+      setIsRemoving(true)
+      
+      // Only call the server action if there's more than one testimonial
+      if (formData.testimonials.length > 1) {
+        const result = await removeTestimonial(index)
+        
+        if (result.error) {
+          toast.error(result.error)
+          return
+        }
+
+        if (result.data) {
+          setFormData(prev => ({
+            ...prev,
+            testimonials: result.data
+          }))
+          toast.success("Testimonial removed successfully")
+        }
+      }
+    } catch (error) {
+      console.error("[REMOVE_TESTIMONIAL_ERROR]", error)
+      toast.error("Failed to remove testimonial")
+    } finally {
+      setIsRemoving(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit(formData)
+    
+    try {
+      // Filter out empty testimonials before submitting
+      const dataToSubmit = {
+        ...formData,
+        testimonials: formData.testimonials.filter(
+          t => t.author.trim() !== "" || t.content.trim() !== ""
+        ),
+      }
+
+      // Ensure at least one non-empty testimonial
+      if (dataToSubmit.testimonials.length === 0) {
+        dataToSubmit.testimonials = [{ author: "", content: "" }]
+      }
+
+      const result = await updateMarketingInfo(dataToSubmit)
+      
+      if (result.error) {
+        toast.error(result.error)
+        return
+      }
+      
+      toast.success("Marketing information updated successfully")
+    } catch (error) {
+      toast.error("Failed to update marketing information")
+      console.error("[FORM_ERROR]", error)
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <Label htmlFor="slogan">Byline or Slogan</Label>
-        <Input id="slogan" name="slogan" value={formData.slogan} onChange={handleChange} />
+        <Input 
+          id="slogan" 
+          name="slogan" 
+          value={formData.slogan} 
+          onChange={handleChange}
+          placeholder="A short, catchy tagline that captures your unique value proposition (e.g., 'Turning Top Agents into Market Leaders')"
+        />
       </div>
       <div>
         <Label htmlFor="websiteUrl">Website URL</Label>
-        <Input id="websiteUrl" name="websiteUrl" value={formData.websiteUrl} onChange={handleChange} />
+        <Input 
+          id="websiteUrl" 
+          name="websiteUrl" 
+          value={formData.websiteUrl || ""} 
+          onChange={handleChange}
+          placeholder="e.g. https://example.com"
+        />
       </div>
       <div>
         <Label htmlFor="facebookUrl">Facebook URL</Label>
-        <Input id="facebookUrl" name="facebookUrl" value={formData.facebookUrl} onChange={handleChange} />
+        <Input 
+          id="facebookUrl" 
+          name="facebookUrl" 
+          value={formData.facebookUrl || ""} 
+          onChange={handleChange}
+          placeholder="e.g. https://facebook.com/profile"
+        />
       </div>
       <div>
         <Label htmlFor="instagramUrl">Instagram URL</Label>
-        <Input id="instagramUrl" name="instagramUrl" value={formData.instagramUrl} onChange={handleChange} />
+        <Input 
+          id="instagramUrl" 
+          name="instagramUrl" 
+          value={formData.instagramUrl || ""} 
+          onChange={handleChange}
+          placeholder="e.g. https://instagram.com/profile"
+        />
       </div>
       <div>
         <Label htmlFor="linkedinUrl">LinkedIn URL</Label>
-        <Input id="linkedinUrl" name="linkedinUrl" value={formData.linkedinUrl} onChange={handleChange} />
+        <Input 
+          id="linkedinUrl" 
+          name="linkedinUrl" 
+          value={formData.linkedinUrl || ""} 
+          onChange={handleChange}
+          placeholder="e.g. https://linkedin.com/in/profile"
+        />
       </div>
       <div>
         <Label htmlFor="youtubeUrl">YouTube URL</Label>
-        <Input id="youtubeUrl" name="youtubeUrl" value={formData.youtubeUrl} onChange={handleChange} />
+        <Input 
+          id="youtubeUrl" 
+          name="youtubeUrl" 
+          value={formData.youtubeUrl || ""} 
+          onChange={handleChange}
+          placeholder="e.g. https://youtube.com/channel"
+        />
       </div>
       <div>
         <Label htmlFor="marketingAreas">Marketing Areas (comma-separated)</Label>
@@ -79,6 +182,20 @@ export default function MarketingInformation({ onSubmit }: { onSubmit: (data: an
         <h3 className="text-lg font-semibold mb-2">Testimonials</h3>
         {formData.testimonials.map((testimonial, index) => (
           <div key={index} className="space-y-2 p-4 border rounded mb-4">
+            <div className="flex justify-between items-center">
+              <Label>Testimonial {index + 1}</Label>
+              {formData.testimonials.length > 1 && (
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => handleRemoveTestimonial(index)}
+                  disabled={isRemoving}
+                >
+                  {isRemoving ? "Removing..." : "Remove"}
+                </Button>
+              )}
+            </div>
             <Input
               placeholder="Author"
               value={testimonial.author}

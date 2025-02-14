@@ -9,10 +9,17 @@ import ListingsForm from "../../../../components/profile/ListingsForm"
 import MarketingInformation from "../../../../components/profile/MarketingInfo"
 import GoalsForm from "../../../../components/profile/GoalsForm"
 import { CoachProfileForm } from "../../../../components/profile/CoachProfileForm"
-import { updateGeneralProfile, fetchUserProfile, fetchCoachProfile, updateCoachProfile } from "@/utils/actions/profile-actions"
+import { 
+  updateGeneralProfile, 
+  fetchUserProfile, 
+  fetchCoachProfile, 
+  updateCoachProfile,
+  fetchMarketingInfo 
+} from "@/utils/actions/profile-actions"
 import type { CoachProfile } from "@/utils/types/coach"
 import type { RealtorProfile } from "@/utils/types/realtor"
 import type { CreateListing } from "@/utils/types/listing"
+import type { MarketingInfo } from "@/utils/types/marketing"
 import { createListing } from "@/utils/actions/listings"
 import { ListingWithRealtor } from "@/utils/supabase/types"
 
@@ -37,7 +44,7 @@ export default function CoachProfilePage() {
     activeListings: [],
     successfulTransactions: []
   })
-  const [marketing, setMarketing] = useState({})
+  const [marketing, setMarketing] = useState<MarketingInfo | null>(null)
   const [goals, setGoals] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -48,13 +55,15 @@ export default function CoachProfilePage() {
       try {
         console.log('[DEBUG] Starting to load profile data...');
         setIsLoading(true)
-        const [generalResult, coachResult] = await Promise.all([
+        const [generalResult, coachResult, marketingResult] = await Promise.all([
           fetchUserProfile(),
-          fetchCoachProfile()
+          fetchCoachProfile(),
+          fetchMarketingInfo()
         ]);
 
         console.log('[DEBUG] General profile result:', JSON.stringify(generalResult, null, 2));
         console.log('[DEBUG] Coach profile result:', JSON.stringify(coachResult, null, 2));
+        console.log('[DEBUG] Marketing result:', JSON.stringify(marketingResult, null, 2));
 
         if (generalResult.success && generalResult.data) {
           console.log('[DEBUG] Setting general info:', JSON.stringify(generalResult.data, null, 2));
@@ -76,8 +85,13 @@ export default function CoachProfilePage() {
           });
         }
 
-        if (!generalResult.success || !coachResult.success) {
-          console.error('[DEBUG] Failed to load profile data:', { generalResult, coachResult });
+        if (marketingResult.success && marketingResult.data) {
+          console.log('[DEBUG] Setting marketing data:', JSON.stringify(marketingResult.data, null, 2));
+          setMarketing(marketingResult.data);
+        }
+
+        if (!generalResult.success || !coachResult.success || !marketingResult.success) {
+          console.error('[DEBUG] Failed to load profile data:', { generalResult, coachResult, marketingResult });
           toast({
             title: "Error",
             description: "Failed to load profile data. Please refresh the page.",
@@ -117,6 +131,7 @@ export default function CoachProfilePage() {
         console.log('[DEBUG] Profile loading complete. States:', {
           generalInfo: JSON.stringify(generalInfo, null, 2),
           coachingInfo: JSON.stringify(coachingInfo, null, 2),
+          marketing: JSON.stringify(marketing, null, 2),
           isLoading
         });
       }
@@ -196,11 +211,17 @@ export default function CoachProfilePage() {
           return listingResult;
 
         case "marketing":
-          setMarketing(formData)
-          break
+          console.log('[DEBUG] Submitting marketing data:', JSON.stringify(formData, null, 2));
+          setMarketing(formData);
+          toast({
+            title: "Success",
+            description: "Marketing information updated successfully",
+          });
+          break;
+
         case "goals":
           setGoals(formData)
-          break
+          break;
       }
     } catch (error) {
       console.error('[PROFILE_UPDATE_ERROR]', error);
@@ -283,6 +304,7 @@ export default function CoachProfilePage() {
   console.log('[DEBUG] Rendering profile page with states:', {
     generalInfo: JSON.stringify(generalInfo, null, 2),
     coachingInfo: JSON.stringify(coachingInfo, null, 2),
+    marketing: JSON.stringify(marketing, null, 2),
     isLoading
   });
 
@@ -366,9 +388,7 @@ export default function CoachProfilePage() {
                 <CardTitle>Marketing Information</CardTitle>
               </CardHeader>
               <CardContent>
-                <MarketingInformation
-                  onSubmit={(data) => handleSubmit(data, "marketing")}
-                />
+                <MarketingInformation initialData={marketing || undefined} />
               </CardContent>
             </Card>
           </TabsContent>

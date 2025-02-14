@@ -141,8 +141,8 @@ export default function GeneralForm({
           value={formData.bio || ''}
           onChange={handleChange}
           disabled={isSubmitting}
-          placeholder="Tell us about your professional background and expertise"
-          rows={4}
+          placeholder="Write a comprehensive description of your real estate career, expertise, and professional background. This will appear on your full profile page."
+          rows={6}
         />
       </div>
       <Button type="submit" disabled={isSubmitting}>

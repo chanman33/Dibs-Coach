@@ -3,6 +3,7 @@
 import { auth } from "@clerk/nextjs/server"
 import { createAuthClient } from "../auth"
 import { revalidatePath } from "next/cache"
+import type { MarketingInfo } from "@/utils/types/marketing"
 
 interface GeneralFormData {
   displayName: string
@@ -508,5 +509,68 @@ export async function fetchCoachProfile() {
   } catch (error) {
     console.error('[FETCH_COACH_PROFILE_ERROR]', error)
     return { success: false, error }
+  }
+}
+
+/**
+ * Fetches marketing information for the current user's realtor profile
+ */
+export async function fetchMarketingInfo() {
+  try {
+    // Validate auth
+    const session = await auth()
+    if (!session?.userId) {
+      return { success: false, error: "Unauthorized" }
+    }
+
+    // Get supabase client
+    const supabase = await createAuthClient()
+
+    // Get user's database ID
+    const { data: userData, error: userError } = await supabase
+      .from("User")
+      .select("id")
+      .eq("userId", session.userId)
+      .single()
+
+    if (userError || !userData) {
+      console.error("[MARKETING_FETCH_ERROR] User not found:", userError)
+      return { success: false, error: "User not found" }
+    }
+
+    // Get marketing information from realtor profile
+    const { data: marketingData, error: marketingError } = await supabase
+      .from("RealtorProfile")
+      .select(`
+        slogan,
+        websiteUrl,
+        facebookUrl,
+        instagramUrl,
+        linkedinUrl,
+        youtubeUrl,
+        marketingAreas,
+        testimonials
+      `)
+      .eq("userDbId", userData.id)
+      .single()
+
+    if (marketingError) {
+      console.error("[MARKETING_FETCH_ERROR]", marketingError)
+      return { success: false, error: "Failed to fetch marketing information" }
+    }
+
+    return { 
+      success: true, 
+      data: {
+        ...marketingData,
+        marketingAreas: Array.isArray(marketingData.marketingAreas) 
+          ? marketingData.marketingAreas.join(", ")
+          : marketingData.marketingAreas || "",
+        testimonials: marketingData.testimonials || []
+      } as MarketingInfo
+    }
+  } catch (error) {
+    console.error("[MARKETING_FETCH_ERROR]", error)
+    return { success: false, error: "Failed to fetch marketing information" }
   }
 } 
