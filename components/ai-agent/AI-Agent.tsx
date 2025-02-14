@@ -188,25 +188,35 @@ const AIAgentChat = ({
         onThreadSelect={handleThreadSelect}
       />
       
-      <Card className="flex-1 flex flex-col">
+      <Card className="flex-1 flex flex-col overflow-hidden">
         <ScrollArea className="flex-1 p-4">
-          <div className="space-y-4">
+          <div className="space-y-4 flex flex-col">
             {messages.map((message, index) => (
               <div
                 key={index}
                 className={cn(
-                  "flex w-max max-w-[80%] rounded-lg px-4 py-2",
-                  message.role === "user"
-                    ? "ml-auto bg-primary text-primary-foreground"
-                    : "bg-muted"
+                  "flex flex-col",
+                  message.role === "user" ? "items-end" : "items-start"
                 )}
               >
-                {message.content}
+                <div
+                  className={cn(
+                    "rounded-lg px-4 py-2 break-words whitespace-pre-wrap",
+                    message.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted",
+                    "max-w-[85%] min-w-[50px]"
+                  )}
+                >
+                  {message.content}
+                </div>
               </div>
             ))}
             {streamingMessage && (
-              <div className="flex w-max max-w-[80%] rounded-lg px-4 py-2 bg-muted">
-                {streamingMessage}
+              <div className="flex flex-col items-start">
+                <div className="rounded-lg px-4 py-2 bg-muted break-words whitespace-pre-wrap max-w-[85%] min-w-[50px]">
+                  {streamingMessage}
+                </div>
               </div>
             )}
           </div>
