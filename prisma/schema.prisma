@@ -783,22 +783,23 @@ model Reminder {
 }
 
 model CalendlyIntegration {
-  id           Int      @id @default(autoincrement())
-  userDbId     Int      @unique
-  user         User     @relation(fields: [userDbId], references: [id])
-  userId       String // Calendly user ID
-  eventTypeId  String // Default event type ID
-  accessToken  String
-  refreshToken String
-  scope        String
-  organization String?
-  expiresAt    DateTime @db.Timestamptz
-  lastSyncAt   DateTime? @db.Timestamptz
-  failedRefreshCount Int @default(0)
-  status       String @default("active")
-  schedulingUrl String?
-  createdAt    DateTime @default(now()) @db.Timestamptz
-  updatedAt    DateTime @updatedAt @db.Timestamptz
+  id                Int       @id @default(autoincrement())
+  userDbId          Int       @unique
+  user              User      @relation(fields: [userDbId], references: [id])
+  userId            String    // Calendly user ID
+  eventTypeId       String?   // Default event type ID (made optional)
+  accessToken       String
+  refreshToken      String
+  scope             String
+  organization      String?   // Organization ID (optional)
+  expiresAt         DateTime  @db.Timestamptz
+  lastSyncAt        DateTime? @db.Timestamptz
+  failedRefreshCount Int      @default(0)
+  status            String    @default("active")
+  schedulingUrl     String    // Made required - personal scheduling URL
+  organizationUrl   String?   // Optional - only for org accounts
+  createdAt         DateTime  @default(now()) @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @db.Timestamptz
 
   @@index([userDbId])
   @@map("CalendlyIntegration")

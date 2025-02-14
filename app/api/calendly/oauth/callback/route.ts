@@ -14,6 +14,7 @@ const MOCK_TOKEN_RESPONSE = {
 
 const MOCK_USER_RESPONSE = {
   resource: {
+    uri: 'https://api.calendly.com/users/MOCK-USER-ID',
     current_organization: 'https://api.calendly.com/organizations/MOCK-ORG',
     scheduling_url: 'https://calendly.com/mock-user',
   }
@@ -236,10 +237,11 @@ export async function GET(request: Request) {
       .upsert(
         {
           userDbId: user.id,
+          userId: userData.resource.uri.split('/').pop() || 'MOCK-USER-ID',
           accessToken: access_token,
           refreshToken: refresh_token,
           scope: scope || 'default',
-          organizationUrl: userData.resource.current_organization,
+          organizationUrl: userData.resource.current_organization?.url,
           schedulingUrl: userData.resource.scheduling_url,
           expiresAt: new Date(Date.now() + (expires_in * 1000)).toISOString(),
           updatedAt: new Date().toISOString()
@@ -252,6 +254,13 @@ export async function GET(request: Request) {
 
     if (integrationError) {
       console.error('[CALENDLY_AUTH_ERROR] Failed to store integration:', integrationError)
+      // Log the actual data being sent for debugging
+      console.log('[CALENDLY_AUTH_DEBUG] Integration data:', {
+        userDbId: user.id,
+        userId: userData.resource.uri?.split('/').pop() || 'MOCK-USER-ID',
+        organizationUrl: userData.resource.current_organization?.url,
+        schedulingUrl: userData.resource.scheduling_url
+      })
       return NextResponse.redirect(
         `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to store integration data')}`
       )
