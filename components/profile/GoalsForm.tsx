@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import {
@@ -10,6 +10,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormLabel as UFormLabel,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -19,6 +20,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectLabel,
+  SelectGroup,
 } from "@/components/ui/select"
 import {
   AlertDialog,
@@ -35,69 +38,120 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { Badge } from "@/components/ui/badge"
-import { PlusCircle, Pencil, X } from "lucide-react"
+import { PlusCircle, Pencil, X, Loader2 } from "lucide-react"
+import { createGoal, updateGoal, deleteGoal, fetchGoals } from "@/utils/actions/goals"
+import { toast } from "sonner"
 
 const goalSchema = z.object({
-  id: z.string().optional(),
   title: z.string().min(1, "Title is required"),
-  category: z.enum([
-    "CAREER_MILESTONE",
-    "FINANCIAL",
-    "LEARNING",
-    "TRANSACTION",
-    "CLIENT_ACQUISITION"
-  ], {
-    required_error: "Please select a category",
-  }),
-  targetDate: z.string().min(1, "Target date is required"),
-  description: z.string().min(1, "Description is required"),
-  progress: z.string().min(1, "Progress update is required"),
-  status: z.enum(["NOT_STARTED", "IN_PROGRESS", "COMPLETED"]).default("NOT_STARTED"),
+  description: z.string().optional(),
+  target: z.number().min(0, "Target must be a positive number"),
+  current: z.number().min(0, "Current value must be a positive number"),
+  deadline: z.string().min(1, "Deadline is required"),
+  type: z.enum([
+    "sales_volume",
+    "commission_income",
+    "gci",
+    "avg_sale_price",
+    "listings",
+    "buyer_transactions",
+    "closed_deals",
+    "days_on_market",
+    "new_clients",
+    "referrals",
+    "client_retention",
+    "reviews",
+    "market_share",
+    "territory_expansion",
+    "social_media",
+    "website_traffic",
+    "certifications",
+    "training_hours",
+    "networking_events",
+    "custom"
+  ]),
+  status: z.enum(["in_progress", "completed", "overdue"]).default("in_progress"),
 })
 
 type GoalFormValues = z.infer<typeof goalSchema>
 
-interface GoalsFormProps {
-  onSubmit: (data: any) => void
+interface Goal extends GoalFormValues {
+  id: number
+  createdAt: string
+  updatedAt: string
 }
 
-export default function GoalsForm({ onSubmit }: GoalsFormProps) {
-  const [goals, setGoals] = useState<GoalFormValues[]>([])
+export default function GoalsForm() {
+  const [goals, setGoals] = useState<Goal[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [editingGoal, setEditingGoal] = useState<GoalFormValues | null>(null)
-  const [goalToDelete, setGoalToDelete] = useState<GoalFormValues | null>(null)
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
 
   const form = useForm<GoalFormValues>({
     resolver: zodResolver(goalSchema),
     defaultValues: {
       title: "",
       description: "",
-      progress: "",
-      status: "NOT_STARTED",
+      target: 0,
+      current: 0,
+      status: "in_progress",
+      type: "custom" as const,
+      deadline: new Date().toISOString().split('T')[0],
     },
   })
 
-  const handleSubmit = (data: GoalFormValues) => {
-    let newGoals: GoalFormValues[]
-    
-    if (editingGoal) {
-      // Update existing goal
-      newGoals = goals.map(goal => 
-        goal.id === editingGoal.id ? { ...data, id: editingGoal.id } : goal
-      )
-    } else {
-      // Add new goal with unique ID
-      newGoals = [...goals, { ...data, id: crypto.randomUUID() }]
+  useEffect(() => {
+    loadGoals()
+  }, [])
+
+  const loadGoals = async () => {
+    try {
+      const { data, error } = await fetchGoals()
+      if (error) {
+        toast.error("Failed to load goals")
+        return
+      }
+      if (data) {
+        setGoals(data)
+      }
+    } finally {
+      setIsInitialLoading(false)
     }
-    
-    setGoals(newGoals)
-    onSubmit(newGoals)
-    handleCloseForm()
   }
 
-  const handleEditGoal = (goal: GoalFormValues) => {
+  const handleSubmit = async (data: GoalFormValues) => {
+    setIsLoading(true)
+    try {
+      if (editingGoal) {
+        const { error } = await updateGoal(editingGoal.id, data)
+        if (error) throw error
+        toast.success("Goal updated successfully")
+      } else {
+        const { error } = await createGoal(data)
+        if (error) throw error
+        toast.success("Goal created successfully")
+      }
+      await loadGoals()
+      handleCloseForm()
+    } catch (error) {
+      toast.error(editingGoal ? "Failed to update goal" : "Failed to create goal")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleEditGoal = (goal: Goal) => {
     setEditingGoal(goal)
-    form.reset(goal)
+    form.reset({
+      title: goal.title,
+      description: goal.description || "",
+      target: goal.target,
+      current: goal.current,
+      deadline: new Date(goal.deadline).toISOString().split('T')[0],
+      type: goal.type,
+      status: goal.status,
+    })
     setShowForm(true)
   }
 
@@ -107,8 +161,11 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
     form.reset({
       title: "",
       description: "",
-      progress: "",
-      status: "NOT_STARTED",
+      target: 0,
+      current: 0,
+      status: "in_progress",
+      type: "custom" as const,
+      deadline: new Date().toISOString().split('T')[0],
     })
   }
 
@@ -117,38 +174,150 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
     form.reset({
       title: "",
       description: "",
-      progress: "",
-      status: "NOT_STARTED",
+      target: 0,
+      current: 0,
+      status: "in_progress",
+      type: "custom" as const,
+      deadline: new Date().toISOString().split('T')[0],
     })
     setShowForm(true)
   }
 
-  const handleDeleteGoal = (goal: GoalFormValues) => {
-    const newGoals = goals.filter(g => g.id !== goal.id)
-    setGoals(newGoals)
-    onSubmit(newGoals)
-    setGoalToDelete(null)
+  const handleDeleteGoal = async (goal: Goal) => {
+    setIsLoading(true)
+    try {
+      const { error } = await deleteGoal(goal.id)
+      if (error) throw error
+      toast.success("Goal deleted successfully")
+      await loadGoals()
+      handleCloseForm()
+    } catch (error) {
+      toast.error("Failed to delete goal")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "NOT_STARTED":
-        return "bg-gray-500"
-      case "IN_PROGRESS":
+      case "in_progress":
         return "bg-blue-500"
-      case "COMPLETED":
+      case "completed":
         return "bg-green-500"
+      case "overdue":
+        return "bg-red-500"
       default:
         return "bg-gray-500"
     }
   }
 
-  const getCategoryLabel = (category: string) => {
-    return category.replace(/_/g, " ").toLowerCase()
-      .split(" ")
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ")
+  const getProgressPercentage = (current: number, target: number) => {
+    return Math.min(Math.round((current / target) * 100), 100)
   }
+
+  const getFormatForGoalType = (type: string): "number" | "currency" | "percentage" | "time" => {
+    switch (type) {
+      // Currency format
+      case "sales_volume":
+      case "commission_income":
+      case "gci":
+      case "avg_sale_price":
+      case "session_revenue":
+        return "currency"
+      
+      // Percentage format
+      case "market_share":
+      case "client_retention":
+      case "mentee_satisfaction":
+      case "session_completion":
+        return "percentage"
+      
+      // Time format (hours)
+      case "response_time":
+      case "training_hours":
+      case "days_on_market":
+        return "time"
+      
+      // Number format (default)
+      default:
+        return "number"
+    }
+  }
+
+  const getValueLabelSuffix = (type: string): string => {
+    switch (getFormatForGoalType(type)) {
+      case "currency":
+        return " ($)"
+      case "percentage":
+        return " (%)"
+      case "time":
+        return " (hrs)"
+      default:
+        return ""
+    }
+  }
+
+  const formatValue = (value: number, format: string) => {
+    switch (format) {
+      case "currency":
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(value)
+      case "percentage":
+        return `${value}%`
+      case "time":
+        return `${value} hrs`
+      default:
+        return value.toLocaleString()
+    }
+  }
+
+  const goalTypeOptions = [
+    // Financial Goals
+    { value: "sales_volume", label: "Sales Volume ($)", group: "Financial" },
+    { value: "commission_income", label: "Commission Income ($)", group: "Financial" },
+    { value: "gci", label: "Gross Commission Income ($)", group: "Financial" },
+    { value: "avg_sale_price", label: "Average Sale Price ($)", group: "Financial" },
+    
+    // Transaction Goals
+    { value: "listings", label: "Number of Listings", group: "Transactions" },
+    { value: "buyer_transactions", label: "Buyer Transactions", group: "Transactions" },
+    { value: "closed_deals", label: "Closed Deals", group: "Transactions" },
+    { value: "days_on_market", label: "Days on Market", group: "Transactions" },
+    
+    // Coaching & Mentorship Goals
+    { value: "coaching_sessions", label: "1:1 Coaching Sessions", group: "Coaching & Mentorship" },
+    { value: "group_sessions", label: "Group Coaching Sessions", group: "Coaching & Mentorship" },
+    { value: "session_revenue", label: "Session Revenue ($)", group: "Coaching & Mentorship" },
+    { value: "active_mentees", label: "Active Mentees", group: "Coaching & Mentorship" },
+    { value: "mentee_satisfaction", label: "Mentee Satisfaction (%)", group: "Coaching & Mentorship" },
+    { value: "response_time", label: "Avg. Response Time (hrs)", group: "Coaching & Mentorship" },
+    { value: "session_completion", label: "Session Completion Rate", group: "Coaching & Mentorship" },
+    { value: "mentee_milestones", label: "Mentee Milestones Achieved", group: "Coaching & Mentorship" },
+    
+    // Client Goals
+    { value: "new_clients", label: "New Clients", group: "Client Goals" },
+    { value: "referrals", label: "Referrals", group: "Client Goals" },
+    { value: "client_retention", label: "Client Retention Rate (%)", group: "Client Goals" },
+    { value: "reviews", label: "Reviews/Testimonials", group: "Client Goals" },
+    
+    // Market Presence
+    { value: "market_share", label: "Market Share (%)", group: "Market Presence" },
+    { value: "territory_expansion", label: "New Territories", group: "Market Presence" },
+    { value: "social_media", label: "Social Media Growth", group: "Market Presence" },
+    { value: "website_traffic", label: "Website Visitors", group: "Market Presence" },
+    
+    // Professional Development
+    { value: "certifications", label: "Certifications", group: "Professional Development" },
+    { value: "training_hours", label: "Training Hours", group: "Professional Development" },
+    { value: "networking_events", label: "Networking Events", group: "Professional Development" },
+    
+    // Other
+    { value: "custom", label: "Custom Goal", group: "Other" },
+  ]
 
   return (
     <div className="space-y-8">
@@ -159,17 +328,26 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
           <Button 
             onClick={handleAddNewGoal}
             className="flex items-center gap-2"
+            disabled={isLoading || isInitialLoading}
           >
             <PlusCircle className="h-4 w-4" />
             Add New Goal
           </Button>
         </div>
 
-        {goals.length === 0 ? (
+        {isInitialLoading ? (
+          <Card className="p-8">
+            <div className="flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          </Card>
+        ) : goals.length === 0 ? (
           <Card className="p-8">
             <div className="text-center text-gray-500">
               <p className="mb-4">You haven't set any goals yet.</p>
-              <Button onClick={handleAddNewGoal} variant="outline">Create Your First Goal</Button>
+              <Button onClick={handleAddNewGoal} variant="outline" disabled={isLoading}>
+                Create Your First Goal
+              </Button>
             </div>
           </Card>
         ) : (
@@ -180,18 +358,19 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                   <div>
                     <h4 className="font-semibold">{goal.title}</h4>
                     <Badge variant="secondary" className="mt-1">
-                      {getCategoryLabel(goal.category)}
+                      {goal.type.charAt(0).toUpperCase() + goal.type.slice(1)}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge className={getStatusColor(goal.status)}>
-                      {goal.status.replace(/_/g, " ")}
+                      {goal.status.replace(/_/g, " ").toUpperCase()}
                     </Badge>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleEditGoal(goal)}
                       className="h-8 w-8 p-0"
+                      disabled={isLoading}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -199,13 +378,21 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                 </div>
                 <p className="text-sm text-gray-600 mt-2">{goal.description}</p>
                 <div className="mt-4 space-y-2">
-                  <div className="text-sm font-medium text-gray-700">Progress Update:</div>
-                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
-                    {goal.progress}
-                  </p>
+                  <div className="text-sm font-medium text-gray-700">Progress:</div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-2 bg-gray-200 rounded-full">
+                      <div 
+                        className="h-2 bg-blue-500 rounded-full"
+                        style={{ width: `${getProgressPercentage(goal.current, goal.target)}%` }}
+                      />
+                    </div>
+                    <span className="text-sm text-gray-600">
+                      {formatValue(goal.current, getFormatForGoalType(goal.type))} / {formatValue(goal.target, getFormatForGoalType(goal.type))}
+                    </span>
+                  </div>
                 </div>
                 <div className="mt-2 text-sm text-gray-600">
-                  Target Date: {new Date(goal.targetDate).toLocaleDateString()}
+                  Deadline: {new Date(goal.deadline).toLocaleDateString()}
                 </div>
               </Card>
             ))}
@@ -225,6 +412,7 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
               size="sm"
               onClick={handleCloseForm}
               className="h-8 w-8 p-0"
+              disabled={isLoading}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -248,22 +436,43 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
 
               <FormField
                 control={form.control}
-                name="category"
+                name="type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormLabel>Type</FormLabel>
+                    <Select 
+                      onValueChange={(value) => {
+                        field.onChange(value)
+                        // Reset target and current values when type changes to prevent formatting issues
+                        form.setValue("target", 0)
+                        form.setValue("current", 0)
+                      }} 
+                      defaultValue={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a category" />
+                          <SelectValue placeholder="Select a type" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="CAREER_MILESTONE">Career Milestone</SelectItem>
-                        <SelectItem value="FINANCIAL">Financial</SelectItem>
-                        <SelectItem value="LEARNING">Learning</SelectItem>
-                        <SelectItem value="TRANSACTION">Transaction</SelectItem>
-                        <SelectItem value="CLIENT_ACQUISITION">Client Acquisition</SelectItem>
+                        {Object.entries(
+                          goalTypeOptions.reduce((acc, option) => {
+                            if (!acc[option.group]) {
+                              acc[option.group] = []
+                            }
+                            acc[option.group].push(option)
+                            return acc
+                          }, {} as Record<string, typeof goalTypeOptions>)
+                        ).map(([group, options]) => (
+                          <SelectGroup key={group}>
+                            <SelectLabel>{group}</SelectLabel>
+                            {options.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -271,12 +480,98 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                 )}
               />
 
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="target"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Target Value{getValueLabelSuffix(form.getValues("type"))}</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          {getFormatForGoalType(form.getValues("type")) === "currency" && (
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                          )}
+                          <Input 
+                            type="number"
+                            {...field}
+                            value={field.value || 0}
+                            className={
+                              getFormatForGoalType(form.getValues("type")) === "currency" 
+                                ? "pl-7" 
+                                : getFormatForGoalType(form.getValues("type")) === "percentage" || getFormatForGoalType(form.getValues("type")) === "time"
+                                  ? "pr-12"
+                                  : ""
+                            }
+                            onChange={(e) => {
+                              const value = e.target.value === "" ? 0 : parseFloat(e.target.value)
+                              field.onChange(value)
+                            }}
+                            step={getFormatForGoalType(form.getValues("type")) === "currency" ? "0.01" : "1"}
+                            min="0"
+                          />
+                          {getFormatForGoalType(form.getValues("type")) === "percentage" && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                          )}
+                          {getFormatForGoalType(form.getValues("type")) === "time" && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">hrs</span>
+                          )}
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="current"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Current Value{getValueLabelSuffix(form.getValues("type"))}</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          {getFormatForGoalType(form.getValues("type")) === "currency" && (
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                          )}
+                          <Input 
+                            type="number"
+                            {...field}
+                            value={field.value || 0}
+                            className={
+                              getFormatForGoalType(form.getValues("type")) === "currency" 
+                                ? "pl-7" 
+                                : getFormatForGoalType(form.getValues("type")) === "percentage" || getFormatForGoalType(form.getValues("type")) === "time"
+                                  ? "pr-12"
+                                  : ""
+                            }
+                            onChange={(e) => {
+                              const value = e.target.value === "" ? 0 : parseFloat(e.target.value)
+                              field.onChange(value)
+                            }}
+                            step={getFormatForGoalType(form.getValues("type")) === "currency" ? "0.01" : "1"}
+                            min="0"
+                          />
+                          {getFormatForGoalType(form.getValues("type")) === "percentage" && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                          )}
+                          {getFormatForGoalType(form.getValues("type")) === "time" && (
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">hrs</span>
+                          )}
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
-                name="targetDate"
+                name="deadline"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Target Date</FormLabel>
+                    <FormLabel>Deadline</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
@@ -293,7 +588,7 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                     <FormLabel>Description</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Describe your goal and action steps..."
+                        placeholder="Describe your goal..."
                         {...field}
                       />
                     </FormControl>
@@ -315,28 +610,11 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="NOT_STARTED">Not Started</SelectItem>
-                        <SelectItem value="IN_PROGRESS">In Progress</SelectItem>
-                        <SelectItem value="COMPLETED">Completed</SelectItem>
+                        <SelectItem value="in_progress">In Progress</SelectItem>
+                        <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="overdue">Overdue</SelectItem>
                       </SelectContent>
                     </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="progress"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Progress Update</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Example: Completed 3 out of 10 target transactions, Earned $50k out of $100k target, Finished 2 of 4 required certifications..."
-                        {...field}
-                      />
-                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -346,7 +624,12 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                 {editingGoal && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button type="button" variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        disabled={isLoading}
+                      >
                         Delete Goal
                       </Button>
                     </AlertDialogTrigger>
@@ -370,10 +653,15 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                   </AlertDialog>
                 )}
                 <div className="flex gap-3 ml-auto">
-                  <Button type="button" variant="outline" onClick={handleCloseForm}>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={handleCloseForm}
+                    disabled={isLoading}
+                  >
                     Cancel
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" disabled={isLoading}>
                     {editingGoal ? 'Update Goal' : 'Add Goal'}
                   </Button>
                 </div>

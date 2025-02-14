@@ -72,9 +72,46 @@ enum GoalStatus {
 }
 
 enum GoalType {
-  sales
+  // Financial Goals
+  sales_volume
+  commission_income
+  gci
+  avg_sale_price
+  
+  // Transaction Goals
   listings
-  clients
+  buyer_transactions
+  closed_deals
+  days_on_market
+  
+  // Coaching & Mentorship Goals
+  coaching_sessions
+  group_sessions
+  session_revenue
+  active_mentees
+  mentee_satisfaction
+  response_time
+  session_completion
+  mentee_milestones
+  
+  // Client Goals
+  new_clients
+  referrals
+  client_retention
+  reviews
+  
+  // Market Presence
+  market_share
+  territory_expansion
+  social_media
+  website_traffic
+  
+  // Professional Development
+  certifications
+  training_hours
+  networking_events
+  
+  // Other
   custom
 }
 
