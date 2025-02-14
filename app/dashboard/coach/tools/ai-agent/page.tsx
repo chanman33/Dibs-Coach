@@ -18,7 +18,7 @@ export default async function CoachAIAgentPage() {
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="mb-8 text-3xl font-bold">RealtorGPT Assistant</h1>
+      <h1 className="mb-8 text-3xl font-bold">Real Estate GPT</h1>
       <AIAgent 
         userId={userId} 
         userDbId={userDbId}

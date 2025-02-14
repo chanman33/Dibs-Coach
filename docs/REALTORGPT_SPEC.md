@@ -1,5 +1,5 @@
 # RealtorGPT Specification
-Version: 1.0.0
+Version: 1.1.0
 
 ## Overview
 RealtorGPT is an AI-powered chatbot specifically designed for real estate agents, leveraging OpenAI's API to provide intelligent assistance with common real estate tasks, automated workflows, and context-aware conversations.
@@ -117,6 +117,178 @@ RealtorGPT is an AI-powered chatbot specifically designed for real estate agents
 - Efficient context management
 - Optimized token usage
 - Caching for common queries
+
+### 5. Vercel AI SDK Integration
+```typescript
+// lib/ai-config.ts
+import { OpenAIStream, StreamingTextResponse } from 'ai'
+import { Configuration } from 'openai-edge'
+
+export const config = {
+  runtime: 'edge',
+}
+
+const openai = new Configuration({
+  apiKey: process.env.OPENAI_API_KEY,
+})
+
+export const realtorTools = [
+  {
+    type: 'function',
+    function: {
+      name: 'generatePropertyDescription',
+      description: 'Generate compelling property descriptions',
+      parameters: {
+        type: 'object',
+        properties: {
+          propertyType: { type: 'string' },
+          features: { type: 'array', items: { type: 'string' } },
+          style: { type: 'string', enum: ['luxury', 'modern', 'traditional'] }
+        }
+      }
+    }
+  },
+  // ... other tools
+]
+```
+
+### 6. Updated Chat Implementation
+```typescript
+// app/api/chat/route.ts
+import { OpenAIStream, StreamingTextResponse } from 'ai'
+import { realtorTools } from '@/lib/ai-config'
+
+export async function POST(req: Request) {
+  const { messages, threadId } = await req.json()
+  const { userId } = await auth()
+
+  // Get thread context
+  const context = await getThreadContext(threadId)
+  
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4-turbo-preview',
+    messages: [
+      { role: 'system', content: context },
+      ...messages
+    ],
+    tools: realtorTools,
+    stream: true,
+  })
+
+  // Create stream with Vercel AI SDK
+  const stream = OpenAIStream(response, {
+    async onCompletion(completion) {
+      // Save to database
+      await saveMessage({
+        threadId,
+        content: completion,
+        role: 'assistant'
+      })
+    }
+  })
+
+  return new StreamingTextResponse(stream)
+}
+```
+
+### 7. React Components
+```typescript
+// components/Chat/RealtorChat.tsx
+import { useChat } from 'ai/react'
+import { useThread } from '@/hooks/useThread'
+
+export function RealtorChat({ threadId }: { threadId: string }) {
+  const { messages, input, handleInputChange, handleSubmit } = useChat({
+    api: '/api/chat',
+    body: { threadId },
+    onResponse(response) {
+      // Handle streaming response
+    }
+  })
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto">
+        {messages.map((message) => (
+          <ChatMessage key={message.id} message={message} />
+        ))}
+      </div>
+      
+      <form onSubmit={handleSubmit} className="p-4">
+        <input
+          value={input}
+          onChange={handleInputChange}
+          placeholder="Ask about real estate..."
+          className="w-full p-2 border rounded"
+        />
+      </form>
+    </div>
+  )
+}
+```
+
+### 8. Tool Implementation with AI SDK
+```typescript
+// lib/tools/property-description.ts
+import { OpenAIStream, experimental_StreamData } from 'ai'
+
+export async function generatePropertyDescription(params: PropertyParams) {
+  const data = new experimental_StreamData()
+  
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4-turbo-preview',
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a professional real estate copywriter.'
+      },
+      {
+        role: 'user',
+        content: `Generate a description for: ${JSON.stringify(params)}`
+      }
+    ],
+    stream: true,
+    temperature: 0.7,
+  })
+
+  const stream = OpenAIStream(response, {
+    async onCompletion(completion) {
+      // Save generated description
+      await savePropertyDescription(params.propertyId, completion)
+      data.append({ type: 'success' })
+    },
+    experimental_streamData: data,
+  })
+
+  return new StreamingTextResponse(stream, {
+    experimental_streamData: data
+  })
+}
+```
+
+### 9. Rate Limiting & Usage Tracking
+```typescript
+// lib/rate-limit.ts
+import { Ratelimit } from '@upstash/ratelimit'
+import { Redis } from '@upstash/redis'
+
+export const rateLimiter = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(50, '1 h'),
+})
+
+// middleware.ts
+import { rateLimiter } from '@/lib/rate-limit'
+import { aiMiddleware } from 'ai/middleware'
+
+export const middleware = aiMiddleware({
+  async before(req) {
+    const ip = req.headers.get('x-forwarding-for')
+    const { success } = await rateLimiter.limit(ip!)
+    if (!success) throw new Error('Rate limit exceeded')
+  }
+})
+```
 
 ## Database Schema
 
@@ -392,35 +564,49 @@ export const ChatErrorCode = {
 
 ## Implementation TODO List
 
-### Phase 1: Core Infrastructure
+### Phase 1: Vercel AI SDK Migration
+- [ ] Implement streaming responses with AI SDK
+- [ ] Update chat components to use useChat hook
+- [ ] Migrate tool implementations to use StreamData
+- [ ] Add rate limiting with Upstash
+- [ ] Implement proper error handling for streams
+
+### Phase 2: Enhanced Features
+- [ ] Add function calling with AI SDK
+- [ ] Implement streaming tool responses
+- [ ] Add real-time typing indicators
+- [ ] Implement message optimistic updates
+- [ ] Add proper error recovery
+
+### Phase 3: Core Infrastructure
 - [ ] Set up OpenAI API integration
 - [ ] Implement chat thread database schema
 - [ ] Create basic conversation management system
 - [ ] Develop user authentication and authorization
 - [ ] Implement subscription management
 
-### Phase 2: Basic Tools
+### Phase 4: Basic Tools
 - [ ] Build property description generator
 - [ ] Implement basic market analysis tools
 - [ ] Create document summary functionality
 - [ ] Develop email draft generator
 - [ ] Set up basic social media content creator
 
-### Phase 3: Advanced Features
+### Phase 5: Advanced Features
 - [ ] Implement GPT-4 integration for premium users
 - [ ] Develop advanced market analysis features
 - [ ] Create automated workflow system
 - [ ] Build transaction management tools
 - [ ] Implement client management automation
 
-### Phase 4: Optimization & Enhancement
+### Phase 6: Optimization & Enhancement
 - [ ] Optimize context management
 - [ ] Implement advanced caching
 - [ ] Add performance monitoring
 - [ ] Enhance security measures
 - [ ] Develop analytics dashboard
 
-### Phase 5: Integration & Expansion
+### Phase 7: Integration & Expansion
 - [ ] Integrate with popular real estate CRMs
 - [ ] Add multiple language support
 - [ ] Implement API for third-party integrations
@@ -444,4 +630,25 @@ export const ChatErrorCode = {
 - Mobile app development
 - Advanced analytics and reporting
 - Custom model fine-tuning
-- Integration with smart home systems 
+- Integration with smart home systems
+
+## Performance Optimizations
+
+### Streaming Benefits
+- Faster time to first token
+- Better user experience with real-time responses
+- Reduced server load
+- Optimistic updates for better UX
+- Proper error recovery
+
+### Caching Strategy
+- Use Vercel KV for response caching
+- Implement stale-while-revalidate
+- Cache common property descriptions
+- Store frequently used market analyses
+
+### Edge Runtime
+- Deploy chat endpoints to edge
+- Reduce latency for global users
+- Optimize token usage at edge
+- Handle rate limiting at edge 
