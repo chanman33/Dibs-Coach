@@ -1,34 +1,23 @@
 import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
-import OpenAI from "openai"
+import { openai, checkRateLimit, processImageWithAI, withRetry } from "@/lib/openai/openai"
+import { z } from "zod"
 
 // Remove debugging console logs in production
 const isDev = process.env.NODE_ENV === 'development'
 
-// Initialize OpenAI client with error handling
-const getOpenAIClient = () => {
-  // Hardcode the key temporarily to debug
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY environment variable is not set')
-  }
-  if (isDev) {
-    // Debug environment variables
-    console.log('Direct Key Check:', {
-      NODE_ENV: process.env.NODE_ENV,
-      API_KEY_PREFIX: apiKey.substring(0, 20) + '...',
-      API_KEY_LENGTH: apiKey.length
-    })
-  }
-
-  // Create new configuration with direct key
-  const client = new OpenAI({
-    apiKey,
-    dangerouslyAllowBrowser: false,
-  })
-
-  return client
-}
+// Input validation schema
+const listingSchema = z.object({
+  address: z.string().min(1, "Address is required"),
+  propertyType: z.string().min(1, "Property type is required"),
+  bedrooms: z.string().min(1, "Number of bedrooms is required"),
+  bathrooms: z.string().min(1, "Number of bathrooms is required"),
+  squareFootage: z.string().min(1, "Square footage is required"),
+  price: z.string().min(1, "Price is required"),
+  keyFeatures: z.string().min(1, "Key features are required"),
+  targetAudience: z.string().min(1, "Target audience is required"),
+  tone: z.string().min(1, "Tone is required"),
+})
 
 // Add type safety for form data
 interface ListingFormData {
@@ -95,7 +84,10 @@ function formatPrice(price: string): string {
   }).format(numPrice)
 }
 
-function generateListingPrompt(data: ListingFormData, imageAnalyses: (string | null)[]): string {
+function generateListingPrompt(
+  data: z.infer<typeof listingSchema>,
+  imageAnalyses: (string | null)[]
+): string {
   const formattedPrice = formatPrice(data.price)
   const validAnalyses = imageAnalyses.filter((analysis): analysis is string => analysis !== null)
   
@@ -172,67 +164,48 @@ const validateFormData = (formData: FormData): ListingFormData => {
   }
 }
 
+export const runtime = 'edge'
+export const preferredRegion = 'cle1'
+export const maxDuration = 30
+
 export async function POST(req: Request) {
-  // Define userId at the function scope level
-  let userId: string | null = null;
-  
   try {
-    // Assign userId from auth check
-    const { userId: authUserId } = await auth()
-    userId = authUserId
+    // Auth check
+    const { userId } = await auth()
     if (!userId) {
       return new NextResponse("Unauthorized", { status: 401 })
     }
 
+    // Rate limit check
+    if (!checkRateLimit()) {
+      return new NextResponse("Too many requests", { status: 429 })
+    }
+
     // Parse and validate form data
-    let formData: FormData
-    try {
-      formData = await req.formData()
-    } catch (error) {
+    const formData = await req.formData()
+    const result = listingSchema.safeParse(Object.fromEntries(formData))
+    
+    if (!result.success) {
       return new NextResponse(
-        JSON.stringify({ error: "Invalid form data format" }),
+        JSON.stringify({ error: "Invalid form data", details: result.error.format() }),
         { status: 400 }
       )
     }
 
-    // Validate form data
-    let validatedData: ListingFormData
-    try {
-      validatedData = validateFormData(formData)
-    } catch (error) {
-      return new NextResponse(
-        JSON.stringify({ error: error instanceof Error ? error.message : 'Invalid form data' }),
-        { status: 400 }
-      )
-    }
-
-    // 2. Initialize OpenAI client
-    let openai: OpenAI
-    try {
-      openai = getOpenAIClient()
-    } catch (error) {
-      console.error("[OPENAI_INIT_ERROR]", error)
-      return new NextResponse(
-        "OpenAI configuration error",
-        { status: 500 }
-      )
-    }
-
-    // 3. Process images with size limits
-    const MAX_IMAGE_SIZE = 10 * 1024 * 1024 // 10MB
-    const processImageSafely = async (file: File | null, description: string) => {
-      if (!file) return null
-      if (file.size > MAX_IMAGE_SIZE) {
-        throw new Error(`Image size exceeds ${MAX_IMAGE_SIZE / 1024 / 1024}MB limit`)
-      }
-      return processImage(file, description, openai)
-    }
-
-    // 4. Process all data in parallel with proper error handling
+    // Process images in parallel
     const [frontAnalysis, kitchenAnalysis, mainRoomAnalysis] = await Promise.allSettled([
-      processImageSafely(formData.get("frontImage") as File, "Analyze the curb appeal and exterior features of this property. Focus on architectural style, condition, and standout elements."),
-      processImageSafely(formData.get("kitchenImage") as File, "Analyze this kitchen's features, finishes, and overall appeal. Note any upgrades, appliances, and design elements."),
-      processImageSafely(formData.get("mainRoomImage") as File, "Analyze this main living space. Focus on layout, natural light, features, and overall atmosphere.")
+      processImageWithAI(
+        formData.get("frontImage") as File,
+        "Analyze the curb appeal and exterior features of this property. Focus on architectural style, condition, and standout elements."
+      ),
+      processImageWithAI(
+        formData.get("kitchenImage") as File,
+        "Analyze this kitchen's features, finishes, and overall appeal. Note any upgrades, appliances, and design elements."
+      ),
+      processImageWithAI(
+        formData.get("mainRoomImage") as File,
+        "Analyze this main living space. Focus on layout, natural light, features, and overall atmosphere."
+      )
     ])
 
     // Combine successful image analyses
@@ -241,91 +214,50 @@ export async function POST(req: Request) {
         result.status === 'fulfilled')
       .map(result => result.value)
 
-    // 6. Generate listing with retry logic
-    const generateListing = async (retries = 3): Promise<string> => {
-      try {
-        const formDataObj: ListingFormData = {
-          address: formData.get('address') as string,
-          propertyType: formData.get('propertyType') as string,
-          bedrooms: formData.get('bedrooms') as string,
-          bathrooms: formData.get('bathrooms') as string,
-          squareFootage: formData.get('squareFootage') as string,
-          price: formData.get('price') as string,
-          keyFeatures: formData.get('keyFeatures') as string,
-          targetAudience: formData.get('targetAudience') as string,
-          tone: formData.get('tone') as string,
-        }
-
-        const prompt = generateListingPrompt(formDataObj, imageAnalyses)
-
-        const response = await openai.chat.completions.create({
+    // Generate listing with retry logic
+    const listing = await withRetry(
+      async () => {
+        const completion = await openai.chat.completions.create({
           model: "gpt-4",
           messages: [
             {
               role: "system",
-              content: "You are an experienced real estate copywriter who creates compelling and professional property listings."
+              content: "You are an expert real estate copywriter skilled in creating compelling property listings."
             },
             {
               role: "user",
-              content: prompt
+              content: generateListingPrompt(result.data, imageAnalyses)
             }
           ],
           temperature: 0.7,
           max_tokens: 1000,
         })
 
-        return response.choices[0].message.content || ''
-      } catch (error) {
-        if (retries > 0 && error instanceof Error && error.message.includes('rate_limit')) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          return generateListing(retries - 1)
+        return completion.choices[0].message.content || "Failed to generate listing"
+      },
+      {
+        retries: 3,
+        onError: (error, attempt) => {
+          console.error(`[LISTING_GENERATION_ERROR] Attempt ${attempt}:`, error)
         }
-        throw error
       }
-    }
+    )
 
-    const listing = await generateListing()
-
-    // 7. Return response with proper headers
-    return NextResponse.json(
-      { listing },
+    return new NextResponse(
+      JSON.stringify({ listing }),
       { 
         headers: {
-          'Cache-Control': 'no-store',
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
         }
       }
     )
 
   } catch (error) {
-    console.error("[LISTING_ERROR]", {
-      error,
-      timestamp: new Date().toISOString(),
-      userId // Now accessible in catch block
-    })
-    
-    if (error instanceof OpenAI.APIError) {
-      return new NextResponse(
-        JSON.stringify({ 
-          error: "AI service temporarily unavailable",
-          details: isDev ? error.message : undefined 
-        }),
-        { 
-          status: error.status || 500,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      )
-    }
-    
+    console.error("[GENERATE_LISTING_ERROR]", error)
     return new NextResponse(
-      JSON.stringify({ 
-        error: "An error occurred while generating the listing",
-        details: isDev ? (error instanceof Error ? error.message : String(error)) : undefined
-      }),
-      { 
-        status: 500,
-        headers: { 'Content-Type': 'application/json' }
-      }
+      JSON.stringify({ error: "Failed to generate listing" }),
+      { status: 500 }
     )
   }
 }

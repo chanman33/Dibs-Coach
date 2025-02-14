@@ -374,6 +374,7 @@ model User {
   // Message Relations
   messagesSent     Message[] @relation("Sender")
   messagesReceived Message[] @relation("Recipient")
+  aiThreads        AIThread[]
 
   // Referral Relations
   referralsGiven    Referral[] @relation("Referrer")
@@ -1316,4 +1317,39 @@ model Listing {
   @@index([status])
   @@index([isFeatured])
   @@map("Listing")
+}
+
+// AI Chat Models
+model AIThread {
+  id        Int        @id @default(autoincrement())
+  userDbId  Int
+  title     String
+  category  String
+  status    String     @default("ACTIVE")
+  messages  AIMessage[]
+  createdAt DateTime   @default(now()) @db.Timestamptz
+  updatedAt DateTime   @updatedAt @db.Timestamptz
+
+  // Relations
+  user      User       @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+
+  @@index([userDbId])
+  @@map("AIThread")
+}
+
+model AIMessage {
+  id         Int      @id @default(autoincrement())
+  threadId   Int
+  role       String   // user or assistant
+  content    String   @db.Text
+  model      String   // e.g., gpt-4
+  tokens     Int      @default(0)
+  createdAt  DateTime @default(now()) @db.Timestamptz
+  updatedAt  DateTime @updatedAt @db.Timestamptz
+
+  // Relations
+  thread     AIThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@map("AIMessage")
 }

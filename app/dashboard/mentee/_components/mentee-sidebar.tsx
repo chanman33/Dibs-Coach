@@ -15,7 +15,8 @@ import {
   ChevronDown,
   ChevronUp,
   Calculator,
-  Target
+  Target,
+  Bot
 } from "lucide-react"
 
 export function MenteeSidebar() {
@@ -71,25 +72,19 @@ export function MenteeSidebar() {
             </NavLink>
 
 
-            {/* Tools */}
+            {/* Shared Tools */}
             <Separator className="my-3" />
-            <button
-              onClick={() => setIsToolsExpanded(!isToolsExpanded)}
-              className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-            >
-              <span className="font-semibold">Tools</span>
-              {isToolsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-            {isToolsExpanded && (
-              <div className="pl-3">
-                <NavLink href="/dashboard/mentee/tools/ai-listings" icon={Building2}>
-                  AI Listing Generator
-                </NavLink>
-                <NavLink href="/dashboard/mentee/tools/income-calc" icon={Calculator}>
-                  Income Calculator
-                </NavLink>
-              </div>
-            )}
+            <div className="pl-3">
+              <NavLink href="/dashboard/mentee/tools/ai-agent" icon={Bot}>
+                AI Agent
+              </NavLink>
+              <NavLink href="/dashboard/mentee/tools/ai-listings" icon={Building2}>
+                AI Listing Generator
+              </NavLink>
+              <NavLink href="/dashboard/mentee/tools/income-calc" icon={Calculator}>
+                Income Calculator
+              </NavLink>
+            </div>
           </nav>
         </div>
       </div>
