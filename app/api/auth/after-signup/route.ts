@@ -12,7 +12,14 @@ export async function POST(req: Request) {
     // ensureUserExists will handle both creation and updates
     const user = await ensureUserExists();
     
-    return NextResponse.json({ user });
+    return NextResponse.json({ 
+      user: {
+        ulid: user.ulid,
+        userId: user.userId,
+        email: user.email,
+        role: user.role
+      } 
+    });
   } catch (error: any) {
     console.error('[AFTER_SIGNUP_ERROR]', error);
     return NextResponse.json(

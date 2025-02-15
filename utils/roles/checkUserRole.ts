@@ -12,6 +12,7 @@ interface RoleCheckMetrics {
   success: boolean;
   errorCode?: string;
   duration: number;
+  userUlid?: string;
 }
 
 const metrics: RoleCheckMetrics[] = [];
@@ -32,6 +33,7 @@ function logMetrics(metric: RoleCheckMetrics) {
 
 export async function getUserRoles(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRoles | null> {
   const startTime = Date.now();
+  let userUlid: string | undefined;
 
   // If roles are disabled, return default role for development
   if (!config.roles.enabled) {
@@ -39,7 +41,8 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
       startTime,
       attempts: 0,
       success: true,
-      duration: Date.now() - startTime
+      duration: Date.now() - startTime,
+      userUlid
     });
     return [ROLES.MENTEE];
   }
@@ -60,31 +63,34 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
   try {
     const { data, error } = await supabase
       .from("User")
-      .select("role")
+      .select("ulid, role")
       .eq("userId", `${userId}`)
       .single();
 
     if (error) {
       if (error.code === 'PGRST116') {
-        // User not found - likely new registration
         console.log(`[GET_USER_ROLES] New user detected: ${userId}`);
         logMetrics({
           startTime,
           attempts: 1,
           success: true,
-          duration: Date.now() - startTime
+          duration: Date.now() - startTime,
+          userUlid
         });
         return null;
       }
       throw error;
     }
 
+    userUlid = data?.ulid;
+
     // Success case
     logMetrics({
       startTime,
       attempts: 1,
       success: true,
-      duration: Date.now() - startTime
+      duration: Date.now() - startTime,
+      userUlid
     });
 
     // Handle the case where role is either a string array or needs to be parsed
@@ -99,6 +105,7 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
     } catch (e) {
       console.warn("[GET_USER_ROLES] No valid roles found, using default:", {
         userId,
+        userUlid,
         roles,
         error: e
       });
@@ -107,6 +114,7 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
   } catch (error) {
     console.error("[GET_USER_ROLES] Error:", {
       userId,
+      userUlid,
       error: error instanceof Error ? error.message : 'Unknown error',
       duration: `${Date.now() - startTime}ms`
     });
@@ -116,7 +124,7 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
 
 // For backward compatibility
 export async function getUserRole(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRole> {
-  const roles = await getUserRoles(userId, context);
+  const roles = await getUserRoles(userId, context) || [ROLES.MENTEE];
   return roles[0];
 }
 

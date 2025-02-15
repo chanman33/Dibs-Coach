@@ -100,7 +100,7 @@ export default function middleware(req: NextRequest) {
       // Check if user exists in database
       const { data: user, error } = await supabase
         .from('User')
-        .select('role')
+        .select('ulid, role')
         .eq('userId', resolvedAuth.userId)
         .single();
 
@@ -110,7 +110,7 @@ export default function middleware(req: NextRequest) {
         return NextResponse.redirect(new URL('/error?code=user_not_found', req.url));
       }
 
-      const role = user.role;
+      const { role, ulid } = user;
 
       // Handle role-specific route access
       if (ADMIN_ROUTES.some(route => pathname.match(route)) && role !== ROLES.ADMIN) {
@@ -136,10 +136,11 @@ export default function middleware(req: NextRequest) {
         }
       }
 
-      // Add role to headers for downstream use
+      // Add role and user identifiers to headers for downstream use
       const requestHeaders = new Headers(req.headers);
       requestHeaders.set('x-user-role', role);
       requestHeaders.set('x-user-id', resolvedAuth.userId);
+      requestHeaders.set('x-user-ulid', ulid);
 
       return NextResponse.next({
         request: {

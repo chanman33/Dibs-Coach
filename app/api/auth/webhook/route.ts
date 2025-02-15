@@ -107,7 +107,7 @@ export async function POST(req: Request) {
         // Check if user exists
         const { data: existingUser } = await supabase
           .from('User')
-          .select('*')
+          .select('ulid, userId')
           .eq('userId', payload.data.id)
           .single();
 
@@ -134,7 +134,7 @@ export async function POST(req: Request) {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           })
-          .select()
+          .select('ulid, userId, email, firstName, lastName, profileImageUrl, role, memberStatus')
           .single();
 
         if (createError) throw createError;
@@ -168,7 +168,7 @@ export async function POST(req: Request) {
         // Get current user data to check if displayName was manually set
         const { data: currentUser } = await supabase
           .from('User')
-          .select('displayName, firstName, lastName')
+          .select('ulid, displayName, firstName, lastName')
           .eq('userId', payload.data.id)
           .single();
 
@@ -195,7 +195,7 @@ export async function POST(req: Request) {
           .from('User')
           .update(updateData)
           .eq('userId', payload.data.id)
-          .select()
+          .select('ulid, userId, email, firstName, lastName, displayName, profileImageUrl')
           .single();
 
         if (updateError) throw updateError;

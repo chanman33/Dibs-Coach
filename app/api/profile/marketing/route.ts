@@ -13,10 +13,10 @@ export async function GET() {
     // Get supabase client
     const supabase = await createAuthClient()
 
-    // Get user's database ID
+    // Get user's ULID
     const { data: userData, error: userError } = await supabase
       .from("User")
-      .select("id")
+      .select("ulid")
       .eq("userId", session.userId)
       .single()
 
@@ -37,7 +37,7 @@ export async function GET() {
         marketingAreas,
         testimonials
       `)
-      .eq("userDbId", userData.id)
+      .eq("userUlid", userData.ulid)
       .single()
 
     if (marketingError) {
@@ -67,10 +67,10 @@ export async function PUT(request: Request) {
     // Get supabase client
     const supabase = await createAuthClient()
 
-    // Get user's database ID
+    // Get user's ULID
     const { data: userData, error: userError } = await supabase
       .from("User")
-      .select("id")
+      .select("ulid")
       .eq("userId", session.userId)
       .single()
 
@@ -92,7 +92,7 @@ export async function PUT(request: Request) {
         testimonials: body.testimonials,
         updatedAt: new Date().toISOString(),
       })
-      .eq("userDbId", userData.id)
+      .eq("userUlid", userData.ulid)
 
     if (updateError) {
       console.error("[DB_ERROR]", updateError)

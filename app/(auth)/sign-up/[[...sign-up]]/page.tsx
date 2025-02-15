@@ -2,6 +2,7 @@ import { SignUp } from "@clerk/nextjs";
 import { redirect } from "next/navigation";
 import { ReadonlyURLSearchParams } from "next/navigation";
 import config from "@/config";
+import { Suspense } from "react";
 
 export default async function SignUpPage({
     searchParams,
@@ -22,17 +23,23 @@ export default async function SignUpPage({
 
     return (
         <div className="flex min-h-screen justify-center items-center p-4">
-            <SignUp 
-                appearance={{
-                    elements: {
-                        rootBox: "mx-auto",
-                        card: "shadow-none"
-                    }
-                }}
-                redirectUrl={redirectPath}
-                afterSignUpUrl={redirectPath}
-                signInUrl="/sign-in"
-            />
+            <Suspense fallback={
+                <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+            }>
+                <SignUp 
+                    appearance={{
+                        elements: {
+                            rootBox: "mx-auto",
+                            card: "shadow-none"
+                        }
+                    }}
+                    redirectUrl={redirectPath}
+                    afterSignUpUrl={redirectPath}
+                    signInUrl="/sign-in"
+                />
+            </Suspense>
         </div>
     );
 }
