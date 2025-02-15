@@ -34,6 +34,31 @@ The Real Estate Agent Coaching Marketplace is built using a modern tech stack wi
 1. Prisma: Schema management and migrations only
 2. Supabase: All database operations
 3. Row Level Security (RLS) enabled for data protection
+4. ULID-based primary and foreign keys
+
+### ULID Implementation
+The application uses ULIDs (Universally Unique Lexicographically Sortable Identifier) for all database records. This provides several benefits:
+
+1. **Time-sortable**: ULIDs contain a timestamp component, making them naturally sortable
+2. **Unique**: Guaranteed uniqueness across distributed systems
+3. **URL-safe**: Base32 encoding makes them safe for URLs
+4. **Performance**: Monotonically increasing values improve database performance
+
+#### Technical Implementation
+- PostgreSQL function `generate_ulid()` for database-side generation
+- Stored in `CHAR(26)` fields
+- Initialized in first migration (`00000000000000_init_ulid`)
+- Utility functions in `utils/ulid.ts` for application-side handling
+
+#### Schema Conventions
+```prisma
+// Primary key pattern
+ulid String @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+
+// Foreign key pattern
+entityUlid String @db.Char(26)
+entity Entity @relation(fields: [entityUlid], references: [ulid])
+```
 
 ### Schema Overview
 The database schema includes models for:
@@ -42,6 +67,36 @@ The database schema includes models for:
 - Reviews and Feedback
 - Messages and Communications
 - Payments and Subscriptions
+
+All models use ULID-based primary keys and relationships.
+
+### Database Access Patterns
+```typescript
+// Querying by ULID
+const user = await supabase
+  .from("User")
+  .select()
+  .eq("ulid", userUlid)
+
+// Creating with auto-generated ULID
+const { data, error } = await supabase
+  .from("User")
+  .insert({
+    userId: clerkId,
+    email: email,
+    // ULID will be auto-generated
+  })
+
+// Relationships using ULIDs
+const sessions = await supabase
+  .from("Session")
+  .select(`
+    *,
+    mentee:User!Session_menteeUlid_fkey(*),
+    coach:User!Session_coachUlid_fkey(*)
+  `)
+  .eq("menteeUlid", userUlid)
+```
 
 ## API Structure
 ### Implementation Requirements
