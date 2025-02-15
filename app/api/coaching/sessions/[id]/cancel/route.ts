@@ -1,90 +1,135 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
-import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
+import { ApiResponse } from '@/utils/types/api'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
+import { createAuthClient } from '@/utils/auth'
+import { z } from 'zod'
 
-export async function PUT(
+// Validation schema for session ID
+const SessionParamsSchema = z.object({
+  id: z.string().length(26, 'Invalid ULID format')
+})
+
+interface CancelSessionResponse {
+  success: true
+}
+
+export const PUT = withApiAuth<CancelSessionResponse>(async (
   request: Request,
-  { params }: { params: { id: string } }
-) {
+  ctx: { userUlid: string }
+) => {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    // Validate session ID
+    const id = request.url.split('/').slice(-2)[0]
+    const validationResult = SessionParamsSchema.safeParse({ id })
+    if (!validationResult.success) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'INVALID_ID',
+          message: 'Invalid session ID format',
+          details: validationResult.error.flatten()
+        }
+      }, { status: 400 })
     }
 
-    const sessionId = params.id
-    if (!sessionId) {
-      return new NextResponse('Session ID is required', { status: 400 })
-    }
-
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
-
-    // Get user's database ID
-    const { data: user, error: userError } = await supabase
-      .from('User')
-      .select('id')
-      .eq('userId', userId)
-      .single()
-
-    if (userError || !user) {
-      return new NextResponse(userError ? 'Error fetching user data' : 'User not found', { 
-        status: userError ? 500 : 404 
-      })
-    }
+    const sessionUlid = id
+    const supabase = await createAuthClient()
 
     // Get session and verify ownership
     const { data: session, error: sessionError } = await supabase
       .from('Session')
       .select('*')
-      .eq('id', sessionId)
+      .eq('ulid', sessionUlid)
       .single()
 
-    if (sessionError || !session) {
-      return new NextResponse(sessionError ? 'Error fetching session' : 'Session not found', { 
-        status: sessionError ? 500 : 404 
+    if (sessionError) {
+      console.error('[CANCEL_SESSION_ERROR] Failed to fetch session:', { 
+        userUlid: ctx.userUlid,
+        sessionUlid,
+        error: sessionError 
       })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch session'
+        }
+      }, { status: 500 })
+    }
+
+    if (!session) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Session not found'
+        }
+      }, { status: 404 })
     }
 
     // Verify user is either the coach or mentee
-    if (session.coachDbId !== user.id && session.menteeDbId !== user.id) {
-      return new NextResponse('Unauthorized to cancel this session', { status: 403 })
+    if (session.coachUlid !== ctx.userUlid && session.menteeUlid !== ctx.userUlid) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Not authorized to cancel this session'
+        }
+      }, { status: 403 })
     }
 
-    // Verify session can be cancelled (not already cancelled or completed)
-    if (session.status !== 'scheduled') {
-      return new NextResponse(`Cannot cancel a session that is ${session.status}`, { 
-        status: 400 
-      })
+    // Verify session can be cancelled
+    if (session.status !== 'SCHEDULED') {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'INVALID_STATUS',
+          message: `Cannot cancel a session that is ${session.status.toLowerCase()}`
+        }
+      }, { status: 400 })
     }
 
     // Cancel the session
     const { error: updateError } = await supabase
       .from('Session')
       .update({
-        status: 'cancelled',
+        status: 'CANCELLED',
         updatedAt: new Date().toISOString()
       })
-      .eq('id', sessionId)
+      .eq('ulid', sessionUlid)
 
     if (updateError) {
-      console.error('[CANCEL_SESSION_ERROR]', updateError)
-      return new NextResponse('Failed to cancel session', { status: 500 })
+      console.error('[CANCEL_SESSION_ERROR] Failed to update session:', {
+        userUlid: ctx.userUlid,
+        sessionUlid,
+        error: updateError
+      })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'UPDATE_ERROR',
+          message: 'Failed to cancel session'
+        }
+      }, { status: 500 })
     }
 
     // TODO: Handle refund if payment was made
     // TODO: Send cancellation notifications
     // TODO: Remove calendar invites
 
-    return new NextResponse(null, { status: 204 })
-
+    return NextResponse.json<ApiResponse<{ success: true }>>({
+      data: { success: true },
+      error: null
+    })
   } catch (error) {
-    console.error('[CANCEL_SESSION_ERROR]', error)
-    return new NextResponse('Internal server error', { status: 500 })
+    console.error('[CANCEL_SESSION_ERROR] Unexpected error:', error)
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-} 
+}) 

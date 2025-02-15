@@ -1,9 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
-import { CalendlyService } from '../../../../lib/calendly/calendly-service'
-import { CircuitBreaker } from '../../../../lib/calendly/circuit-breaker'
-import { RetryManager } from '../../../../lib/calendly/retry-manager'
-import { env } from '../../../../lib/env'
+import { CalendlyService } from '@/lib/calendly/calendly-service'
+import { CircuitBreaker } from '@/lib/calendly/circuit-breaker'
+import { RetryManager } from '@/lib/calendly/retry-manager'
+import { env } from '@/lib/env'
+import { ApiResponse } from '@/utils/types/api'
 
 // Vercel Cron authentication
 const CRON_SECRET = env.CRON_SECRET
@@ -21,6 +22,12 @@ const retryManager = new RetryManager({
   maxDelay: 10000,
 })
 
+interface RefreshResults {
+  success: number
+  failed: number
+  errors: string[]
+}
+
 export const maxDuration = 300 // 5 minutes max execution time
 
 export async function GET(request: Request) {
@@ -28,7 +35,13 @@ export async function GET(request: Request) {
     // Verify cron secret
     const authHeader = request.headers.get('authorization')
     if (authHeader !== `Bearer ${CRON_SECRET}`) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Invalid cron secret'
+        }
+      }, { status: 401 })
     }
 
     // Initialize Supabase client for server-side cron
@@ -53,25 +66,43 @@ export async function GET(request: Request) {
     // Find tokens that expire in the next hour
     const { data: expiredTokens, error: fetchError } = await supabase
       .from('CalendlyIntegration')
-      .select('*')
+      .select(`
+        ulid,
+        userUlid,
+        accessToken,
+        refreshToken,
+        expiresAt,
+        status,
+        failedRefreshCount
+      `)
       .eq('status', 'active')
       .lt('expiresAt', new Date(Date.now() + 60 * 60 * 1000).toISOString()) // Tokens expiring in next hour
       .order('expiresAt', { ascending: true })
 
     if (fetchError) {
       console.error('[CALENDLY_REFRESH_ERROR] Failed to fetch expired tokens:', fetchError)
-      return new NextResponse('Failed to fetch tokens', { status: 500 })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch tokens',
+          details: fetchError
+        }
+      }, { status: 500 })
     }
 
     if (!expiredTokens?.length) {
-      return NextResponse.json({ message: 'No tokens to refresh' })
+      return NextResponse.json<ApiResponse<RefreshResults>>({
+        data: { success: 0, failed: 0, errors: [] },
+        error: null
+      })
     }
 
     const calendlyService = new CalendlyService()
-    const results = {
+    const results: RefreshResults = {
       success: 0,
       failed: 0,
-      errors: [] as string[],
+      errors: [],
     }
 
     // Process each token
@@ -101,7 +132,7 @@ export async function GET(request: Request) {
                 failedRefreshCount: 0,
                 updatedAt: new Date().toISOString(),
               })
-              .eq('id', integration.id)
+              .eq('ulid', integration.ulid)
 
             if (updateError) throw updateError
 
@@ -119,9 +150,13 @@ export async function GET(request: Request) {
         }
 
       } catch (error) {
-        console.error('[CALENDLY_REFRESH_ERROR] Failed to refresh token:', error)
+        console.error('[CALENDLY_REFRESH_ERROR] Failed to refresh token:', {
+          integrationUlid: integration.ulid,
+          userUlid: integration.userUlid,
+          error
+        })
         results.failed++
-        results.errors.push(`Failed to refresh token for integration ${integration.id}: ${error instanceof Error ? error.message : String(error)}`)
+        results.errors.push(`Failed to refresh token for integration ${integration.ulid}: ${error instanceof Error ? error.message : String(error)}`)
         circuitBreaker.recordFailure()
 
         // Update integration status
@@ -132,15 +167,25 @@ export async function GET(request: Request) {
             failedRefreshCount: integration.failedRefreshCount + 1,
             updatedAt: new Date().toISOString(),
           })
-          .eq('id', integration.id)
+          .eq('ulid', integration.ulid)
       }
     }
 
-    return NextResponse.json(results)
+    return NextResponse.json<ApiResponse<RefreshResults>>({
+      data: results,
+      error: null
+    })
 
   } catch (error) {
     console.error('[CALENDLY_REFRESH_ERROR] Cron job failed:', error)
-    return new NextResponse('Internal server error', { status: 500 })
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Cron job failed',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
 }
 

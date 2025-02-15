@@ -1,130 +1,100 @@
-import { auth } from "@clerk/nextjs/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { createAuthClient } from "@/utils/auth";
+import { ApiResponse } from "@/utils/types/api";
+import { ROLES } from "@/utils/roles/roles";
+import { withApiAuth } from "@/utils/middleware/withApiAuth";
 import { CoachingScheduleSchema } from "@/utils/types/coaching";
-import { ROLES, hasAnyRole } from "@/utils/roles/roles";
-import { getUserRoles } from "@/utils/roles/checkUserRole";
+import { z } from "zod";
 
-// Helper function to get user's database ID
-async function getUserDbId(userId: string) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-      },
-    }
-  );
-
-  const { data, error } = await supabase
-    .from("User")
-    .select("id")
-    .eq("userId", userId)
-    .single();
-
-  if (error) throw error;
-  return data.id;
+// Response type for availability schedules
+interface AvailabilitySchedule {
+  ulid: string;
+  userUlid: string;
+  name: string;
+  timezone: string;
+  rules: {
+    type: 'wday' | 'date';
+    wday?: number;
+    date?: string;
+    intervals: Array<{ from: string; to: string }>;
+  }[];
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
-export async function GET(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Check if user is a coach
-  const roles = await getUserRoles(userId);
-  if (!hasAnyRole(roles, [ROLES.COACH])) {
-    return NextResponse.json(
-      { error: "Only coaches can access availability schedules" },
-      { status: 403 }
-    );
-  }
-
+export const GET = withApiAuth<AvailabilitySchedule[]>(async (req, { userUlid }) => {
   try {
-    const userDbId = await getUserDbId(userId);
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
+    const supabase = await createAuthClient();
 
     const { data, error } = await supabase
       .from("CoachingAvailabilitySchedule")
       .select("*")
-      .eq("userDbId", userDbId)
+      .eq("userUlid", userUlid)
       .order("isDefault", { ascending: false });
 
     if (error) {
-      console.error("[GET_AVAILABILITY] Error:", error);
-      return NextResponse.json(
-        { error: "Error fetching availability schedules" },
-        { status: 500 }
-      );
+      console.error("[AVAILABILITY_ERROR] Failed to fetch schedules:", { 
+        userUlid, 
+        error 
+      });
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch availability schedules'
+        }
+      }, { status: 500 });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json<ApiResponse<AvailabilitySchedule[]>>({ 
+      data,
+      error: null
+    });
   } catch (error) {
-    console.error("[GET_AVAILABILITY] Error:", error);
-    return NextResponse.json(
-      { error: "Error processing request" },
-      { status: 500 }
-    );
+    console.error("[AVAILABILITY_ERROR] Unexpected error:", { userUlid, error });
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 });
   }
-}
+}, { requiredRoles: [ROLES.COACH] });
 
-export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Check if user is a coach
-  const roles = await getUserRoles(userId);
-  if (!hasAnyRole(roles, [ROLES.COACH])) {
-    return NextResponse.json(
-      { error: "Only coaches can create availability schedules" },
-      { status: 403 }
-    );
-  }
-
+export const POST = withApiAuth<AvailabilitySchedule>(async (req, { userUlid }) => {
   try {
     const body = await req.json();
     const validatedData = CoachingScheduleSchema.parse(body);
-    const userDbId = await getUserDbId(userId);
-
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
+    const supabase = await createAuthClient();
 
     // If this is set as default, unset any existing default
     if (validatedData.isDefault) {
-      await supabase
+      const { error: updateError } = await supabase
         .from("CoachingAvailabilitySchedule")
-        .update({ isDefault: false })
-        .eq("userDbId", userDbId)
+        .update({ 
+          isDefault: false,
+          updatedAt: new Date().toISOString()
+        })
+        .eq("userUlid", userUlid)
         .eq("isDefault", true);
+
+      if (updateError) {
+        console.error("[AVAILABILITY_ERROR] Failed to update existing default:", { 
+          userUlid, 
+          error: updateError 
+        });
+        return NextResponse.json<ApiResponse<never>>({ 
+          data: null, 
+          error: {
+            code: 'UPDATE_ERROR',
+            message: 'Failed to update existing default schedule'
+          }
+        }, { status: 500 });
+      }
     }
 
     // Create new schedule
@@ -132,95 +102,121 @@ export async function POST(req: NextRequest) {
       .from("CoachingAvailabilitySchedule")
       .insert({
         ...validatedData,
-        userDbId,
-        updatedAt: new Date().toISOString(),
+        userUlid,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       })
       .select()
       .single();
 
     if (error) {
-      console.error("[CREATE_AVAILABILITY] Error:", error);
-      return NextResponse.json(
-        { error: "Error creating availability schedule" },
-        { status: 500 }
-      );
+      console.error("[AVAILABILITY_ERROR] Failed to create schedule:", { 
+        userUlid, 
+        error 
+      });
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: {
+          code: 'CREATE_ERROR',
+          message: 'Failed to create availability schedule'
+        }
+      }, { status: 500 });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json<ApiResponse<AvailabilitySchedule>>({
+      data,
+      error: null
+    });
   } catch (error) {
-    console.error("[CREATE_AVAILABILITY] Error:", error);
-    return NextResponse.json(
-      { error: "Error processing request" },
-      { status: 500 }
-    );
+    console.error("[AVAILABILITY_ERROR] Unexpected error:", { userUlid, error });
+    if (error instanceof z.ZodError) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid schedule data',
+          details: error.flatten()
+        }
+      }, { status: 400 });
+    }
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 });
   }
-}
+}, { requiredRoles: [ROLES.COACH] });
 
-export async function PUT(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Check if user is a coach
-  const roles = await getUserRoles(userId);
-  if (!hasAnyRole(roles, [ROLES.COACH])) {
-    return NextResponse.json(
-      { error: "Only coaches can update availability schedules" },
-      { status: 403 }
-    );
-  }
-
+export const PUT = withApiAuth<AvailabilitySchedule>(async (req, { userUlid }) => {
   try {
     const body = await req.json();
-    const { id, ...updateData } = body;
+    const { ulid, ...updateData } = body;
     
-    if (!id) {
-      return NextResponse.json(
-        { error: "Schedule ID is required" },
-        { status: 400 }
-      );
+    if (!ulid) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: {
+          code: 'MISSING_ID',
+          message: 'Schedule ID is required'
+        }
+      }, { status: 400 });
     }
 
     const validatedData = CoachingScheduleSchema.parse(updateData);
-    const userDbId = await getUserDbId(userId);
-
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
+    const supabase = await createAuthClient();
 
     // Verify ownership
-    const { data: existing } = await supabase
+    const { data: existing, error: checkError } = await supabase
       .from("CoachingAvailabilitySchedule")
-      .select("id")
-      .eq("id", id)
-      .eq("userDbId", userDbId)
+      .select("ulid")
+      .eq("ulid", ulid)
+      .eq("userUlid", userUlid)
       .single();
 
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Schedule not found or unauthorized" },
-        { status: 404 }
-      );
+    if (checkError || !existing) {
+      console.error("[AVAILABILITY_ERROR] Schedule not found or unauthorized:", { 
+        userUlid, 
+        scheduleUlid: ulid,
+        error: checkError 
+      });
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Schedule not found or unauthorized'
+        }
+      }, { status: 404 });
     }
 
     // If this is set as default, unset any existing default
     if (validatedData.isDefault) {
-      await supabase
+      const { error: updateError } = await supabase
         .from("CoachingAvailabilitySchedule")
-        .update({ isDefault: false })
-        .eq("userDbId", userDbId)
+        .update({ 
+          isDefault: false,
+          updatedAt: new Date().toISOString()
+        })
+        .eq("userUlid", userUlid)
         .eq("isDefault", true)
-        .neq("id", id);
+        .neq("ulid", ulid);
+
+      if (updateError) {
+        console.error("[AVAILABILITY_ERROR] Failed to update existing default:", { 
+          userUlid, 
+          scheduleUlid: ulid,
+          error: updateError 
+        });
+        return NextResponse.json<ApiResponse<never>>({ 
+          data: null, 
+          error: {
+            code: 'UPDATE_ERROR',
+            message: 'Failed to update existing default schedule'
+          }
+        }, { status: 500 });
+      }
     }
 
     // Update schedule
@@ -228,90 +224,51 @@ export async function PUT(req: NextRequest) {
       .from("CoachingAvailabilitySchedule")
       .update({
         ...validatedData,
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       })
-      .eq("id", id)
-      .eq("userDbId", userDbId)
+      .eq("ulid", ulid)
+      .eq("userUlid", userUlid)
       .select()
       .single();
 
     if (error) {
-      console.error("[UPDATE_AVAILABILITY] Error:", error);
-      return NextResponse.json(
-        { error: "Error updating availability schedule" },
-        { status: 500 }
-      );
+      console.error("[AVAILABILITY_ERROR] Failed to update schedule:", { 
+        userUlid, 
+        scheduleUlid: ulid,
+        error 
+      });
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: {
+          code: 'UPDATE_ERROR',
+          message: 'Failed to update availability schedule'
+        }
+      }, { status: 500 });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json<ApiResponse<AvailabilitySchedule>>({
+      data,
+      error: null
+    });
   } catch (error) {
-    console.error("[UPDATE_AVAILABILITY] Error:", error);
-    return NextResponse.json(
-      { error: "Error processing request" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Check if user is a coach
-  const roles = await getUserRoles(userId);
-  if (!hasAnyRole(roles, [ROLES.COACH])) {
-    return NextResponse.json(
-      { error: "Only coaches can delete availability schedules" },
-      { status: 403 }
-    );
-  }
-
-  const scheduleId = req.nextUrl.searchParams.get("id");
-  if (!scheduleId) {
-    return NextResponse.json(
-      { error: "Schedule ID is required" },
-      { status: 400 }
-    );
-  }
-
-  try {
-    const userDbId = await getUserDbId(userId);
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
+    console.error("[AVAILABILITY_ERROR] Unexpected error:", { userUlid, error });
+    if (error instanceof z.ZodError) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid schedule data',
+          details: error.flatten()
+        }
+      }, { status: 400 });
+    }
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
       }
-    );
-
-    // Verify ownership and delete
-    const { error } = await supabase
-      .from("CoachingAvailabilitySchedule")
-      .delete()
-      .eq("id", scheduleId)
-      .eq("userDbId", userDbId);
-
-    if (error) {
-      console.error("[DELETE_AVAILABILITY] Error:", error);
-      return NextResponse.json(
-        { error: "Error deleting availability schedule" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("[DELETE_AVAILABILITY] Error:", error);
-    return NextResponse.json(
-      { error: "Error processing request" },
-      { status: 500 }
-    );
+    }, { status: 500 });
   }
-} 
+}, { requiredRoles: [ROLES.COACH] }); 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ApiResponse } from "@/utils/types/api";
 import { CoachProfileSchema, UpdateCoachProfileSchema, type CoachProfile } from "@/utils/types/coach";
-import { ROLES, hasAnyRole } from "@/utils/roles/roles";
+import { ROLES } from "@/utils/roles/roles";
 import { withApiAuth } from "@/utils/middleware/withApiAuth";
 import { createAuthClient } from "@/utils/auth";
 import { ProfessionalRecognition, ProfessionalRecognitionSchema } from "@/utils/types/realtor";
@@ -26,14 +26,24 @@ export const GET = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       .single();
 
     if (error) {
-      console.error("[GET_COACH_PROFILE] Error:", error);
+      console.error("[COACH_PROFILE_ERROR] Failed to fetch profile:", { userUlid, error });
       return NextResponse.json<ApiResponse<never>>({ 
         data: null,
         error: {
           code: 'FETCH_ERROR',
-          message: 'Error fetching coach profile'
+          message: 'Failed to fetch coach profile'
         }
       }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Coach profile not found'
+        }
+      }, { status: 404 });
     }
 
     return NextResponse.json<ApiResponse<CoachProfile>>({ 
@@ -41,33 +51,61 @@ export const GET = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       error: null
     });
   } catch (error) {
-    console.error("[GET_COACH_PROFILE] Error:", error);
+    console.error("[COACH_PROFILE_ERROR] Unexpected error:", { userUlid, error });
     return NextResponse.json<ApiResponse<never>>({ 
       data: null,
       error: {
         code: 'INTERNAL_ERROR',
-        message: 'Error processing request'
+        message: 'An unexpected error occurred'
       }
     }, { status: 500 });
   }
-});
+}, { requiredRoles: [ROLES.COACH] });
 
 export const POST = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
+  const supabase = await createAuthClient();
+  
   try {
     const body = await req.json();
     const validatedData = CoachProfileSchema.parse(body);
-    const supabase = await createAuthClient();
 
-    // Check if realtor profile exists
-    const { data: realtorProfile } = await supabase
+    // Start transaction
+    const { data: existingProfile, error: checkError } = await supabase
+      .from("CoachProfile")
+      .select("ulid")
+      .eq("userUlid", userUlid)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error("[COACH_PROFILE_ERROR] Failed to check existing profile:", { userUlid, error: checkError });
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'DB_ERROR',
+          message: 'Failed to check existing profile'
+        }
+      }, { status: 500 });
+    }
+
+    if (existingProfile) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'ALREADY_EXISTS',
+          message: 'Coach profile already exists'
+        }
+      }, { status: 400 });
+    }
+
+    // Create realtor profile if it doesn't exist
+    const { data: realtorProfile, error: realtorError } = await supabase
       .from("RealtorProfile")
       .select("ulid")
       .eq("userUlid", userUlid)
       .single();
 
-    // Create realtor profile if it doesn't exist
     if (!realtorProfile) {
-      const { error: profileError } = await supabase
+      const { error: createError } = await supabase
         .from("RealtorProfile")
         .insert({
           userUlid,
@@ -83,37 +121,20 @@ export const POST = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
           updatedAt: new Date().toISOString()
         });
 
-      if (profileError) {
-        console.error("[CREATE_COACH_PROFILE] Error creating realtor profile:", profileError);
+      if (createError) {
+        console.error("[COACH_PROFILE_ERROR] Failed to create realtor profile:", { userUlid, error: createError });
         return NextResponse.json<ApiResponse<never>>({ 
           data: null,
           error: {
             code: 'CREATE_ERROR',
-            message: 'Error creating realtor profile'
+            message: 'Failed to create realtor profile'
           }
         }, { status: 500 });
       }
     }
 
-    // Check if profile already exists
-    const { data: existing } = await supabase
-      .from("CoachProfile")
-      .select("ulid")
-      .eq("userUlid", userUlid)
-      .single();
-
-    if (existing) {
-      return NextResponse.json<ApiResponse<never>>({ 
-        data: null,
-        error: {
-          code: 'ALREADY_EXISTS',
-          message: 'Coach profile already exists'
-        }
-      }, { status: 400 });
-    }
-
-    // Create new profile
-    const { data, error } = await supabase
+    // Create coach profile
+    const { data: profile, error: createError } = await supabase
       .from("CoachProfile")
       .insert({
         ...validatedData,
@@ -123,62 +144,70 @@ export const POST = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       .select()
       .single();
 
-    if (error) {
-      console.error("[CREATE_COACH_PROFILE] Error:", error);
+    if (createError) {
+      console.error("[COACH_PROFILE_ERROR] Failed to create coach profile:", { userUlid, error: createError });
       return NextResponse.json<ApiResponse<never>>({ 
         data: null,
         error: {
           code: 'CREATE_ERROR',
-          message: 'Error creating coach profile'
+          message: 'Failed to create coach profile'
         }
       }, { status: 500 });
     }
 
     return NextResponse.json<ApiResponse<CoachProfile>>({ 
-      data,
+      data: profile,
       error: null
     });
   } catch (error) {
-    console.error("[CREATE_COACH_PROFILE] Error:", error);
+    console.error("[COACH_PROFILE_ERROR] Unexpected error:", { userUlid, error });
+    if (error instanceof Error) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: error.message
+        }
+      }, { status: 400 });
+    }
     return NextResponse.json<ApiResponse<never>>({ 
       data: null,
       error: {
         code: 'INTERNAL_ERROR',
-        message: 'Error processing request'
+        message: 'An unexpected error occurred'
       }
     }, { status: 500 });
   }
 }, { requiredRoles: [ROLES.COACH] });
 
 export const PUT = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
+  const supabase = await createAuthClient();
+  
   try {
     const data = await req.json();
-    console.log("[DEBUG] Starting updateCoachProfile with formData:", data);
-
-    const supabase = await createAuthClient();
+    const validatedData = UpdateCoachProfileSchema.parse(data);
 
     // Get user and profile IDs
-    const { data: user, error: userError } = await supabase
+    const { data: profiles, error: profileError } = await supabase
       .from("User")
       .select(`
         ulid,
-        realtorProfile:RealtorProfile!inner(ulid)
+        realtorProfile:RealtorProfile!inner(ulid),
+        coachProfile:CoachProfile!inner(ulid)
       `)
       .eq("ulid", userUlid)
       .single();
 
-    if (userError || !user?.realtorProfile?.[0]?.ulid) {
-      console.error("[USER_FETCH_ERROR]", userError);
+    if (profileError || !profiles?.coachProfile?.[0]?.ulid) {
+      console.error("[COACH_PROFILE_ERROR] Failed to fetch profiles:", { userUlid, error: profileError });
       return NextResponse.json<ApiResponse<never>>({ 
         data: null,
         error: {
           code: 'NOT_FOUND',
-          message: 'Profile not found'
+          message: 'Coach profile not found'
         }
       }, { status: 404 });
     }
-
-    const validatedData = UpdateCoachProfileSchema.parse(data);
 
     // Update coach profile
     const { data: updatedProfile, error: updateError } = await supabase
@@ -192,12 +221,12 @@ export const PUT = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       .single();
 
     if (updateError) {
-      console.error("[UPDATE_COACH_PROFILE] Error:", updateError);
+      console.error("[COACH_PROFILE_ERROR] Failed to update profile:", { userUlid, error: updateError });
       return NextResponse.json<ApiResponse<never>>({ 
         data: null,
         error: {
           code: 'UPDATE_ERROR',
-          message: 'Error updating coach profile'
+          message: 'Failed to update coach profile'
         }
       }, { status: 500 });
     }
@@ -207,13 +236,22 @@ export const PUT = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       error: null
     });
   } catch (error) {
-    console.error("[UPDATE_COACH_PROFILE] Error:", error);
+    console.error("[COACH_PROFILE_ERROR] Unexpected error:", { userUlid, error });
+    if (error instanceof Error) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: error.message
+        }
+      }, { status: 400 });
+    }
     return NextResponse.json<ApiResponse<never>>({ 
       data: null,
       error: {
         code: 'INTERNAL_ERROR',
-        message: 'Error processing request'
+        message: 'An unexpected error occurred'
       }
     }, { status: 500 });
   }
-}); 
+}, { requiredRoles: [ROLES.COACH] }); 

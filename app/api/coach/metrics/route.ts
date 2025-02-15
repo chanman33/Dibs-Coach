@@ -1,26 +1,15 @@
 import { NextResponse } from 'next/server';
 import { ApiResponse } from '@/utils/types/api';
+import { CoachMetricsSchema, type CoachMetrics } from '@/utils/types/coach';
+import { ROLES } from '@/utils/roles/roles';
 import { withApiAuth } from '@/utils/middleware/withApiAuth';
 import { createAuthClient } from '@/utils/auth';
-import { z } from 'zod';
-
-const MetricsResponseSchema = z.object({
-  totalSessions: z.number(),
-  completedSessions: z.number(),
-  canceledSessions: z.number(),
-  noShowSessions: z.number(),
-  averageRating: z.number().nullable(),
-  totalRevenue: z.number(),
-  upcomingSessions: z.number()
-});
-
-type CoachMetrics = z.infer<typeof MetricsResponseSchema>;
 
 export const GET = withApiAuth<CoachMetrics>(async (req, { userUlid }) => {
   try {
     const supabase = await createAuthClient();
 
-    // Get coach's session metrics
+    // Get metrics from CoachSessionMetrics
     const { data: metrics, error: metricsError } = await supabase
       .from('CoachSessionMetrics')
       .select('*')
@@ -28,56 +17,55 @@ export const GET = withApiAuth<CoachMetrics>(async (req, { userUlid }) => {
       .single();
 
     if (metricsError) {
-      console.error('[METRICS_GET_ERROR] Error fetching metrics:', metricsError);
+      console.error('[COACH_METRICS_ERROR] Failed to fetch metrics:', { userUlid, error: metricsError });
       return NextResponse.json<ApiResponse<never>>({ 
         data: null,
         error: {
           code: 'FETCH_ERROR',
-          message: 'Error fetching metrics'
+          message: 'Failed to fetch coach metrics'
         }
       }, { status: 500 });
     }
 
-    // Get upcoming sessions count
-    const { count: upcomingSessions, error: upcomingError } = await supabase
+    // Get count of upcoming sessions
+    const { count: upcomingSessions, error: sessionsError } = await supabase
       .from('CoachSession')
       .select('*', { count: 'exact', head: true })
       .eq('coachUlid', userUlid)
-      .eq('status', 'SCHEDULED')
-      .gte('startTime', new Date().toISOString());
+      .gt('startTime', new Date().toISOString())
+      .eq('status', 'CONFIRMED');
 
-    if (upcomingError) {
-      console.error('[METRICS_GET_ERROR] Error fetching upcoming sessions:', upcomingError);
+    if (sessionsError) {
+      console.error('[COACH_METRICS_ERROR] Failed to fetch upcoming sessions:', { userUlid, error: sessionsError });
       return NextResponse.json<ApiResponse<never>>({ 
         data: null,
         error: {
           code: 'FETCH_ERROR',
-          message: 'Error fetching upcoming sessions'
+          message: 'Failed to fetch upcoming sessions'
         }
       }, { status: 500 });
     }
 
-    const response: CoachMetrics = {
+    const metricsData = {
       ...metrics,
       upcomingSessions: upcomingSessions || 0
     };
 
-    const validatedData = MetricsResponseSchema.parse(response);
+    // Validate metrics data
+    const validatedMetrics = CoachMetricsSchema.parse(metricsData);
 
-    return NextResponse.json<ApiResponse<CoachMetrics>>({
-      data: validatedData,
+    return NextResponse.json<ApiResponse<CoachMetrics>>({ 
+      data: validatedMetrics,
       error: null
     });
-
   } catch (error) {
-    console.error('[METRICS_GET_ERROR]', error);
-    if (error instanceof z.ZodError) {
+    console.error('[COACH_METRICS_ERROR] Unexpected error:', { userUlid, error });
+    if (error instanceof Error) {
       return NextResponse.json<ApiResponse<never>>({ 
         data: null,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Invalid metrics data',
-          details: error.errors
+          message: error.message
         }
       }, { status: 400 });
     }
@@ -85,8 +73,8 @@ export const GET = withApiAuth<CoachMetrics>(async (req, { userUlid }) => {
       data: null,
       error: {
         code: 'INTERNAL_ERROR',
-        message: 'Internal Server Error'
+        message: 'An unexpected error occurred'
       }
     }, { status: 500 });
   }
-}); 
+}, { requiredRoles: [ROLES.COACH] }); 

@@ -14,6 +14,14 @@ export const CoachProfileSchema = z.object({
   allowCustomDuration: z.boolean().default(false),
   minimumDuration: z.number().min(15).max(240).default(30),
   maximumDuration: z.number().min(15).max(240).default(120),
+  yearsExperience: z.number().min(0),
+  specializations: z.array(z.string()),
+  languages: z.array(z.string()),
+  geographicFocus: z.record(z.string(), z.any()),
+  marketingAreas: z.array(z.string()),
+  testimonials: z.record(z.string(), z.any()),
+  calendlyLink: z.string().url().optional(),
+  zoomLink: z.string().url().optional(),
 });
 
 export type CoachProfile = z.infer<typeof CoachProfileSchema> & {
@@ -60,6 +68,10 @@ export const CoachMetricsSchema = z.object({
   averageRating: z.number().nullable(),
   completionRate: z.number(),
   ratings: z.number(),
+  upcomingSessions: z.number(),
+  totalEarnings: z.number(),
+  canceledSessions: z.number(),
+  noShowSessions: z.number()
 });
 
 export enum CoachApplicationStatus {
@@ -76,4 +88,38 @@ export const COACH_APPLICATION_STATUS = {
 
 export type CoachApplicationStatusType = typeof COACH_APPLICATION_STATUS[keyof typeof COACH_APPLICATION_STATUS];
 
-export type CoachMetrics = z.infer<typeof CoachMetricsSchema>; 
+export type CoachMetrics = z.infer<typeof CoachMetricsSchema>;
+
+// Coach Config Types
+export const CoachConfigSchema = z.object({
+  durations: z.array(z.number().min(15).max(240)),  // durations in minutes
+  rates: z.record(z.string(), z.number().min(0)),   // mapping of duration to rate
+  currency: z.enum(['USD', 'EUR', 'GBP']),
+  isActive: z.boolean().optional().default(true),
+  defaultDuration: z.number().min(15).max(240),
+  allowCustomDuration: z.boolean(),
+  minimumDuration: z.number().min(15),
+  maximumDuration: z.number().max(240)
+});
+
+export type CoachConfig = z.infer<typeof CoachConfigSchema>;
+
+// Coach Session Types
+export type WeekDay = typeof DAYS_OF_WEEK[number];
+
+export const TimeSlotSchema = z.object({
+  from: z.string(),
+  to: z.string()
+});
+
+export type TimeSlot = z.infer<typeof TimeSlotSchema>;
+
+export const DAYS_OF_WEEK = [
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
+] as const; 

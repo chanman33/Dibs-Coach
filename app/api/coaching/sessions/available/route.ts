@@ -1,120 +1,170 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
-import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
+import { createAuthClient } from '@/utils/auth'
+import { ApiResponse } from '@/utils/types/api'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
 import { startOfDay, endOfDay, addDays, parseISO, isWithinInterval } from 'date-fns'
 import { z } from 'zod'
+import { ulidSchema } from '@/utils/types/auth'
 
 // Validation schema for query parameters
 const QuerySchema = z.object({
-  coachId: z.string(),
+  coachUlid: ulidSchema,
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
   duration: z.string().regex(/^\d+$/).transform(Number).optional()
 })
 
-export async function GET(request: Request) {
-  try {
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
+interface AvailableSlot {
+  startTime: string
+  endTime: string
+  rate: number
+  currency: string
+}
 
+interface SessionConfig {
+  durations: number[]
+  rates: Record<string, number>
+  currency: string
+  defaultDuration: number
+  allowCustomDuration: boolean
+  minimumDuration: number
+  maximumDuration: number
+}
+
+interface AvailabilityResponse {
+  availableSlots: AvailableSlot[]
+  timezone: string
+  sessionConfig: SessionConfig
+}
+
+export const GET = withApiAuth<AvailabilityResponse>(async (req, { userUlid }) => {
+  try {
     // Parse and validate query parameters
-    const { searchParams } = new URL(request.url)
-    const coachId = searchParams.get('coachId')
+    const { searchParams } = new URL(req.url)
+    const coachUlid = searchParams.get('coachUlid')
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate') || addDays(new Date(startDate || ''), 30).toISOString()
     const duration = searchParams.get('duration')
     
-    if (!coachId || !startDate) {
-      return new NextResponse('Missing required parameters', { status: 400 })
+    if (!coachUlid || !startDate) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'MISSING_PARAMETERS',
+          message: 'Missing required parameters'
+        }
+      }, { status: 400 })
     }
     
     const validatedParams = QuerySchema.parse({
-      coachId,
+      coachUlid,
       startDate,
       endDate,
       duration: duration || undefined
     })
 
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
+    const supabase = await createAuthClient()
 
     // Get coach's data and verify they are a coach
     const { data: coach, error: coachError } = await supabase
       .from('User')
       .select(`
-        id,
+        ulid,
         role,
-        coachingSchedules (
-          id,
+        CoachingAvailabilitySchedule (
+          ulid,
           rules,
           timezone
         ),
-        RealtorCoachProfile!inner (
+        CoachProfile!inner (
           defaultDuration,
           allowCustomDuration,
           minimumDuration,
           maximumDuration
         ),
-        CoachSessionConfig!inner (
+        CoachConfig!inner (
           durations,
           rates,
           currency,
           isActive
         )
       `)
-      .eq('userId', validatedParams.coachId)
+      .eq('ulid', validatedParams.coachUlid)
       .single()
 
     if (coachError || !coach) {
-      return new NextResponse(coachError ? 'Error fetching coach data' : 'Coach not found', { 
-        status: coachError ? 500 : 404 
+      console.error('[AVAILABLE_SESSIONS_ERROR] Failed to fetch coach data:', {
+        coachUlid: validatedParams.coachUlid,
+        error: coachError
       })
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: coachError ? 'FETCH_ERROR' : 'NOT_FOUND',
+          message: coachError ? 'Failed to fetch coach data' : 'Coach not found'
+        }
+      }, { status: coachError ? 500 : 404 })
     }
 
-    if (!coach.role.includes('coach')) {
-      return new NextResponse('Invalid coach ID', { status: 400 })
+    if (!coach.role.includes('COACH')) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'INVALID_ROLE',
+          message: 'Invalid coach ID'
+        }
+      }, { status: 400 })
     }
 
     // Get existing sessions in the date range
     const { data: existingSessions, error: sessionsError } = await supabase
       .from('Session')
       .select('startTime, endTime')
-      .eq('coachDbId', coach.id)
+      .eq('coachUlid', coach.ulid)
       .gte('startTime', validatedParams.startDate)
       .lte('endTime', validatedParams.endDate)
-      .neq('status', 'cancelled')
+      .neq('status', 'CANCELLED')
 
     if (sessionsError) {
-      return new NextResponse('Error fetching existing sessions', { status: 500 })
+      console.error('[AVAILABLE_SESSIONS_ERROR] Failed to fetch existing sessions:', {
+        coachUlid: validatedParams.coachUlid,
+        error: sessionsError
+      })
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch existing sessions'
+        }
+      }, { status: 500 })
     }
 
     // Process availability rules and existing sessions to generate available slots
-    const availableSlots = []
+    const availableSlots: AvailableSlot[] = []
     const startDateObj = parseISO(validatedParams.startDate)
     const endDateObj = parseISO(validatedParams.endDate)
-    const requestedDuration = validatedParams.duration || coach.RealtorCoachProfile[0].defaultDuration
+    const requestedDuration = validatedParams.duration || coach.CoachProfile[0].defaultDuration
 
     // Validate requested duration
-    const coachConfig = coach.CoachSessionConfig[0]
+    const coachConfig = coach.CoachConfig[0]
     if (!coachConfig.isActive) {
-      return new NextResponse('Coach is not accepting bookings', { status: 400 })
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'COACH_UNAVAILABLE',
+          message: 'Coach is not accepting bookings'
+        }
+      }, { status: 400 })
     }
 
-    if (!coachConfig.durations.includes(requestedDuration) && !coach.RealtorCoachProfile[0].allowCustomDuration) {
-      return new NextResponse('Invalid session duration', { status: 400 })
+    if (!coachConfig.durations.includes(requestedDuration) && !coach.CoachProfile[0].allowCustomDuration) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'INVALID_DURATION',
+          message: 'Invalid session duration'
+        }
+      }, { status: 400 })
     }
 
     const rate = coachConfig.rates[requestedDuration.toString()] || 
@@ -125,7 +175,7 @@ export async function GET(request: Request) {
       const dayOfWeek = date.getDay()
       
       // Find applicable rules for this day
-      const dayRules = coach.coachingSchedules
+      const dayRules = coach.CoachingAvailabilitySchedule
         .flatMap(schedule => schedule.rules)
         .filter(rule => 
           (rule.type === 'wday' && rule.wday === dayOfWeek) ||
@@ -160,7 +210,9 @@ export async function GET(request: Request) {
             if (!hasConflict && slotEnd <= intervalEnd) {
               availableSlots.push({
                 startTime: slotStart.toISOString(),
-                endTime: slotEnd.toISOString()
+                endTime: slotEnd.toISOString(),
+                rate,
+                currency: coachConfig.currency
               })
             }
 
@@ -170,31 +222,41 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({
+    return NextResponse.json<ApiResponse<AvailabilityResponse>>({
       data: {
-        availableSlots: availableSlots.map(slot => ({
-          ...slot,
-          rate,
-          currency: coachConfig.currency
-        })),
-        timezone: coach.coachingSchedules[0]?.timezone,
+        availableSlots,
+        timezone: coach.CoachingAvailabilitySchedule[0]?.timezone,
         sessionConfig: {
           durations: coachConfig.durations,
           rates: coachConfig.rates,
           currency: coachConfig.currency,
-          defaultDuration: coach.RealtorCoachProfile[0].defaultDuration,
-          allowCustomDuration: coach.RealtorCoachProfile[0].allowCustomDuration,
-          minimumDuration: coach.RealtorCoachProfile[0].minimumDuration,
-          maximumDuration: coach.RealtorCoachProfile[0].maximumDuration
+          defaultDuration: coach.CoachProfile[0].defaultDuration,
+          allowCustomDuration: coach.CoachProfile[0].allowCustomDuration,
+          minimumDuration: coach.CoachProfile[0].minimumDuration,
+          maximumDuration: coach.CoachProfile[0].maximumDuration
         }
-      }
+      },
+      error: null
     })
-
   } catch (error) {
     console.error('[AVAILABLE_SESSIONS_ERROR]', error)
     if (error instanceof z.ZodError) {
-      return new NextResponse(JSON.stringify(error.errors), { status: 400 })
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid parameters',
+          details: error.flatten()
+        }
+      }, { status: 400 })
     }
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Internal server error',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-} 
+}) 

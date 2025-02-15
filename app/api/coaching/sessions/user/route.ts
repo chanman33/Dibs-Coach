@@ -1,70 +1,81 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
-import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
+import { ApiResponse } from '@/utils/types/api'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
+import { createAuthClient } from '@/utils/auth'
 import { z } from 'zod'
 
 // Validation schema for query parameters
 const QuerySchema = z.object({
   role: z.enum(['coach', 'mentee']).optional(),
-  status: z.enum(['scheduled', 'completed', 'cancelled', 'no_show']).optional(),
+  status: z.enum(['SCHEDULED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional()
 })
 
-export async function GET(request: Request) {
-  try {
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
+interface SessionResponse {
+  ulid: string
+  startTime: string
+  endTime: string
+  status: string
+  durationMinutes: number
+  coach: {
+    ulid: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    profileImageUrl: string | null
+  }
+  mentee: {
+    ulid: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    profileImageUrl: string | null
+  }
+}
 
-    const { searchParams } = new URL(request.url)
-    const validatedParams = QuerySchema.parse({
+export const GET = withApiAuth<SessionResponse[]>(async (req, { userUlid }) => {
+  try {
+    // Validate query parameters
+    const { searchParams } = new URL(req.url)
+    const validationResult = QuerySchema.safeParse({
       role: searchParams.get('role'),
-      status: searchParams.get('status'),
+      status: searchParams.get('status')?.toUpperCase(),
       startDate: searchParams.get('startDate'),
       endDate: searchParams.get('endDate')
     })
 
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      { cookies: { get: (name: string) => cookieStore.get(name)?.value } }
-    )
-
-    // Get user's database ID
-    const { data: user, error: userError } = await supabase
-      .from('User')
-      .select('id, role')
-      .eq('userId', userId)
-      .single()
-
-    if (userError || !user) {
-      return new NextResponse(userError ? 'Error fetching user data' : 'User not found', { 
-        status: userError ? 500 : 404 
-      })
+    if (!validationResult.success) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'INVALID_PARAMETERS',
+          message: 'Invalid query parameters',
+          details: validationResult.error.flatten()
+        }
+      }, { status: 400 })
     }
+
+    const supabase = await createAuthClient()
 
     // Build query
     let query = supabase
       .from('Session')
       .select(`
-        id,
+        ulid,
         startTime,
         endTime,
         status,
         durationMinutes,
-        coach:coachDbId (
-          id,
+        coach:coachUlid!inner (
+          ulid,
           firstName,
           lastName,
           email,
           profileImageUrl
         ),
-        mentee:menteeDbId (
-          id,
+        mentee:menteeUlid!inner (
+          ulid,
           firstName,
           lastName,
           email,
@@ -73,26 +84,26 @@ export async function GET(request: Request) {
       `)
 
     // Apply role filter
-    if (validatedParams.role === 'coach') {
-      query = query.eq('coachDbId', user.id)
-    } else if (validatedParams.role === 'mentee') {
-      query = query.eq('menteeDbId', user.id)
+    if (validationResult.data.role === 'coach') {
+      query = query.eq('coachUlid', userUlid)
+    } else if (validationResult.data.role === 'mentee') {
+      query = query.eq('menteeUlid', userUlid)
     } else {
       // If no role specified, show all sessions where user is either coach or mentee
-      query = query.or(`coachDbId.eq.${user.id},menteeDbId.eq.${user.id}`)
+      query = query.or(`coachUlid.eq.${userUlid},menteeUlid.eq.${userUlid}`)
     }
 
     // Apply status filter
-    if (validatedParams.status) {
-      query = query.eq('status', validatedParams.status)
+    if (validationResult.data.status) {
+      query = query.eq('status', validationResult.data.status)
     }
 
     // Apply date range filter
-    if (validatedParams.startDate) {
-      query = query.gte('startTime', validatedParams.startDate)
+    if (validationResult.data.startDate) {
+      query = query.gte('startTime', validationResult.data.startDate)
     }
-    if (validatedParams.endDate) {
-      query = query.lte('endTime', validatedParams.endDate)
+    if (validationResult.data.endDate) {
+      query = query.lte('endTime', validationResult.data.endDate)
     }
 
     // Execute query
@@ -100,17 +111,56 @@ export async function GET(request: Request) {
       .order('startTime', { ascending: true })
 
     if (sessionsError) {
-      console.error('[FETCH_SESSIONS_ERROR]', sessionsError)
-      return new NextResponse('Failed to fetch sessions', { status: 500 })
+      console.error('[FETCH_SESSIONS_ERROR]', { 
+        userUlid,
+        error: sessionsError,
+        filters: validationResult.data
+      })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch sessions'
+        }
+      }, { status: 500 })
     }
 
-    return NextResponse.json({ data: sessions })
+    // Transform the response to match our interface
+    const transformedSessions: SessionResponse[] = sessions.map(session => ({
+      ulid: session.ulid,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      status: session.status,
+      durationMinutes: session.durationMinutes,
+      coach: {
+        ulid: session.coach[0].ulid,
+        firstName: session.coach[0].firstName,
+        lastName: session.coach[0].lastName,
+        email: session.coach[0].email,
+        profileImageUrl: session.coach[0].profileImageUrl
+      },
+      mentee: {
+        ulid: session.mentee[0].ulid,
+        firstName: session.mentee[0].firstName,
+        lastName: session.mentee[0].lastName,
+        email: session.mentee[0].email,
+        profileImageUrl: session.mentee[0].profileImageUrl
+      }
+    }))
 
+    return NextResponse.json<ApiResponse<SessionResponse[]>>({
+      data: transformedSessions,
+      error: null
+    })
   } catch (error) {
     console.error('[FETCH_SESSIONS_ERROR]', error)
-    if (error instanceof z.ZodError) {
-      return new NextResponse(JSON.stringify(error.errors), { status: 400 })
-    }
-    return new NextResponse('Internal server error', { status: 500 })
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-} 
+}) 

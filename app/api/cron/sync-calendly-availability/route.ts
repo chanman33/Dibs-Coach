@@ -1,7 +1,14 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
-import { CalendlyService } from '../../../../lib/calendly/calendly-service'
-import { env } from '../../../../lib/env'
+import { CalendlyService } from '@/lib/calendly/calendly-service'
+import { env } from '@/lib/env'
+import { ApiResponse } from '@/utils/types/api'
+
+interface SyncResults {
+  success: number
+  failed: number
+  errors: string[]
+}
 
 export const maxDuration = 300 // 5 minutes max execution time
 
@@ -10,7 +17,13 @@ export async function GET(request: Request) {
     // Verify cron secret
     const authHeader = request.headers.get('authorization')
     if (authHeader !== `Bearer ${env.CRON_SECRET}`) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Invalid cron secret'
+        }
+      }, { status: 401 })
     }
 
     // Initialize Supabase client
@@ -36,9 +49,11 @@ export async function GET(request: Request) {
     const { data: usersToSync, error: fetchError } = await supabase
       .from('CalendlyIntegration')
       .select(`
-        userDbId,
+        ulid,
+        userUlid,
         accessToken,
         CalendlyAvailabilityCache (
+          ulid,
           expiresAt
         )
       `)
@@ -47,17 +62,27 @@ export async function GET(request: Request) {
 
     if (fetchError) {
       console.error('[CALENDLY_SYNC_ERROR] Failed to fetch users:', fetchError)
-      return new NextResponse('Failed to fetch users', { status: 500 })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch users',
+          details: fetchError
+        }
+      }, { status: 500 })
     }
 
     if (!usersToSync?.length) {
-      return NextResponse.json({ message: 'No availability to sync' })
+      return NextResponse.json<ApiResponse<SyncResults>>({
+        data: { success: 0, failed: 0, errors: [] },
+        error: null
+      })
     }
 
-    const results = {
+    const results: SyncResults = {
       success: 0,
       failed: 0,
-      errors: [] as string[],
+      errors: [],
     }
 
     // Process each user
@@ -75,7 +100,7 @@ export async function GET(request: Request) {
         const { error: upsertError } = await supabase
           .from('CalendlyAvailabilityCache')
           .upsert({
-            userDbId: user.userDbId,
+            userUlid: user.userUlid,
             data: {
               availability,
               eventTypes,
@@ -90,17 +115,31 @@ export async function GET(request: Request) {
         results.success++
 
       } catch (error) {
-        console.error('[CALENDLY_SYNC_ERROR] Failed to sync user:', user.userDbId, error)
+        console.error('[CALENDLY_SYNC_ERROR] Failed to sync user:', {
+          userUlid: user.userUlid,
+          integrationUlid: user.ulid,
+          error
+        })
         results.failed++
-        results.errors.push(`Failed to sync availability for user ${user.userDbId}: ${error instanceof Error ? error.message : String(error)}`)
+        results.errors.push(`Failed to sync availability for user ${user.userUlid}: ${error instanceof Error ? error.message : String(error)}`)
       }
     }
 
-    return NextResponse.json(results)
+    return NextResponse.json<ApiResponse<SyncResults>>({
+      data: results,
+      error: null
+    })
 
   } catch (error) {
     console.error('[CALENDLY_SYNC_ERROR] Sync job failed:', error)
-    return new NextResponse('Internal server error', { status: 500 })
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Sync job failed',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
 }
 
