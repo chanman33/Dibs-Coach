@@ -320,12 +320,12 @@ enum ViewType {
 
 // Models
 model User {
-  id                     Int      @id @default(autoincrement())
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
   userId                 String   @unique // Clerk ID
   email                  String   @unique
   firstName              String?
   lastName               String?
-  displayName            String?  // Display name for profile
+  displayName            String?
   role                   String   @default("MENTEE")
   stripeCustomerId       String?  @unique
   stripeConnectAccountId String?  @unique
@@ -333,21 +333,21 @@ model User {
   updatedAt              DateTime @updatedAt @db.Timestamptz
 
   // RESO Member fields
-  memberKey     String?  @unique // RESO: MemberKey (MLS ID)
-  memberStatus  String // RESO: MemberStatus
-  designations  String[] // RESO: Designations (CRS, GRI, etc.)
-  licenseNumber String?  @unique
-  companyName   String? // Brokerage Name?
-  phoneNumber   String?
+  memberKey             String?  @unique
+  memberStatus          String
+  designations          String[]
+  licenseNumber         String?  @unique
+  companyName           String?
+  phoneNumber           String?
 
   // Application-specific fields
-  status          UserStatus @default(active)
-  profileImageUrl String?
+  status               UserStatus @default(active)
+  profileImageUrl      String?
 
   // Profile Relations
-  realtorProfile RealtorProfile?  // Base profile for all realtors
-  menteeProfile  MenteeProfile?   // Additional mentee-specific data
-  coachProfile   CoachProfile?    // Additional coach-specific data
+  realtorProfile       RealtorProfile?
+  menteeProfile        MenteeProfile?
+  coachProfile         CoachProfile?
 
   // Existing integrations
   calendlyIntegration CalendlyIntegration?
@@ -403,8 +403,8 @@ model User {
 
 // Base profile for all realtors (both coaches and mentees)
 model RealtorProfile {
-  id                Int      @id @default(autoincrement())
-  userDbId          Int      @unique
+  ulid              String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid          String   @unique @db.Char(26)
   bio               String?
   yearsExperience   Int?
   
@@ -415,7 +415,7 @@ model RealtorProfile {
   languages         String[]
   
   // Geographic Focus
-  geographicFocus   Json    // Will store cities, neighborhoods, counties
+  geographicFocus   Json
   primaryMarket     String?
 
   // Marketing Information
@@ -426,552 +426,548 @@ model RealtorProfile {
   linkedinUrl       String?
   youtubeUrl        String?
   marketingAreas    String[]
-  testimonials      Json    // Will store array of {author, content}
-
-  // Listings and Achievements
-  listings          Listing[]    // New relation to Listing model
+  testimonials      Json
 
   // Relations
-  user User @relation(fields: [userDbId], references: [id], onDelete: Cascade)
-
-  // Add MLS Integration fields
-  mlsId             String?      @unique  // MLS Member ID
-  mlsName           String?      // Name of MLS System
-  mlsStatus         String?      // Active, Pending, Suspended
-
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
-
-  // Add the new relation
+  user              User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  listings          Listing[]
   professionalRecognitions ProfessionalRecognition[]
 
-  @@index([userDbId])
+  // MLS Integration fields
+  mlsId             String?  @unique
+  mlsName           String?
+  mlsStatus         String?
+
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  updatedAt         DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
   @@map("RealtorProfile")
 }
 
 // Mentee-specific profile data
 model MenteeProfile {
-  id               Int       @id @default(autoincrement())
-  userDbId         Int       @unique
-  focusAreas       String[]
-  experienceLevel  String?
-  learningStyle    String?
-  goals            Json?     // Structured goals data
+  ulid              String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid          String   @unique @db.Char(26)
+  focusAreas        String[]
+  experienceLevel   String?
+  learningStyle     String?
+  goals             Json?
   sessionsCompleted Int      @default(0)
-  isActive         Boolean   @default(true)
-  lastSessionDate  DateTime?
+  isActive          Boolean  @default(true)
+  lastSessionDate   DateTime?
 
   // Relations
-  user User @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+  user              User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  updatedAt         DateTime @updatedAt @db.Timestamptz
 
-  @@index([userDbId])
+  @@index([userUlid])
   @@map("MenteeProfile")
 }
 
 // Coach-specific profile data
 model CoachProfile {
-  id                 Int       @id @default(autoincrement())
-  userDbId           Int       @unique
-  coachingSpecialties String[] // Specific to coaching expertise
-  yearsCoaching      Int?
-  hourlyRate         Decimal?  @db.Decimal(10, 2)
+  ulid                String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid            String   @unique @db.Char(26)
+  coachingSpecialties String[]
+  yearsCoaching       Int?
+  hourlyRate          Decimal? @db.Decimal(10, 2)
 
   // Calendly Integration
-  calendlyUrl        String?
-  eventTypeUrl       String?
+  calendlyUrl         String?
+  eventTypeUrl        String?
 
   // Session Configuration
-  isActive           Boolean   @default(true)
-  defaultDuration    Int       @default(60)
+  isActive            Boolean  @default(true)
+  defaultDuration     Int      @default(60)
   allowCustomDuration Boolean  @default(false)
-  minimumDuration    Int       @default(30)
-  maximumDuration    Int       @default(120)
-  totalSessions      Int       @default(0)
-  averageRating      Decimal?  @db.Decimal(3, 2)
+  minimumDuration     Int      @default(30)
+  maximumDuration     Int      @default(120)
+  totalSessions       Int      @default(0)
+  averageRating       Decimal? @db.Decimal(3, 2)
 
   // Relations
-  user User @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+  user               User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
+  createdAt          DateTime @default(now()) @db.Timestamptz
+  updatedAt          DateTime @updatedAt @db.Timestamptz
 
-  @@index([userDbId])
+  @@index([userUlid])
   @@map("CoachProfile")
 }
 
 model Session {
-  id             Int      @id @default(autoincrement())
-  menteeDbId     Int
-  coachDbId      Int
-  startTime      DateTime @db.Timestamptz
-  endTime        DateTime @db.Timestamptz
-  status         SessionStatus @default(scheduled)
-  sessionType    SessionType?
-  sessionNotes   String?
-  zoomMeetingId  String?
-  zoomMeetingUrl String?
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  menteeUlid             String   @db.Char(26)
+  coachUlid              String   @db.Char(26)
+  startTime              DateTime @db.Timestamptz
+  endTime                DateTime @db.Timestamptz
+  status                 SessionStatus @default(scheduled)
+  sessionType            SessionType?
+  sessionNotes           String?
+  zoomMeetingId          String?
+  zoomMeetingUrl         String?
 
   // Payment fields
-  priceAmount           Float?
-  currency              String? @default("usd")
-  platformFeeAmount     Float?
-  coachPayoutAmount     Float?
-  stripePaymentIntentId String?
-  paymentStatus         String? @default("pending") // pending, completed, failed, refunded
-  payoutStatus          String? // null, completed, failed
-
-  createdAt DateTime @default(now()) @db.Timestamptz
-  updatedAt DateTime @updatedAt @db.Timestamptz
+  priceAmount            Float?
+  currency               String? @default("usd")
+  platformFeeAmount      Float?
+  coachPayoutAmount      Float?
+  stripePaymentIntentId  String?
+  paymentStatus          String? @default("pending")
+  payoutStatus           String?
 
   // Relationships
-  mentee        User           @relation("UserSessions", fields: [menteeDbId], references: [id])
-  coach         User           @relation("CoachSessions", fields: [coachDbId], references: [id])
-  transaction   Transaction?
-  payment       Payment?       @relation("SessionPayment")
-  reviews       Review[]
-  notes         Note[]
-  reminders     Reminder[]
-  calendlyEvent CalendlyEvent? @relation("SessionCalendlyEvent")
-  zoomSession   ZoomSession?
-  disputes      Dispute[]      @relation("SessionDisputes")
+  mentee                 User           @relation("UserSessions", fields: [menteeUlid], references: [ulid])
+  coach                  User           @relation("CoachSessions", fields: [coachUlid], references: [ulid])
+  transaction            Transaction?
+  payment                Payment?       @relation("SessionPayment")
+  reviews                Review[]
+  notes                  Note[]
+  reminders              Reminder[]
+  calendlyEvent          CalendlyEvent? @relation("SessionCalendlyEvent")
+  zoomSession            ZoomSession?
+  disputes               Dispute[]      @relation("SessionDisputes")
 
-  @@index([menteeDbId])
-  @@index([coachDbId])
+  createdAt              DateTime @default(now()) @db.Timestamptz
+  updatedAt              DateTime @updatedAt @db.Timestamptz
+
+  @@index([menteeUlid])
+  @@index([coachUlid])
   @@map("Session")
 }
 
 model Payment {
-  id              Int           @id @default(autoincrement())
-  sessionId       Int?          @unique
-  payerDbId       Int
-  payeeDbId       Int
-  amount          Decimal       @db.Decimal(10, 2)
-  currency        Currency      @default(USD)
-  status          PaymentStatus @default(pending)
-  stripePaymentId String?
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  sessionUlid            String?  @unique @db.Char(26)
+  payerUlid              String   @db.Char(26)
+  payeeUlid              String   @db.Char(26)
+  amount                 Decimal  @db.Decimal(10, 2)
+  currency               Currency @default(USD)
+  status                 PaymentStatus @default(pending)
+  stripePaymentId        String?
 
-  session     Session?     @relation("SessionPayment", fields: [sessionId], references: [id])
-  payer       User         @relation("Payer", fields: [payerDbId], references: [id])
-  payee       User         @relation("Payee", fields: [payeeDbId], references: [id])
-  disputes    Dispute[]    @relation("PaymentDisputes")
-  chargebacks Chargeback[]
-  refunds     Refund[]
+  session                Session? @relation("SessionPayment", fields: [sessionUlid], references: [ulid])
+  payer                  User     @relation("Payer", fields: [payerUlid], references: [ulid])
+  payee                  User     @relation("Payee", fields: [payeeUlid], references: [ulid])
+  disputes               Dispute[] @relation("PaymentDisputes")
+  chargebacks            Chargeback[]
+  refunds                Refund[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([sessionId])
-  @@index([payerDbId])
-  @@index([payeeDbId])
+  @@index([sessionUlid])
+  @@index([payerUlid])
+  @@index([payeeUlid])
 }
 
 model Review {
-  id           Int     @id @default(autoincrement())
-  reviewerDbId Int
-  revieweeDbId Int
-  sessionId    Int?
-  rating       Int
-  comment      String?
-  status       String  @default("published")
-  isVerified   Boolean @default(false)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  reviewerUlid           String   @db.Char(26)
+  revieweeUlid           String   @db.Char(26)
+  sessionUlid            String?  @db.Char(26)
+  rating                 Int
+  comment                String?
+  status                 String   @default("published")
+  isVerified             Boolean  @default(false)
 
-  reviewer User     @relation("Reviewer", fields: [reviewerDbId], references: [id], onDelete: Cascade)
-  reviewee User     @relation("Reviewee", fields: [revieweeDbId], references: [id], onDelete: Cascade)
-  session  Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  reviewer               User     @relation("Reviewer", fields: [reviewerUlid], references: [ulid], onDelete: Cascade)
+  reviewee               User     @relation("Reviewee", fields: [revieweeUlid], references: [ulid], onDelete: Cascade)
+  session                Session? @relation(fields: [sessionUlid], references: [ulid], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([reviewerDbId])
-  @@index([revieweeDbId])
-  @@index([sessionId])
+  @@index([reviewerUlid])
+  @@index([revieweeUlid])
+  @@index([sessionUlid])
 }
 
 model CoachApplication {
-  id              Int                   @id @default(autoincrement())
-  applicantDbId   Int
-  status          CoachApplicationStatus @default(pending)
-  experience      String
-  specialties     String[]  @default([])
-  applicationDate DateTime  @default(now())
-  reviewerDbId    Int?
-  reviewDate      DateTime?
-  notes           String?
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  applicantUlid          String   @db.Char(26)
+  status                 CoachApplicationStatus @default(pending)
+  experience             String
+  specialties            String[] @default([])
+  applicationDate        DateTime @default(now())
+  reviewerUlid           String?  @db.Char(26)
+  reviewDate             DateTime?
+  notes                  String?
   
   // Draft-specific fields
-  isDraft         Boolean   @default(false)
-  lastSavedAt     DateTime? @db.Timestamptz
-  draftData       Json?     // Store draft-specific data
-  draftVersion    Int       @default(1)
+  isDraft                Boolean   @default(false)
+  lastSavedAt            DateTime? @db.Timestamptz
+  draftData              Json?
+  draftVersion           Int       @default(1)
   
   // Application fields
-  resumeUrl         String?  // Store the URL to the PDF in Supabase Storage
-  linkedIn          String?
-  primarySocialMedia String?
-  additionalInfo    String?
+  resumeUrl              String?
+  linkedIn               String?
+  primarySocialMedia     String?
+  additionalInfo         String?
 
-  applicant User  @relation("Applicant", fields: [applicantDbId], references: [id], onDelete: Cascade)
-  reviewer  User? @relation("Reviewer", fields: [reviewerDbId], references: [id], onDelete: SetNull)
+  applicant              User     @relation("Applicant", fields: [applicantUlid], references: [ulid], onDelete: Cascade)
+  reviewer               User?    @relation("Reviewer", fields: [reviewerUlid], references: [ulid], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([applicantDbId])
-  @@index([reviewerDbId])
-  @@index([isDraft, applicantDbId])
+  @@index([applicantUlid])
+  @@index([reviewerUlid])
+  @@index([isDraft, applicantUlid])
 }
 
 model Note {
-  id              Int    @id @default(autoincrement())
-  authorDbId      Int
-  relatedUserDbId Int?
-  sessionId       Int?
-  content         String
-  visibility      String @default("private")
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  authorUlid             String   @db.Char(26)
+  relatedUserUlid        String?  @db.Char(26)
+  sessionUlid            String?  @db.Char(26)
+  content                String
+  visibility             String   @default("private")
 
-  author      User     @relation("AuthorNotes", fields: [authorDbId], references: [id], onDelete: Cascade)
-  relatedUser User?    @relation("RelatedUserNotes", fields: [relatedUserDbId], references: [id], onDelete: SetNull)
-  session     Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  author                 User     @relation("AuthorNotes", fields: [authorUlid], references: [ulid], onDelete: Cascade)
+  relatedUser            User?    @relation("RelatedUserNotes", fields: [relatedUserUlid], references: [ulid], onDelete: SetNull)
+  session                Session? @relation(fields: [sessionUlid], references: [ulid], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([authorDbId])
-  @@index([relatedUserDbId])
-  @@index([sessionId])
+  @@index([authorUlid])
+  @@index([relatedUserUlid])
+  @@index([sessionUlid])
 }
 
 model SupportTicket {
-  id          Int          @id @default(autoincrement())
-  userDbId    Int
-  title       String
-  description String
-  status      TicketStatus @default(open)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid               String   @db.Char(26)
+  title                  String
+  description            String
+  status                 TicketStatus @default(open)
 
-  user User @relation("UserSupportTickets", fields: [userDbId], references: [id], onDelete: Cascade)
+  user                   User     @relation("UserSupportTickets", fields: [userUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([userDbId])
+  @@index([userUlid])
 }
 
 model Payout {
-  id               Int          @id @default(autoincrement())
-  payeeDbId        Int
-  amount           Decimal      @db.Decimal(10, 2)
-  currency         String       @default("USD")
-  stripeTransferId String?
-  status           PayoutStatus @default(pending)
-  scheduledDate    DateTime
-  processedAt      DateTime?
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  payeeUlid              String   @db.Char(26)
+  amount                 Decimal  @db.Decimal(10, 2)
+  currency               String   @default("USD")
+  stripeTransferId       String?
+  status                 PayoutStatus @default(pending)
+  scheduledDate          DateTime
+  processedAt            DateTime?
 
-  payee User @relation("PayoutPayee", fields: [payeeDbId], references: [id], onDelete: Cascade)
+  payee                  User     @relation("PayoutPayee", fields: [payeeUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([payeeDbId])
+  @@index([payeeUlid])
 }
 
 model Dispute {
-  id                    Int      @id @default(autoincrement())
-  stripeDisputeId       String   @unique
-  sessionId             Int?
-  session               Session? @relation("SessionDisputes", fields: [sessionId], references: [id], onDelete: SetNull)
-  amount                Int
-  currency              String
-  status                String
-  reason                String
-  evidenceDueBy         DateTime
-  evidence              Json
-  stripePaymentIntentId String
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  stripeDisputeId        String   @unique
+  sessionUlid            String?  @db.Char(26)
+  session                Session? @relation("SessionDisputes", fields: [sessionUlid], references: [ulid], onDelete: SetNull)
+  amount                 Int
+  currency               String
+  status                 String
+  reason                 String
+  evidenceDueBy          DateTime
+  evidence               Json
+  stripePaymentIntentId  String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  // NEW fields for Payment relation
-  paymentId Int?
-  payment   Payment? @relation("PaymentDisputes", fields: [paymentId], references: [id], onDelete: SetNull)
+  // Payment relation
+  paymentUlid            String?  @db.Char(26)
+  payment                Payment? @relation("PaymentDisputes", fields: [paymentUlid], references: [ulid], onDelete: SetNull)
 
-  @@index([sessionId])
+  @@index([sessionUlid])
   @@index([stripeDisputeId])
   @@map("Dispute")
 }
 
 model Chargeback {
-  id        Int     @id @default(autoincrement())
-  paymentId Int
-  reason    String?
-  status    String  @default("open")
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  paymentUlid            String   @db.Char(26)
+  reason                 String?
+  status                 String   @default("open")
 
-  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  payment                Payment  @relation(fields: [paymentUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([paymentId])
+  @@index([paymentUlid])
 }
 
 model Refund {
-  id        Int          @id @default(autoincrement())
-  paymentId Int
-  reason    String?
-  status    RefundStatus @default(pending)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  paymentUlid            String   @db.Char(26)
+  reason                 String?
+  status                 RefundStatus @default(pending)
 
-  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  payment                Payment  @relation(fields: [paymentUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([paymentId])
+  @@index([paymentUlid])
 }
 
 model Message {
-  id            Int      @id @default(autoincrement())
-  senderDbId    Int
-  recipientDbId Int
-  content       String
-  readStatus    String   @default("unread")
-  sentAt        DateTime @default(now())
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  senderUlid             String   @db.Char(26)
+  recipientUlid          String   @db.Char(26)
+  content                String
+  readStatus             String   @default("unread")
+  sentAt                 DateTime @default(now())
 
-  sender    User @relation("Sender", fields: [senderDbId], references: [id], onDelete: Cascade)
-  recipient User @relation("Recipient", fields: [recipientDbId], references: [id], onDelete: Cascade)
+  sender                 User     @relation("Sender", fields: [senderUlid], references: [ulid], onDelete: Cascade)
+  recipient              User     @relation("Recipient", fields: [recipientUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([senderDbId])
-  @@index([recipientDbId])
+  @@index([senderUlid])
+  @@index([recipientUlid])
 }
 
 model Referral {
-  id           Int    @id @default(autoincrement())
-  referrerDbId Int
-  refereeDbId  Int
-  referralCode String @unique
-  status       String @default("pending")
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  referrerUlid           String   @db.Char(26)
+  refereeUlid            String   @db.Char(26)
+  referralCode           String   @unique
+  status                 String   @default("pending")
 
-  referrer User @relation("Referrer", fields: [referrerDbId], references: [id], onDelete: Cascade)
-  referee  User @relation("Referee", fields: [refereeDbId], references: [id], onDelete: Cascade)
+  referrer               User     @relation("Referrer", fields: [referrerUlid], references: [ulid], onDelete: Cascade)
+  referee                User     @relation("Referee", fields: [refereeUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([referrerDbId])
-  @@index([refereeDbId])
+  @@index([referrerUlid])
+  @@index([refereeUlid])
 }
 
 model Reminder {
-  id        Int      @id @default(autoincrement())
-  userDbId  Int
-  sessionId Int?
-  message   String
-  remindAt  DateTime
-  status    String   @default("pending")
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid               String   @db.Char(26)
+  sessionUlid            String?  @db.Char(26)
+  message                String
+  remindAt               DateTime
+  status                 String   @default("pending")
 
-  user    User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
-  session Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  session                Session? @relation(fields: [sessionUlid], references: [ulid], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([userDbId])
-  @@index([sessionId])
+  @@index([userUlid])
+  @@index([sessionUlid])
 }
 
 model CalendlyIntegration {
-  id                Int       @id @default(autoincrement())
-  userDbId          Int       @unique
-  user              User      @relation(fields: [userDbId], references: [id])
-  userId            String    // Calendly user ID
-  eventTypeId       String?   // Default event type ID (made optional)
-  accessToken       String
-  refreshToken      String
-  scope             String
-  organization      String?   // Organization ID (optional)
-  expiresAt         DateTime  @db.Timestamptz
-  lastSyncAt        DateTime? @db.Timestamptz
-  failedRefreshCount Int      @default(0)
-  status            String    @default("active")
-  schedulingUrl     String    // Made required - personal scheduling URL
-  organizationUrl   String?   // Optional - only for org accounts
-  createdAt         DateTime  @default(now()) @db.Timestamptz
-  updatedAt         DateTime  @updatedAt @db.Timestamptz
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid               String   @unique @db.Char(26)
+  user                   User     @relation(fields: [userUlid], references: [ulid])
+  userId                 String    // Calendly user ID
+  eventTypeId            String?   // Default event type ID
+  accessToken            String
+  refreshToken           String
+  scope                  String
+  organization           String?   // Organization ID
+  expiresAt              DateTime  @db.Timestamptz
+  lastSyncAt             DateTime? @db.Timestamptz
+  failedRefreshCount     Int       @default(0)
+  status                 String    @default("active")
+  schedulingUrl          String    // Personal scheduling URL
+  organizationUrl        String?   // Optional - only for org accounts
+  createdAt              DateTime  @default(now()) @db.Timestamptz
+  updatedAt              DateTime  @updatedAt @db.Timestamptz
 
-  @@index([userDbId])
+  @@index([userUlid])
   @@map("CalendlyIntegration")
 }
 
 model Subscription {
-  id                     Int       @id @default(autoincrement())
-  subscriptionId         String    @unique
-  userDbId               Int
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  subscriptionId         String   @unique
+  userUlid               String   @db.Char(26)
   stripeCustomerId       String
   status                 String
   startDate              DateTime
   endDate                DateTime?
-  planId                 String
+  planUlid               String   @db.Char(26)
   defaultPaymentMethodId String?
 
-  user     User             @relation(fields: [userDbId], references: [id], onDelete: Cascade)
-  plan     SubscriptionPlan @relation(fields: [planId], references: [planId], onDelete: Restrict)
-  invoices Invoice[]
+  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  plan                   SubscriptionPlan @relation(fields: [planUlid], references: [ulid], onDelete: Restrict)
+  invoices               Invoice[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([userDbId])
-  @@index([planId])
+  @@index([userUlid])
+  @@index([planUlid])
 }
 
 model SubscriptionPlan {
-  id          Int     @id @default(autoincrement())
-  planId      String  @unique
-  name        String
-  description String
-  amount      Decimal @db.Decimal(10, 2)
-  currency    String  @default("USD")
-  interval    String
-  isActive    Boolean @default(true)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  planId                 String   @unique
+  name                   String
+  description            String
+  amount                 Decimal  @db.Decimal(10, 2)
+  currency               String   @default("USD")
+  interval               String
+  isActive               Boolean  @default(true)
 
-  subscriptions Subscription[]
+  subscriptions          Subscription[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 }
 
 model Invoice {
-  id             Int       @id @default(autoincrement())
-  invoiceId      String    @unique
-  subscriptionId String
-  userDbId       Int?
-  amountPaid     Decimal   @db.Decimal(10, 2)
-  amountDue      Decimal?  @db.Decimal(10, 2)
-  currency       String
-  status         String
-  dueDate        DateTime?
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  invoiceId              String   @unique
+  subscriptionId         String
+  userUlid               String?  @db.Char(26)
+  amountPaid             Decimal  @db.Decimal(10, 2)
+  amountDue              Decimal? @db.Decimal(10, 2)
+  currency               String
+  status                 String
+  dueDate                DateTime?
 
-  subscription Subscription? @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: SetNull)
-  user         User?         @relation(fields: [userDbId], references: [id], onDelete: SetNull)
+  subscription           Subscription? @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: SetNull)
+  user                   User?        @relation(fields: [userUlid], references: [ulid], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@index([subscriptionId])
-  @@index([userDbId])
+  @@index([userUlid])
 }
 
 model CalendlyWebhookEvent {
-  id        Int      @id @default(autoincrement())
-  eventType String
-  payload   Json
-  processed Boolean  @default(false)
-  error     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  eventType              String
+  payload                Json
+  processed              Boolean  @default(false)
+  error                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   @@index([eventType])
   @@index([processed])
 }
 
 model CalendlyEvent {
-  id           Int    @id @default(autoincrement())
-  eventUuid    String @unique
-  userDbId     Int
-  status       String
-  eventType    String
-  inviteeEmail String
-  inviteeName  String
-  sessionId    Int?   @unique
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  eventUuid              String   @unique
+  userUlid               String   @db.Char(26)
+  status                 String
+  eventType              String
+  inviteeEmail           String
+  inviteeName            String
+  sessionUlid            String?  @unique @db.Char(26)
 
   // Relationships
-  session Session? @relation("SessionCalendlyEvent", fields: [sessionId], references: [id])
-  user    User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+  session                Session? @relation("SessionCalendlyEvent", fields: [sessionUlid], references: [ulid])
+  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([userDbId])
+  @@index([userUlid])
   @@index([eventUuid])
 }
 
 model ZoomSession {
-  id        Int     @id @default(autoincrement())
-  sessionId Int     @unique
-  topic     String
-  status    String
-  joinUrl   String?
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  sessionUlid            String   @unique @db.Char(26)
+  topic                  String
+  status                 String
+  joinUrl                String?
 
   // Relationships
-  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session                Session  @relation(fields: [sessionUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  @@index([sessionId])
+  @@index([sessionUlid])
 }
 
 model Goal {
-  id          Int        @id @default(autoincrement())
-  userDbId    Int
-  title       String
-  description String?
-  target      Float
-  current     Float      @default(0)
-  deadline    DateTime
-  type        GoalType
-  status      GoalStatus @default(in_progress)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid               String   @db.Char(26)
+  title                  String
+  description            String?
+  target                 Float
+  current                Float      @default(0)
+  deadline               DateTime
+  type                   GoalType
+  status                 GoalStatus @default(in_progress)
 
   // Relationships
-  user User @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
-  @@index([userDbId])
+  @@index([userUlid])
   @@index([type])
   @@index([status])
 }
 
 // Application-specific achievements
 model Achievement {
-  id          Int      @id @default(autoincrement())
-  userDbId    Int
-  type        String   // e.g., "SESSION_MILESTONE", "RATING_MILESTONE"
-  milestone   String   // e.g., "10_SESSIONS", "100_FIVE_STAR_REVIEWS"
-  earnedAt    DateTime @default(now()) @db.Timestamptz
-  metadata    Json?    // Additional achievement-specific data
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid               String   @db.Char(26)
+  type                   String   // e.g., "SESSION_MILESTONE", "RATING_MILESTONE"
+  milestone              String   // e.g., "10_SESSIONS", "100_FIVE_STAR_REVIEWS"
+  earnedAt               DateTime @default(now()) @db.Timestamptz
+  metadata               Json?    // Additional achievement-specific data
 
-  user        User     @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt   DateTime @default(now()) @db.Timestamptz
-  updatedAt   DateTime @updatedAt @db.Timestamptz
+  createdAt              DateTime @default(now()) @db.Timestamptz
+  updatedAt              DateTime @updatedAt @db.Timestamptz
 
-  @@index([userDbId])
+  @@index([userUlid])
   @@index([type])
   @@map("Achievement")
 }
 
 // Professional recognition (formerly stored in RealtorProfile.achievements)
 model ProfessionalRecognition {
-  id               Int      @id @default(autoincrement())
-  realtorProfileId Int
-  title            String
-  type             RecognitionType // AWARD or ACHIEVEMENT
-  year             Int
-  organization     String?
-  description      String?
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  realtorProfileUlid     String   @db.Char(26)
+  title                  String
+  type                   RecognitionType
+  year                   Int
+  organization           String?
+  description            String?
   
-  realtorProfile   RealtorProfile @relation(fields: [realtorProfileId], references: [id], onDelete: Cascade)
+  realtorProfile         RealtorProfile @relation(fields: [realtorProfileUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt        DateTime @default(now()) @db.Timestamptz
-  updatedAt        DateTime @updatedAt @db.Timestamptz
-  archivedAt       DateTime? @db.Timestamptz
+  createdAt              DateTime  @default(now()) @db.Timestamptz
+  updatedAt              DateTime  @updatedAt @db.Timestamptz
+  archivedAt             DateTime? @db.Timestamptz
 
-  @@index([realtorProfileId])
+  @@index([realtorProfileUlid])
   @@index([type])
   @@map("ProfessionalRecognition")
 }
@@ -982,161 +978,161 @@ enum RecognitionType {
 }
 
 model CoachingAvailabilitySchedule {
-  id        Int     @id @default(autoincrement())
-  userDbId  Int
-  name      String // e.g., "Standard Schedule", "Holiday Hours"
-  timezone  String
-  isDefault Boolean @default(false)
-  active    Boolean @default(true)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid               String   @db.Char(26)
+  name                   String // e.g., "Standard Schedule", "Holiday Hours"
+  timezone               String
+  isDefault              Boolean  @default(false)
+  active                 Boolean  @default(true)
 
   // Session Configuration
-  defaultDuration     Int     @default(60)
-  minimumDuration     Int     @default(30)
-  maximumDuration     Int     @default(120)
-  allowCustomDuration Boolean @default(false)
-  bufferBefore        Int     @default(15) // minutes
-  bufferAfter         Int     @default(15) // minutes
+  defaultDuration        Int     @default(60)
+  minimumDuration          Int     @default(30)
+  maximumDuration          Int     @default(120)
+  allowCustomDuration      Boolean @default(false)
+  bufferBefore             Int     @default(15) // minutes
+  bufferAfter              Int     @default(15) // minutes
 
   // Availability Rules
-  rules Json // Stored as JSONB - weekly schedule, breaks, etc.
+  rules                  Json // Stored as JSONB - weekly schedule, breaks, etc.
 
   // Integration Settings
-  calendlyEnabled Boolean @default(false)
-  zoomEnabled     Boolean @default(false)
+  calendlyEnabled          Boolean @default(false)
+  zoomEnabled              Boolean @default(false)
 
   // Metrics
-  totalSessions Int      @default(0)
-  averageRating Decimal? @db.Decimal(3, 2)
+  totalSessions            Int      @default(0)
+  averageRating            Decimal? @db.Decimal(3, 2)
 
-  user User @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+  user                     User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
 
-  @@index([userDbId])
+  @@index([userUlid])
 }
 
 model StripePaymentMethod {
-  id                    Int      @id @default(autoincrement())
-  userDbId              Int
-  stripePaymentMethodId String
-  type                  String // card, bank_account
-  isDefault             Boolean  @default(false)
-  metadata              Json     @default("{}")
-  createdAt             DateTime @default(now()) @db.Timestamptz
-  updatedAt             DateTime @updatedAt @db.Timestamptz
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid               String   @db.Char(26)
+  stripePaymentMethodId  String
+  type                   String // card, bank_account
+  isDefault              Boolean  @default(false)
+  metadata               Json     @default("{}")
+  createdAt              DateTime @default(now()) @db.Timestamptz
+  updatedAt              DateTime @updatedAt @db.Timestamptz
 
   // Relationships
-  user User @relation(fields: [userDbId], references: [id])
+  user                   User     @relation(fields: [userUlid], references: [ulid])
 
-  @@unique([userDbId, stripePaymentMethodId])
-  @@index([userDbId])
+  @@unique([userUlid, stripePaymentMethodId])
+  @@index([userUlid])
   @@map("StripePaymentMethod")
 }
 
 model SetupIntent {
-  id                  Int      @id @default(autoincrement())
-  userDbId            Int
-  stripeSetupIntentId String
-  status              String
-  createdAt           DateTime @default(now()) @db.Timestamptz
-  updatedAt           DateTime @updatedAt @db.Timestamptz
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid               String   @db.Char(26)
+  stripeSetupIntentId    String
+  status                 String
+  createdAt              DateTime @default(now()) @db.Timestamptz
+  updatedAt              DateTime @updatedAt @db.Timestamptz
 
   // Relationships
-  user User @relation(fields: [userDbId], references: [id])
+  user                   User     @relation(fields: [userUlid], references: [ulid])
 
-  @@index([userDbId])
+  @@index([userUlid])
   @@map("SetupIntent")
 }
 
 model StripeConnectedAccount {
-  id                 Int       @id @default(autoincrement())
-  userDbId           Int       @unique
-  stripeAccountId    String    @unique
-  country            String
-  defaultCurrency    String    @default("usd")
-  payoutsEnabled     Boolean   @default(false)
-  detailsSubmitted   Boolean   @default(false)
-  chargesEnabled     Boolean   @default(false)
-  requiresOnboarding Boolean   @default(true)
-  deauthorizedAt     DateTime? @db.Timestamptz
-  createdAt          DateTime  @default(now()) @db.Timestamptz
-  updatedAt          DateTime  @updatedAt @db.Timestamptz
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid               String   @unique @db.Char(26)
+  stripeAccountId        String   @unique
+  country                String
+  defaultCurrency        String    @default("usd")
+  payoutsEnabled         Boolean   @default(false)
+  detailsSubmitted       Boolean   @default(false)
+  chargesEnabled         Boolean   @default(false)
+  requiresOnboarding     Boolean   @default(true)
+  deauthorizedAt         DateTime? @db.Timestamptz
+  createdAt              DateTime  @default(now()) @db.Timestamptz
+  updatedAt              DateTime  @updatedAt @db.Timestamptz
 
   // Relationships
-  user User @relation(fields: [userDbId], references: [id])
+  user                   User     @relation(fields: [userUlid], references: [ulid])
 
   @@map("StripeConnectedAccount")
 }
 
 model Transaction {
-  id                    Int      @id @default(autoincrement())
-  type                  String // session_payment, bundle_payment, payout, refund
-  status                String // pending, completed, failed, refunded
-  amount                Float
-  currency              String   @default("usd")
-  stripePaymentIntentId String?
-  stripeTransferId      String?
-  platformFee           Float?
-  coachPayout           Float?
-  sessionDbId           Int?     @unique
-  payerDbId             Int
-  coachDbId             Int
-  metadata              Json     @default("{}")
-  createdAt             DateTime @default(now()) @db.Timestamptz
-  updatedAt             DateTime @updatedAt @db.Timestamptz
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  type                   String // session_payment, bundle_payment, payout, refund
+  status                 String // pending, completed, failed, refunded
+  amount                 Float
+  currency               String   @default("usd")
+  stripePaymentIntentId  String?
+  stripeTransferId       String?
+  platformFee            Float?
+  coachPayout            Float?
+  sessionUlid            String?  @unique @db.Char(26)
+  payerUlid              String   @db.Char(26)
+  coachUlid              String   @db.Char(26)
+  metadata               Json     @default("{}")
+  createdAt              DateTime @default(now()) @db.Timestamptz
+  updatedAt              DateTime @updatedAt @db.Timestamptz
 
   // Relationships
-  session Session? @relation(fields: [sessionDbId], references: [id])
-  payer   User     @relation("TransactionPayer", fields: [payerDbId], references: [id])
-  coach   User     @relation("TransactionCoach", fields: [coachDbId], references: [id])
+  session                Session? @relation(fields: [sessionUlid], references: [ulid])
+  payer                  User       @relation("TransactionPayer", fields: [payerUlid], references: [ulid])
+  coach                  User       @relation("TransactionCoach", fields: [coachUlid], references: [ulid])
 
-  @@index([payerDbId])
-  @@index([coachDbId])
-  @@index([sessionDbId])
+  @@index([payerUlid])
+  @@index([coachUlid])
+  @@index([sessionUlid])
   @@map("Transaction")
 }
 
 model SystemHealth {
-  id            BigInt    @id @default(autoincrement())
-  status        Int
-  activeSessions Int
-  pendingReviews Int
-  securityAlerts Int
-  uptime        Float
-  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt     DateTime  @updatedAt @db.Timestamptz(6)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  status                 Int
+  activeSessions         Int
+  pendingReviews         Int
+  securityAlerts         Int
+  uptime                 Float
+  createdAt              DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([createdAt])
   @@map("SystemHealth")
 }
 
 model AdminMetrics {
-  id                Int       @id @default(autoincrement())
-  totalUsers        Int
-  activeUsers       Int
-  totalCoaches      Int
-  activeCoaches     Int
-  pendingCoaches    Int
-  totalSessions     Int
-  completedSessions Int
-  totalRevenue      Float
-  monthlyRevenue    Float
-  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt         DateTime  @updatedAt @db.Timestamptz(6)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  totalUsers             Int
+  activeUsers            Int
+  totalCoaches           Int
+  activeCoaches          Int
+  pendingCoaches         Int
+  totalSessions          Int
+  completedSessions      Int
+  totalRevenue           Float
+  monthlyRevenue         Float
+  createdAt              DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([createdAt])
   @@map("AdminMetrics")
 }
 
 model SystemActivity {
-  id          BigInt    @id @default(autoincrement())
-  type        String    // Enum in application layer
-  title       String
-  description String
-  severity    String?   // Optional enum in application layer
-  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  type                   String    // Enum in application layer
+  title                  String
+  description            String
+  severity               String?   // Optional enum in application layer
+  createdAt              DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([type, createdAt])
   @@index([severity, createdAt])
@@ -1144,13 +1140,13 @@ model SystemActivity {
 }
 
 model SystemAlerts {
-  id          BigInt    @id @default(autoincrement())
-  type        String    // Enum in application layer
-  title       String
-  message     String
-  severity    String    // Enum in application layer
-  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  type                   String    // Enum in application layer
+  title                  String
+  message                String
+  severity               String    // Enum in application layer
+  createdAt              DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([type, createdAt])
   @@index([severity, createdAt])
@@ -1159,14 +1155,14 @@ model SystemAlerts {
 
 // Admin Dashboard MVP Models
 model AdminActivity {
-  id          Int       @id @default(autoincrement())
-  type        String    // USER_ACTION, COACH_APPLICATION, SESSION, SYSTEM
-  title       String
-  description String
-  userDbId    Int?      // Optional reference to user who performed action
-  severity    String    // LOW, MEDIUM, HIGH
-  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime  @updatedAt @db.Timestamptz(6)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  type                   String    // USER_ACTION, COACH_APPLICATION, SESSION, SYSTEM
+  title                  String
+  description            String
+  userUlid               String?  @db.Char(26)
+  severity               String    // LOW, MEDIUM, HIGH
+  createdAt              DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime @updatedAt @db.Timestamptz(6)
 
   @@index([type])
   @@index([createdAt])
@@ -1175,16 +1171,16 @@ model AdminActivity {
 
 // Keep track of important admin actions for audit
 model AdminAuditLog {
-  id          Int       @id @default(autoincrement())
-  adminDbId   Int       // Admin who performed the action
-  admin       User      @relation("AdminAuditLogs", fields: [adminDbId], references: [id])
-  action      String    // Type of action performed
-  targetType  String    // What was affected (user, coach, application, etc)
-  targetId    Int       // ID of the affected record
-  details     Json      // Additional details about the action
-  createdAt   DateTime  @default(now()) @db.Timestamptz(6)
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  adminUlid              String   @db.Char(26)
+  admin                  User     @relation("AdminAuditLogs", fields: [adminUlid], references: [ulid])
+  action                 String    // Type of action performed
+  targetType             String    // What was affected (user, coach, application, etc)
+  targetUlid             String   @db.Char(26)
+  details                Json      // Additional details about the action
+  createdAt              DateTime @default(now()) @db.Timestamptz(6)
 
-  @@index([adminDbId])
+  @@index([adminUlid])
   @@index([action])
   @@index([createdAt])
   @@map("AdminAuditLog")
@@ -1192,128 +1188,128 @@ model AdminAuditLog {
 
 // New Listing model with RESO compliance
 model Listing {
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
   // Core Identification (RESO format)
-  id                Int           @id @default(autoincrement())
-  listingKey        String?       @unique  // RESO: Unique identifier for MLS integration
-  parcelNumber      String?       @db.VarChar(50)  // RESO: Official parcel/tax ID
-  taxLot            String?       @db.VarChar(50)  // RESO: Tax lot number
-  taxBlock          String?       @db.VarChar(50)  // RESO: Tax block number
-  taxMapNumber      String?       @db.VarChar(50)  // RESO: Tax map reference
-  taxLegalDescription String?     @db.VarChar(1000) // RESO: Full legal description
+  listingKey             String?       @unique  // RESO: Unique identifier for MLS integration
+  parcelNumber           String?       @db.VarChar(50)  // RESO: Official parcel/tax ID
+  taxLot                 String?       @db.VarChar(50)  // RESO: Tax lot number
+  taxBlock               String?       @db.VarChar(50)  // RESO: Tax block number
+  taxMapNumber           String?       @db.VarChar(50)  // RESO: Tax map reference
+  taxLegalDescription    String?     @db.VarChar(1000) // RESO: Full legal description
   
   // Property Classification (RESO format)
-  propertyType      PropertyType  // Primary classification
-  propertySubType   PropertySubType? // More specific classification
-  status            ListingStatus @default(Active) // RESO: Current listing status
+  propertyType           PropertyType  // Primary classification
+  propertySubType        PropertySubType? // More specific classification
+  status                 ListingStatus @default(Active) // RESO: Current listing status
   
   // Location Information (RESO format)
-  streetNumber      String        @db.VarChar(25)  // RESO: Street number component
-  streetName        String        @db.VarChar(50)  // RESO: Street name component
-  unitNumber        String?       @db.VarChar(25)  // RESO: Unit/apartment number
-  city              String        @db.VarChar(150) // RESO: City name
-  stateOrProvince   String        @db.VarChar(50)  // RESO: State/province
-  postalCode        String        @db.VarChar(10)  // RESO: Postal/ZIP code
+  streetNumber         String        @db.VarChar(25)  // RESO: Street number component
+  streetName           String        @db.VarChar(50)  // RESO: Street name component
+  unitNumber           String?       @db.VarChar(25)  // RESO: Unit/apartment number
+  city                 String        @db.VarChar(150) // RESO: City name
+  stateOrProvince      String        @db.VarChar(50)  // RESO: State/province
+  postalCode           String        @db.VarChar(10)  // RESO: Postal/ZIP code
   
   // Price Information (RESO format)
-  listPrice         Decimal       @db.Decimal(12,2) // RESO: Current listing price
-  originalListPrice Decimal?      @db.Decimal(12,2) // RESO: Original price when listed
-  closePrice        Decimal?      @db.Decimal(12,2) // RESO: Final sale price
+  listPrice            Decimal       @db.Decimal(12,2) // RESO: Current listing price
+  originalListPrice    Decimal?      @db.Decimal(12,2) // RESO: Original price when listed
+  closePrice             Decimal?      @db.Decimal(12,2) // RESO: Final sale price
   
   // Dates and Timestamps (RESO format)
-  listingContractDate DateTime?   @db.Timestamptz  // RESO: Contract start date
-  closeDate           DateTime?   @db.Timestamptz  // RESO: Property closing date
+  listingContractDate  DateTime?   @db.Timestamptz  // RESO: Contract start date
+  closeDate            DateTime?   @db.Timestamptz  // RESO: Property closing date
   statusChangeTimestamp DateTime? @db.Timestamptz  // RESO: Last status change
-  priceChangeTimestamp  DateTime? @db.Timestamptz  // RESO: Last price change
+  priceChangeTimestamp   DateTime? @db.Timestamptz  // RESO: Last price change
   modificationTimestamp DateTime? @db.Timestamptz  // RESO: Last modification
   createdAt            DateTime   @default(now()) @db.Timestamptz
   updatedAt            DateTime   @updatedAt @db.Timestamptz
   
   // Physical Characteristics (RESO format)
-  bedroomsTotal     Int?         // RESO: Total number of bedrooms
-  bathroomsTotal    Decimal?     @db.Decimal(3,1) // RESO: Total bathrooms (allows half baths)
-  livingArea        Decimal?     @db.Decimal(12,2) // RESO: Living space square footage
-  lotSize           Decimal?     @db.Decimal(12,2) // RESO: Lot size in square feet
-  lotSizeDimensions String?      @db.VarChar(50)  // RESO: Actual lot dimensions
-  lotDimensionsSource String?    @db.VarChar(50)  // RESO: Source of dimension data
-  yearBuilt         Int?         // RESO: Year property was built
-  stories           Int?         // RESO: Number of stories/levels
+  bedroomsTotal        Int?         // RESO: Total number of bedrooms
+  bathroomsTotal       Decimal?     @db.Decimal(3,1) // RESO: Total bathrooms (allows half baths)
+  livingArea           Decimal?     @db.Decimal(12,2) // RESO: Living space square footage
+  lotSize              Decimal?     @db.Decimal(12,2) // RESO: Lot size in square feet
+  lotSizeDimensions    String?      @db.VarChar(50)  // RESO: Actual lot dimensions
+  lotDimensionsSource  String?    @db.VarChar(50)  // RESO: Source of dimension data
+  yearBuilt            Int?         // RESO: Year property was built
+  stories              Int?         // RESO: Number of stories/levels
   
   // Structural Details (RESO format)
-  architecturalStyle ArchitecturalStyle? // RESO: Architectural style
-  basement          BasementType?     // RESO: Basement type
-  roofType          RoofType?         // RESO: Type of roof
-  view              ViewType[]        // RESO: Available views
+  architecturalStyle   ArchitecturalStyle? // RESO: Architectural style
+  basement             BasementType?     // RESO: Basement type
+  roofType             RoofType?         // RESO: Type of roof
+  view                 ViewType[]        // RESO: Available views
   
   // Parking Information (RESO format)
-  parkingTotal      Decimal?     @db.Decimal(12,2) // RESO: Total parking spaces
-  garageSpaces      Decimal?     @db.Decimal(12,2) // RESO: Garage spaces
+  parkingTotal         Decimal?     @db.Decimal(12,2) // RESO: Total parking spaces
+  garageSpaces         Decimal?     @db.Decimal(12,2) // RESO: Garage spaces
   
   // Property Features (RESO format)
-  furnished         FurnishedStatus? // RESO: Furnishing status
-  appliances        String[]        // RESO: Available appliances
-  interiorFeatures  String[]        // RESO: Interior features
-  exteriorFeatures  String[]        // RESO: Exterior features
-  heating           String[]        // RESO: Heating systems
-  cooling           String[]        // RESO: Cooling systems
+  furnished            FurnishedStatus? // RESO: Furnishing status
+  appliances           String[]        // RESO: Available appliances
+  interiorFeatures     String[]        // RESO: Interior features
+  exteriorFeatures     String[]        // RESO: Exterior features
+  heating              String[]        // RESO: Heating systems
+  cooling              String[]        // RESO: Cooling systems
   
   // Property Amenities (RESO format)
-  isWaterfront      Boolean        @default(false) // RESO: Waterfront property
-  hasFireplace      Boolean        @default(false) // RESO: Fireplace present
-  hasPatio          Boolean        @default(false) // RESO: Patio present
-  hasDeck           Boolean        @default(false) // RESO: Deck present
-  hasPorch          Boolean        @default(false) // RESO: Porch present
+  isWaterfront         Boolean        @default(false) // RESO: Waterfront property
+  hasFireplace         Boolean        @default(false) // RESO: Fireplace present
+  hasPatio             Boolean        @default(false) // RESO: Patio present
+  hasDeck              Boolean        @default(false) // RESO: Deck present
+  hasPorch             Boolean        @default(false) // RESO: Porch present
   
   // Property Condition and Terms (RESO format)
-  propertyCondition PropertyCondition[] // RESO: Current condition
-  listingTerms      ListingTerms[]     // RESO: Acceptable terms
-  listingAgreement  ListingAgreement?  // RESO: Type of listing agreement
+  propertyCondition    PropertyCondition[] // RESO: Current condition
+  listingTerms         ListingTerms[]     // RESO: Acceptable terms
+  listingAgreement     ListingAgreement?  // RESO: Type of listing agreement
   
   // Community Information (RESO format)
-  schoolDistrict    String?       @db.VarChar(100) // RESO: School district name
-  elementarySchool  String?       @db.VarChar(100) // RESO: Elementary school
-  middleSchool      String?       @db.VarChar(100) // RESO: Middle school
-  highSchool        String?       @db.VarChar(100) // RESO: High school
+  schoolDistrict       String?       @db.VarChar(100) // RESO: School district name
+  elementarySchool     String?       @db.VarChar(100) // RESO: Elementary school
+  middleSchool         String?       @db.VarChar(100) // RESO: Middle school
+  highSchool             String?       @db.VarChar(100) // RESO: High school
   
   // Financial Information (RESO format)
-  taxYear           Int?         // RESO: Tax assessment year
-  taxAnnualAmount   Decimal?     @db.Decimal(12,2) // RESO: Annual tax amount
-  hoaName           String?      @db.VarChar(100)  // RESO: HOA name
-  hoaFeeAmount      Decimal?     @db.Decimal(12,2) // RESO: HOA fee amount
-  hoaFeeFrequency   String?      @db.VarChar(50)   // RESO: HOA payment frequency
+  taxYear              Int?         // RESO: Tax assessment year
+  taxAnnualAmount      Decimal?     @db.Decimal(12,2) // RESO: Annual tax amount
+  hoaName              String?      @db.VarChar(100)  // RESO: HOA name
+  hoaFeeAmount         Decimal?     @db.Decimal(12,2) // RESO: HOA fee amount
+  hoaFeeFrequency      String?      @db.VarChar(50)   // RESO: HOA payment frequency
   
   // Utilities (RESO format)
   electricityAvailable Boolean    @default(true) // RESO: Electricity status
-  gasAvailable        Boolean    @default(true) // RESO: Gas status
-  sewerAvailable      Boolean    @default(true) // RESO: Sewer status
-  waterAvailable      Boolean    @default(true) // RESO: Water status
+  gasAvailable           Boolean    @default(true) // RESO: Gas status
+  sewerAvailable         Boolean    @default(true) // RESO: Sewer status
+  waterAvailable         Boolean    @default(true) // RESO: Water status
   
   // Zoning Information (RESO format)
-  zoning             String?     @db.VarChar(25)  // RESO: Zoning code
+  zoning               String?     @db.VarChar(25)  // RESO: Zoning code
   zoningDescription  String?     @db.VarChar(255) // RESO: Zoning description
   
   // Marketing Information (RESO format)
-  publicRemarks      String?     @db.VarChar(4000) // RESO: Public description
-  privateRemarks     String?     @db.VarChar(4000) // RESO: Agent-only remarks
-  photos             Json?       // RESO: Property photos
-  virtualTours       Json?       // RESO: Virtual tour links
-  isFeatured         Boolean     @default(false)   // Custom: Featured listing flag
-  featuredOrder      Int?        // Custom: Featured listing order
+  publicRemarks       String?     @db.VarChar(4000) // RESO: Public description
+  privateRemarks      String?     @db.VarChar(4000) // RESO: Agent-only remarks
+  photos               Json?       // RESO: Property photos
+  virtualTours         Json?       // RESO: Virtual tour links
+  isFeatured           Boolean     @default(false)   // Custom: Featured listing flag
+  featuredOrder        Int?        // Custom: Featured listing order
 
   // Custom fields
-  mlsLink            String?     @db.VarChar(1000) // Custom: Direct link to MLS listing
-  publicListingUrl   String?     @db.VarChar(1000) // Custom: Link to public listing (Zillow, Redfin, etc.)
+  mlsLink              String?     @db.VarChar(1000) // Custom: Direct link to MLS listing
+  publicListingUrl     String?     @db.VarChar(1000) // Custom: Link to public listing (Zillow, Redfin, etc.)
   
   // Source Information (RESO format)
-  source             String     @default("MANUAL") // RESO: Data source
-  mlsSource          String?    // RESO: MLS system name
-  mlsId              String?    // RESO: MLS-specific ID
+  source               String     @default("MANUAL") // RESO: Data source
+  mlsSource            String?    // RESO: MLS system name
+  mlsId                String?    // RESO: MLS-specific ID
   
   // Relations
-  realtorProfileId   Int
-  realtorProfile     RealtorProfile @relation(fields: [realtorProfileId], references: [id], onDelete: Cascade)
+  realtorProfileUlid      String   @db.Char(26)
+  realtorProfile        RealtorProfile @relation(fields: [realtorProfileUlid], references: [ulid], onDelete: Cascade)
   
   // Indexes for performance
-  @@index([realtorProfileId])
+  @@index([realtorProfileUlid])
   @@index([listingKey])
   @@index([status])
   @@index([isFeatured])
@@ -1322,35 +1318,35 @@ model Listing {
 
 // AI Chat Models
 model AIThread {
-  id        Int        @id @default(autoincrement())
-  userDbId  Int
-  title     String
-  category  String
-  status    String     @default("ACTIVE")
-  messages  AIMessage[]
-  createdAt DateTime   @default(now()) @db.Timestamptz
-  updatedAt DateTime   @updatedAt @db.Timestamptz
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  userUlid               String   @db.Char(26)
+  title                  String
+  category               String
+  status                 String     @default("ACTIVE")
+  messages               AIMessage[]
+  createdAt              DateTime   @default(now()) @db.Timestamptz
+  updatedAt              DateTime   @updatedAt @db.Timestamptz
 
   // Relations
-  user      User       @relation(fields: [userDbId], references: [id], onDelete: Cascade)
+  user                   User       @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
 
-  @@index([userDbId])
+  @@index([userUlid])
   @@map("AIThread")
 }
 
 model AIMessage {
-  id         Int      @id @default(autoincrement())
-  threadId   Int
-  role       String   // user or assistant
-  content    String   @db.Text
-  model      String   // e.g., gpt-4
-  tokens     Int      @default(0)
-  createdAt  DateTime @default(now()) @db.Timestamptz
-  updatedAt  DateTime @updatedAt @db.Timestamptz
+  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  threadUlid             String   @db.Char(26)
+  role                   String   // user or assistant
+  content                String   @db.Text
+  model                  String   // e.g., gpt-4
+  tokens                 Int      @default(0)
+  createdAt              DateTime @default(now()) @db.Timestamptz
+  updatedAt              DateTime @updatedAt @db.Timestamptz
 
   // Relations
-  thread     AIThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  thread                 AIThread @relation(fields: [threadUlid], references: [ulid], onDelete: Cascade)
 
-  @@index([threadId])
+  @@index([threadUlid])
   @@map("AIMessage")
 }

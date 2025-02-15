@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "ProfessionalRecognition" ADD COLUMN     "deletedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP;
