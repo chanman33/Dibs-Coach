@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, ExternalLink, Calendar as CalendarIcon, Filter, LayoutGrid, List, ChevronLeft, ChevronRight, RefreshCw, Plus } from 'lucide-react'
-import { useCalendly } from '@/utils/hooks/useCalendly'
+import { useCalendlyConnection } from '@/utils/hooks/useCalendly'
 import {
   Table,
   TableBody,
@@ -49,7 +49,7 @@ import {
 } from '@/components/ui/popover'
 import { cn } from '@/utils/cn'
 import { AvailabilityScheduleView } from './AvailabilityScheduleView'
-import { CoachingAvailabilityEditor } from './CoachingAvailabilityEditor'
+import { AvailabilityManager } from '@/components/coaching/AvailabilityManager'
 import { toast } from 'react-hot-toast'
 
 interface AvailabilityData {
@@ -71,7 +71,7 @@ const CACHE_DURATION = 30 * 60 * 1000 // 30 minutes
 const FETCH_RANGE_MONTHS = 3
 
 export function CalendlyAvailability() {
-  const { status, isLoading } = useCalendly()
+  const { status, isLoading } = useCalendlyConnection()
   const [data, setData] = useState<AvailabilityData>({ 
     schedules: [], 
     busyTimes: [],
@@ -89,7 +89,6 @@ export function CalendlyAvailability() {
   const [authError, setAuthError] = useState(false)
   const [lastFetchTime, setLastFetchTime] = useState<number>(0)
   const [activeTab, setActiveTab] = useState<string>('schedules')
-  const [showCoachingEditor, setShowCoachingEditor] = useState(false)
   const [coachingSchedules, setCoachingSchedules] = useState<any[]>([])
   const [isLoadingCoachingSchedules, setIsLoadingCoachingSchedules] = useState(false)
 
@@ -607,7 +606,6 @@ export function CalendlyAvailability() {
             <CardTitle className="flex items-center justify-between">
               <span>Coaching Availability</span>
               <Button
-                onClick={() => setShowCoachingEditor(true)}
                 className="flex items-center gap-2"
               >
                 <Plus className="h-4 w-4" />
@@ -620,42 +618,8 @@ export function CalendlyAvailability() {
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin" />
               </div>
-            ) : showCoachingEditor ? (
-              <CoachingAvailabilityEditor
-                onSave={() => {
-                  setShowCoachingEditor(false)
-                  fetchCoachingSchedules()
-                }}
-                onCancel={() => setShowCoachingEditor(false)}
-              />
-            ) : coachingSchedules.length > 0 ? (
-              <div className="space-y-8">
-                {coachingSchedules.map((schedule) => (
-                  <AvailabilityScheduleView 
-                    key={schedule.id} 
-                    schedule={schedule}
-                    onDelete={async () => {
-                      try {
-                        const response = await fetch(`/api/coaching/availability?id=${schedule.id}`, {
-                          method: 'DELETE'
-                        })
-                        if (!response.ok) {
-                          throw new Error('Failed to delete schedule')
-                        }
-                        toast.success('Schedule deleted successfully')
-                        fetchCoachingSchedules()
-                      } catch (error) {
-                        console.error('[COACHING_SCHEDULE_DELETE_ERROR]', error)
-                        toast.error('Failed to delete schedule')
-                      }
-                    }}
-                  />
-                ))}
-              </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No coaching availability schedules found
-              </div>
+              <AvailabilityManager />
             )}
           </CardContent>
         </Card>

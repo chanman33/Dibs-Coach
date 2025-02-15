@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
 import { ConnectCalendly } from '@/components/calendly/ConnectCalendly'
 import { CalendlyEventTypes } from '@/components/calendly/CalendlyEventTypes'
-import { CoachingAvailabilityEditor } from '@/components/calendly/CoachingAvailabilityEditor'
+import { AvailabilityManager } from '@/components/coaching/AvailabilityManager'
 import { useRouter } from 'next/navigation'
 
 export default function CalendlySettingsPage() {
@@ -31,23 +31,6 @@ export default function CalendlySettingsPage() {
         <ConnectCalendly />
       </Card>
 
-      <Tabs defaultValue="coaching-availability" className="w-full">
-        <TabsList>
-          <TabsTrigger value="coaching-availability">Coaching Availability</TabsTrigger>
-          <TabsTrigger value="event-types">Event Types</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="coaching-availability" className="mt-6">
-          <CoachingAvailabilityEditor 
-            onSave={handleSave}
-            onCancel={handleCancel}
-          />
-        </TabsContent>
-
-        <TabsContent value="event-types" className="mt-6">
-          <CalendlyEventTypes />
-        </TabsContent>
-      </Tabs>
     </div>
   )
 } 

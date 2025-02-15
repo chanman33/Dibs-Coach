@@ -32,7 +32,7 @@ interface TransformedSession {
   id: number
   durationMinutes: number
   status: Database['public']['Enums']['SessionStatus']
-  calendlyEventId: string | null
+  calendlyEventId: string
   startTime: string
   endTime: string
   createdAt: string
@@ -153,6 +153,7 @@ export async function fetchCoachSessions(): Promise<TransformedSession[] | null>
       createdAt,
       status,
       sessionType,
+      calendlyEvent:calendlyEvent!SessionCalendlyEvent(eventUuid),
       mentee:menteeDbId(
         id,
         firstName,
@@ -161,7 +162,7 @@ export async function fetchCoachSessions(): Promise<TransformedSession[] | null>
       )
     `)
     .eq('coachDbId', user.id)
-    .order('startTime', { ascending: false } as const) as { data: Array<Database['public']['Tables']['Session']['Row'] & { mentee: Database['public']['Tables']['User']['Row'] }> | null }
+    .order('startTime', { ascending: false } as const) as { data: Array<Database['public']['Tables']['Session']['Row'] & { mentee: Database['public']['Tables']['User']['Row'], calendlyEvent: { eventUuid: string } | null }> | null }
 
   if (!sessions) return null
 
@@ -169,7 +170,7 @@ export async function fetchCoachSessions(): Promise<TransformedSession[] | null>
     id: session.id,
     durationMinutes: Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)),
     status: session.status as Database['public']['Enums']['SessionStatus'],
-    calendlyEventId: null,
+    calendlyEventId: session.calendlyEvent?.eventUuid || '',
     startTime: session.startTime,
     endTime: session.endTime,
     createdAt: session.createdAt,

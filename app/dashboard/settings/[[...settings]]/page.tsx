@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator'
 import { useState, useEffect } from 'react'
 import { ConnectCalendly } from '@/components/calendly/ConnectCalendly'
 import { CalendlyEventTypes } from '@/components/calendly/CalendlyEventTypes'
-import { CoachingAvailabilityEditor } from '@/components/calendly/CoachingAvailabilityEditor'
+import { AvailabilityManager } from '@/components/coaching/AvailabilityManager'
 import { ROLES, type UserRole, hasAnyRole } from "@/utils/roles/roles"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
@@ -51,26 +51,26 @@ export default function Settings() {
     <div className="container mx-auto py-6 space-y-8">
       <Tabs defaultValue="account" className="w-full">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0">
-          <TabsTrigger 
-            value="account" 
+          <TabsTrigger
+            value="account"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
             Account
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="notifications"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
             Notifications
           </TabsTrigger>
-          <TabsTrigger 
+          <TabsTrigger
             value="subscription"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
             Subscription
           </TabsTrigger>
           {isCoachOrAdmin && (
-            <TabsTrigger 
+            <TabsTrigger
               value="calendly"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
             >
@@ -82,7 +82,7 @@ export default function Settings() {
         <TabsContent value="account" className="space-y-4 mt-6">
           {config?.auth?.enabled && (
             <Card className="p-0 border-none">
-              <UserProfile 
+              <UserProfile
                 appearance={{
                   elements: {
                     card: "!border !border-solid !border-border bg-background text-foreground rounded-lg shadow-none",
@@ -169,23 +169,6 @@ export default function Settings() {
               <ConnectCalendly />
             </Card>
 
-            <Tabs defaultValue="coaching-availability" className="w-full">
-              <TabsList>
-                <TabsTrigger value="coaching-availability">Coaching Availability</TabsTrigger>
-                <TabsTrigger value="event-types">Event Types</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="coaching-availability" className="mt-6">
-                <CoachingAvailabilityEditor 
-                  onSave={() => router.refresh()}
-                  onCancel={() => router.back()}
-                />
-              </TabsContent>
-
-              <TabsContent value="event-types" className="mt-6">
-                <CalendlyEventTypes />
-              </TabsContent>
-            </Tabs>
           </TabsContent>
         ) : (
           <TabsContent value="calendly" className="space-y-4 mt-6">

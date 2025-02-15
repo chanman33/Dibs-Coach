@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Calendar, momentLocalizer, View, ToolbarProps, ViewsProps } from 'react-big-calendar'
+import { Calendar, momentLocalizer, View, ToolbarProps } from 'react-big-calendar'
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import { Loader2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
@@ -7,16 +7,12 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
-import { 
-  CalendlyAvailabilitySchedule, 
-  CalendarEvent, 
-  CalendarEventType, 
-  CalendlyBusyTime, 
+import {
+  CalendlyAvailabilitySchedule,
+  CalendarEvent,
+  CalendlyBusyTime,
   ExtendedSession,
-  TimeInterval,
-  ScheduleRule
 } from '@/utils/types/calendly'
-import { cn } from '@/utils/cn'
 
 const localizer = momentLocalizer(moment)
 
@@ -55,8 +51,8 @@ const getStatusColor = (status: string) => {
 
 // Helper to convert availability schedule to events
 const getAvailabilityEvents = (
-  schedule: CalendlyAvailabilitySchedule, 
-  startDate: Date, 
+  schedule: CalendlyAvailabilitySchedule,
+  startDate: Date,
   endDate: Date,
 ): CalendarEvent[] => {
   const events: CalendarEvent[] = []
@@ -79,10 +75,10 @@ const getAvailabilityEvents = (
       const intervalEnd = moment(day).hour(toHour).minute(toMinute).second(0)
 
       // Split interval into 30-minute slots
-      for (let slotStart = moment(intervalStart); 
-           slotStart.isBefore(intervalEnd); 
-           slotStart.add(SLOT_DURATION, 'minutes')) {
-        
+      for (let slotStart = moment(intervalStart);
+        slotStart.isBefore(intervalEnd);
+        slotStart.add(SLOT_DURATION, 'minutes')) {
+
         const slotEnd = moment(slotStart).add(SLOT_DURATION, 'minutes')
         if (slotEnd.isAfter(intervalEnd)) continue
 
@@ -163,7 +159,7 @@ export function CoachingCalendar({
   }))
 
   // Get availability events for the current view's date range
-  const availabilityEvents = (availabilitySchedules || []).flatMap(schedule => 
+  const availabilityEvents = (availabilitySchedules || []).flatMap(schedule =>
     getAvailabilityEvents(
       schedule,
       moment(date).startOf('month').toDate(),
@@ -173,7 +169,7 @@ export function CoachingCalendar({
 
   // Filter out availability slots that overlap with busy times or sessions
   const filteredAvailabilityEvents = availabilityEvents.filter(availEvent => {
-    return ![...busyTimeEvents, ...sessionEvents].some(event => 
+    return ![...busyTimeEvents, ...sessionEvents].some(event =>
       doTimesOverlap(availEvent.start, availEvent.end, event.start, event.end)
     )
   })
@@ -214,7 +210,7 @@ export function CoachingCalendar({
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">{title}</h1>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-[1fr,300px] gap-4">
         <div>
           <Card className="p-2 sm:p-4">
@@ -247,32 +243,13 @@ export function CoachingCalendar({
               />
             </div>
           </Card>
-          {showCalendlyButton && (
-            <div className="mt-4">
-              <Button
-                onClick={(e) => {
-                  e.preventDefault()
-                  onRefreshCalendly?.()
-                }}
-                disabled={isLoading || isCalendlyLoading}
-                variant="outline"
-                className="gap-2 w-full sm:w-auto"
-              >
-                {isLoading || isCalendlyLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {!isCalendlyConnected ? 'Connect Calendly' : 'Refresh Schedule'}
-              </Button>
-            </div>
-          )}
+
         </div>
 
-        <Card className="p-4">
+        <Card className="p-2 sm:p-4">
           <h2 className="text-lg font-semibold mb-4">All Sessions</h2>
-          <ScrollArea className="h-[600px] pr-4">
-            <div className="space-y-4">
+          <ScrollArea className="h-[calc(600px-2rem)]">
+            <div className="space-y-4 pr-4">
               {sessions?.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
                 .map(session => (
                   <div key={session.id} className="p-3 border rounded-lg">
@@ -301,19 +278,41 @@ export function CoachingCalendar({
           </ScrollArea>
         </Card>
       </div>
+
+      {showCalendlyButton && (
+        <div className="mt-4">
+          <Button
+            onClick={(e) => {
+              e.preventDefault()
+              onRefreshCalendly?.()
+            }}
+            disabled={isLoading || isCalendlyLoading}
+            variant="outline"
+            className="gap-2 w-full sm:w-auto"
+          >
+            {isLoading || isCalendlyLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {!isCalendlyConnected ? 'Connect Calendly' : 'Refresh Schedule'}
+          </Button>
+        </div>
+      )}
+
     </div>
   )
 }
 
 // Update the CustomToolbar interface
-interface CustomToolbarProps extends ToolbarProps<CalendarEvent, object> {}
+interface CustomToolbarProps extends ToolbarProps<CalendarEvent, object> { }
 
-function CustomToolbar({ 
-  onNavigate, 
-  onView, 
-  view, 
-  views, 
-  label 
+function CustomToolbar({
+  onNavigate,
+  onView,
+  view,
+  views,
+  label
 }: CustomToolbarProps) {
   const viewNames = {
     month: 'Month',
