@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { CalendlyService } from '@/lib/calendly/calendly-service'
 import { 
   ApiResponse,
@@ -7,6 +8,17 @@ import {
 } from '@/utils/types/calendly'
 
 export async function GET(request: Request) {
+  const { userId } = await auth()
+  if (!userId) {
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated'
+      }
+    }, { status: 401 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const queryResult = ScheduledEventsQuerySchema.safeParse({
@@ -18,20 +30,23 @@ export async function GET(request: Request) {
     })
 
     if (!queryResult.success) {
-      const error = {
-        code: 'INVALID_PARAMETERS',
-        message: 'Invalid query parameters',
-        details: queryResult.error.flatten()
-      }
       return NextResponse.json<ApiResponse<never>>({ 
         data: null, 
-        error 
+        error: {
+          code: 'INVALID_PARAMETERS',
+          message: 'Invalid query parameters',
+          details: queryResult.error.flatten()
+        }
       }, { status: 400 })
     }
 
     const calendly = new CalendlyService()
-    const response = await calendly.getScheduledEvents(queryResult.data) as { collection: CalendlyScheduledEvent[] }
-    const events = response.collection
+    await calendly.init()
+    const events = await calendly.getScheduledEvents({
+      startTime: queryResult.data.minStartTime,
+      endTime: queryResult.data.maxStartTime,
+      status: queryResult.data.status
+    })
 
     return NextResponse.json<ApiResponse<CalendlyScheduledEvent[]>>({
       data: events,
@@ -39,14 +54,13 @@ export async function GET(request: Request) {
     })
   } catch (error) {
     console.error('[CALENDLY_SCHEDULED_EVENTS_ERROR]', error)
-    const apiError = {
-      code: 'FETCH_ERROR',
-      message: 'Failed to fetch scheduled events',
-      details: error instanceof Error ? { message: error.message } : undefined
-    }
     return NextResponse.json<ApiResponse<never>>({ 
       data: null, 
-      error: apiError 
+      error: {
+        code: 'FETCH_ERROR',
+        message: 'Failed to fetch scheduled events',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
     }, { status: 500 })
   }
 } 

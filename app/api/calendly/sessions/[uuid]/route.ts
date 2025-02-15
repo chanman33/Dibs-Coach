@@ -1,23 +1,81 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
 import { CalendlyService } from '@/lib/calendly/calendly-service'
 import { 
   ApiResponse,
   CalendlyScheduledEvent,
   CalendlyScheduledEventSchema
 } from '@/utils/types/calendly'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
+import { createAuthClient } from '@/utils/auth'
 
-export async function GET(
-  request: Request,
-  { params }: { params: { uuid: string } }
-) {
+export const GET = withApiAuth<CalendlyScheduledEvent>(async (req: Request, context) => {
+  const { userUlid } = context
+  const uuid = req.url.split('/').pop() // Get UUID from URL
+
+  if (!uuid) {
+    const error = {
+      code: 'INVALID_PARAMS',
+      message: 'Missing session UUID'
+    }
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error 
+    }, { status: 400 })
+  }
+
   try {
+    // Get Calendly integration
+    const supabase = await createAuthClient()
+    const { data: integration, error: integrationError } = await supabase
+      .from('CalendlyIntegration')
+      .select('accessToken, refreshToken, expiresAt')
+      .eq('userUlid', userUlid)
+      .single()
+
+    if (integrationError || !integration) {
+      console.error('[CALENDLY_SESSION_ERROR] Integration not found:', { 
+        userUlid, 
+        error: integrationError 
+      })
+      const error = {
+        code: 'INTEGRATION_NOT_FOUND',
+        message: 'Calendly integration not found'
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 404 })
+    }
+
+    // Initialize Calendly service
     const calendly = new CalendlyService()
-    const event = await calendly.getScheduledEvent(params.uuid)
+    await calendly.init()
+
+    // Get scheduled events and find the one we want
+    const events = await calendly.getScheduledEvents({
+      status: 'active'
+    })
+
+    const event = events.find(e => e.uri.includes(uuid))
+    if (!event) {
+      const error = {
+        code: 'EVENT_NOT_FOUND',
+        message: 'Scheduled event not found'
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 404 })
+    }
 
     // Validate event data
     const eventResult = CalendlyScheduledEventSchema.safeParse(event)
     if (!eventResult.success) {
+      console.error('[CALENDLY_SESSION_ERROR] Invalid event data:', {
+        userUlid,
+        uuid,
+        errors: eventResult.error.flatten()
+      })
       const error = {
         code: 'INVALID_EVENT',
         message: 'Invalid event data',
@@ -45,4 +103,4 @@ export async function GET(
       error: apiError 
     }, { status: 500 })
   }
-} 
+}) 

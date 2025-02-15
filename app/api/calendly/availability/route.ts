@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@clerk/nextjs/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createAuthClient } from '@/utils/auth'
 import { CalendlyService } from '@/lib/calendly/calendly-service'
 import { 
   ApiResponse,
-  AvailabilityQuerySchema,
   CalendlyEventType,
   CalendlyAvailableTime
 } from '@/utils/types/calendly'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
+import { z } from 'zod'
+
+// Query parameter validation schema
+const AvailabilityQuerySchema = z.object({
+  startTime: z.string().datetime(),
+  endTime: z.string().datetime(),
+  timezone: z.string()
+})
 
 const LOW_AVAILABILITY_THRESHOLD = 3 // Configurable threshold for low availability alert
 
@@ -18,23 +24,33 @@ interface AvailabilityResponse {
   hasLowAvailability: boolean
 }
 
-export async function GET(request: Request) {
+export const GET = withApiAuth<AvailabilityResponse[]>(async (req, { userUlid }) => {
   try {
-    // Auth check
-    const { userId } = await auth()
-    if (!userId) {
+    // Get Calendly integration
+    const supabase = await createAuthClient()
+    const { data: integration, error: integrationError } = await supabase
+      .from('CalendlyIntegration')
+      .select('accessToken, refreshToken, expiresAt')
+      .eq('userUlid', userUlid)
+      .single()
+
+    if (integrationError || !integration) {
+      console.error('[CALENDLY_INTEGRATION_ERROR]', { 
+        userUlid, 
+        error: integrationError 
+      })
       const error = {
-        code: 'UNAUTHORIZED',
-        message: 'Authentication required'
+        code: 'INTEGRATION_NOT_FOUND',
+        message: 'Calendly integration not found'
       }
       return NextResponse.json<ApiResponse<never>>({ 
         data: null, 
         error 
-      }, { status: 401 })
+      }, { status: 404 })
     }
 
     // Validate query parameters
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(req.url)
     const queryResult = AvailabilityQuerySchema.safeParse({
       startTime: searchParams.get('start_time'),
       endTime: searchParams.get('end_time'),
@@ -69,27 +85,25 @@ export async function GET(request: Request) {
       }, { status: 400 })
     }
 
-    // Get event types
+    // Initialize Calendly service
     const calendly = new CalendlyService()
-    const eventTypesResponse = await calendly.getEventTypes()
-    const eventTypes = (eventTypesResponse as { collection: CalendlyEventType[] }).collection
+    await calendly.init()
+
+    // Get event types
+    const eventTypes = await calendly.getEventTypes()
     
     // Get availability for each event type
     const availability = await Promise.all(
       eventTypes.map(async (eventType): Promise<AvailabilityResponse> => {
-        const response = await calendly.getEventTypeAvailableTimes({
-          eventUri: eventType.uri,
-          startTime: queryResult.data.startTime,
-          endTime: queryResult.data.endTime
-        })
-        const times = (response as { collection: CalendlyAvailableTime[] }).collection
+        const availabilityData = await calendly.getUserAvailability(integration.accessToken)
+        const times = availabilityData.collection || []
 
         return {
           eventType: {
             uri: eventType.uri,
             name: eventType.name,
             duration: eventType.duration,
-            description: eventType.description,
+            description: eventType.description || '',
             scheduling_url: eventType.scheduling_url,
           },
           availableTimes: times,
@@ -116,4 +130,4 @@ export async function GET(request: Request) {
       error: apiError 
     }, { status: 500 })
   }
-} 
+}) 

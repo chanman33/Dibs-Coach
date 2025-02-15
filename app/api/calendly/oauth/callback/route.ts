@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { CALENDLY_CONFIG, useRealCalendly } from '@/lib/calendly/calendly-config'
+import { createAuthClient } from '@/utils/auth'
 
 // Mock response for development mode
 const MOCK_TOKEN_RESPONSE = {
@@ -199,28 +200,12 @@ export async function GET(request: Request) {
     }
 
     // Initialize Supabase client
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-          set(name: string, value: string, options: any) {
-            // Not needed for this flow
-          },
-          remove(name: string, options: any) {
-            // Not needed for this flow
-          },
-        },
-      }
-    )
+    const supabase = await createAuthClient()
 
-    // Get user's database ID
+    // Get user's ULID
     const { data: user, error: userError } = await supabase
       .from('User')
-      .select('id')
+      .select('ulid')
       .eq('userId', userId)
       .single()
 
@@ -236,8 +221,8 @@ export async function GET(request: Request) {
       .from('CalendlyIntegration')
       .upsert(
         {
-          userDbId: user.id,
-          userId: userData.resource.uri.split('/').pop() || 'MOCK-USER-ID',
+          userUlid: user.ulid,
+          calendlyUserId: userData.resource.uri.split('/').pop() || 'MOCK-USER-ID',
           accessToken: access_token,
           refreshToken: refresh_token,
           scope: scope || 'default',
@@ -247,30 +232,25 @@ export async function GET(request: Request) {
           updatedAt: new Date().toISOString()
         },
         {
-          onConflict: 'userDbId',
-          ignoreDuplicates: false
+          onConflict: 'userUlid'
         }
       )
 
     if (integrationError) {
       console.error('[CALENDLY_AUTH_ERROR] Failed to store integration:', integrationError)
-      // Log the actual data being sent for debugging
-      console.log('[CALENDLY_AUTH_DEBUG] Integration data:', {
-        userDbId: user.id,
-        userId: userData.resource.uri?.split('/').pop() || 'MOCK-USER-ID',
-        organizationUrl: userData.resource.current_organization?.url,
-        schedulingUrl: userData.resource.scheduling_url
-      })
       return NextResponse.redirect(
-        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to store integration data')}`
+        `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to store integration')}`
       )
     }
 
-    // Clear the code verifier cookie
+    // Clear OAuth cookies
     cookieStore.delete('calendly_verifier')
+    cookieStore.delete('calendly_redirect')
 
-    // Redirect to success page
-    return NextResponse.redirect(`${process.env.FRONTEND_URL}/dashboard/settings/calendly?calendly=success`)
+    // Get the redirect URL from cookie
+    const redirectUrl = cookieStore.get('calendly_redirect')?.value || '/dashboard/settings/calendly'
+
+    return NextResponse.redirect(`${redirectUrl}?success=true`)
   } catch (error) {
     console.error('[CALENDLY_AUTH_ERROR]', error)
     return NextResponse.redirect(

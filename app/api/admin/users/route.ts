@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createAuthClient } from "@/utils/auth";
+import { ROLES } from "@/utils/roles/roles";
 
 export async function GET() {
   try {
@@ -13,25 +14,40 @@ export async function GET() {
     // Get authenticated Supabase client
     const supabase = await createAuthClient();
 
-    // Check if user is admin
-    const { data: adminCheck } = await supabase
+    // Get admin's ULID and check role
+    const { data: adminCheck, error: adminCheckError } = await supabase
       .from("User")
-      .select("role")
+      .select("ulid, role")
       .eq("userId", session.userId)
       .single();
 
-    if (!adminCheck || adminCheck.role !== "ADMIN") {
+    if (adminCheckError) {
+      console.error("[ADMIN_CHECK_ERROR]", { userId: session.userId, error: adminCheckError });
+      return new NextResponse("Error checking admin status", { status: 500 });
+    }
+
+    if (!adminCheck || adminCheck.role !== ROLES.ADMIN) {
       return new NextResponse("Forbidden: Admin access required", { status: 403 });
     }
 
     // Fetch all users with their roles
     const { data: users, error } = await supabase
       .from("User")
-      .select("id, email, firstName, lastName, role, status")
+      .select(`
+        ulid,
+        userId,
+        email,
+        firstName,
+        lastName,
+        role,
+        status,
+        createdAt,
+        updatedAt
+      `)
       .order("email");
 
     if (error) {
-      console.error("[FETCH_USERS_ERROR]", error);
+      console.error("[FETCH_USERS_ERROR]", { adminUlid: adminCheck.ulid, error });
       return new NextResponse("Failed to fetch users", { status: 500 });
     }
 

@@ -2,23 +2,11 @@ import { auth } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
-import { EventTypeMappingSchema } from '@/utils/types/calendly'
-import { CalendlyService } from '@/lib/calendly/calendly-service'
+import { EventTypeMappingSchema, ApiResponse } from '@/utils/types/calendly'
+import { createAuthClient } from '@/utils/auth'
 
 async function getUserDbId(userId: string) {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
-
+  const supabase = await createAuthClient()
   const { data, error } = await supabase
     .from('User')
     .select('id')
@@ -32,23 +20,18 @@ async function getUserDbId(userId: string) {
 export async function GET(request: NextRequest) {
   const { userId } = await auth()
   if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated'
+      }
+    }, { status: 401 })
   }
 
   try {
     const userDbId = await getUserDbId(userId)
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
+    const supabase = await createAuthClient()
 
     const { data: mappings, error } = await supabase
       .from('CalendlyEventTypeMapping')
@@ -57,45 +40,50 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error('[GET_EVENT_TYPE_MAPPINGS_ERROR]', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch event type mappings' },
-        { status: 500 }
-      )
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'DATABASE_ERROR',
+          message: 'Failed to fetch event type mappings',
+          details: error
+        }
+      }, { status: 500 })
     }
 
-    return NextResponse.json({ data: mappings })
+    return NextResponse.json<ApiResponse<any>>({ 
+      data: mappings,
+      error: null
+    })
   } catch (error) {
     console.error('[GET_EVENT_TYPE_MAPPINGS_ERROR]', error)
-    return NextResponse.json(
-      { error: 'Error processing request' },
-      { status: 500 }
-    )
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'Error processing request',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth()
   if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated'
+      }
+    }, { status: 401 })
   }
 
   try {
     const body = await request.json()
     const validatedData = EventTypeMappingSchema.parse(body)
     const userDbId = await getUserDbId(userId)
-
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
+    const supabase = await createAuthClient()
 
     // Check if mapping already exists
     const { data: existing } = await supabase
@@ -120,13 +108,20 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('[UPDATE_EVENT_TYPE_MAPPING_ERROR]', error)
-        return NextResponse.json(
-          { error: 'Failed to update event type mapping' },
-          { status: 500 }
-        )
+        return NextResponse.json<ApiResponse<never>>({
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to update event type mapping',
+            details: error
+          }
+        }, { status: 500 })
       }
 
-      return NextResponse.json({ data })
+      return NextResponse.json<ApiResponse<any>>({ 
+        data,
+        error: null
+      })
     } else {
       // Create new mapping
       const { data, error } = await supabase
@@ -142,27 +137,44 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('[CREATE_EVENT_TYPE_MAPPING_ERROR]', error)
-        return NextResponse.json(
-          { error: 'Failed to create event type mapping' },
-          { status: 500 }
-        )
+        return NextResponse.json<ApiResponse<never>>({
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to create event type mapping',
+            details: error
+          }
+        }, { status: 500 })
       }
 
-      return NextResponse.json({ data })
+      return NextResponse.json<ApiResponse<any>>({ 
+        data,
+        error: null
+      })
     }
   } catch (error) {
     console.error('[CREATE_EVENT_TYPE_MAPPING_ERROR]', error)
-    return NextResponse.json(
-      { error: 'Error processing request' },
-      { status: 500 }
-    )
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'Error processing request',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest) {
   const { userId } = await auth()
   if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated'
+      }
+    }, { status: 401 })
   }
 
   try {
@@ -170,25 +182,17 @@ export async function DELETE(request: NextRequest) {
     const eventTypeUri = searchParams.get('eventTypeUri')
     
     if (!eventTypeUri) {
-      return NextResponse.json(
-        { error: 'Event type URI is required' },
-        { status: 400 }
-      )
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'INVALID_PARAMETERS',
+          message: 'Event type URI is required'
+        }
+      }, { status: 400 })
     }
 
     const userDbId = await getUserDbId(userId)
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
+    const supabase = await createAuthClient()
 
     const { error } = await supabase
       .from('CalendlyEventTypeMapping')
@@ -198,18 +202,29 @@ export async function DELETE(request: NextRequest) {
 
     if (error) {
       console.error('[DELETE_EVENT_TYPE_MAPPING_ERROR]', error)
-      return NextResponse.json(
-        { error: 'Failed to delete event type mapping' },
-        { status: 500 }
-      )
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'DATABASE_ERROR',
+          message: 'Failed to delete event type mapping',
+          details: error
+        }
+      }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json<ApiResponse<boolean>>({ 
+      data: true,
+      error: null
+    })
   } catch (error) {
     console.error('[DELETE_EVENT_TYPE_MAPPING_ERROR]', error)
-    return NextResponse.json(
-      { error: 'Error processing request' },
-      { status: 500 }
-    )
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'Error processing request',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
 } 

@@ -8,8 +8,11 @@ import type {
   CalendlyEventType,
   CalendlyScheduledEvent,
   WebhookEvent,
-  WebhookStorage
+  WebhookStorage,
+  CalendlyBusyTime,
+  CalendlyAvailableTime,
 } from '@/utils/types/calendly'
+import { CalendlySessionType } from '@/utils/types/calendly'
 import { formatEventDateTime, formatEventType } from './calendly-utils'
 import { env } from '@/lib/env'
 
@@ -289,8 +292,13 @@ export class CalendlyService {
     }
   }
 
-  async getEventTypes(accessToken?: string): Promise<CalendlyEventType[]> {
-    // If accessToken is provided, use it directly, otherwise use fetchCalendly
+  async getEventTypes(accessToken?: string, count?: number, pageToken?: string): Promise<CalendlyEventType[]> {
+    // If not initialized and no access token provided, throw error
+    if (!this.userId && !accessToken) {
+      throw new Error('Service not initialized')
+    }
+
+    // If access token is provided, use it directly
     if (accessToken) {
       const response = await fetch(`${this.baseUrl}/event_types`, {
         headers: {
@@ -305,20 +313,28 @@ export class CalendlyService {
       }
 
       const data = await response.json()
-      return data.collection.map((eventType: any) => ({
-        id: eventType.uri,
-        name: eventType.name,
-        description: eventType.description,
-        duration: eventType.duration,
-        color: eventType.color,
-        type: eventType.type,
-        schedulingUrl: eventType.scheduling_url,
-      }))
+      return data.collection.map(formatEventType)
     }
 
-    // Use fetchCalendly for authenticated requests
-    const response = await this.fetchCalendly('/event_types')
-    return response.collection.map(formatEventType)
+    // Otherwise use fetchCalendly with pagination
+    const userDbId = await this.getUserDbId()
+    const response = await this.fetchCalendly('/event_types', {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      ...(count || pageToken ? {
+        searchParams: new URLSearchParams({
+          ...(count ? { count: count.toString() } : {}),
+          ...(pageToken ? { page_token: pageToken } : {}),
+        }).toString()
+      } : {})
+    })
+
+    const eventTypes = response.collection.map(async (eventType: CalendlyEventType) => {
+      return this.applyEventTypeMapping(eventType, userDbId)
+    })
+
+    return Promise.all(eventTypes)
   }
 
   async getScheduledEvents(params: {
@@ -518,32 +534,16 @@ export class CalendlyService {
         bufferAfterMinutes: mapping.bufferTime.after,
       }
     }
-    return eventType
-  }
-
-  async getEventTypes(count?: number, pageToken?: string): Promise<CalendlyEventType[]> {
-    if (!this.userId) {
-      throw new Error('Service not initialized')
+    // Provide default values when no mapping exists
+    return {
+      ...eventType,
+      sessionType: CalendlySessionType.FREE,
+      minimumDuration: eventType.duration,
+      maximumDuration: eventType.duration,
+      bufferBeforeMinutes: 0,
+      bufferAfterMinutes: 0,
+      availabilityRules: eventType.availabilityRules || []
     }
-
-    const userDbId = await this.getUserDbId()
-    const response = await this.fetchCalendly('/event_types', {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      ...(count || pageToken ? {
-        searchParams: new URLSearchParams({
-          ...(count ? { count: count.toString() } : {}),
-          ...(pageToken ? { page_token: pageToken } : {}),
-        }).toString()
-      } : {})
-    })
-
-    const eventTypes = response.collection.map(async (eventType: CalendlyEventType) => {
-      return this.applyEventTypeMapping(eventType, userDbId)
-    })
-
-    return Promise.all(eventTypes)
   }
 
   async createScheduledEvent(data: {
@@ -599,6 +599,52 @@ export class CalendlyService {
     })
 
     return response
+  }
+
+  async getBusyTimes(startTime: string, endTime: string): Promise<{ collection: CalendlyBusyTime[] }> {
+    return this.fetchCalendly<{ collection: CalendlyBusyTime[] }>(
+      `/user_busy_times?start_time=${startTime}&end_time=${endTime}`,
+      { method: 'GET' }
+    )
+  }
+
+  async getEventTypeAvailableTimes(params: {
+    eventUri: string,
+    startTime: string,
+    endTime: string
+  }): Promise<{ collection: CalendlyAvailableTime[] }> {
+    return this.fetchCalendly<{ collection: CalendlyAvailableTime[] }>(
+      `/event_types/${encodeURIComponent(params.eventUri)}/available_times?` + 
+      new URLSearchParams({
+        start_time: params.startTime,
+        end_time: params.endTime
+      }).toString(),
+      { method: 'GET' }
+    )
+  }
+
+  async markInviteeAsNoShow(inviteeUri: string): Promise<void> {
+    await this.fetchCalendly(`/invitees/${encodeURIComponent(inviteeUri.split('/').pop()!)}/no_show`, {
+      method: 'POST'
+    })
+  }
+
+  async undoInviteeNoShow(inviteeUuid: string): Promise<void> {
+    await this.fetchCalendly(`/invitees/${encodeURIComponent(inviteeUuid)}/no_show`, {
+      method: 'DELETE'
+    })
+  }
+
+  async getEventInvitees(
+    eventUuid: string,
+    count: number = 10,
+    pageToken?: string
+  ) {
+    const queryParams = new URLSearchParams()
+    queryParams.append('count', count.toString())
+    if (pageToken) queryParams.append('page_token', pageToken)
+
+    return this.fetchCalendly(`/scheduled_events/${eventUuid}/invitees?${queryParams}`)
   }
 }
 

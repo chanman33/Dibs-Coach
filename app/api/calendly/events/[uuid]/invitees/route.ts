@@ -5,6 +5,8 @@ import {
   CalendlyInvitee,
   CalendlyInviteeSchema
 } from '@/utils/types/calendly'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
+import { createAuthClient } from '@/utils/auth'
 import { z } from 'zod'
 
 interface PaginatedInvitees {
@@ -20,12 +22,46 @@ const QueryParamsSchema = z.object({
   page_token: z.string().optional()
 })
 
-export async function GET(
-  request: Request,
-  { params }: { params: { uuid: string } }
-) {
+export const GET = withApiAuth<PaginatedInvitees>(async (req, { userUlid }) => {
   try {
-    const { searchParams } = new URL(request.url)
+    // Get Calendly integration
+    const supabase = await createAuthClient()
+    const { data: integration, error: integrationError } = await supabase
+      .from('CalendlyIntegration')
+      .select('accessToken, refreshToken, expiresAt')
+      .eq('userUlid', userUlid)
+      .single()
+
+    if (integrationError || !integration) {
+      console.error('[CALENDLY_INTEGRATION_ERROR]', { 
+        userUlid, 
+        error: integrationError 
+      })
+      const error = {
+        code: 'INTEGRATION_NOT_FOUND',
+        message: 'Calendly integration not found'
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 404 })
+    }
+
+    // Get event UUID from params
+    const uuid = req.url.split('/').slice(-2)[0]
+    if (!uuid) {
+      const error = {
+        code: 'MISSING_UUID',
+        message: 'Event UUID is required'
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 400 })
+    }
+
+    // Validate query parameters
+    const { searchParams } = new URL(req.url)
     const queryResult = QueryParamsSchema.safeParse({
       page_token: searchParams.get('page_token')
     })
@@ -42,9 +78,13 @@ export async function GET(
       }, { status: 400 })
     }
 
+    // Initialize Calendly service
     const calendly = new CalendlyService()
+    await calendly.init()
+
+    // Get invitees
     const response = await calendly.getEventInvitees(
-      params.uuid,
+      uuid,
       10, // Default count
       queryResult.data.page_token
     )
@@ -95,4 +135,4 @@ export async function GET(
       error: apiError 
     }, { status: 500 })
   }
-} 
+}) 

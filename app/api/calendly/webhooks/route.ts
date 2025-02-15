@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import { env } from '../../../../lib/env'
 import crypto from 'crypto'
+import { createAuthClient } from '@/utils/auth'
+import { WebhookEvent, WebhookEventType, CalendlyBusyTime } from '@/utils/types/calendly'
 
 // Webhook signature verification
 function verifyWebhookSignature(payload: string, signature: string): boolean {
@@ -30,25 +32,7 @@ export async function POST(request: Request) {
     }
 
     const event = JSON.parse(payload)
-
-    // Initialize Supabase client
-    const supabase = createServerClient(
-      env.NEXT_PUBLIC_SUPABASE_URL,
-      env.SUPABASE_SERVICE_KEY,
-      {
-        cookies: {
-          get(name: string) {
-            return null
-          },
-          set(name: string, value: string, options: any) {
-            // No-op
-          },
-          remove(name: string, options: any) {
-            // No-op
-          },
-        },
-      }
-    )
+    const supabase = await createAuthClient()
 
     // Store the webhook event
     const { error: insertError } = await supabase
@@ -58,6 +42,7 @@ export async function POST(request: Request) {
         payload: event.payload,
         processedAt: null,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
 
     if (insertError) {
@@ -89,24 +74,25 @@ export async function POST(request: Request) {
   }
 }
 
-async function processBookingEvent(supabase: any, event: any) {
+async function processBookingEvent(supabase: any, event: WebhookEvent) {
   const { payload } = event
-  const invitee = payload.invitee
-  const eventDetails = payload.event
+  const { invitee, scheduled_event: eventDetails } = payload
 
   try {
+    const userUlid = await getUserUlidFromCalendlyUri(supabase, eventDetails.uri)
+    
     // Update the booking status in our database
     const { error: updateError } = await supabase
       .from('CalendlyBooking')
       .upsert({
-        calendlyEventUuid: eventDetails.uuid,
-        userDbId: await getUserDbIdFromCalendlyUri(supabase, eventDetails.uri),
-        status: event.event === 'invitee.canceled' ? 'canceled' : 'active',
+        calendlyEventUuid: eventDetails.uri,
+        userUlid,
+        status: event.event === WebhookEventType.INVITEE_CANCELED ? 'canceled' : 'active',
         startTime: eventDetails.start_time,
         endTime: eventDetails.end_time,
         inviteeEmail: invitee.email,
         inviteeName: invitee.name,
-        eventType: eventDetails.type,
+        eventType: eventDetails.event_type,
         updatedAt: new Date().toISOString(),
       })
 
@@ -119,6 +105,7 @@ async function processBookingEvent(supabase: any, event: any) {
       .from('CalendlyWebhookEvent')
       .update({
         processedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .eq('eventType', event.event)
       .eq('payload', event.payload)
@@ -129,10 +116,13 @@ async function processBookingEvent(supabase: any, event: any) {
   }
 }
 
-async function processAvailabilityUpdate(supabase: any, event: any) {
+async function processAvailabilityUpdate(supabase: any, event: WebhookEvent) {
   const { payload } = event
+  const { event_type } = payload
 
   try {
+    const userUlid = await getUserUlidFromCalendlyUri(supabase, event_type.uri)
+    
     // Invalidate the availability cache for this user
     const { error: updateError } = await supabase
       .from('CalendlyAvailabilityCache')
@@ -140,7 +130,7 @@ async function processAvailabilityUpdate(supabase: any, event: any) {
         expiresAt: new Date().toISOString(), // Expire immediately
         updatedAt: new Date().toISOString(),
       })
-      .eq('userDbId', await getUserDbIdFromCalendlyUri(supabase, payload.uri))
+      .eq('userUlid', userUlid)
 
     if (updateError) {
       throw updateError
@@ -151,6 +141,7 @@ async function processAvailabilityUpdate(supabase: any, event: any) {
       .from('CalendlyWebhookEvent')
       .update({
         processedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .eq('eventType', event.event)
       .eq('payload', event.payload)
@@ -161,10 +152,10 @@ async function processAvailabilityUpdate(supabase: any, event: any) {
   }
 }
 
-async function getUserDbIdFromCalendlyUri(supabase: any, calendlyUri: string): Promise<number> {
+async function getUserUlidFromCalendlyUri(supabase: any, calendlyUri: string): Promise<string> {
   const { data, error } = await supabase
     .from('CalendlyIntegration')
-    .select('userDbId')
+    .select('userUlid')
     .eq('organizationUrl', new URL(calendlyUri).origin)
     .single()
 
@@ -172,5 +163,5 @@ async function getUserDbIdFromCalendlyUri(supabase: any, calendlyUri: string): P
     throw new Error('Failed to find user for Calendly URI: ' + calendlyUri)
   }
 
-  return data.userDbId
+  return data.userUlid
 } 

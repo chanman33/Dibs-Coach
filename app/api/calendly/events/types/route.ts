@@ -1,14 +1,31 @@
 import { NextResponse } from 'next/server'
+import { auth } from '@clerk/nextjs/server'
 import { CalendlyService } from '@/lib/calendly/calendly-service'
 import { 
   ApiResponse, 
-  EventTypesQuery, 
-  EventTypesQuerySchema,
-  CalendlyEventType,
-  CalendlyErrorSchema 
+  CalendlyEventType
 } from '@/utils/types/calendly'
+import { z } from 'zod'
+
+const EventTypesQuerySchema = z.object({
+  count: z.number().optional(),
+  pageToken: z.string().optional()
+})
+
+type EventTypesQuery = z.infer<typeof EventTypesQuerySchema>
 
 export async function GET(request: Request) {
+  const { userId } = await auth()
+  if (!userId) {
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Not authenticated'
+      }
+    }, { status: 401 })
+  }
+
   try {
     // Parse and validate query parameters
     const { searchParams } = new URL(request.url)
@@ -18,24 +35,24 @@ export async function GET(request: Request) {
     })
 
     if (!queryResult.success) {
-      const error = {
-        code: 'INVALID_PARAMETERS',
-        message: 'Invalid query parameters',
-        details: queryResult.error.flatten()
-      }
       return NextResponse.json<ApiResponse<never>>({ 
         data: null, 
-        error 
+        error: {
+          code: 'INVALID_PARAMETERS',
+          message: 'Invalid query parameters',
+          details: queryResult.error.flatten()
+        }
       }, { status: 400 })
     }
 
     // Get event types with validated parameters
     const calendly = new CalendlyService()
-    const response = await calendly.getEventTypes(
+    await calendly.init()
+    const eventTypes = await calendly.getEventTypes(
+      undefined, // access token not needed since we're using the service
       queryResult.data.count,
       queryResult.data.pageToken
     )
-    const eventTypes = (response as { collection: CalendlyEventType[] }).collection
 
     return NextResponse.json<ApiResponse<CalendlyEventType[]>>({ 
       data: eventTypes,
@@ -44,15 +61,13 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('[CALENDLY_EVENT_TYPES_ERROR]', error)
     
-    const apiError = {
-      code: 'FETCH_ERROR',
-      message: 'Failed to fetch event types',
-      details: error instanceof Error ? { message: error.message } : undefined
-    }
-
     return NextResponse.json<ApiResponse<never>>({ 
       data: null, 
-      error: apiError 
+      error: {
+        code: 'FETCH_ERROR',
+        message: 'Failed to fetch event types',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
     }, { status: 500 })
   }
 } 

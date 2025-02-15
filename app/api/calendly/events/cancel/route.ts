@@ -9,33 +9,30 @@ import {
 } from '@/utils/types/calendly'
 
 export async function POST(request: Request) {
-  try {
-    // Auth check
-    const { userId } = await auth()
-    if (!userId) {
-      const error = {
+  const { userId } = await auth()
+  if (!userId) {
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: {
         code: 'UNAUTHORIZED',
-        message: 'Authentication required'
+        message: 'Not authenticated'
       }
-      return NextResponse.json<ApiResponse<never>>({ 
-        data: null, 
-        error 
-      }, { status: 401 })
-    }
+    }, { status: 401 })
+  }
 
+  try {
     // Validate request body
     const body = await request.json()
     const requestResult = EventCancellationSchema.safeParse(body)
 
     if (!requestResult.success) {
-      const error = {
-        code: 'INVALID_REQUEST',
-        message: 'Invalid request body',
-        details: requestResult.error.flatten()
-      }
       return NextResponse.json<ApiResponse<never>>({ 
         data: null, 
-        error 
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'Invalid request body',
+          details: requestResult.error.flatten()
+        }
       }, { status: 400 })
     }
 
@@ -43,13 +40,21 @@ export async function POST(request: Request) {
 
     // Cancel the event
     const calendly = new CalendlyService()
+    await calendly.init()
     const response = await calendly.cancelEvent(uuid, reason)
     
     // Validate response data
     const eventResult = CalendlyScheduledEventSchema.safeParse(response)
     if (!eventResult.success) {
       console.error('[CALENDLY_ERROR] Invalid event data:', eventResult.error)
-      throw new Error('Invalid event data received from Calendly')
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: {
+          code: 'INVALID_RESPONSE',
+          message: 'Invalid event data received from Calendly',
+          details: eventResult.error.flatten()
+        }
+      }, { status: 500 })
     }
 
     return NextResponse.json<ApiResponse<CalendlyScheduledEvent>>({
@@ -58,14 +63,13 @@ export async function POST(request: Request) {
     })
   } catch (error) {
     console.error('[CALENDLY_EVENT_CANCEL_ERROR]', error)
-    const apiError = {
-      code: 'CANCEL_ERROR',
-      message: 'Failed to cancel event',
-      details: error instanceof Error ? { message: error.message } : undefined
-    }
     return NextResponse.json<ApiResponse<never>>({ 
       data: null, 
-      error: apiError 
+      error: {
+        code: 'CANCEL_ERROR',
+        message: 'Failed to cancel event',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
     }, { status: 500 })
   }
 } 

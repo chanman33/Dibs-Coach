@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createAuthClient } from "@/utils/auth";
 import { z } from "zod";
+import { ROLES } from "@/utils/roles/roles";
+import { ulidSchema } from "@/utils/types/auth";
 
 // Input validation schema
 const updateRoleSchema = z.object({
-  userId: z.number(),
-  role: z.enum(["MENTEE", "COACH", "ADMIN"]),
+  userUlid: ulidSchema,
+  role: z.enum([ROLES.MENTEE, ROLES.COACH, ROLES.ADMIN]),
 });
 
 export async function POST(req: Request) {
@@ -20,19 +22,19 @@ export async function POST(req: Request) {
     // Get authenticated Supabase client
     const supabase = await createAuthClient();
 
-    // Check if user is admin
+    // Get admin's ULID and check role
     const { data: adminCheck, error: adminCheckError } = await supabase
       .from("User")
-      .select("id, role")
+      .select("ulid, role")
       .eq("userId", session.userId)
       .single();
 
     if (adminCheckError) {
-      console.error("[ADMIN_CHECK_ERROR]", adminCheckError);
+      console.error("[ADMIN_CHECK_ERROR]", { userId: session.userId, error: adminCheckError });
       return new NextResponse("Error checking admin status", { status: 500 });
     }
 
-    if (!adminCheck || adminCheck.role !== "ADMIN") {
+    if (!adminCheck || adminCheck.role !== ROLES.ADMIN) {
       return new NextResponse("Forbidden: Admin access required", { status: 403 });
     }
 
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
       const body = await req.json();
       validatedData = updateRoleSchema.parse(body);
     } catch (error) {
-      console.error("[VALIDATION_ERROR]", error);
+      console.error("[VALIDATION_ERROR]", { adminUlid: adminCheck.ulid, error });
       return new NextResponse(
         error instanceof z.ZodError
           ? "Invalid request data: " + error.errors[0].message
@@ -54,12 +56,16 @@ export async function POST(req: Request) {
     // Get user's current data before updating role
     const { data: user, error: userError } = await supabase
       .from("User")
-      .select("email, role, userId")
-      .eq("id", validatedData.userId)
+      .select("email, role, userId, ulid")
+      .eq("ulid", validatedData.userUlid)
       .single();
 
     if (userError) {
-      console.error("[USER_FETCH_ERROR]", userError);
+      console.error("[USER_FETCH_ERROR]", { 
+        adminUlid: adminCheck.ulid, 
+        targetUlid: validatedData.userUlid,
+        error: userError 
+      });
       return new NextResponse("Error fetching user data", { status: 500 });
     }
 
@@ -69,7 +75,7 @@ export async function POST(req: Request) {
 
     // Validate admin role assignment
     if (
-      validatedData.role === "ADMIN" &&
+      validatedData.role === ROLES.ADMIN &&
       !user.email.endsWith("@wedibs.com") &&
       !user.email.endsWith("@dibs.coach")
     ) {
@@ -80,7 +86,7 @@ export async function POST(req: Request) {
     }
 
     // Prevent self-role change
-    if (user.userId === session.userId) {
+    if (user.ulid === adminCheck.ulid) {
       return new NextResponse(
         "You cannot change your own role",
         { status: 400 }
@@ -94,19 +100,23 @@ export async function POST(req: Request) {
         role: validatedData.role,
         updatedAt: new Date().toISOString()
       })
-      .eq("id", validatedData.userId);
+      .eq("ulid", validatedData.userUlid);
 
     if (updateError) {
-      console.error("[UPDATE_ROLE_ERROR]", updateError);
+      console.error("[UPDATE_ROLE_ERROR]", { 
+        adminUlid: adminCheck.ulid,
+        targetUlid: validatedData.userUlid,
+        error: updateError 
+      });
       return new NextResponse("Failed to update role", { status: 500 });
     }
 
     // Log the role change in admin audit log
     const { error: auditError } = await supabase.from("AdminAuditLog").insert({
-      adminDbId: adminCheck.id,
+      adminUlid: adminCheck.ulid,
       action: "UPDATE_ROLE",
       targetType: "user",
-      targetId: validatedData.userId,
+      targetUlid: validatedData.userUlid,
       details: {
         oldRole: user.role,
         newRole: validatedData.role,
@@ -116,7 +126,11 @@ export async function POST(req: Request) {
     });
 
     if (auditError) {
-      console.error("[AUDIT_LOG_ERROR]", auditError);
+      console.error("[AUDIT_LOG_ERROR]", { 
+        adminUlid: adminCheck.ulid,
+        targetUlid: validatedData.userUlid,
+        error: auditError 
+      });
       // Don't fail the request if audit logging fails
     }
 

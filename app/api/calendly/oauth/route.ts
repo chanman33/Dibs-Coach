@@ -1,28 +1,38 @@
-import { auth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import { generateCodeVerifier, generateCodeChallenge } from '@/utils/pkce'
 import { cookies } from 'next/headers'
 import { CALENDLY_CONFIG } from '@/lib/calendly/calendly-config'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
+import { ApiResponse } from '@/utils/types/calendly'
 
-export async function GET(request: Request) {
+export const GET = withApiAuth(async (req, { userUlid }) => {
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
-
     // Get the redirect URL from query params
-    const { searchParams } = new URL(request.url)
+    const { searchParams } = new URL(req.url)
     const redirectUrl = searchParams.get('redirect')
     
     if (!redirectUrl) {
-      return new NextResponse('Missing redirect URL', { status: 400 })
+      const error = {
+        code: 'MISSING_REDIRECT',
+        message: 'Missing redirect URL'
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 400 })
     }
 
     // Validate required configuration
     if (!CALENDLY_CONFIG.oauth.clientId || !CALENDLY_CONFIG.oauth.redirectUri) {
       console.error('[CALENDLY_AUTH_ERROR] Missing required configuration')
-      return new NextResponse('Missing required configuration', { status: 500 })
+      const error = {
+        code: 'MISSING_CONFIG',
+        message: 'Missing required configuration'
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 500 })
     }
 
     // Validate redirect URI format
@@ -30,18 +40,32 @@ export async function GET(request: Request) {
       const uri = new URL(CALENDLY_CONFIG.oauth.redirectUri)
       if (uri.toString().endsWith('/')) {
         console.error('[CALENDLY_AUTH_ERROR] Redirect URI should not have trailing slash')
-        return new NextResponse('Invalid redirect URI format', { status: 500 })
+        const error = {
+          code: 'INVALID_URI',
+          message: 'Invalid redirect URI format'
+        }
+        return NextResponse.json<ApiResponse<never>>({ 
+          data: null, 
+          error 
+        }, { status: 500 })
       }
     } catch (e) {
       console.error('[CALENDLY_AUTH_ERROR] Invalid redirect URI format:', e)
-      return new NextResponse('Invalid redirect URI format', { status: 500 })
+      const error = {
+        code: 'INVALID_URI',
+        message: 'Invalid redirect URI format'
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 500 })
     }
 
     // Generate PKCE values
     const codeVerifier = generateCodeVerifier()
     const codeChallenge = generateCodeChallenge(codeVerifier)
 
-    // Store code verifier and redirect URL in cookies for callback
+    // Store code verifier, redirect URL, and user ULID in cookies for callback
     const cookieStore = await cookies()
     cookieStore.set('calendly_verifier', codeVerifier, {
       httpOnly: true,
@@ -51,6 +75,13 @@ export async function GET(request: Request) {
       maxAge: 5 * 60 // 5 minutes expiry
     })
     cookieStore.set('calendly_redirect', redirectUrl, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 5 * 60 // 5 minutes expiry
+    })
+    cookieStore.set('calendly_user_ulid', userUlid, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -69,6 +100,7 @@ export async function GET(request: Request) {
 
     // Log detailed request information for debugging
     console.log('[CALENDLY_AUTH_DEBUG] Authorization request:', {
+      userUlid,
       url: `${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.authorizePath}`,
       params: {
         client_id: CALENDLY_CONFIG.oauth.clientId,
@@ -89,13 +121,21 @@ export async function GET(request: Request) {
 
     const authUrl = `${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.authorizePath}?${params.toString()}`
     
-    // Log the final URL for verification
-    console.log('[CALENDLY_AUTH_DEBUG] Final authorization URL:', authUrl)
-    
-    // Return the authorization URL instead of redirecting
-    return NextResponse.json({ authUrl })
+    // Return the authorization URL
+    return NextResponse.json<ApiResponse<{ authUrl: string }>>({ 
+      data: { authUrl },
+      error: null
+    })
   } catch (error) {
     console.error('[CALENDLY_AUTH_ERROR]', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    const apiError = {
+      code: 'AUTH_ERROR',
+      message: 'Failed to initialize OAuth flow',
+      details: error instanceof Error ? { message: error.message } : undefined
+    }
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null, 
+      error: apiError 
+    }, { status: 500 })
   }
-} 
+}) 

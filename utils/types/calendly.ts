@@ -15,28 +15,34 @@ export interface CalendlyStatus {
   userUri?: string
 }
 
+export enum CalendlySessionType {
+  FREE = 'FREE',
+  PAID = 'PAID',
+  PACKAGE = 'PACKAGE'
+}
+
 export interface ICalendlyEventType {
   uri: string
   name: string
-  description: string
+  description?: string
   duration: number
   type: string
   slug: string
   url: string
   active: boolean
   scheduling_url: string
-  custom_questions: any[]
-  sessionType: SessionRate
-  minimumDuration: number
-  maximumDuration: number
-  bufferBeforeMinutes: number
-  bufferAfterMinutes: number
-  availabilityRules: {
+  custom_questions?: any[]
+  sessionType?: CalendlySessionType
+  minimumDuration?: number
+  maximumDuration?: number
+  bufferBeforeMinutes?: number
+  bufferAfterMinutes?: number
+  availabilityRules?: {
     type: string
-    interval: number
-    count: number
-    weekStart: string
-    weekDays: string[]
+    interval?: number
+    count?: number
+    weekStart?: string
+    weekDays?: string[]
   }[]
 }
 
@@ -113,7 +119,7 @@ export const CalendlyEventTypeSchema = z.object({
   active: z.boolean(),
   scheduling_url: z.string(),
   custom_questions: z.array(z.any()).optional(),
-  sessionType: z.enum(['FREE', 'PAID', 'PACKAGE']).optional(),
+  sessionType: z.nativeEnum(CalendlySessionType).optional(),
   minimumDuration: z.number().optional(),
   maximumDuration: z.number().optional(),
   bufferBeforeMinutes: z.number().optional(),
@@ -239,7 +245,7 @@ export interface ExtendedSession {
 // Event type mapping configuration
 export const EventTypeMappingSchema = z.object({
   eventTypeUri: z.string(),
-  sessionType: z.enum(['FREE', 'PAID', 'PACKAGE']),
+  sessionType: z.nativeEnum(CalendlySessionType),
   durationConstraints: z.object({
     minimum: z.number(),
     maximum: z.number(),
@@ -251,4 +257,30 @@ export const EventTypeMappingSchema = z.object({
   }),
 })
 
-export type EventTypeMapping = z.infer<typeof EventTypeMappingSchema> 
+export type EventTypeMapping = z.infer<typeof EventTypeMappingSchema>
+
+// Event cancellation
+export const EventCancellationSchema = z.object({
+  uuid: z.string(),
+  reason: z.string().optional()
+})
+
+export type EventCancellation = z.infer<typeof EventCancellationSchema>
+
+// No-show request
+export const NoShowRequestSchema = z.object({
+  inviteeUri: z.string()
+})
+
+export type NoShowRequest = z.infer<typeof NoShowRequestSchema>
+
+// Scheduled events query
+export const ScheduledEventsQuerySchema = z.object({
+  count: z.number().optional(),
+  pageToken: z.string().optional(),
+  status: z.enum(['active', 'canceled']).optional(),
+  minStartTime: z.string().optional(),
+  maxStartTime: z.string().optional()
+})
+
+export type ScheduledEventsQuery = z.infer<typeof ScheduledEventsQuerySchema> 

@@ -1,18 +1,52 @@
 import { NextResponse } from 'next/server'
+import { createAuthClient } from '@/utils/auth'
 import { CalendlyService } from '@/lib/calendly/calendly-service'
 import { 
   ApiResponse,
-  CalendlyBusyTime,
-  BusyTimesQuerySchema
+  BusyTimeFilters,
+  CalendlyBusyTime
 } from '@/utils/types/calendly'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
+import { z } from 'zod'
 
-export async function GET(request: Request) {
+// Query parameter validation schema
+const BusyTimeQuerySchema = z.object({
+  startTime: z.string().datetime(),
+  endTime: z.string().datetime(),
+  calendar: z.boolean().optional()
+})
+
+export const GET = withApiAuth<CalendlyBusyTime[]>(async (req, { userUlid }) => {
   try {
-    const { searchParams } = new URL(request.url)
-    const queryResult = BusyTimesQuerySchema.safeParse({
-      userUri: searchParams.get('userUri'),
-      startTime: searchParams.get('startTime'),
-      endTime: searchParams.get('endTime')
+    // Get Calendly integration
+    const supabase = await createAuthClient()
+    const { data: integration, error: integrationError } = await supabase
+      .from('CalendlyIntegration')
+      .select('accessToken, refreshToken, expiresAt')
+      .eq('userUlid', userUlid)
+      .single()
+
+    if (integrationError || !integration) {
+      console.error('[CALENDLY_INTEGRATION_ERROR]', { 
+        userUlid, 
+        error: integrationError 
+      })
+      const error = {
+        code: 'INTEGRATION_NOT_FOUND',
+        message: 'Calendly integration not found'
+      }
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error 
+      }, { status: 404 })
+    }
+
+    // Validate query parameters
+    const { searchParams } = new URL(req.url)
+    const queryResult = BusyTimeQuerySchema.safeParse({
+      startTime: searchParams.get('start_time'),
+      endTime: searchParams.get('end_time'),
+      calendar: searchParams.get('calendar') === 'true'
     })
 
     if (!queryResult.success) {
@@ -27,13 +61,22 @@ export async function GET(request: Request) {
       }, { status: 400 })
     }
 
+    // Initialize Calendly service
     const calendly = new CalendlyService()
-    const response = await calendly.getUserBusyTimes(
-      queryResult.data.userUri,
+    await calendly.init()
+
+    // Get user's busy times
+    const filters: BusyTimeFilters = {
+      startDate: new Date(queryResult.data.startTime),
+      endDate: new Date(queryResult.data.endTime),
+      calendar: queryResult.data.calendar ? 'google' : undefined
+    }
+
+    const response = await calendly.getBusyTimes(
       queryResult.data.startTime,
       queryResult.data.endTime
-    ) as { collection: CalendlyBusyTime[] }
-    const busyTimes = response.collection
+    )
+    const busyTimes = response.collection || []
 
     return NextResponse.json<ApiResponse<CalendlyBusyTime[]>>({
       data: busyTimes,
@@ -51,4 +94,4 @@ export async function GET(request: Request) {
       error: apiError 
     }, { status: 500 })
   }
-} 
+}) 
