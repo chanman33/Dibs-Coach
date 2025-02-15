@@ -1,10 +1,9 @@
-import { auth } from "@clerk/nextjs/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
-import { CoachProfileSchema, UpdateCoachProfileSchema } from "@/utils/types/coach";
+import { NextResponse } from "next/server";
+import { ApiResponse } from "@/utils/types/api";
+import { CoachProfileSchema, UpdateCoachProfileSchema, type CoachProfile } from "@/utils/types/coach";
 import { ROLES, hasAnyRole } from "@/utils/roles/roles";
-import { getUserRoles } from "@/utils/roles/checkUserRole";
+import { withApiAuth } from "@/utils/middleware/withApiAuth";
+import { createAuthClient } from "@/utils/auth";
 import { ProfessionalRecognition, ProfessionalRecognitionSchema } from "@/utils/types/realtor";
 
 // At the top of the file, add the interface for form data
@@ -16,123 +15,54 @@ interface FormRecognition {
   description?: string;
 }
 
-// Helper function to get user's database ID
-async function getUserDbId(userId: string) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    { 
-      cookies: {
-        get: async function(name: string) {
-          const cookies = await cookieStore;
-          return cookies.get(name)?.value;
-        },
-      },
-    },
-  );
-
-  const { data, error } = await supabase
-    .from("User")
-    .select("id")
-    .eq("userId", userId)
-    .single<{ id: number }>();
-
-  if (error) throw error;
-  return data.id;
-}
-
-async function getCookie(name: string) {
-  const store = await cookies();
-  return store.get(name)?.value;
-}
-
-export async function GET(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
   try {
-    const userDbId = await getUserDbId(userId);
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get: async function(name: string) {
-            const cookies = await cookieStore;
-            return cookies.get(name)?.value;
-          },
-        },
-      }
-    );
+    const supabase = await createAuthClient();
 
     const { data, error } = await supabase
       .from("CoachProfile")
       .select("*")
-      .eq("userDbId", userDbId)
+      .eq("userUlid", userUlid)
       .single();
 
     if (error) {
       console.error("[GET_COACH_PROFILE] Error:", error);
-      return NextResponse.json(
-        { error: "Error fetching coach profile" },
-        { status: 500 }
-      );
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Error fetching coach profile'
+        }
+      }, { status: 500 });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json<ApiResponse<CoachProfile>>({ 
+      data,
+      error: null
+    });
   } catch (error) {
     console.error("[GET_COACH_PROFILE] Error:", error);
-    return NextResponse.json(
-      { error: "Error processing request" },
-      { status: 500 }
-    );
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Error processing request'
+      }
+    }, { status: 500 });
   }
-}
+});
 
-export async function POST(req: NextRequest) {
-  const authResult = await auth();
-  const userId = authResult.userId;
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Check if user is a coach
-  const roles = await getUserRoles(userId);
-  if (!roles || !hasAnyRole(roles, [ROLES.COACH])) {
-    return NextResponse.json(
-      { error: "Only coaches can create profiles" },
-      { status: 403 }
-    );
-  }
-
+export const POST = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
   try {
     const body = await req.json();
     const validatedData = CoachProfileSchema.parse(body);
-    const userDbId = await getUserDbId(userId);
-
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get: async function(name: string) {
-            const cookies = await cookieStore;
-            return cookies.get(name)?.value;
-          },
-        },
-      }
-    );
+    const supabase = await createAuthClient();
 
     // Check if realtor profile exists
     const { data: realtorProfile } = await supabase
       .from("RealtorProfile")
-      .select("id")
-      .eq("userDbId", userDbId)
+      .select("ulid")
+      .eq("userUlid", userUlid)
       .single();
 
     // Create realtor profile if it doesn't exist
@@ -140,7 +70,7 @@ export async function POST(req: NextRequest) {
       const { error: profileError } = await supabase
         .from("RealtorProfile")
         .insert({
-          userDbId,
+          userUlid,
           bio: '',
           yearsExperience: 0,
           propertyTypes: [],
@@ -150,31 +80,36 @@ export async function POST(req: NextRequest) {
           geographicFocus: {},
           marketingAreas: [],
           testimonials: {},
-          createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         });
 
       if (profileError) {
         console.error("[CREATE_COACH_PROFILE] Error creating realtor profile:", profileError);
-        return NextResponse.json(
-          { error: "Error creating realtor profile" },
-          { status: 500 }
-        );
+        return NextResponse.json<ApiResponse<never>>({ 
+          data: null,
+          error: {
+            code: 'CREATE_ERROR',
+            message: 'Error creating realtor profile'
+          }
+        }, { status: 500 });
       }
     }
 
     // Check if profile already exists
     const { data: existing } = await supabase
       .from("CoachProfile")
-      .select("id")
-      .eq("userDbId", userDbId)
-      .single<{ id: number }>();
+      .select("ulid")
+      .eq("userUlid", userUlid)
+      .single();
 
     if (existing) {
-      return NextResponse.json(
-        { error: "Coach profile already exists" },
-        { status: 400 }
-      );
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'ALREADY_EXISTS',
+          message: 'Coach profile already exists'
+        }
+      }, { status: 400 });
     }
 
     // Create new profile
@@ -182,92 +117,103 @@ export async function POST(req: NextRequest) {
       .from("CoachProfile")
       .insert({
         ...validatedData,
-        userDbId,
-        updatedAt: new Date().toISOString(),
+        userUlid,
+        updatedAt: new Date().toISOString()
       })
       .select()
       .single();
 
     if (error) {
       console.error("[CREATE_COACH_PROFILE] Error:", error);
-      return NextResponse.json(
-        { error: "Error creating coach profile" },
-        { status: 500 }
-      );
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'CREATE_ERROR',
+          message: 'Error creating coach profile'
+        }
+      }, { status: 500 });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json<ApiResponse<CoachProfile>>({ 
+      data,
+      error: null
+    });
   } catch (error) {
     console.error("[CREATE_COACH_PROFILE] Error:", error);
-    return NextResponse.json(
-      { error: "Error processing request" },
-      { status: 500 }
-    );
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Error processing request'
+      }
+    }, { status: 500 });
   }
-}
+}, { requiredRoles: [ROLES.COACH] });
 
-export async function PUT(req: NextRequest) {
+export const PUT = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
   try {
-    const authResult = await auth();
-    const userId = authResult.userId;
-    if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
-
     const data = await req.json();
     console.log("[DEBUG] Starting updateCoachProfile with formData:", data);
 
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get: async function(name: string) {
-            const cookies = await cookieStore;
-            return cookies.get(name)?.value;
-          },
-        },
-      }
-    );
+    const supabase = await createAuthClient();
 
     // Get user and profile IDs
     const { data: user, error: userError } = await supabase
       .from("User")
       .select(`
-        id,
-        realtorProfile:RealtorProfile!inner(id)
+        ulid,
+        realtorProfile:RealtorProfile!inner(ulid)
       `)
-      .eq("userId", userId)
+      .eq("ulid", userUlid)
       .single();
 
-    if (userError || !user?.realtorProfile?.[0]?.id) {
+    if (userError || !user?.realtorProfile?.[0]?.ulid) {
       console.error("[USER_FETCH_ERROR]", userError);
-      return new NextResponse("Profile not found", { status: 404 });
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Profile not found'
+        }
+      }, { status: 404 });
     }
 
-    const realtorProfileId = user.realtorProfile[0].id;
+    const validatedData = UpdateCoachProfileSchema.parse(data);
 
-    // Handle soft delete if a recognition is being archived
-    if (data.archivedRecognitionId) {
-      const { error: archiveError } = await supabase
-        .from("ProfessionalRecognition")
-        .update({ 
-          archivedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        })
-        .eq("id", data.archivedRecognitionId)
-        .eq("realtorProfileId", realtorProfileId);
+    // Update coach profile
+    const { data: updatedProfile, error: updateError } = await supabase
+      .from("CoachProfile")
+      .update({
+        ...validatedData,
+        updatedAt: new Date().toISOString()
+      })
+      .eq("userUlid", userUlid)
+      .select()
+      .single();
 
-      if (archiveError) {
-        console.error("[ARCHIVE_RECOGNITION_ERROR]", archiveError);
-        throw archiveError;
-      }
+    if (updateError) {
+      console.error("[UPDATE_COACH_PROFILE] Error:", updateError);
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'UPDATE_ERROR',
+          message: 'Error updating coach profile'
+        }
+      }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json<ApiResponse<CoachProfile>>({ 
+      data: updatedProfile,
+      error: null
+    });
   } catch (error) {
-    console.error("[PROFILE_UPDATE_ERROR]", error);
-    return new NextResponse(JSON.stringify(error), { status: 500 });
+    console.error("[UPDATE_COACH_PROFILE] Error:", error);
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Error processing request'
+      }
+    }, { status: 500 });
   }
-} 
+}); 
