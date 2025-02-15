@@ -205,13 +205,18 @@ export type BusyTimeFilters = {
 
 export type CalendarEventType = 'session' | 'busy' | 'availability'
 
+export interface AvailabilityEventResource {
+  type: 'availability'
+  timezone: string
+}
+
 export interface CalendarEvent {
   id: string
   title: string
   start: Date
   end: Date
   type: 'session' | 'busy' | 'availability'
-  resource: ExtendedSession | CalendlyBusyTime | CalendlyAvailabilitySchedule
+  resource: ExtendedSession | CalendlyBusyTime | CalendlyAvailabilitySchedule | AvailabilityEventResource
 }
 
 export interface ExtendedSession {

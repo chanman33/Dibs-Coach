@@ -2,17 +2,44 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { fetchCoachSessions } from '@/utils/actions/sessions'
-import { CoachingCalendar } from '@/components/calendar/coaching-calendar'
+import { fetchUserDbId } from '@/utils/actions/profile-actions'
+import { CoachingCalendar } from '@/components/calendar/CoachingCalendar'
 import { useEffect, useState } from 'react'
 import { useCalendlyConnection } from '@/utils/hooks/useCalendly'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { startOfWeek, endOfWeek, addMonths } from 'date-fns'
 import { toast } from 'sonner'
+import { useUser } from '@clerk/nextjs'
 
 export default function CoachCalendarPage() {
+  const { user } = useUser()
   const { status, isLoading: isCalendlyLoading, handleConnect } = useCalendlyConnection()
   const [isLoadingBusyTimes, setIsLoadingBusyTimes] = useState(false)
   const [busyTimes, setBusyTimes] = useState<any[]>([])
+  const [coachDbId, setCoachDbId] = useState<number | null>(null)
+
+  // Fetch coach's database ID using server action
+  const { data: dbId, isLoading: isLoadingDbId } = useQuery({
+    queryKey: ['coach-db-id', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null
+      try {
+        return await fetchUserDbId()
+      } catch (error) {
+        console.error('[FETCH_COACH_ID_ERROR]', error)
+        toast.error('Failed to fetch coach information')
+        return null
+      }
+    },
+    enabled: !!user?.id
+  })
+
+  // Update coachDbId when dbId changes
+  useEffect(() => {
+    if (dbId) {
+      setCoachDbId(dbId)
+    }
+  }, [dbId])
 
   const { data: sessions, isLoading: isLoadingSessions } = useQuery({
     queryKey: ['coach-sessions'],
@@ -66,7 +93,7 @@ export default function CoachCalendarPage() {
     }
   }
 
-  const isPageLoading = isLoadingBusyTimes || isLoadingSessions
+  const isPageLoading = isLoadingBusyTimes || isLoadingSessions || isLoadingDbId
 
   return (
     <div className="p-6 space-y-6">
@@ -80,6 +107,7 @@ export default function CoachCalendarPage() {
         isCalendlyLoading={isCalendlyLoading || isLoadingBusyTimes}
         showCalendlyButton={true}
         userRole="coach"
+        coachDbId={coachDbId || undefined}
       />
     </div>
   )

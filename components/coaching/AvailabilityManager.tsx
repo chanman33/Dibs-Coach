@@ -1,403 +1,220 @@
-"use client";
+'use client'
 
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from 'react'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useCoachingAvailability } from "@/utils/hooks/useCoachingAvailability";
-import {
-  CoachingSchedule,
-  CoachingScheduleSchema,
-  WeekDay,
-} from "@/utils/types/coaching";
-import { cn } from "@/utils/cn";
+} from '@/components/ui/select'
+import { WeekDay, TimeSlot } from '@/utils/types/coaching'
+import { toast } from 'sonner'
 
-const TIMEZONES = Intl.supportedValuesOf("timeZone");
+const DAYS_OF_WEEK = [
+  'MONDAY',
+  'TUESDAY',
+  'WEDNESDAY',
+  'THURSDAY',
+  'FRIDAY',
+  'SATURDAY',
+  'SUNDAY',
+] as const
 
-export function AvailabilityManager() {
-  const {
-    schedules,
-    isLoading,
-    error,
-    fetchSchedules,
-    createSchedule,
-    updateSchedule,
-    deleteSchedule,
-  } = useCoachingAvailability();
+const DEFAULT_TIME_SLOT: TimeSlot = {
+  from: '09:00',
+  to: '17:00',
+}
 
-  const form = useForm<CoachingSchedule>({
-    resolver: zodResolver(CoachingScheduleSchema),
-    defaultValues: {
-      name: "",
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      isDefault: false,
-      active: true,
-      defaultDuration: 60,
-      minimumDuration: 30,
-      maximumDuration: 120,
-      allowCustomDuration: true,
-      bufferBefore: 0,
-      bufferAfter: 0,
-      rules: {
-        weeklySchedule: {
-          MONDAY: [],
-          TUESDAY: [],
-          WEDNESDAY: [],
-          THURSDAY: [],
-          FRIDAY: [],
-          SATURDAY: [],
-          SUNDAY: [],
-        },
-        breaks: [],
-      },
-      calendlyEnabled: false,
-      zoomEnabled: false,
-    },
-  });
+// Helper function to convert 24h to 12h format
+function to12Hour(time: string): string {
+  const [hours, minutes] = time.split(':').map(Number)
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const hour12 = hours % 12 || 12
+  return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`
+}
 
-  useEffect(() => {
-    fetchSchedules();
-  }, []);
+// Helper function to convert 12h to 24h format
+function to24Hour(time12h: string): string {
+  const [time, period] = time12h.split(' ')
+  let [hours, minutes] = time.split(':').map(Number)
+  
+  if (period === 'PM' && hours !== 12) hours += 12
+  if (period === 'AM' && hours === 12) hours = 0
+  
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+}
 
-  const onSubmit = async (data: CoachingSchedule) => {
-    if (data.id) {
-      await updateSchedule(data.id, data);
-    } else {
-      await createSchedule(data);
+interface AvailabilityManagerProps {
+  onSave: (schedule: Record<WeekDay, TimeSlot[]>) => Promise<{ success: boolean } | void>
+  initialSchedule?: Record<WeekDay, TimeSlot[]>
+}
+
+export function AvailabilityManager({ onSave, initialSchedule }: AvailabilityManagerProps) {
+  const [schedule, setSchedule] = useState<Record<WeekDay, TimeSlot[]>>(() => {
+    if (initialSchedule) return initialSchedule
+    
+    // Initialize with empty arrays for each day
+    return DAYS_OF_WEEK.reduce((acc, day) => {
+      acc[day] = []
+      return acc
+    }, {} as Record<WeekDay, TimeSlot[]>)
+  })
+  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const addTimeSlot = (day: WeekDay) => {
+    setSchedule(prev => ({
+      ...prev,
+      [day]: [...prev[day], { ...DEFAULT_TIME_SLOT }]
+    }))
+  }
+
+  const removeTimeSlot = (day: WeekDay, index: number) => {
+    setSchedule(prev => ({
+      ...prev,
+      [day]: prev[day].filter((_, i) => i !== index)
+    }))
+  }
+
+  const updateTimeSlot = (day: WeekDay, index: number, field: keyof TimeSlot, value: string) => {
+    // Convert 12h format to 24h format for storage
+    const time24h = to24Hour(value)
+    setSchedule(prev => ({
+      ...prev,
+      [day]: prev[day].map((slot, i) => {
+        if (i === index) {
+          return { ...slot, [field]: time24h }
+        }
+        return slot
+      })
+    }))
+  }
+
+  const handleSave = async () => {
+    try {
+      setIsLoading(true)
+      await onSave(schedule)
+      toast.success('Availability schedule saved successfully')
+    } catch (error) {
+      console.error('[SAVE_SCHEDULE_ERROR]', error)
+      toast.error('Failed to save availability schedule')
+    } finally {
+      setIsLoading(false)
     }
-  };
+  }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Availability Schedules</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="schedules" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="schedules">My Schedules</TabsTrigger>
-              <TabsTrigger value="new">Create New</TabsTrigger>
-            </TabsList>
+    <Card className="p-6">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Weekly Availability Schedule</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Times shown in {timezone}
+            </p>
+          </div>
+          <Button onClick={handleSave} disabled={isLoading}>
+            Save Schedule
+          </Button>
+        </div>
 
-            <TabsContent value="schedules" className="space-y-4">
-              {schedules.map((schedule) => (
-                <Card key={schedule.id}>
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg">{schedule.name}</CardTitle>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => form.reset(schedule)}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          onClick={() => deleteSchedule(schedule.id)}
-                        >
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium">Status:</span>
-                        <span
-                          className={cn(
-                            "text-sm",
-                            schedule.active
-                              ? "text-green-600"
-                              : "text-yellow-600"
-                          )}
-                        >
-                          {schedule.active ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium">Default:</span>
-                        <span>{schedule.isDefault ? "Yes" : "No"}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-medium">Timezone:</span>
-                        <span>{schedule.timezone}</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </TabsContent>
-
-            <TabsContent value="new">
-              <Form {...form}>
-                <form
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className="space-y-6"
+        <div className="space-y-6">
+          {DAYS_OF_WEEK.map((day) => (
+            <div key={day} className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-medium">{day.charAt(0) + day.slice(1).toLowerCase()}</Label>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addTimeSlot(day)}
                 >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Schedule Name</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  Add Time Slot
+                </Button>
+              </div>
 
-                    <FormField
-                      control={form.control}
-                      name="timezone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Timezone</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select timezone" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {TIMEZONES.map((tz) => (
-                                <SelectItem key={tz} value={tz}>
-                                  {tz}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+              {schedule[day].length === 0 ? (
+                <p className="text-sm text-muted-foreground">No availability set for this day</p>
+              ) : (
+                <div className="space-y-2">
+                  {schedule[day].map((slot, index) => (
+                    <div key={index} className="flex items-center gap-4">
+                      <Select
+                        value={to12Hour(slot.from)}
+                        onValueChange={(value) => updateTimeSlot(day, index, 'from', value)}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Start time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {generateTimeOptions().map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
 
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <FormField
-                      control={form.control}
-                      name="defaultDuration"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Default Duration (minutes)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={15}
-                              max={240}
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(parseInt(e.target.value))
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <span className="text-muted-foreground">to</span>
 
-                    <FormField
-                      control={form.control}
-                      name="minimumDuration"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Minimum Duration (minutes)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={15}
-                              max={240}
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(parseInt(e.target.value))
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                      <Select
+                        value={to12Hour(slot.to)}
+                        onValueChange={(value) => updateTimeSlot(day, index, 'to', value)}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="End time" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {generateTimeOptions().map((time) => (
+                            <SelectItem key={time} value={time}>
+                              {time}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
 
-                    <FormField
-                      control={form.control}
-                      name="maximumDuration"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Maximum Duration (minutes)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={15}
-                              max={240}
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(parseInt(e.target.value))
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeTimeSlot(day, index)}
+                        className="text-destructive"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  )
+}
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <FormField
-                      control={form.control}
-                      name="bufferBefore"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Buffer Before (minutes)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={60}
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(parseInt(e.target.value))
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="bufferAfter"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Buffer After (minutes)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={0}
-                              max={60}
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(parseInt(e.target.value))
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <FormField
-                      control={form.control}
-                      name="allowCustomDuration"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                          <div className="space-y-0.5">
-                            <FormLabel>Allow Custom Duration</FormLabel>
-                            <FormDescription>
-                              Let clients choose custom session duration
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="active"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                          <div className="space-y-0.5">
-                            <FormLabel>Active</FormLabel>
-                            <FormDescription>
-                              Make this schedule available for booking
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="isDefault"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                          <div className="space-y-0.5">
-                            <FormLabel>Default Schedule</FormLabel>
-                            <FormDescription>
-                              Use this as your default availability
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="flex justify-end space-x-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => form.reset()}
-                    >
-                      Reset
-                    </Button>
-                    <Button type="submit" disabled={isLoading}>
-                      {form.getValues("id") ? "Update" : "Create"} Schedule
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
-  );
+// Helper function to generate time options in 30-minute intervals with AM/PM format
+function generateTimeOptions() {
+  const times: string[] = []
+  // Start at 5 AM and go through the day
+  for (let hour = 5; hour < 24; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const period = hour >= 12 ? 'PM' : 'AM'
+      const hour12 = hour % 12 || 12
+      const formattedMinute = minute.toString().padStart(2, '0')
+      times.push(`${hour12}:${formattedMinute} ${period}`)
+    }
+  }
+  // Add times from midnight to 2 AM for potential late-night availability
+  for (let hour = 0; hour < 2; hour++) {
+    for (let minute = 0; minute < 60; minute += 30) {
+      const hour12 = hour === 0 ? 12 : hour
+      const formattedMinute = minute.toString().padStart(2, '0')
+      times.push(`${hour12}:${formattedMinute} AM`)
+    }
+  }
+  return times
 } 

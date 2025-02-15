@@ -573,4 +573,31 @@ export async function fetchMarketingInfo() {
     console.error("[MARKETING_FETCH_ERROR]", error)
     return { success: false, error: "Failed to fetch marketing information" }
   }
+}
+
+// Fetch user's database ID
+export async function fetchUserDbId() {
+  try {
+    const { userId } = await auth()
+    if (!userId) {
+      throw new Error('Not authenticated')
+    }
+
+    const supabase = await createAuthClient()
+    const { data: user, error } = await supabase
+      .from('User')
+      .select('id')
+      .eq('userId', userId)
+      .single()
+
+    if (error) {
+      console.error('[FETCH_USER_ID_ERROR]', error)
+      throw error
+    }
+
+    return user?.id || null
+  } catch (error) {
+    console.error('[FETCH_USER_ID_ERROR]', error)
+    throw error
+  }
 } 

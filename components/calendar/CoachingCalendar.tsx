@@ -12,7 +12,12 @@ import {
   CalendarEvent,
   CalendlyBusyTime,
   ExtendedSession,
+  AvailabilityEventResource
 } from '@/utils/types/calendly'
+import Link from 'next/link'
+import { fetchCoachAvailabilityForCalendar } from '@/utils/actions/availability'
+import { useQuery } from '@tanstack/react-query'
+import { WeekDay, TimeSlot } from '@/utils/types/coaching'
 
 const localizer = momentLocalizer(moment)
 
@@ -27,10 +32,12 @@ interface CoachingCalendarProps {
   isCalendlyLoading?: boolean
   showCalendlyButton?: boolean
   userRole: 'coach' | 'mentee'
+  coachDbId?: number
 }
 
-interface CalendarEventResource extends CalendlyAvailabilitySchedule {
-  source?: 'calendly' | 'coaching'
+interface AvailabilitySlot {
+  from: string
+  to: string
 }
 
 // Helper to get badge color based on session status
@@ -112,10 +119,21 @@ export function CoachingCalendar({
   isCalendlyConnected,
   isCalendlyLoading,
   showCalendlyButton,
-  userRole
+  userRole,
+  coachDbId
 }: CoachingCalendarProps) {
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
+
+  // Fetch coach's availability if coachDbId is provided
+  const { data: availabilityData } = useQuery({
+    queryKey: ['coach-availability', coachDbId],
+    queryFn: async () => {
+      if (!coachDbId) return null
+      return fetchCoachAvailabilityForCalendar(coachDbId)
+    },
+    enabled: !!coachDbId // Only run query if coachDbId is provided
+  })
 
   if (isLoading) {
     return (
@@ -158,13 +176,45 @@ export function CoachingCalendar({
     resource: busyTime
   }))
 
+  // Convert weekly schedule to calendar events
+  const getAvailabilityEvents = (startDate: Date, endDate: Date) => {
+    if (!availabilityData?.rules?.weeklySchedule) return []
+
+    const events: CalendarEvent[] = []
+    const start = moment(startDate).startOf('week')
+    const end = moment(endDate).endOf('week')
+
+    // For each day in the range
+    for (let day = moment(start); day.isSameOrBefore(end); day.add(1, 'day')) {
+      const weekday = day.format('dddd').toUpperCase() as WeekDay
+      const daySchedule = availabilityData.rules.weeklySchedule[weekday] || []
+
+      // For each time slot in the day's schedule
+      daySchedule.forEach((slot: TimeSlot) => {
+        const [fromHour, fromMinute] = slot.from.split(':').map(Number)
+        const [toHour, toMinute] = slot.to.split(':').map(Number)
+
+        const slotStart = moment(day).hour(fromHour).minute(fromMinute).second(0)
+        const slotEnd = moment(day).hour(toHour).minute(toMinute).second(0)
+
+        events.push({
+          id: `availability-${weekday}-${slot.from}-${slot.to}-${slotStart.toISOString()}`,
+          title: 'Available for Coaching',
+          start: slotStart.toDate(),
+          end: slotEnd.toDate(),
+          type: 'availability',
+          resource: { type: 'availability', timezone: availabilityData.timezone }
+        })
+      })
+    }
+
+    return events
+  }
+
   // Get availability events for the current view's date range
-  const availabilityEvents = (availabilitySchedules || []).flatMap(schedule =>
-    getAvailabilityEvents(
-      schedule,
-      moment(date).startOf('month').toDate(),
-      moment(date).endOf('month').toDate()
-    )
+  const availabilityEvents = getAvailabilityEvents(
+    moment(date).startOf('month').toDate(),
+    moment(date).endOf('month').toDate()
   )
 
   // Filter out availability slots that overlap with busy times or sessions
@@ -174,7 +224,7 @@ export function CoachingCalendar({
     )
   })
 
-  // Combine all events based on user role
+  // Combine all events
   const allEvents = [...sessionEvents, ...busyTimeEvents, ...filteredAvailabilityEvents]
 
   // Custom event styles
@@ -212,39 +262,36 @@ export function CoachingCalendar({
       <h1 className="text-2xl font-bold">{title}</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr,300px] gap-4">
-        <div>
-          <Card className="p-2 sm:p-4">
-            <div className="h-[600px] overflow-x-auto">
-              <Calendar
-                localizer={localizer}
-                events={allEvents}
-                startAccessor="start"
-                endAccessor="end"
-                view={view}
-                date={date}
-                onView={(newView) => setView(newView)}
-                onNavigate={(newDate) => setDate(newDate)}
-                views={['month', 'week', 'day']}
-                step={30}
-                timeslots={1}
-                min={new Date(2020, 1, 1, 6, 30, 0)}
-                max={new Date(2020, 1, 1, 20, 0, 0)}
-                eventPropGetter={eventStyleGetter}
-                selectable={userRole === 'mentee'}
-                onSelectSlot={(slotInfo) => {
-                  if (userRole === 'mentee') {
-                    console.log('Selected slot:', slotInfo)
-                  }
-                }}
-                className="responsive-calendar"
-                components={{
-                  toolbar: CustomToolbar
-                }}
-              />
-            </div>
-          </Card>
-
-        </div>
+        <Card className="p-2 sm:p-4">
+          <div className="h-[600px] overflow-x-auto">
+            <Calendar
+              localizer={localizer}
+              events={allEvents}
+              startAccessor="start"
+              endAccessor="end"
+              view={view}
+              date={date}
+              onView={(newView) => setView(newView)}
+              onNavigate={(newDate) => setDate(newDate)}
+              views={['month', 'week', 'day']}
+              step={30}
+              timeslots={1}
+              min={new Date(2020, 1, 1, 6, 30, 0)}
+              max={new Date(2020, 1, 1, 20, 0, 0)}
+              eventPropGetter={eventStyleGetter}
+              selectable={userRole === 'mentee'}
+              onSelectSlot={(slotInfo) => {
+                if (userRole === 'mentee') {
+                  console.log('Selected slot:', slotInfo)
+                }
+              }}
+              className="responsive-calendar"
+              components={{
+                toolbar: CustomToolbar
+              }}
+            />
+          </div>
+        </Card>
 
         <Card className="p-2 sm:p-4">
           <h2 className="text-lg font-semibold mb-4">All Sessions</h2>
@@ -279,24 +326,34 @@ export function CoachingCalendar({
         </Card>
       </div>
 
-      {showCalendlyButton && (
-        <div className="mt-4">
-          <Button
-            onClick={(e) => {
-              e.preventDefault()
-              onRefreshCalendly?.()
-            }}
-            disabled={isLoading || isCalendlyLoading}
-            variant="outline"
-            className="gap-2 w-full sm:w-auto"
-          >
-            {isLoading || isCalendlyLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            {!isCalendlyConnected ? 'Connect Calendly' : 'Refresh Schedule'}
-          </Button>
+      {(showCalendlyButton || userRole === 'coach') && (
+        <div className="mt-4 flex gap-2">
+          {showCalendlyButton && (
+            <Button
+              onClick={(e) => {
+                e.preventDefault()
+                onRefreshCalendly?.()
+              }}
+              disabled={isLoading || isCalendlyLoading}
+              variant="outline"
+              className="gap-2"
+            >
+              {isLoading || isCalendlyLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {!isCalendlyConnected ? 'Connect Calendly' : 'Refresh Schedule'}
+            </Button>
+          )}
+          
+          {userRole === 'coach' && (
+            <Link href="/dashboard/coach/availability">
+              <Button variant="outline" className="gap-2">
+                Manage Availability
+              </Button>
+            </Link>
+          )}
         </div>
       )}
 

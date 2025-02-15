@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { fetchUserSessions } from '@/utils/actions/sessions'
-import { CoachingCalendar } from '@/components/calendar/coaching-calendar'
+import { CoachingCalendar } from '@/components/calendar/CoachingCalendar'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
