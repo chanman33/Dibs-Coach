@@ -1,297 +1,228 @@
-import { auth } from '@clerk/nextjs/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
-import { NextRequest, NextResponse } from 'next/server';
-import { COACH_APPLICATION_STATUS } from '../../../../utils/types';
-import { ROLES } from '../../../../utils/roles/roles';
+import { NextResponse } from 'next/server'
+import { ApiResponse } from '@/utils/types/api'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
+import { createAuthClient } from '@/utils/auth'
+import { ROLES } from '@/utils/roles/roles'
+import { z } from 'zod'
+import { ulidSchema } from '@/utils/types/auth'
 
-export async function POST(req: NextRequest) {
-  const authResult = await auth();
-  if (!authResult?.userId) {
-    return new NextResponse('Unauthorized', { status: 401 });
-  }
+// Validation schemas
+const CoachApplicationSchema = z.object({
+  experience: z.string().min(1, 'Experience is required'),
+  specialties: z.array(z.string()).min(1, 'At least one specialty is required')
+})
 
+const UpdateApplicationSchema = z.object({
+  applicationUlid: ulidSchema,
+  status: z.enum(['pending', 'approved', 'rejected']),
+  notes: z.string().optional()
+})
+
+interface CoachApplication {
+  ulid: string
+  applicantUlid: string
+  reviewerUlid: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  experience: string
+  specialties: string[]
+  notes: string | null
+  applicationDate: string
+  reviewDate: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+// POST /api/user/coach-application - Submit new application
+export const POST = withApiAuth<CoachApplication>(async (req, { userUlid }) => {
   try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
-
-    const body = await req.json();
-    const { experience, specialties } = body;
-
-    // First ensure user exists
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .upsert({
-        userId: authResult.userId,
-        role: 'realtor',
-        status: 'active',
-        updatedAt: new Date().toISOString()
-      })
-      .select('id')
-      .single();
-
-    if (userError) {
-      console.error('[COACH_APPLICATION_ERROR] User upsert:', userError);
-      return new NextResponse('Failed to create/update user', { status: 500 });
-    }
-
-    if (!userData) {
-      return new NextResponse('Failed to create user record', { status: 500 });
-    }
+    const body = await req.json()
+    const validatedData = CoachApplicationSchema.parse(body)
+    
+    const supabase = await createAuthClient()
 
     // Create coach application
     const { data: application, error: applicationError } = await supabase
       .from('CoachApplication')
       .insert({
-        applicantDbId: userData.id,
-        status: COACH_APPLICATION_STATUS.PENDING,
-        experience,
-        specialties,
+        applicantUlid: userUlid,
+        status: 'pending',
+        experience: validatedData.experience,
+        specialties: validatedData.specialties,
         applicationDate: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       })
       .select()
-      .single();
+      .single()
 
     if (applicationError) {
-      console.error('[COACH_APPLICATION_ERROR] Application creation:', applicationError);
-      return new NextResponse('Failed to create application', { status: 500 });
+      console.error('[COACH_APPLICATION_ERROR] Application creation:', applicationError)
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'CREATE_ERROR',
+          message: 'Failed to create coach application',
+          details: applicationError
+        }
+      }, { status: 500 })
     }
 
-    return NextResponse.json(application);
+    return NextResponse.json<ApiResponse<CoachApplication>>({
+      data: application,
+      error: null
+    })
   } catch (error) {
-    console.error('[COACH_APPLICATION_ERROR]', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
-  }
-}
-
-export async function GET(req: NextRequest) {
-  const authResult = await auth();
-  if (!authResult?.userId) {
-    return new NextResponse('Unauthorized', { status: 401 });
-  }
-
-  try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
+    console.error('[COACH_APPLICATION_ERROR]', error)
+    if (error instanceof z.ZodError) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid application data',
+          details: error.flatten()
+        }
+      }, { status: 400 })
+    }
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to process coach application',
+        details: error instanceof Error ? { message: error.message } : undefined
       }
-    );
+    }, { status: 500 })
+  }
+})
 
-    // Check if admin
-    const { data: userData, error: userError } = await supabase
-      .from('user')
-      .select('id, role')
-      .eq('userId', authResult.userId)
-      .single();
-
-    console.log('[DEBUG] Auth check:', {
-      clerkUserId: authResult.userId,
-      userData,
-      userError
-    });
-
-    if (userError || !userData) {
-      console.error('[COACH_APPLICATION_ERROR] User fetch:', userError);
-      return new NextResponse('User not found', { status: 404 });
+// GET /api/user/coach-application - Fetch applications (admin only)
+export const GET = withApiAuth<CoachApplication[]>(async (req, { role }) => {
+  try {
+    if (role !== ROLES.ADMIN) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only administrators can view applications'
+        }
+      }, { status: 403 })
     }
 
-    console.log('[DEBUG] Detailed role check:', {
-      userRole: userData.role,
-      roleType: typeof userData.role,
-      expectedAdminRole: ROLES.ADMIN,
-      expectedRoleType: typeof ROLES.ADMIN,
-      isExactMatch: userData.role === ROLES.ADMIN,
-      allRoles: ROLES,
-      userData
-    });
+    const supabase = await createAuthClient()
 
-    // Let's verify the data exists in the table first
-    const { data: countCheck, error: countError } = await supabase
-      .from('CoachApplication')
-      .select('*', { count: 'exact' });
-
-    console.log('[DEBUG] Table count check:', {
-      count: countCheck?.length,
-      error: countError
-    });
-
-    // For admin, we want to fetch ALL applications
-    console.log('[DEBUG] Starting query construction');
-    
-    // Try the query without the join first
-    const { data: rawApplications, error: rawError } = await supabase
-      .from('CoachApplication')
-      .select('*');
-
-    console.log('[DEBUG] Raw applications (no join):', {
-      data: rawApplications,
-      error: rawError
-    });
-
-    // Now try with the join
     const { data: applications, error: applicationsError } = await supabase
       .from('CoachApplication')
       .select(`
         *,
-        applicant:User (
-          id,
+        applicant:User!CoachApplication_applicantUlid_fkey (
+          ulid,
           email,
           firstName,
           lastName,
           role
+        ),
+        reviewer:User!CoachApplication_reviewerUlid_fkey (
+          ulid,
+          email,
+          firstName,
+          lastName
         )
-      `);
-
-    console.log('[DEBUG] Full query result:', { 
-      data: applications, 
-      error: applicationsError,
-      firstApplication: applications?.[0]
-    });
+      `)
+      .order('applicationDate', { ascending: false })
 
     if (applicationsError) {
-      console.error('[COACH_APPLICATION_ERROR] Fetch applications:', applicationsError);
-      return new NextResponse('Failed to fetch applications', { status: 500 });
+      console.error('[COACH_APPLICATION_ERROR] Fetch applications:', applicationsError)
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch coach applications',
+          details: applicationsError
+        }
+      }, { status: 500 })
     }
 
-    // Log the final response
-    console.log('[DEBUG] Returning applications:', {
-      count: applications?.length,
-      applications: applications
-    });
-
-    return NextResponse.json(applications);
+    return NextResponse.json<ApiResponse<CoachApplication[]>>({
+      data: applications,
+      error: null
+    })
   } catch (error) {
-    console.error('[COACH_APPLICATION_ERROR]', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
-  }
-}
-
-export async function PATCH(req: NextRequest) {
-  const authResult = await auth();
-  if (!authResult?.userId) {
-    return new NextResponse('Unauthorized', { status: 401 });
-  }
-
-  try {
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
+    console.error('[COACH_APPLICATION_ERROR]', error)
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to fetch coach applications',
+        details: error instanceof Error ? { message: error.message } : undefined
       }
-    );
+    }, { status: 500 })
+  }
+}, { requiredRoles: [ROLES.ADMIN] })
 
-    // Verify admin status
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('id, role')
-      .eq('userId', authResult.userId)
-      .single();
-
-    if (userError || !userData || userData.role !== ROLES.ADMIN) {
-      return new NextResponse('Unauthorized', { status: 401 });
+// PATCH /api/user/coach-application - Update application status (admin only)
+export const PATCH = withApiAuth<CoachApplication>(async (req, { userUlid, role }) => {
+  try {
+    if (role !== ROLES.ADMIN) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only administrators can update applications'
+        }
+      }, { status: 403 })
     }
 
-    const body = await req.json();
-    const { applicationId, status, notes } = body;
+    const body = await req.json()
+    const validatedData = UpdateApplicationSchema.parse(body)
+    
+    const supabase = await createAuthClient()
 
-    // Update application status
-    const { data: application, error: applicationError } = await supabase
-      .from('CoachApplication')
-      .update({
-        status,
-        notes,
-        reviewerDbId: userData.id,
-        reviewDate: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      })
-      .eq('id', applicationId)
-      .select(`
-        *,
-        applicant:User!CoachApplication_applicantDbId_fkey (*)
-      `)
-      .single();
+    // Start a transaction for all updates
+    const { data: application, error: applicationError } = await supabase.rpc(
+      'update_coach_application',
+      {
+        p_application_ulid: validatedData.applicationUlid,
+        p_status: validatedData.status,
+        p_notes: validatedData.notes,
+        p_reviewer_ulid: userUlid,
+        p_review_date: new Date().toISOString()
+      }
+    )
 
     if (applicationError) {
-      console.error('[COACH_APPLICATION_ERROR] Update application:', applicationError);
-      return new NextResponse('Failed to update application', { status: 500 });
+      console.error('[COACH_APPLICATION_ERROR] Update application:', applicationError)
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'UPDATE_ERROR',
+          message: 'Failed to update coach application',
+          details: applicationError
+        }
+      }, { status: 500 })
     }
 
-    // If approved, update user role and create/update coach profile
-    if (status === COACH_APPLICATION_STATUS.APPROVED) {
-      // Begin a transaction for all the updates
-      const updates = [];
-
-      // 1. Update user role
-      updates.push(
-        supabase
-          .from('User')
-          .update({ 
-            role: ROLES.REALTOR_COACH,
-            updatedAt: new Date().toISOString()
-          })
-          .eq('id', application.applicantDbId)
-      );
-
-      // 2. Create or update RealtorCoachProfile
-      const { data: existingProfile } = await supabase
-        .from('RealtorCoachProfile')
-        .select()
-        .eq('userDbId', application.applicantDbId)
-        .single();
-
-      if (!existingProfile) {
-        // Create new profile
-        updates.push(
-          supabase
-            .from('RealtorCoachProfile')
-            .insert({
-              userDbId: application.applicantDbId,
-              experience: application.experience,
-              specialties: application.specialties,
-              hourlyRate: 0, // Default value, coach can update later
-              bio: application.experience, // Use application experience as initial bio
-              updatedAt: new Date().toISOString()
-            })
-        );
-      }
-
-      // Execute all updates
-      const results = await Promise.all(updates);
-      const errors = results.filter(result => result.error);
-
-      if (errors.length > 0) {
-        console.error('[COACH_APPROVAL_ERRORS]', errors);
-        return new NextResponse('Failed to update user role or create coach profile', { status: 500 });
-      }
-    }
-
-    return NextResponse.json(application);
+    return NextResponse.json<ApiResponse<CoachApplication>>({
+      data: application,
+      error: null
+    })
   } catch (error) {
-    console.error('[COACH_APPLICATION_ERROR]', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error('[COACH_APPLICATION_ERROR]', error)
+    if (error instanceof z.ZodError) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid update data',
+          details: error.flatten()
+        }
+      }, { status: 400 })
+    }
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to update coach application',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-} 
+}, { requiredRoles: [ROLES.ADMIN] }) 

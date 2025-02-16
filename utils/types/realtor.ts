@@ -20,16 +20,16 @@ const geographicFocusSchema = z.object({
 
 // Professional Recognition Schema
 export const ProfessionalRecognitionSchema = z.object({
-  id: z.number().optional(),
+  ulid: z.string().length(26).optional(),
   title: z.string(),
   type: z.enum(["AWARD", "ACHIEVEMENT"]),
   year: z.number(),
   organization: z.string().nullable(),
   description: z.string().nullable(),
-  realtorProfileId: z.number().optional(),
-  createdAt: z.string().optional(),
-  updatedAt: z.string().optional(),
-  deletedAt: z.string().nullable().optional()
+  realtorProfileUlid: z.string().length(26).optional(),
+  createdAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime().optional(),
+  deletedAt: z.string().datetime().nullable().optional()
 });
 
 // Form data schema for new/editing recognition
@@ -45,8 +45,8 @@ export type ProfessionalRecognition = z.infer<typeof ProfessionalRecognitionSche
 
 // Base realtor profile schema (common to both coaches and mentees)
 export const realtorProfileSchema = z.object({
-  id: z.number().optional(),
-  userDbId: z.number(),
+  ulid: z.string().length(26).optional(),
+  userUlid: z.string().length(26),
   bio: z.string().nullable(),
   yearsExperience: z.number().nullable(),
   
@@ -74,14 +74,14 @@ export const realtorProfileSchema = z.object({
   featuredListings: z.array(listingSchema),
   professionalRecognitions: z.array(ProfessionalRecognitionSchema),
 
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 
 // Coach-specific profile schema
 export const coachProfileSchema = z.object({
-  id: z.number().optional(),
-  userDbId: z.number(),
+  ulid: z.string().length(26).optional(),
+  userUlid: z.string().length(26),
   coachingSpecialties: z.array(z.string()),
   yearsCoaching: z.number().nullable(),
   hourlyRate: z.number().nullable(),
@@ -99,24 +99,24 @@ export const coachProfileSchema = z.object({
   totalSessions: z.number(),
   averageRating: z.number().nullable(),
   
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 
 // Mentee-specific profile schema
 export const menteeProfileSchema = z.object({
-  id: z.number().optional(),
-  userDbId: z.number(),
+  ulid: z.string().length(26).optional(),
+  userUlid: z.string().length(26),
   focusAreas: z.array(z.string()),
   experienceLevel: z.string().nullable(),
   learningStyle: z.string().nullable(),
   goals: z.record(z.any()).nullable(),
   sessionsCompleted: z.number(),
   isActive: z.boolean(),
-  lastSessionDate: z.date().nullable(),
+  lastSessionDate: z.string().datetime().nullable(),
   
-  createdAt: z.date(),
-  updatedAt: z.date(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
 });
 
 // Combined profile types for coaches and mentees

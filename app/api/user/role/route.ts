@@ -1,9 +1,12 @@
 import { getUserRoles } from "@/utils/roles/checkUserRole";
 import { validateRoles } from "@/utils/roles/roles";
 import { auth } from "@clerk/nextjs/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createAuthClient } from "@/utils/auth";
 import { NextRequest, NextResponse } from "next/server";
+import { ensureUserExists } from "@/utils/auth";
+import type { Database } from "@/types/supabase";
+
+type UserRecord = Database["public"]["Tables"]["User"]["Row"];
 
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get("userId");
@@ -14,9 +17,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const roles = await getUserRoles(userId, { isInitialSignup });
+    // Get or create user in database
+    const user = await ensureUserExists();
     
-    // If roles is null, it means user doesn't exist
+    if (!user?.ulid) {
+      console.error("[GET_USER_ROLES] Error ensuring user exists");
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const roles = await getUserRoles(user.ulid, { isInitialSignup });
+    
     if (!roles) {
       return NextResponse.json({ exists: false }, { status: 404 });
     }
@@ -60,24 +70,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
+    // Get or create user in database
+    const user = await ensureUserExists();
+    
+    if (!user?.ulid) {
+      console.error("[UPDATE_USER_ROLES] Error ensuring user exists");
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
 
-    // Update user roles
+    const supabase = createAuthClient();
+
+    // Update user roles using ULID
     const { error: updateError } = await supabase
       .from("User")
       .update({ role: validatedRoles })
-      .eq("userId", userId);
+      .eq("ulid", user.ulid);
 
     if (updateError) {
       console.error("[UPDATE_USER_ROLES] Error:", updateError);
