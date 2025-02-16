@@ -1,6 +1,4 @@
 import { auth } from '@clerk/nextjs/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { ZoomService } from '@/lib/zoom/zoom-service'
 import {
@@ -9,30 +7,7 @@ import {
   type ZoomMeeting,
   type ZoomMeetingUpdate,
 } from '@/utils/types/zoom'
-
-async function getUserDbId(userId: string) {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value
-        },
-      },
-    }
-  )
-
-  const { data, error } = await supabase
-    .from('User')
-    .select('id')
-    .eq('userId', userId)
-    .single()
-
-  if (error) throw error
-  return data.id
-}
+import { ensureUserExists } from '@/utils/auth'
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth()
@@ -43,7 +18,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const validatedData = ZoomMeetingSchema.parse(body)
-    const userDbId = await getUserDbId(userId)
+    
+    const user = await ensureUserExists()
+    if (!user?.ulid) {
+      console.error('[CREATE_ZOOM_MEETING_ERROR] User not found')
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
 
     const zoomService = new ZoomService()
     await zoomService.init()
@@ -52,7 +32,7 @@ export async function POST(request: NextRequest) {
     const meeting = await zoomService.createMeeting(validatedData)
 
     // If sessionId is provided, store the meeting URLs
-    const sessionId = body.sessionId as number | undefined
+    const sessionId = body.sessionId as string | undefined
     if (sessionId) {
       await zoomService.storeMeetingUrls(sessionId, meeting.id, {
         startUrl: meeting.start_url,
@@ -79,7 +59,12 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
     const validatedData = ZoomMeetingUpdateSchema.parse(body)
-    const userDbId = await getUserDbId(userId)
+    
+    const user = await ensureUserExists()
+    if (!user?.ulid) {
+      console.error('[UPDATE_ZOOM_MEETING_ERROR] User not found')
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
 
     const zoomService = new ZoomService()
     await zoomService.init()
@@ -88,7 +73,7 @@ export async function PUT(request: NextRequest) {
     const meeting = await zoomService.updateMeeting(validatedData)
 
     // If sessionId is provided, update the meeting URLs
-    const sessionId = body.sessionId as number | undefined
+    const sessionId = body.sessionId as string | undefined
     if (sessionId) {
       await zoomService.storeMeetingUrls(sessionId, meeting.id, {
         startUrl: meeting.start_url,

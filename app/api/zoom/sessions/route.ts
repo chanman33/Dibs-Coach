@@ -1,98 +1,157 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createZoomSession, getZoomSession, updateZoomSessionStatus, deleteZoomSession } from '@/lib/zoom/zoom-service';
-import { ZoomSessionConfig } from '@/utils/types/zoom';
+import { ZoomSessionConfig, ZoomSession } from '@/utils/types/zoom';
+import { withApiAuth } from '@/utils/middleware/withApiAuth';
+import { ApiResponse } from '@/utils/types/api';
+import { z } from 'zod';
+import { ulidSchema } from '@/utils/types/auth';
+
+// Validation schemas
+const CreateSessionSchema = z.object({
+  sessionName: z.string().min(1, 'Session name is required'),
+  duration: z.number().min(15).max(240),
+  startTime: z.string().datetime().optional(),
+  timezone: z.string().optional()
+});
+
+const UpdateSessionSchema = z.object({
+  status: z.enum(['scheduled', 'started', 'ended', 'failed']),
+  sessionId: z.string()
+});
 
 // Create a new Zoom session
-export async function POST(request: Request) {
+export const POST = withApiAuth<ZoomSession>(async (req: Request, { userUlid }) => {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    const config: Omit<ZoomSessionConfig, 'token'> = await request.json();
-    const session = await createZoomSession(config);
-
-    return NextResponse.json({ data: session });
-  } catch (error: any) {
-    console.error('[ZOOM_SESSION_CREATE_ERROR]', error);
-    return new NextResponse(error.message || 'Internal Server Error', { 
-      status: error.status || 500 
+    const body = await req.json();
+    const validatedData = CreateSessionSchema.parse(body);
+    
+    const session = await createZoomSession({
+      ...validatedData,
+      userName: '', // Will be set by the service
+      sessionPasscode: Math.random().toString(36).slice(-8)
     });
+
+    return NextResponse.json<ApiResponse<ZoomSession>>({
+      data: session,
+      error: null
+    });
+  } catch (error) {
+    console.error('[CREATE_ZOOM_SESSION_ERROR]', error);
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to create Zoom session',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 });
   }
-}
+});
 
 // Get a Zoom session
-export async function GET(request: Request) {
+export const GET = withApiAuth<ZoomSession>(async (req: Request, { userUlid }) => {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get('sessionId');
-
+    
     if (!sessionId) {
-      return new NextResponse('Session ID is required', { status: 400 });
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Session ID is required'
+        }
+      }, { status: 400 });
     }
 
     const session = await getZoomSession(sessionId);
-    return NextResponse.json({ data: session });
-  } catch (error: any) {
-    console.error('[ZOOM_SESSION_GET_ERROR]', error);
-    return new NextResponse(error.message || 'Internal Server Error', { 
-      status: error.status || 500 
+    
+    if (!session) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Session not found'
+        }
+      }, { status: 404 });
+    }
+
+    return NextResponse.json<ApiResponse<ZoomSession>>({
+      data: session,
+      error: null
     });
+  } catch (error) {
+    console.error('[GET_ZOOM_SESSION_ERROR]', error);
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to fetch Zoom session',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 });
   }
-}
+});
 
 // Update a Zoom session status
-export async function PATCH(request: Request) {
+export const PATCH = withApiAuth<ZoomSession>(async (req: Request, { userUlid }) => {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    const { sessionId, status } = await request.json();
+    const body = await req.json();
+    const validatedData = UpdateSessionSchema.parse(body);
     
-    if (!sessionId || !status) {
-      return new NextResponse('Session ID and status are required', { status: 400 });
-    }
-
-    await updateZoomSessionStatus(sessionId, status);
-    return new NextResponse(null, { status: 204 });
-  } catch (error: any) {
-    console.error('[ZOOM_SESSION_UPDATE_ERROR]', error);
-    return new NextResponse(error.message || 'Internal Server Error', { 
-      status: error.status || 500 
+    await updateZoomSessionStatus(validatedData.sessionId, validatedData.status);
+    
+    const updatedSession = await getZoomSession(validatedData.sessionId);
+    
+    return NextResponse.json<ApiResponse<ZoomSession>>({
+      data: updatedSession,
+      error: null
     });
+  } catch (error) {
+    console.error('[UPDATE_ZOOM_SESSION_ERROR]', error);
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to update Zoom session',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 });
   }
-}
+});
 
 // Delete a Zoom session
-export async function DELETE(request: Request) {
+export const DELETE = withApiAuth<void>(async (req: Request, { userUlid }) => {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get('sessionId');
-
+    
     if (!sessionId) {
-      return new NextResponse('Session ID is required', { status: 400 });
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Session ID is required'
+        }
+      }, { status: 400 });
     }
 
     await deleteZoomSession(sessionId);
-    return new NextResponse(null, { status: 204 });
-  } catch (error: any) {
-    console.error('[ZOOM_SESSION_DELETE_ERROR]', error);
-    return new NextResponse(error.message || 'Internal Server Error', { 
-      status: error.status || 500 
+
+    return NextResponse.json<ApiResponse<void>>({
+      data: undefined,
+      error: null
     });
+  } catch (error) {
+    console.error('[DELETE_ZOOM_SESSION_ERROR]', error);
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to delete Zoom session',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 });
   }
-} 
+}); 

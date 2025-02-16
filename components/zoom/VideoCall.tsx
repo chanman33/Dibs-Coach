@@ -4,10 +4,11 @@ import { useRef, useState, CSSProperties } from "react";
 import ZoomVideo, { type VideoClient, VideoQuality } from "@zoom/videosdk";
 import { Button } from "@/components/ui/button";
 import { PhoneOff, Video, VideoOff, Mic, MicOff } from "lucide-react";
+import { toast } from "sonner";
 
-interface VideocallProps {
-  slug: string;
-  jwt: string;
+interface VideoCallProps {
+  sessionId: string;
+  displayName: string;
 }
 
 const videoPlayerStyle: CSSProperties = {
@@ -20,7 +21,7 @@ const videoPlayerStyle: CSSProperties = {
   borderRadius: '8px',
 };
 
-export default function Videocall({ slug, jwt }: VideocallProps) {
+export function VideoCall({ sessionId, displayName }: VideoCallProps) {
   const [inSession, setInSession] = useState(false);
   const client = useRef(ZoomVideo.createClient());
   const [isVideoMuted, setIsVideoMuted] = useState(true);
@@ -29,6 +30,23 @@ export default function Videocall({ slug, jwt }: VideocallProps) {
 
   const joinSession = async () => {
     try {
+      // Get session token from API
+      const response = await fetch('/api/zoom/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          displayName
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to join session');
+      }
+
+      const { data } = await response.json();
+      
       // Initialize the client
       await client.current.init("en-US", "Global");
       
@@ -36,12 +54,9 @@ export default function Videocall({ slug, jwt }: VideocallProps) {
       client.current.on("peer-video-state-change", (payload) => {
         renderVideo(payload);
       });
-
-      // Generate a random username
-      const userName = `User-${Date.now().toString().slice(-4)}`;
       
       // Join the session
-      await client.current.join(slug, jwt, userName);
+      await client.current.join(data.sessionName, data.token, displayName);
       setInSession(true);
 
       // Start audio and video
@@ -58,8 +73,11 @@ export default function Videocall({ slug, jwt }: VideocallProps) {
         action: "Start", 
         userId: client.current.getCurrentUserInfo()?.userId 
       });
+
+      toast.success('Joined Zoom session');
     } catch (error) {
       console.error("Failed to join session:", error);
+      toast.error(error instanceof Error ? error.message : 'Failed to join session');
     }
   };
 
@@ -84,31 +102,41 @@ export default function Videocall({ slug, jwt }: VideocallProps) {
   };
 
   const toggleVideo = async () => {
-    const mediaStream = client.current.getMediaStream();
-    if (isVideoMuted) {
-      await mediaStream.startVideo();
-      await renderVideo({ 
-        action: "Start", 
-        userId: client.current.getCurrentUserInfo()?.userId 
-      });
-    } else {
-      await mediaStream.stopVideo();
-      await renderVideo({ 
-        action: "Stop", 
-        userId: client.current.getCurrentUserInfo()?.userId 
-      });
+    try {
+      const mediaStream = client.current.getMediaStream();
+      if (isVideoMuted) {
+        await mediaStream.startVideo();
+        await renderVideo({ 
+          action: "Start", 
+          userId: client.current.getCurrentUserInfo()?.userId 
+        });
+      } else {
+        await mediaStream.stopVideo();
+        await renderVideo({ 
+          action: "Stop", 
+          userId: client.current.getCurrentUserInfo()?.userId 
+        });
+      }
+      setIsVideoMuted(!isVideoMuted);
+    } catch (error) {
+      console.error("Failed to toggle video:", error);
+      toast.error('Failed to toggle video');
     }
-    setIsVideoMuted(!isVideoMuted);
   };
 
   const toggleAudio = async () => {
-    const mediaStream = client.current.getMediaStream();
-    if (isAudioMuted) {
-      await mediaStream.startAudio();
-    } else {
-      await mediaStream.stopAudio();
+    try {
+      const mediaStream = client.current.getMediaStream();
+      if (isAudioMuted) {
+        await mediaStream.startAudio();
+      } else {
+        await mediaStream.stopAudio();
+      }
+      setIsAudioMuted(!isAudioMuted);
+    } catch (error) {
+      console.error("Failed to toggle audio:", error);
+      toast.error('Failed to toggle audio');
     }
-    setIsAudioMuted(!isAudioMuted);
   };
 
   const leaveSession = async () => {
@@ -121,15 +149,17 @@ export default function Videocall({ slug, jwt }: VideocallProps) {
       if (videoContainerRef.current) {
         videoContainerRef.current.innerHTML = '';
       }
+      toast.success('Left Zoom session');
     } catch (error) {
       console.error("Failed to leave session:", error);
+      toast.error('Failed to leave session');
     }
   };
 
   return (
     <div className="flex flex-col gap-4 w-full max-w-4xl mx-auto p-4">
       <h1 className="text-xl font-semibold">
-        Session: {slug}
+        Session: {sessionId}
       </h1>
       
       <div 

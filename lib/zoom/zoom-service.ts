@@ -13,6 +13,7 @@ import type {
   SessionMeetingConfig,
 } from '@/utils/types/zoom';
 import { env } from '@/lib/env';
+import { createAuthClient, getUserUlidAndRole } from '@/utils/auth';
 
 // Initialize Supabase client
 const getSupabase = async () => {
@@ -136,43 +137,26 @@ export async function deleteZoomSession(sessionId: string) {
 
 export class ZoomService {
   private baseUrl = 'https://api.zoom.us/v2'
-  private supabase: SupabaseClient = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return null
-        },
-      },
-    }
-  )
-  private userId: string | null = null
-  private accessToken: string | null = null
+  private supabase: SupabaseClient;
+  private userId: string | null = null;
+  private userUlid: string | null = null;
+  private accessToken: string | null = null;
 
   constructor() {
-    this.accessToken = env.ZOOM_ACCESS_TOKEN
+    this.supabase = null as any;
+    this.accessToken = env.ZOOM_ACCESS_TOKEN;
   }
 
   async init() {
-    const { userId } = await auth()
-    if (!userId) {
-      throw new Error('Not authenticated')
-    }
-    this.userId = userId
-
-    const cookieStore = await cookies()
-    this.supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
+    const { userId } = await auth();
+    if (!userId) throw new Error('Unauthorized');
+    
+    this.userId = userId;
+    const { userUlid } = await getUserUlidAndRole(userId);
+    this.userUlid = userUlid;
+    
+    this.supabase = await getSupabase();
+    return this;
   }
 
   private async fetchZoom<T = any>(
@@ -227,27 +211,32 @@ export class ZoomService {
     })
   }
 
-  async getMeetingConfig(userDbId: number): Promise<SessionMeetingConfig | null> {
+  async getMeetingConfig(userUlid?: string): Promise<SessionMeetingConfig | null> {
+    const targetUlid = userUlid || this.userUlid;
+    if (!targetUlid) throw new Error('User ULID is required');
+
     const { data } = await this.supabase
       .from('ZoomMeetingConfig')
       .select('*')
-      .eq('userDbId', userDbId)
-      .single()
+      .eq('userUlid', targetUlid)
+      .single();
 
-    return data
+    return data;
   }
 
-  async updateMeetingConfig(
-    userDbId: number,
-    config: SessionMeetingConfig
-  ): Promise<void> {
-    await this.supabase
+  async updateMeetingConfig(config: SessionMeetingConfig, userUlid?: string): Promise<void> {
+    const targetUlid = userUlid || this.userUlid;
+    if (!targetUlid) throw new Error('User ULID is required');
+
+    const { error } = await this.supabase
       .from('ZoomMeetingConfig')
       .upsert({
-        userDbId,
+        userUlid: targetUlid,
         ...config,
-        updatedAt: new Date().toISOString(),
-      })
+        updatedAt: new Date().toISOString()
+      });
+
+    if (error) throw error;
   }
 
   async syncMeetingDuration(
@@ -261,29 +250,39 @@ export class ZoomService {
   }
 
   async getMeetingUrls(meetingId: number): Promise<{
-    startUrl: string
-    joinUrl: string
+    startUrl: string;
+    joinUrl: string;
   }> {
-    const meeting = await this.getMeeting(meetingId)
+    const { data, error } = await this.supabase
+      .from('ZoomSession')
+      .select('startUrl, joinUrl')
+      .eq('meetingId', meetingId)
+      .single();
+
+    if (error) throw error;
+    if (!data) throw new Error('Meeting URLs not found');
+
     return {
-      startUrl: meeting.start_url,
-      joinUrl: meeting.join_url,
-    }
+      startUrl: data.startUrl,
+      joinUrl: data.joinUrl,
+    };
   }
 
   async storeMeetingUrls(
-    sessionId: number,
+    sessionId: string,
     meetingId: number,
     urls: { startUrl: string; joinUrl: string }
   ): Promise<void> {
-    await this.supabase
-      .from('Session')
+    const { error } = await this.supabase
+      .from('ZoomSession')
       .update({
-        zoomMeetingId: meetingId.toString(),
-        zoomStartUrl: urls.startUrl,
-        zoomJoinUrl: urls.joinUrl,
+        meetingId,
+        startUrl: urls.startUrl,
+        joinUrl: urls.joinUrl,
         updatedAt: new Date().toISOString(),
       })
-      .eq('id', sessionId)
+      .eq('ulid', sessionId);
+
+    if (error) throw error;
   }
 } 
