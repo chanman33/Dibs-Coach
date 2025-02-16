@@ -1,298 +1,360 @@
-import { auth } from "@clerk/nextjs/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { NextRequest, NextResponse } from "next/server";
-import {
-  SessionSchema,
-  CreateSessionSchema,
-  UpdateSessionSchema,
-  SessionRateSchema,
-} from "@/utils/types/session";
-import { ROLES, hasAnyRole } from "@/utils/roles/roles";
-import { getUserRoles } from "@/utils/roles/checkUserRole";
+import { NextResponse } from "next/server"
+import { ApiResponse } from "@/utils/types/api"
+import { withApiAuth } from "@/utils/middleware/withApiAuth"
+import { createAuthClient } from "@/utils/auth"
+import { z } from "zod"
+import { ulidSchema } from "@/utils/types/auth"
+import { ROLES } from "@/utils/roles/roles"
 
-// Helper function to get user's database ID
-async function getUserDbId(userId: string) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-      },
-    }
-  );
+// Validation schemas
+const SessionRateSchema = z.object({
+  baseRate: z.number().positive(),
+  amount: z.number().positive(),
+  currency: z.enum(["USD", "EUR", "GBP"])
+})
 
-  const { data, error } = await supabase
-    .from("User")
-    .select("id")
-    .eq("userId", userId)
-    .single();
+const SessionSchema = z.object({
+  ulid: ulidSchema,
+  coachUlid: ulidSchema,
+  menteeUlid: ulidSchema,
+  startTime: z.string().datetime(),
+  endTime: z.string().datetime(),
+  durationMinutes: z.number().int().positive(),
+  status: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW"]),
+  notes: z.string().optional(),
+  zoomMeetingId: z.string().optional(),
+  zoomJoinUrl: z.string().url().optional(),
+  calendlyEventUri: z.string().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
+})
 
-  if (error) throw error;
-  return data.id;
-}
+const CreateSessionSchema = SessionSchema.omit({ 
+  ulid: true,
+  createdAt: true,
+  updatedAt: true 
+})
+
+const UpdateSessionSchema = SessionSchema.partial().extend({
+  ulid: ulidSchema
+})
+
+type Session = z.infer<typeof SessionSchema>
+type CreateSession = z.infer<typeof CreateSessionSchema>
+type UpdateSession = z.infer<typeof UpdateSessionSchema>
 
 // Helper function to calculate session rate
-async function calculateSessionRate(coachDbId: number, durationMinutes: number) {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-      },
-    }
-  );
+async function calculateSessionRate(coachUlid: string, durationMinutes: number) {
+  const supabase = await createAuthClient()
 
   const { data: coach } = await supabase
     .from("CoachProfile")
     .select("hourlyRate")
-    .eq("userDbId", coachDbId)
-    .single();
+    .eq("userUlid", coachUlid)
+    .single()
 
-  if (!coach?.hourlyRate) return null;
+  if (!coach?.hourlyRate) return null
 
   return {
     baseRate: Number(coach.hourlyRate),
     amount: (Number(coach.hourlyRate) / 60) * durationMinutes,
-    currency: "USD",
-  };
+    currency: "USD"
+  }
 }
 
-export async function GET(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const GET = withApiAuth<Session[]>(async (req, { userUlid, role }) => {
   try {
-    const userDbId = await getUserDbId(userId);
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
+    const supabase = await createAuthClient()
 
-    // Get user's roles to determine which sessions to fetch
-    const roles = await getUserRoles(userId);
-    const isCoach = hasAnyRole(roles, [ROLES.COACH]);
-    const isMentee = hasAnyRole(roles, [ROLES.MENTEE]);
-
+    // Build query based on role
     let query = supabase
       .from("Session")
       .select(`
         *,
-        coach:coachDbId(id, firstName, lastName, email),
-        mentee:menteeDbId(id, firstName, lastName, email),
-        payment:payment(id, amount, currency, status)
-      `);
+        coach:coachUlid(
+          ulid,
+          firstName,
+          lastName,
+          email,
+          profileImageUrl
+        ),
+        mentee:menteeUlid(
+          ulid,
+          firstName,
+          lastName,
+          email,
+          profileImageUrl
+        ),
+        payment(
+          ulid,
+          amount,
+          currency,
+          status
+        )
+      `)
 
-    // Filter based on role
-    if (isCoach && !isMentee) {
-      query = query.eq("coachDbId", userDbId);
-    } else if (!isCoach && isMentee) {
-      query = query.eq("menteeDbId", userDbId);
+    if (role === ROLES.COACH) {
+      query = query.eq("coachUlid", userUlid)
+    } else if (role === ROLES.MENTEE) {
+      query = query.eq("menteeUlid", userUlid)
     } else {
-      query = query.or(`coachDbId.eq.${userDbId},menteeDbId.eq.${userDbId}`);
+      query = query.or(`coachUlid.eq.${userUlid},menteeUlid.eq.${userUlid}`)
     }
 
-    const { data, error } = await query.order("startTime", { ascending: false });
+    const { data, error } = await query.order("startTime", { ascending: false })
 
     if (error) {
-      console.error("[GET_SESSIONS] Error:", error);
-      return NextResponse.json(
-        { error: "Error fetching sessions" },
-        { status: 500 }
-      );
+      console.error("[SESSION_ERROR] Failed to fetch sessions:", { userUlid, error })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch sessions'
+        }
+      }, { status: 500 })
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json<ApiResponse<Session[]>>({
+      data: data || [],
+      error: null
+    })
   } catch (error) {
-    console.error("[GET_SESSIONS] Error:", error);
-    return NextResponse.json(
-      { error: "Error processing request" },
-      { status: 500 }
-    );
+    console.error("[SESSION_ERROR]", error)
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-}
+})
 
-export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
+export const POST = withApiAuth<Session>(async (req, { userUlid }) => {
   try {
-    const body = await req.json();
-    const validatedData = CreateSessionSchema.parse(body);
-    const userDbId = await getUserDbId(userId);
+    const body = await req.json()
+    const validationResult = CreateSessionSchema.safeParse(body)
+
+    if (!validationResult.success) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid session data',
+          details: validationResult.error.flatten()
+        }
+      }, { status: 400 })
+    }
+
+    const sessionData = validationResult.data
 
     // Verify user is either the coach or mentee
-    if (userDbId !== validatedData.coachDbId && userDbId !== validatedData.menteeDbId) {
-      return NextResponse.json(
-        { error: "Unauthorized to create this session" },
-        { status: 403 }
-      );
+    if (userUlid !== sessionData.coachUlid && userUlid !== sessionData.menteeUlid) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Not authorized to create this session'
+        }
+      }, { status: 403 })
     }
 
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
-      }
-    );
+    const supabase = await createAuthClient()
 
     // Calculate session rate
     const rate = await calculateSessionRate(
-      validatedData.coachDbId,
-      validatedData.durationMinutes
-    );
+      sessionData.coachUlid,
+      sessionData.durationMinutes
+    )
 
-    // Create session and payment in a transaction
-    const { data: session, error } = await supabase
+    // Create session
+    const { data: session, error: sessionError } = await supabase
       .from("Session")
       .insert({
-        ...validatedData,
-        status: "scheduled",
-        updatedAt: new Date().toISOString(),
+        ...sessionData,
+        status: "SCHEDULED",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       })
       .select(`
         *,
-        coach:coachDbId(id, firstName, lastName, email),
-        mentee:menteeDbId(id, firstName, lastName, email)
+        coach:coachUlid(
+          ulid,
+          firstName,
+          lastName,
+          email,
+          profileImageUrl
+        ),
+        mentee:menteeUlid(
+          ulid,
+          firstName,
+          lastName,
+          email,
+          profileImageUrl
+        )
       `)
-      .single();
+      .single()
 
-    if (error) {
-      console.error("[CREATE_SESSION] Error:", error);
-      return NextResponse.json(
-        { error: "Error creating session" },
-        { status: 500 }
-      );
+    if (sessionError) {
+      console.error("[SESSION_ERROR] Failed to create session:", { userUlid, error: sessionError })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'CREATE_ERROR',
+          message: 'Failed to create session'
+        }
+      }, { status: 500 })
     }
 
     // Create payment if rate exists
     if (rate) {
-      const { error: paymentError } = await supabase.from("Payment").insert({
-        sessionId: session.id,
-        payerDbId: validatedData.menteeDbId,
-        payeeDbId: validatedData.coachDbId,
-        amount: rate.amount,
-        currency: rate.currency,
-        status: "pending",
-      });
+      const { error: paymentError } = await supabase
+        .from("Payment")
+        .insert({
+          sessionUlid: session.ulid,
+          payerUlid: sessionData.menteeUlid,
+          payeeUlid: sessionData.coachUlid,
+          amount: rate.amount,
+          currency: rate.currency,
+          status: "PENDING",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        })
 
       if (paymentError) {
-        console.error("[CREATE_PAYMENT] Error:", paymentError);
-        // Don't fail the request, but log the error
+        console.error("[SESSION_ERROR] Failed to create payment:", { 
+          userUlid,
+          sessionUlid: session.ulid,
+          error: paymentError 
+        })
       }
     }
 
-    return NextResponse.json({ data: session });
+    return NextResponse.json<ApiResponse<Session>>({
+      data: session,
+      error: null
+    })
   } catch (error) {
-    console.error("[CREATE_SESSION] Error:", error);
-    return NextResponse.json(
-      { error: "Error processing request" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PUT(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  try {
-    const body = await req.json();
-    const validatedData = UpdateSessionSchema.parse(body);
-    const userDbId = await getUserDbId(userId);
-
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-        },
+    console.error("[SESSION_ERROR]", error)
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
       }
-    );
+    }, { status: 500 })
+  }
+})
+
+export const PUT = withApiAuth<Session>(async (req, { userUlid }) => {
+  try {
+    const body = await req.json()
+    const validationResult = UpdateSessionSchema.safeParse(body)
+
+    if (!validationResult.success) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid session data',
+          details: validationResult.error.flatten()
+        }
+      }, { status: 400 })
+    }
+
+    const sessionData = validationResult.data
+    const supabase = await createAuthClient()
 
     // Verify session ownership
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("Session")
-      .select("coachDbId, menteeDbId")
-      .eq("id", validatedData.id)
-      .single();
+      .select("coachUlid, menteeUlid")
+      .eq("ulid", sessionData.ulid)
+      .single()
 
-    if (!existing) {
-      return NextResponse.json(
-        { error: "Session not found" },
-        { status: 404 }
-      );
+    if (existingError || !existing) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Session not found'
+        }
+      }, { status: 404 })
     }
 
-    if (userDbId !== existing.coachDbId && userDbId !== existing.menteeDbId) {
-      return NextResponse.json(
-        { error: "Unauthorized to update this session" },
-        { status: 403 }
-      );
+    if (userUlid !== existing.coachUlid && userUlid !== existing.menteeUlid) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Not authorized to update this session'
+        }
+      }, { status: 403 })
     }
 
     // Update session
-    const { data, error } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from("Session")
       .update({
-        ...validatedData,
-        updatedAt: new Date().toISOString(),
+        ...sessionData,
+        updatedAt: new Date().toISOString()
       })
-      .eq("id", validatedData.id)
+      .eq("ulid", sessionData.ulid)
       .select(`
         *,
-        coach:coachDbId(id, firstName, lastName, email),
-        mentee:menteeDbId(id, firstName, lastName, email),
-        payment:payment(id, amount, currency, status)
+        coach:coachUlid(
+          ulid,
+          firstName,
+          lastName,
+          email,
+          profileImageUrl
+        ),
+        mentee:menteeUlid(
+          ulid,
+          firstName,
+          lastName,
+          email,
+          profileImageUrl
+        ),
+        payment(
+          ulid,
+          amount,
+          currency,
+          status
+        )
       `)
-      .single();
+      .single()
 
-    if (error) {
-      console.error("[UPDATE_SESSION] Error:", error);
-      return NextResponse.json(
-        { error: "Error updating session" },
-        { status: 500 }
-      );
+    if (updateError) {
+      console.error("[SESSION_ERROR] Failed to update session:", { 
+        userUlid,
+        sessionUlid: sessionData.ulid,
+        error: updateError 
+      })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'UPDATE_ERROR',
+          message: 'Failed to update session'
+        }
+      }, { status: 500 })
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json<ApiResponse<Session>>({
+      data: updated,
+      error: null
+    })
   } catch (error) {
-    console.error("[UPDATE_SESSION] Error:", error);
-    return NextResponse.json(
-      { error: "Error processing request" },
-      { status: 500 }
-    );
+    console.error("[SESSION_ERROR]", error)
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-} 
+}) 

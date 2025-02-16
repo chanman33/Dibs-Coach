@@ -1,28 +1,26 @@
-import { createAuthClient } from "@/utils/auth"
-import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
+import { ApiResponse } from "@/utils/types/api"
+import { withApiAuth } from "@/utils/middleware/withApiAuth"
+import { createAuthClient } from "@/utils/auth"
+import { z } from "zod"
 
-export async function GET() {
+// Validation schemas
+const MarketingDataSchema = z.object({
+  slogan: z.string().optional().nullable(),
+  websiteUrl: z.string().url("Invalid website URL").optional().nullable(),
+  facebookUrl: z.string().url("Invalid Facebook URL").optional().nullable(),
+  instagramUrl: z.string().url("Invalid Instagram URL").optional().nullable(),
+  linkedinUrl: z.string().url("Invalid LinkedIn URL").optional().nullable(),
+  youtubeUrl: z.string().url("Invalid YouTube URL").optional().nullable(),
+  marketingAreas: z.array(z.string()).default([]),
+  testimonials: z.record(z.any()).optional().nullable()
+})
+
+type MarketingData = z.infer<typeof MarketingDataSchema>
+
+export const GET = withApiAuth<MarketingData>(async (req, { userUlid }) => {
   try {
-    // Validate auth
-    const session = await auth()
-    if (!session?.userId) {
-      return new NextResponse("Unauthorized", { status: 401 })
-    }
-
-    // Get supabase client
     const supabase = await createAuthClient()
-
-    // Get user's ULID
-    const { data: userData, error: userError } = await supabase
-      .from("User")
-      .select("ulid")
-      .eq("userId", session.userId)
-      .single()
-
-    if (userError || !userData) {
-      return new NextResponse("User not found", { status: 404 })
-    }
 
     // Get marketing information from realtor profile
     const { data: marketingData, error: marketingError } = await supabase
@@ -37,71 +35,105 @@ export async function GET() {
         marketingAreas,
         testimonials
       `)
-      .eq("userUlid", userData.ulid)
+      .eq("userUlid", userUlid)
       .single()
 
     if (marketingError) {
-      console.error("[DB_ERROR]", marketingError)
-      return new NextResponse("Failed to fetch marketing information", { status: 500 })
+      console.error("[MARKETING_ERROR]", { userUlid, error: marketingError })
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch marketing information'
+        }
+      }, { status: 500 })
     }
 
-    return NextResponse.json({ data: marketingData })
+    // Validate the data
+    const validationResult = MarketingDataSchema.safeParse(marketingData)
+    if (!validationResult.success) {
+      console.error("[MARKETING_ERROR] Invalid data format:", validationResult.error)
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid marketing data format',
+          details: validationResult.error.flatten()
+        }
+      }, { status: 400 })
+    }
+
+    return NextResponse.json<ApiResponse<MarketingData>>({ 
+      data: validationResult.data,
+      error: null
+    })
   } catch (error) {
-    console.error("[API_ERROR]", error)
-    return new NextResponse("Internal Server Error", { status: 500 })
+    console.error("[MARKETING_ERROR]", error)
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-}
+})
 
-// PUT endpoint for updating marketing information
-export async function PUT(request: Request) {
+export const PUT = withApiAuth<MarketingData>(async (req, { userUlid }) => {
   try {
-    // Validate auth
-    const session = await auth()
-    if (!session?.userId) {
-      return new NextResponse("Unauthorized", { status: 401 })
+    const body = await req.json()
+
+    // Validate request body
+    const validationResult = MarketingDataSchema.safeParse(body)
+    if (!validationResult.success) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid marketing data',
+          details: validationResult.error.flatten()
+        }
+      }, { status: 400 })
     }
 
-    // Get request body
-    const body = await request.json()
-
-    // Get supabase client
     const supabase = await createAuthClient()
 
-    // Get user's ULID
-    const { data: userData, error: userError } = await supabase
-      .from("User")
-      .select("ulid")
-      .eq("userId", session.userId)
-      .single()
-
-    if (userError || !userData) {
-      return new NextResponse("User not found", { status: 404 })
-    }
-
     // Update marketing information
-    const { error: updateError } = await supabase
+    const { data: updatedData, error: updateError } = await supabase
       .from("RealtorProfile")
       .update({
-        slogan: body.slogan,
-        websiteUrl: body.websiteUrl,
-        facebookUrl: body.facebookUrl,
-        instagramUrl: body.instagramUrl,
-        linkedinUrl: body.linkedinUrl,
-        youtubeUrl: body.youtubeUrl,
-        marketingAreas: body.marketingAreas ? body.marketingAreas.split(",").map((area: string) => area.trim()) : [],
-        testimonials: body.testimonials,
-        updatedAt: new Date().toISOString(),
+        ...validationResult.data,
+        updatedAt: new Date().toISOString()
       })
-      .eq("userUlid", userData.ulid)
+      .eq("userUlid", userUlid)
+      .select()
+      .single()
 
     if (updateError) {
-      console.error("[DB_ERROR]", updateError)
-      return new NextResponse("Failed to update marketing information", { status: 500 })
+      console.error("[MARKETING_ERROR]", { userUlid, error: updateError })
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'UPDATE_ERROR',
+          message: 'Failed to update marketing information'
+        }
+      }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json<ApiResponse<MarketingData>>({ 
+      data: validationResult.data,
+      error: null
+    })
   } catch (error) {
-    console.error("[API_ERROR]", error)
-    return new NextResponse("Internal Server Error", { status: 500 })
+    console.error("[MARKETING_ERROR]", error)
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-} 
+}) 

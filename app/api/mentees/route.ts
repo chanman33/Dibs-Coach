@@ -1,20 +1,20 @@
-import { auth } from '@clerk/nextjs/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { ROLES } from '@/utils/roles/roles'
-import { getUserDbIdAndRole } from '@/utils/auth'
+import { ApiResponse } from '@/utils/types/api'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
 import { createAuthClient } from '@/utils/auth'
+import { ROLES } from '@/utils/roles/roles'
+import { z } from 'zod'
 
+// Type definitions
 interface RealtorProfile {
-  id: number
+  ulid: string
   companyName: string | null
   licenseNumber: string | null
   phoneNumber: string | null
 }
 
 interface Mentee {
-  id: number
+  ulid: string
   firstName: string | null
   lastName: string | null
   email: string
@@ -22,77 +22,98 @@ interface Mentee {
   realtorProfile: RealtorProfile | null
 }
 
-interface Session {
-  menteeDbId: number
-  mentee: Mentee
-}
-
-export async function GET() {
+export const GET = withApiAuth<Mentee[]>(async (req, { userUlid, role }) => {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { userDbId, role } = await getUserDbIdAndRole(userId);
-    if (!userDbId || !role) {
-      console.error("[MENTEES_ERROR] Failed to get user");
-      return NextResponse.json({ error: "Failed to get user" }, { status: 500 });
-    }
-
+    // Role check
     if (role !== ROLES.COACH) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only coaches can access mentee information'
+        }
+      }, { status: 403 })
     }
 
-    const supabase = await createAuthClient();
+    const supabase = await createAuthClient()
     
-    // First get all mentee IDs from sessions
+    // First get all mentee ULIDs from sessions
     const { data: sessionMentees, error: sessionError } = await supabase
       .from("Session")
-      .select("menteeDbId")
-      .eq("coachDbId", userDbId)
-      .order("createdAt", { ascending: false });
+      .select("menteeUlid")
+      .eq("coachUlid", userUlid)
+      .order("createdAt", { ascending: false })
 
     if (sessionError) {
-      console.error("[MENTEES_ERROR] Failed to fetch session mentees:", sessionError);
-      return NextResponse.json({ error: "Failed to fetch mentees" }, { status: 500 });
+      console.error("[MENTEES_ERROR] Failed to fetch session mentees:", { userUlid, error: sessionError })
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch mentees'
+        }
+      }, { status: 500 })
     }
 
     // If no sessions found, return empty array
     if (!sessionMentees || sessionMentees.length === 0) {
-      return NextResponse.json({ data: [] });
+      return NextResponse.json<ApiResponse<Mentee[]>>({ 
+        data: [],
+        error: null
+      })
     }
 
-    // Get unique mentee IDs
-    const uniqueMenteeIds = Array.from(new Set(sessionMentees.map(s => s.menteeDbId)));
+    // Get unique mentee ULIDs
+    const uniqueMenteeUlids = Array.from(new Set(sessionMentees.map(s => s.menteeUlid)))
 
     // Fetch mentee details
     const { data: mentees, error: menteesError } = await supabase
       .from("User")
       .select(`
-        id,
+        ulid,
         firstName,
         lastName,
         email,
         profileImageUrl,
-        realtorProfile:RealtorProfile (
-          id,
+        realtorProfile:RealtorProfile!userUlid (
+          ulid,
           companyName,
           licenseNumber,
           phoneNumber
         )
       `)
-      .in("id", uniqueMenteeIds);
+      .in("ulid", uniqueMenteeUlids)
 
     if (menteesError) {
-      console.error("[MENTEES_ERROR] Failed to fetch mentee details:", menteesError);
-      return NextResponse.json({ error: "Failed to fetch mentee details" }, { status: 500 });
+      console.error("[MENTEES_ERROR] Failed to fetch mentee details:", { userUlid, error: menteesError })
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch mentee details'
+        }
+      }, { status: 500 })
     }
 
-    // Return empty array instead of error when no mentees found
-    return NextResponse.json({ data: mentees || [] });
+    // Cast the response to the correct type
+    const typedMentees = (mentees || []).map(mentee => ({
+      ...mentee,
+      realtorProfile: mentee.realtorProfile ? mentee.realtorProfile[0] || null : null
+    })) as Mentee[]
+
+    return NextResponse.json<ApiResponse<Mentee[]>>({ 
+      data: typedMentees,
+      error: null
+    })
   } catch (error) {
-    console.error("[MENTEES_ERROR] Unexpected error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("[MENTEES_ERROR] Unexpected error:", error)
+    return NextResponse.json<ApiResponse<never>>({ 
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-} 
+}, { requiredRoles: [ROLES.COACH] }) 

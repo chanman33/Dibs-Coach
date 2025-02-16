@@ -1,97 +1,137 @@
-import { auth } from '@clerk/nextjs/server'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { ApiResponse } from '@/utils/types/api'
+import { withApiAuth } from '@/utils/middleware/withApiAuth'
+import { createAuthClient } from '@/utils/auth'
 import { ROLES } from '@/utils/roles/roles'
+import { z } from 'zod'
+import { ulidSchema } from '@/utils/types/auth'
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> | { id: string } }
-) {
+// Validation schema for mentee ID
+const MenteeParamsSchema = z.object({
+  id: ulidSchema
+})
+
+interface MenteeDetails {
+  ulid: string
+  firstName: string | null
+  lastName: string | null
+  email: string
+  profileImageUrl: string | null
+  realtorProfile: {
+    ulid: string
+    companyName: string | null
+    licenseNumber: string | null
+    phoneNumber: string | null
+  } | null
+  goals: Array<{
+    ulid: string
+    content: string
+    createdAt: string
+    updatedAt: string
+  }>
+  sessions: Array<{
+    ulid: string
+    durationMinutes: number
+    status: string
+    createdAt: string
+    notes: Array<{
+      ulid: string
+      content: string
+      createdAt: string
+    }>
+  }>
+  notes: Array<{
+    ulid: string
+    content: string
+    createdAt: string
+    updatedAt: string
+  }>
+}
+
+export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx) => {
+  const { userUlid, role } = ctx
+  const id = request.url.split('/').slice(-1)[0]
+
   try {
-    const resolvedParams = await params
-    const menteeId = Number(resolvedParams.id)
-    if (!menteeId || isNaN(menteeId)) {
-      return new NextResponse('Valid mentee ID is required', { status: 400 })
+    // Validate mentee ID
+    const validationResult = MenteeParamsSchema.safeParse({ id })
+    if (!validationResult.success) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'INVALID_ID',
+          message: 'Invalid mentee ID format',
+          details: validationResult.error.flatten()
+        }
+      }, { status: 400 })
     }
 
-    // Auth check
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    if (role !== ROLES.COACH) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Only coaches can access mentee details'
+        }
+      }, { status: 403 })
     }
 
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
-      }
-    )
-
-    // Get coach's database ID and verify role
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('id, role')
-      .eq('userId', userId)
-      .single()
-
-    if (userError || !userData) {
-      console.error('[MENTEE_DETAILS_ERROR] User lookup:', userError)
-      return new NextResponse('User not found', { status: 404 })
-    }
-
-    if (userData.role !== ROLES.COACH) {
-      return new NextResponse('Unauthorized - Not a coach', { status: 403 })
-    }
+    const supabase = await createAuthClient()
 
     // Verify this mentee has sessions with this coach
     const { data: sessionCheck, error: sessionError } = await supabase
       .from('Session')
-      .select('id')
-      .eq('coachDbId', userData.id)
-      .eq('menteeDbId', menteeId)
+      .select('ulid')
+      .eq('coachUlid', userUlid)
+      .eq('menteeUlid', id)
       .limit(1)
       .single()
 
     if (sessionError || !sessionCheck) {
-      return new NextResponse('Mentee not found or not authorized', { status: 404 })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Mentee not found or not authorized'
+        }
+      }, { status: 404 })
     }
 
     // Get mentee details
     const { data: menteeData, error: menteeError } = await supabase
       .from('User')
       .select(`
-        id,
+        ulid,
         firstName,
         lastName,
         email,
         profileImageUrl,
-        RealtorProfile (
-          id,
+        RealtorProfile!userUlid (
+          ulid,
           companyName,
           licenseNumber,
           phoneNumber
         )
       `)
-      .eq('id', menteeId)
+      .eq('ulid', id)
       .single()
 
     if (menteeError || !menteeData) {
       console.error('[MENTEE_DETAILS_ERROR] Mentee lookup:', menteeError)
-      return new NextResponse('Failed to fetch mentee details', { status: 500 })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch mentee details'
+        }
+      }, { status: 500 })
     }
 
     // Get mentee's goals (from notes marked as goals)
     const { data: goals } = await supabase
       .from('Note')
-      .select('id, content, createdAt, updatedAt')
-      .eq('relatedUserDbId', menteeId)
+      .select('ulid, content, createdAt, updatedAt')
+      .eq('relatedUserUlid', id)
       .eq('visibility', 'goal')
       .order('createdAt', { ascending: false })
 
@@ -99,43 +139,54 @@ export async function GET(
     const { data: sessions, error: sessionQueryError } = await supabase
       .from('Session')
       .select(`
-        id,
+        ulid,
         durationMinutes,
         status,
         createdAt,
         notes:Note (
-          id,
+          ulid,
           content,
           createdAt
         )
       `)
-      .eq('menteeDbId', menteeId)
-      .eq('coachDbId', userData.id)
+      .eq('menteeUlid', id)
+      .eq('coachUlid', userUlid)
       .order('createdAt', { ascending: false })
 
     if (sessionQueryError) {
       console.error('[MENTEE_DETAILS_ERROR] Session lookup:', sessionQueryError)
     }
-    console.log('[MENTEE_DETAILS] Sessions found:', sessions)
 
     // Get mentee's notes
     const { data: notes, error: notesError } = await supabase
       .from('Note')
-      .select('id, content, createdAt, updatedAt')
-      .eq('relatedUserDbId', menteeId)
-      .eq('authorDbId', userData.id)
+      .select('ulid, content, createdAt, updatedAt')
+      .eq('relatedUserUlid', id)
+      .eq('authorUlid', userUlid)
       .neq('visibility', 'goal')
       .order('createdAt', { ascending: false })
 
-    return NextResponse.json({
+    const response: MenteeDetails = {
       ...menteeData,
-      realtorProfile: menteeData.RealtorProfile,
+      realtorProfile: menteeData.RealtorProfile ? menteeData.RealtorProfile[0] || null : null,
       goals: goals || [],
       sessions: sessions || [],
       notes: notes || []
+    }
+
+    return NextResponse.json<ApiResponse<MenteeDetails>>({
+      data: response,
+      error: null
     })
   } catch (error) {
     console.error('[MENTEE_DETAILS_ERROR]', error)
-    return new NextResponse('Internal server error', { status: 500 })
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-} 
+}, { requiredRoles: [ROLES.COACH] }) 

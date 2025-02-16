@@ -1,7 +1,9 @@
-import { auth } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import { openai, checkRateLimit, processImageWithAI, withRetry } from "@/lib/openai/openai"
 import { z } from "zod"
+import { withApiAuth } from "@/utils/middleware/withApiAuth"
+import { ApiResponse } from "@/utils/types/api"
+import type { OpenAI } from "openai"
 
 // Remove debugging console logs in production
 const isDev = process.env.NODE_ENV === 'development'
@@ -18,6 +20,11 @@ const listingSchema = z.object({
   targetAudience: z.string().min(1, "Target audience is required"),
   tone: z.string().min(1, "Tone is required"),
 })
+
+// Response type
+interface GenerateListingResponse {
+  listing: string;
+}
 
 // Add type safety for form data
 interface ListingFormData {
@@ -168,17 +175,17 @@ export const runtime = 'edge'
 export const preferredRegion = 'cle1'
 export const maxDuration = 30
 
-export async function POST(req: Request) {
+export const POST = withApiAuth<GenerateListingResponse>(async (req, { userUlid }) => {
   try {
-    // Auth check
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 })
-    }
-
     // Rate limit check
     if (!checkRateLimit()) {
-      return new NextResponse("Too many requests", { status: 429 })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'Too many requests'
+        }
+      }, { status: 429 })
     }
 
     // Parse and validate form data
@@ -186,10 +193,14 @@ export async function POST(req: Request) {
     const result = listingSchema.safeParse(Object.fromEntries(formData))
     
     if (!result.success) {
-      return new NextResponse(
-        JSON.stringify({ error: "Invalid form data", details: result.error.format() }),
-        { status: 400 }
-      )
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid form data',
+          details: result.error.format()
+        }
+      }, { status: 400 })
     }
 
     // Process images in parallel
@@ -238,29 +249,35 @@ export async function POST(req: Request) {
       {
         retries: 3,
         onError: (error, attempt) => {
-          console.error(`[LISTING_GENERATION_ERROR] Attempt ${attempt}:`, error)
+          console.error("[LISTING_GENERATION_ERROR]", { 
+            userUlid,
+            attempt,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          })
         }
       }
     )
 
-    return new NextResponse(
-      JSON.stringify({ listing }),
-      { 
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-store",
-        }
-      }
-    )
+    return NextResponse.json<ApiResponse<GenerateListingResponse>>({
+      data: { listing },
+      error: null
+    })
 
   } catch (error) {
-    console.error("[GENERATE_LISTING_ERROR]", error)
-    return new NextResponse(
-      JSON.stringify({ error: "Failed to generate listing" }),
-      { status: 500 }
-    )
+    console.error("[GENERATE_LISTING_ERROR]", {
+      userUlid,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    })
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'GENERATION_FAILED',
+        message: 'Failed to generate listing',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-}
+})
 
 export const config = {
   api: {

@@ -1,185 +1,279 @@
 import { NextResponse } from "next/server"
-import { auth } from "@clerk/nextjs/server"
+import { ApiResponse } from "@/utils/types/api"
+import { withApiAuth } from "@/utils/middleware/withApiAuth"
 import { createAuthClient } from "@/utils/auth"
-import { updateListingSchema } from "@/utils/types/listing"
+import { listingBaseSchema } from "@/utils/types/listing"
 import { revalidatePath } from "next/cache"
-import { UserWithProfile, ListingWithRealtor } from "@/utils/supabase/database"
+import { ulidSchema } from "@/utils/types/auth"
+import { z } from "zod"
+
+// Validation schema for listing ID
+const ListingParamsSchema = z.object({
+  id: ulidSchema
+})
 
 // GET /api/listings/[id] - Get a specific listing
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export const GET = withApiAuth(async (request: Request, ctx) => {
+  const { userUlid } = ctx
+  const id = request.url.split('/').slice(-1)[0]
+
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 })
+    // Validate listing ID
+    const validationResult = ListingParamsSchema.safeParse({ id })
+    if (!validationResult.success) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'INVALID_ID',
+          message: 'Invalid listing ID format',
+          details: validationResult.error.flatten()
+        }
+      }, { status: 400 })
     }
 
     const supabase = await createAuthClient()
 
+    // Get listing with realtor profile
     const { data: listing, error } = await supabase
       .from("Listing")
       .select(`
         *,
-        realtorProfile:RealtorProfile (
-          id,
-          userDbId,
-          bio,
-          yearsExperience
+        realtor:User!userUlid (
+          ulid,
+          firstName,
+          lastName,
+          email,
+          RealtorProfile!userUlid (
+            bio,
+            yearsExperience,
+            specialties,
+            certifications
+          )
         )
       `)
-      .eq("id", params.id)
-      .single() as { data: ListingWithRealtor | null, error: any }
+      .eq("ulid", id)
+      .single()
 
     if (error) {
-      console.error("[LISTING_GET_ERROR]", error)
-      return new NextResponse("Failed to fetch listing", { status: 500 })
+      console.error("[LISTING_ERROR] Failed to fetch listing:", error)
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch listing'
+        }
+      }, { status: 500 })
     }
 
     if (!listing) {
-      return new NextResponse("Listing not found", { status: 404 })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Listing not found'
+        }
+      }, { status: 404 })
     }
 
-    return NextResponse.json(listing)
+    return NextResponse.json<ApiResponse<typeof listing>>({
+      data: listing,
+      error: null
+    })
   } catch (error) {
-    console.error("[LISTING_GET_ERROR]", error)
-    return new NextResponse("Internal error", { status: 500 })
+    console.error("[LISTING_ERROR]", error)
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-}
+})
 
 // PUT /api/listings/[id] - Update a specific listing
-export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export const PUT = withApiAuth(async (request: Request, ctx) => {
+  const { userUlid } = ctx
+  const id = request.url.split('/').slice(-1)[0]
+
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 })
+    // Validate listing ID
+    const validationResult = ListingParamsSchema.safeParse({ id })
+    if (!validationResult.success) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'INVALID_ID',
+          message: 'Invalid listing ID format',
+          details: validationResult.error.flatten()
+        }
+      }, { status: 400 })
     }
 
+    // Validate request body
     const body = await request.json()
-    const validatedData = updateListingSchema.parse(body)
+    const bodyValidation = listingBaseSchema.partial().safeParse(body)
+
+    if (!bodyValidation.success) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid listing data',
+          details: bodyValidation.error.flatten()
+        }
+      }, { status: 400 })
+    }
 
     const supabase = await createAuthClient()
 
     // Verify ownership
-    const { data: userData, error: userError } = await supabase
-      .from("User")
-      .select(`
-        id,
-        realtorProfile:RealtorProfile (
-          id
-        )
-      `)
-      .eq("userId", userId)
-      .single() as { data: UserWithProfile | null, error: any }
+    const { data: existingListing, error: fetchError } = await supabase
+      .from("Listing")
+      .select("userUlid")
+      .eq("ulid", id)
+      .single()
 
-    if (userError) {
-      console.error("[LISTING_PUT_USER_ERROR]", userError)
-      return new NextResponse("Failed to fetch user data", { status: 500 })
+    if (fetchError || !existingListing) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Listing not found'
+        }
+      }, { status: 404 })
     }
 
-    if (!userData?.realtorProfile?.id) {
-      return new NextResponse("User not found or no realtor profile", { status: 404 })
+    if (existingListing.userUlid !== userUlid) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Not authorized to update this listing'
+        }
+      }, { status: 403 })
     }
 
     // Update the listing
-    const { data: listing, error } = await supabase
+    const { data: updatedListing, error: updateError } = await supabase
       .from("Listing")
       .update({
-        ...validatedData,
-        updatedAt: new Date().toISOString(),
+        ...bodyValidation.data,
+        updatedAt: new Date().toISOString()
       })
-      .eq("id", params.id)
-      .eq("realtorProfileId", userData.realtorProfile.id)
-      .single() as { data: ListingWithRealtor | null, error: any }
+      .eq("ulid", id)
+      .select()
+      .single()
 
-    if (error) {
-      console.error("[LISTING_PUT_ERROR]", error)
-      return new NextResponse("Failed to update listing", { status: 500 })
-    }
-
-    if (!listing) {
-      return new NextResponse("Listing not found or unauthorized", { status: 404 })
+    if (updateError) {
+      console.error("[LISTING_ERROR] Failed to update listing:", updateError)
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'UPDATE_ERROR',
+          message: 'Failed to update listing'
+        }
+      }, { status: 500 })
     }
 
     revalidatePath("/dashboard/listings")
-    return NextResponse.json(listing)
+    return NextResponse.json<ApiResponse<typeof updatedListing>>({
+      data: updatedListing,
+      error: null
+    })
   } catch (error) {
-    console.error("[LISTING_PUT_ERROR]", error)
-    return new NextResponse("Internal error", { status: 500 })
+    console.error("[LISTING_ERROR]", error)
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-}
+})
 
 // DELETE /api/listings/[id] - Delete a specific listing
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export const DELETE = withApiAuth(async (request: Request, ctx) => {
+  const { userUlid } = ctx
+  const id = request.url.split('/').slice(-1)[0]
+
   try {
-    const { userId } = await auth()
-    if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 })
+    // Validate listing ID
+    const validationResult = ListingParamsSchema.safeParse({ id })
+    if (!validationResult.success) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'INVALID_ID',
+          message: 'Invalid listing ID format',
+          details: validationResult.error.flatten()
+        }
+      }, { status: 400 })
     }
 
     const supabase = await createAuthClient()
 
     // Verify ownership
-    const { data: userData, error: userError } = await supabase
-      .from("User")
-      .select(`
-        id,
-        realtorProfile:RealtorProfile (
-          id
-        )
-      `)
-      .eq("userId", userId)
+    const { data: existingListing, error: fetchError } = await supabase
+      .from("Listing")
+      .select("userUlid")
+      .eq("ulid", id)
       .single()
 
-    if (userError) {
-      console.error("[LISTING_DELETE_USER_ERROR]", userError)
-      return new NextResponse("Failed to fetch user data", { status: 500 })
+    if (fetchError || !existingListing) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Listing not found'
+        }
+      }, { status: 404 })
     }
 
-    if (!userData?.realtorProfile?.id) {
-      return new NextResponse("User not found or no realtor profile", { status: 404 })
-    }
-
-    // First verify the listing exists and belongs to the user
-    const { data: listing, error: listingError } = await supabase
-      .from("Listing")
-      .select("id")
-      .eq("id", params.id)
-      .eq("realtorProfileId", userData.realtorProfile.id)
-      .single() as { data: ListingWithRealtor | null, error: any }
-
-    if (listingError) {
-      console.error("[LISTING_DELETE_CHECK_ERROR]", listingError)
-      return new NextResponse("Failed to verify listing ownership", { status: 500 })
-    }
-
-    if (!listing) {
-      return new NextResponse("Listing not found or unauthorized", { status: 404 })
+    if (existingListing.userUlid !== userUlid) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'Not authorized to delete this listing'
+        }
+      }, { status: 403 })
     }
 
     // Delete the listing
-    const { error } = await supabase
+    const { error: deleteError } = await supabase
       .from("Listing")
       .delete()
-      .eq("id", params.id)
-      .eq("realtorProfileId", userData.realtorProfile.id)
+      .eq("ulid", id)
 
-    if (error) {
-      console.error("[LISTING_DELETE_ERROR]", error)
-      return new NextResponse("Failed to delete listing", { status: 500 })
+    if (deleteError) {
+      console.error("[LISTING_ERROR] Failed to delete listing:", deleteError)
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'DELETE_ERROR',
+          message: 'Failed to delete listing'
+        }
+      }, { status: 500 })
     }
 
     revalidatePath("/dashboard/listings")
-    return new NextResponse(null, { status: 204 })
+    return NextResponse.json<ApiResponse<{ success: true }>>({
+      data: { success: true },
+      error: null
+    })
   } catch (error) {
-    console.error("[LISTING_DELETE_ERROR]", error)
-    return new NextResponse("Internal error", { status: 500 })
+    console.error("[LISTING_ERROR]", error)
+    return NextResponse.json<ApiResponse<never>>({
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'An unexpected error occurred',
+        details: error instanceof Error ? { message: error.message } : undefined
+      }
+    }, { status: 500 })
   }
-} 
+}) 
