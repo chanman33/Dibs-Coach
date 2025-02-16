@@ -1,13 +1,16 @@
 import { z } from "zod"
+import { ulidSchema } from './auth'
 
 // System Health Types
 export const SystemHealthSchema = z.object({
-  status: z.number(),
-  activeSessions: z.number(),
-  pendingReviews: z.number(),
-  securityAlerts: z.number(),
+  ulid: ulidSchema,
+  status: z.enum(['healthy', 'degraded', 'down']),
   uptime: z.number(),
   lastChecked: z.string().datetime(),
+  services: z.record(z.string(), z.enum(['up', 'down', 'degraded'])),
+  metrics: z.record(z.string(), z.number()),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
 })
 
 export type SystemHealth = z.infer<typeof SystemHealthSchema>
@@ -65,43 +68,62 @@ export const AlertSchema = z.object({
 
 export type Alert = z.infer<typeof AlertSchema>
 
-// Dashboard Data Schema
-export const DashboardDataSchema = z.object({
-  systemHealth: SystemHealthSchema,
-  metrics: MetricsSchema,
-  recentActivity: z.array(ActivitySchema),
-  systemAlerts: z.array(AlertSchema),
-})
-
-export type DashboardData = z.infer<typeof DashboardDataSchema>
-
 // Admin Metrics Schema
 export const AdminMetricsSchema = z.object({
+  ulid: ulidSchema,
   totalUsers: z.number(),
   activeUsers: z.number(),
-  totalCoaches: z.number(),
-  activeCoaches: z.number(),
-  pendingCoaches: z.number(),
+  newUsers: z.number(),
   totalSessions: z.number(),
   completedSessions: z.number(),
+  canceledSessions: z.number(),
   totalRevenue: z.number(),
-  monthlyRevenue: z.number(),
-  updatedAt: z.string().datetime(),
+  periodRevenue: z.number(),
+  conversionRate: z.number(),
+  retentionRate: z.number(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
 })
 
 export type AdminMetrics = z.infer<typeof AdminMetricsSchema>
 
 // Admin Activity Schema
 export const AdminActivitySchema = z.object({
-  id: z.number(),
-  type: z.enum(["USER", "COACH", "SYSTEM", "SECURITY"]),
-  title: z.string(),
+  ulid: ulidSchema,
+  adminUlid: ulidSchema,
+  type: z.enum(['user_action', 'system_event', 'error', 'security']),
+  severity: z.enum(['info', 'warning', 'error', 'critical']),
   description: z.string(),
-  severity: z.enum(["INFO", "WARNING", "ERROR"]),
+  metadata: z.record(z.string(), z.any()).optional(),
   createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
 })
 
 export type AdminActivity = z.infer<typeof AdminActivitySchema>
+
+// System Alert Schema
+export const SystemAlertSchema = z.object({
+  ulid: ulidSchema,
+  type: z.enum(['security', 'performance', 'error', 'notification']),
+  severity: z.enum(['info', 'warning', 'error', 'critical']),
+  message: z.string(),
+  status: z.enum(['active', 'resolved', 'dismissed']),
+  metadata: z.record(z.string(), z.any()).optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
+})
+
+export type SystemAlert = z.infer<typeof SystemAlertSchema>
+
+// Dashboard Data Schema
+export const DashboardDataSchema = z.object({
+  systemHealth: SystemHealthSchema,
+  metrics: AdminMetricsSchema,
+  recentActivity: z.array(AdminActivitySchema),
+  systemAlerts: z.array(SystemAlertSchema)
+})
+
+export type DashboardData = z.infer<typeof DashboardDataSchema>
 
 // Admin Audit Log Schema
 export const AdminAuditLogSchema = z.object({
@@ -114,4 +136,29 @@ export const AdminAuditLogSchema = z.object({
   createdAt: z.string().datetime(),
 })
 
-export type AdminAuditLog = z.infer<typeof AdminAuditLogSchema> 
+export type AdminAuditLog = z.infer<typeof AdminAuditLogSchema>
+
+// User Analytics Schema
+export const UserAnalyticsSchema = z.object({
+  ulid: ulidSchema,
+  userUlid: ulidSchema,
+  sessionsCompleted: z.number(),
+  sessionsScheduled: z.number(),
+  totalSpent: z.number(),
+  lastSessionDate: z.string().datetime().nullable(),
+  averageRating: z.number().nullable(),
+  engagementScore: z.number(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
+})
+
+export type UserAnalytics = z.infer<typeof UserAnalyticsSchema>
+
+// Request/Response Schemas
+export const UpdateUserStatusSchema = z.object({
+  userUlid: ulidSchema,
+  status: z.enum(['active', 'inactive', 'suspended']),
+  reason: z.string().optional()
+})
+
+export type UpdateUserStatus = z.infer<typeof UpdateUserStatusSchema> 

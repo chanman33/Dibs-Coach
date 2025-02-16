@@ -1,180 +1,288 @@
 'use server'
 
-import { auth } from '@clerk/nextjs/server'
-import { createAdminClient } from '../supabase/admin'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-import { Database } from '@/types/supabase'
-import { SupabaseClient } from '@supabase/supabase-js'
+import { createAuthClient } from '@/utils/auth'
+import { withServerAction } from '@/utils/middleware/withServerAction'
+import { ApiResponse } from '@/utils/types/api'
+import { z } from 'zod'
+import { ulidSchema } from '@/utils/types/auth'
+import { SessionStatus, SessionType } from '@prisma/client'
 
-interface User {
-  id: number
+// Types and Schemas
+const UserSchema = z.object({
+  ulid: ulidSchema,
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
+  email: z.string().nullable(),
+  profileImageUrl: z.string().nullable()
+})
+
+const SessionSchema = z.object({
+  ulid: ulidSchema,
+  menteeUlid: ulidSchema,
+  coachUlid: ulidSchema,
+  startTime: z.string(),
+  endTime: z.string(),
+  status: z.nativeEnum(SessionStatus),
+  sessionType: z.nativeEnum(SessionType).nullable(),
+  sessionNotes: z.string().nullable(),
+  zoomMeetingId: z.string().nullable(),
+  zoomMeetingUrl: z.string().nullable(),
+  priceAmount: z.number().nullable(),
+  currency: z.string().nullable(),
+  platformFeeAmount: z.number().nullable(),
+  coachPayoutAmount: z.number().nullable(),
+  stripePaymentIntentId: z.string().nullable(),
+  paymentStatus: z.string().nullable(),
+  payoutStatus: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+})
+
+const TransformedSessionSchema = z.object({
+  ulid: ulidSchema,
+  durationMinutes: z.number(),
+  status: z.nativeEnum(SessionStatus),
+  startTime: z.string(),
+  endTime: z.string(),
+  createdAt: z.string(),
+  userRole: z.enum(['coach', 'mentee']),
+  otherParty: UserSchema,
+  sessionType: z.nativeEnum(SessionType).nullable(),
+  zoomMeetingUrl: z.string().nullable(),
+  paymentStatus: z.string().nullable()
+})
+
+type User = z.infer<typeof UserSchema>
+type Session = z.infer<typeof SessionSchema>
+type TransformedSession = z.infer<typeof TransformedSessionSchema>
+
+// Database types
+interface DbUser {
+  ulid: string
   firstName: string | null
   lastName: string | null
   email: string | null
+  profileImageUrl: string | null
 }
 
-interface SessionResponse {
-  id: number
-  durationMinutes: number
-  status: string
-  calendlyEventId: string
+interface DbSessionWithUsers {
+  ulid: string
+  menteeUlid: string
+  coachUlid: string
   startTime: string
   endTime: string
+  status: SessionStatus
+  sessionType: SessionType | null
+  zoomMeetingUrl: string | null
+  paymentStatus: string | null
   createdAt: string
-  coachDbId: number
-  menteeDbId: number
-  coach: User
-  mentee: User
+  coach: DbUser
+  mentee: DbUser
 }
 
-interface TransformedSession {
-  id: number
-  durationMinutes: number
-  status: Database['public']['Enums']['SessionStatus']
-  calendlyEventId: string
+interface DbSessionWithMentee {
+  ulid: string
+  menteeUlid: string
+  coachUlid: string
   startTime: string
   endTime: string
+  status: SessionStatus
+  sessionType: SessionType | null
+  zoomMeetingUrl: string | null
+  paymentStatus: string | null
   createdAt: string
-  userRole: 'coach' | 'mentee'
-  otherParty: User
+  mentee: DbUser
 }
 
-interface CoachSessionResponse {
-  id: number
-  durationMinutes: number
-  status: string
-  calendlyEventId: string
-  startTime: string
-  endTime: string
-  createdAt: string
-  mentee: User
-}
+// Actions
+export const fetchUserSessions = withServerAction<TransformedSession[]>(
+  async (_, { userUlid }) => {
+    try {
+      const supabase = await createAuthClient()
 
-export async function fetchUserSessions(): Promise<TransformedSession[] | null> {
-  try {
-    const { userId } = await auth()
-    if (!userId) throw new Error('Unauthorized')
+      // Get user's role
+      const { data: user, error: userError } = await supabase
+        .from('User')
+        .select('ulid, role')
+        .eq('ulid', userUlid)
+        .single()
 
-    const cookieStore = await cookies()
-    const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value
-          },
-        },
+      if (userError || !user) {
+        console.error('[FETCH_SESSIONS_ERROR] User not found:', { userUlid, error: userError })
+        return {
+          data: null,
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found'
+          }
+        }
       }
-    )
 
-    // First get the user's database ID
-    const { data: user, error: userError } = await supabase
-      .from('User')
-      .select('id, role')
-      .eq('userId', userId)
-      .single()
+      // Fetch sessions where user is either coach or mentee
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('Session')
+        .select(`
+          ulid,
+          menteeUlid,
+          coachUlid,
+          startTime,
+          endTime,
+          status,
+          sessionType,
+          zoomMeetingUrl,
+          paymentStatus,
+          createdAt,
+          coach:User!Session_coachUlid_fkey (
+            ulid,
+            firstName,
+            lastName,
+            email,
+            profileImageUrl
+          ),
+          mentee:User!Session_menteeUlid_fkey (
+            ulid,
+            firstName,
+            lastName,
+            email,
+            profileImageUrl
+          )
+        `)
+        .or(`coachUlid.eq.${userUlid},menteeUlid.eq.${userUlid}`)
+        .order('startTime', { ascending: false })
 
-    if (userError || !user) throw new Error('User not found')
+      if (sessionsError) {
+        console.error('[FETCH_SESSIONS_ERROR]', { userUlid, error: sessionsError })
+        return {
+          data: null,
+          error: {
+            code: 'FETCH_ERROR',
+            message: 'Failed to fetch sessions'
+          }
+        }
+      }
 
-    // Fetch sessions where user is either coach or mentee
-    const { data: sessions, error } = await supabase
-      .from('Session')
-      .select(`
-        id,
-        durationMinutes,
-        status,
-        calendlyEventId,
-        startTime,
-        endTime,
-        createdAt,
-        coachDbId,
-        menteeDbId,
-        coach:User!Session_coachDbId_fkey (
-          id,
-          firstName,
-          lastName,
-          email
+      // Transform and validate the data
+      const transformedSessions = (sessions as unknown as DbSessionWithUsers[]).map((session): TransformedSession => ({
+        ulid: session.ulid,
+        durationMinutes: Math.round(
+          (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)
         ),
-        mentee:User!Session_menteeDbId_fkey (
-          id,
-          firstName,
-          lastName,
-          email
-        )
-      `)
-      .or(`coachDbId.eq.${user.id},menteeDbId.eq.${user.id}`)
-      .order('startTime', { ascending: false })
+        status: session.status,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        createdAt: session.createdAt,
+        userRole: session.coachUlid === userUlid ? 'coach' : 'mentee',
+        otherParty: session.coachUlid === userUlid ? session.mentee : session.coach,
+        sessionType: session.sessionType,
+        zoomMeetingUrl: session.zoomMeetingUrl,
+        paymentStatus: session.paymentStatus
+      }))
 
-    if (error) throw error
+      // Validate transformed sessions
+      const validatedSessions = z.array(TransformedSessionSchema).parse(transformedSessions)
 
-    // Transform the data to include role context
-    const transformedSessions = (sessions as unknown as SessionResponse[]).map((session): TransformedSession => ({
-      id: session.id,
-      durationMinutes: session.durationMinutes,
-      status: session.status as Database['public']['Enums']['SessionStatus'],
-      calendlyEventId: session.calendlyEventId,
-      startTime: session.startTime,
-      endTime: session.endTime,
-      createdAt: session.createdAt,
-      userRole: session.coachDbId === user.id ? 'coach' : 'mentee',
-      otherParty: session.coachDbId === user.id ? session.mentee : session.coach
-    }))
-
-    return transformedSessions
-
-  } catch (error) {
-    console.error('[FETCH_SESSIONS_ERROR]', error)
-    return null
+      return {
+        data: validatedSessions,
+        error: null
+      }
+    } catch (error) {
+      console.error('[FETCH_SESSIONS_ERROR]', error)
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      }
+    }
   }
-}
+)
 
-export async function fetchCoachSessions(): Promise<TransformedSession[] | null> {
-  'use server'
-  const supabase = await createAdminClient() as SupabaseClient<Database>
-  const { userId } = await auth()
-  if (!userId) return null
+export const fetchCoachSessions = withServerAction<TransformedSession[]>(
+  async (_, { userUlid, role }) => {
+    try {
+      if (role !== 'COACH') {
+        return {
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only coaches can access this endpoint'
+          }
+        }
+      }
 
-  const { data: user } = await supabase
-    .from('User')
-    .select('id')
-    .eq('userId', userId)
-    .single()
+      const supabase = await createAuthClient()
 
-  if (!user) return null
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('Session')
+        .select(`
+          ulid,
+          menteeUlid,
+          coachUlid,
+          startTime,
+          endTime,
+          status,
+          sessionType,
+          zoomMeetingUrl,
+          paymentStatus,
+          createdAt,
+          mentee:User!Session_menteeUlid_fkey (
+            ulid,
+            firstName,
+            lastName,
+            email,
+            profileImageUrl
+          )
+        `)
+        .eq('coachUlid', userUlid)
+        .order('startTime', { ascending: false })
 
-  const { data: sessions } = await supabase
-    .from('Session')
-    .select(`
-      id,
-      startTime,
-      endTime,
-      createdAt,
-      status,
-      sessionType,
-      calendlyEvent:calendlyEvent!SessionCalendlyEvent(eventUuid),
-      mentee:menteeDbId(
-        id,
-        firstName,
-        lastName,
-        email
-      )
-    `)
-    .eq('coachDbId', user.id)
-    .order('startTime', { ascending: false } as const) as { data: Array<Database['public']['Tables']['Session']['Row'] & { mentee: Database['public']['Tables']['User']['Row'], calendlyEvent: { eventUuid: string } | null }> | null }
+      if (sessionsError) {
+        console.error('[FETCH_COACH_SESSIONS_ERROR]', { userUlid, error: sessionsError })
+        return {
+          data: null,
+          error: {
+            code: 'FETCH_ERROR',
+            message: 'Failed to fetch coach sessions'
+          }
+        }
+      }
 
-  if (!sessions) return null
+      // Transform and validate the data
+      const transformedSessions = (sessions as unknown as DbSessionWithMentee[]).map((session): TransformedSession => ({
+        ulid: session.ulid,
+        durationMinutes: Math.round(
+          (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)
+        ),
+        status: session.status,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        createdAt: session.createdAt,
+        userRole: 'coach',
+        otherParty: session.mentee,
+        sessionType: session.sessionType,
+        zoomMeetingUrl: session.zoomMeetingUrl,
+        paymentStatus: session.paymentStatus
+      }))
 
-  return sessions.map(session => ({
-    id: session.id,
-    durationMinutes: Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)),
-    status: session.status as Database['public']['Enums']['SessionStatus'],
-    calendlyEventId: session.calendlyEvent?.eventUuid || '',
-    startTime: session.startTime,
-    endTime: session.endTime,
-    createdAt: session.createdAt,
-    userRole: 'coach' as const,
-    otherParty: session.mentee
-  }))
-} 
+      // Validate transformed sessions
+      const validatedSessions = z.array(TransformedSessionSchema).parse(transformedSessions)
+
+      return {
+        data: validatedSessions,
+        error: null
+      }
+    } catch (error) {
+      console.error('[FETCH_COACH_SESSIONS_ERROR]', error)
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      }
+    }
+  }
+) 

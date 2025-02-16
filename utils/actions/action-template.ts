@@ -1,26 +1,70 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createAuthClient } from "@/utils/auth";
+import { ApiResponse } from "@/utils/types/api";
+import { withServerAction } from "@/utils/middleware/withServerAction";
+import { z } from "zod";
 
-export async function actionTemplate() {
-  const { userId } = await auth();
+// Example schema for action parameters
+const ActionParamsSchema = z.object({
+  // Define your parameters here
+  param1: z.string(),
+  param2: z.number().optional()
+});
 
-  if (!userId) {
-    return "You must be signed in";
-  }
-
-  const supabase = createServerComponentClient({ cookies });
-
-  try {
-    let { data: user, error } = await supabase.from("user").select("*");
-
-    if (user) return user;
-
-    if (error) return error;
-  } catch (error: any) {
-    throw new Error(error.message);
-  }
-
+// Example response type
+interface ActionResponse {
+  // Define your response type here
+  success: boolean;
+  data: any;
 }
+
+// Define the action with type safety
+export const actionTemplate = withServerAction<ActionResponse, z.infer<typeof ActionParamsSchema>>(
+  async (params, { userUlid, role }) => {
+    try {
+      // Validate parameters
+      const validatedParams = ActionParamsSchema.parse(params);
+      
+      // Get Supabase client
+      const supabase = await createAuthClient();
+      
+      // Perform your action here
+      const { data, error } = await supabase
+        .from("YourTable")
+        .select("*")
+        .eq("userUlid", userUlid)
+        .single();
+        
+      if (error) {
+        console.error("[ACTION_ERROR]", { userUlid, error });
+        return {
+          data: null,
+          error: {
+            code: "DATABASE_ERROR",
+            message: "Failed to fetch data"
+          }
+        };
+      }
+      
+      return {
+        data: {
+          success: true,
+          data
+        },
+        error: null
+      };
+    } catch (error) {
+      console.error("[ACTION_ERROR]", error);
+      return {
+        data: null,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "An unexpected error occurred",
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      };
+    }
+  }
+);
