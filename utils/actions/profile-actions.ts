@@ -4,8 +4,10 @@ import { auth } from "@clerk/nextjs/server"
 import { createAuthClient } from "../auth"
 import { revalidatePath } from "next/cache"
 import type { MarketingInfo } from "@/utils/types/marketing"
+import { withServerAction } from "@/utils/middleware/withServerAction"
+import type { ServerActionContext } from "@/utils/middleware/withServerAction"
 
-interface GeneralFormData {
+export interface GeneralFormData {
   displayName: string
   licenseNumber: string
   brokerage: string
@@ -14,8 +16,8 @@ interface GeneralFormData {
   primaryMarket: string
 }
 
-interface CoachProfileFormData {
-  coachingSpecialties: string[];
+export interface CoachProfileFormData {
+  specialties: string[];
   yearsCoaching: number;
   hourlyRate: number;
   defaultDuration: number;
@@ -38,179 +40,106 @@ interface ProfessionalRecognition {
   archivedAt?: string | null;
 }
 
-export async function fetchUserProfile() {
-  try {
-    const { userId } = await auth()
-    if (!userId) {
-      throw new Error('Unauthorized')
-    }
+export const fetchUserProfile = withServerAction<GeneralFormData, void>(
+  async (_, { userUlid }) => {
+    try {
+      const supabase = await createAuthClient()
 
-    const supabase = await createAuthClient()
-
-    // Fetch user and their realtor profile
-    const { data, error } = await supabase
-      .from('User')
-      .select(`
-        *,
-        realtorProfile:RealtorProfile (
+      // Get user profile data
+      const { data: profileData, error: profileError } = await supabase
+        .from("RealtorProfile")
+        .select(`
+          displayName,
+          licenseNumber,
+          brokerage,
+          yearsOfExperience,
           bio,
-          yearsExperience,
-          primaryMarket,
-          geographicFocus
-        )
-      `)
-      .eq('userId', userId)
-      .single()
-
-    if (error) throw error
-
-    // Handle realtorProfile being an array
-    const realtorProfile = Array.isArray(data.realtorProfile) 
-      ? data.realtorProfile[0] 
-      : data.realtorProfile
-
-    const formattedData = {
-      displayName: data.displayName || '',
-      firstName: data.firstName || '',
-      lastName: data.lastName || '',
-      licenseNumber: data.licenseNumber || '',
-      companyName: data.companyName || '',
-      yearsOfExperience: realtorProfile?.yearsExperience?.toString() || '',
-      bio: realtorProfile?.bio || '',
-      primaryMarket: realtorProfile?.primaryMarket || '',
-      brokerage: data.companyName || ''
-    }
-
-    return {
-      success: true,
-      data: formattedData
-    }
-  } catch (error) {
-    console.error('[FETCH_PROFILE_ERROR]', error)
-    return { success: false, error }
-  }
-}
-
-export async function updateGeneralProfile(data: GeneralFormData) {
-  try {
-    const { userId } = await auth()
-    if (!userId) {
-      throw new Error('Unauthorized')
-    }
-
-    const supabase = await createAuthClient()
-
-    // First get the user's database ID
-    const { data: user, error: userQueryError } = await supabase
-      .from('User')
-      .select('id')
-      .eq('userId', userId)
-      .single()
-
-    if (userQueryError) {
-      console.error('[UPDATE_PROFILE] Error fetching user:', userQueryError)
-      throw userQueryError
-    }
-
-    if (!user?.id) {
-      throw new Error('User not found')
-    }
-
-    // Update User table
-    const { error: userError } = await supabase
-      .from('User')
-      .update({
-        displayName: data.displayName,
-        licenseNumber: data.licenseNumber,
-        companyName: data.brokerage,
-        updatedAt: new Date().toISOString()
-      })
-      .eq('id', user.id)
-
-    if (userError) {
-      console.error('[UPDATE_PROFILE] Error updating user:', userError)
-      throw userError
-    }
-
-    // Check if RealtorProfile exists
-    const { data: existingProfile, error: profileQueryError } = await supabase
-      .from('RealtorProfile')
-      .select('*')
-      .eq('userDbId', user.id)
-      .single()
-
-    let profileResult
-    if (!existingProfile) {
-      // Create new profile with required defaults
-      profileResult = await supabase
-        .from('RealtorProfile')
-        .insert({
-          userDbId: user.id,
-          bio: data.bio || null,
-          yearsExperience: parseInt(data.yearsOfExperience),
-          primaryMarket: data.primaryMarket,
-          propertyTypes: [],
-          specializations: [],
-          certifications: [],
-          languages: ['English'],
-          geographicFocus: {
-            cities: [data.primaryMarket],
-            neighborhoods: [],
-            counties: []
-          },
-          slogan: null,
-          websiteUrl: null,
-          facebookUrl: null,
-          instagramUrl: null,
-          linkedinUrl: null,
-          youtubeUrl: null,
-          marketingAreas: [],
-          testimonials: [],
-          featuredListings: [],
-          professionalRecognitions: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        })
-        .select()
+          primaryMarket
+        `)
+        .eq("userUlid", userUlid)
         .single()
-    } else {
-      // Update existing profile, preserving existing data
-      const updatedProfile = {
-        ...existingProfile,
-        bio: data.bio || existingProfile.bio,
-        yearsExperience: parseInt(data.yearsOfExperience),
-        primaryMarket: data.primaryMarket,
-        geographicFocus: data.primaryMarket !== existingProfile.primaryMarket
-          ? {
-              ...existingProfile.geographicFocus,
-              cities: Array.from(new Set([...(existingProfile.geographicFocus?.cities || []), data.primaryMarket]))
-            }
-          : existingProfile.geographicFocus,
-        updatedAt: new Date().toISOString()
+
+      if (profileError) {
+        console.error("[PROFILE_FETCH_ERROR]", { userUlid, error: profileError })
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch user profile'
+          }
+        }
       }
 
-      profileResult = await supabase
-        .from('RealtorProfile')
-        .update(updatedProfile)
-        .eq('id', existingProfile.id)
+      return {
+        data: profileData,
+        error: null
+      }
+    } catch (error) {
+      console.error("[PROFILE_FETCH_ERROR]", error)
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to fetch user profile',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      }
+    }
+  }
+)
+
+export const updateGeneralProfile = withServerAction<{ user: any, profile: any }, GeneralFormData>(
+  async (data, { userUlid }) => {
+    try {
+      const supabase = await createAuthClient()
+
+      // Update realtor profile
+      const { data: profile, error: profileError } = await supabase
+        .from("RealtorProfile")
+        .update({
+          displayName: data.displayName,
+          licenseNumber: data.licenseNumber,
+          brokerage: data.brokerage,
+          yearsOfExperience: data.yearsOfExperience,
+          bio: data.bio,
+          primaryMarket: data.primaryMarket,
+          updatedAt: new Date().toISOString()
+        })
+        .eq("userUlid", userUlid)
         .select()
         .single()
+
+      if (profileError) {
+        console.error("[PROFILE_UPDATE_ERROR]", { userUlid, error: profileError })
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to update profile'
+          }
+        }
+      }
+
+      return {
+        data: {
+          user: null, // We don't update user data anymore
+          profile
+        },
+        error: null
+      }
+    } catch (error) {
+      console.error("[PROFILE_UPDATE_ERROR]", error)
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to update profile',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      }
     }
-
-    if (profileResult.error) {
-      console.error('[UPDATE_PROFILE] Error with profile:', profileResult.error)
-      throw profileResult.error
-    }
-
-    revalidatePath('/dashboard/coach/profile')
-    revalidatePath('/dashboard/mentee/profile')
-
-    return { success: true, data: { user, profile: profileResult.data } }
-  } catch (error) {
-    console.error('[UPDATE_PROFILE_ERROR]', error)
-    return { success: false, error }
   }
-}
+)
 
 export async function updateCoachProfile(formData: any) {
   try {

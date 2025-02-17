@@ -3,7 +3,7 @@ import { createAuthClient } from "@/utils/auth"
 import { Permission, UserRole, hasAnyRole, hasPermissions } from "@/utils/roles/roles"
 import { ApiResponse } from "@/utils/types/api"
 
-interface ServerActionContext {
+export interface ServerActionContext {
   userId: string
   userUlid: string
   role: UserRole

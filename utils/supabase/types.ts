@@ -24,10 +24,6 @@ export type UserWithProfile = DbUser & {
   realtorProfile: DbRealtorProfile | null
 }
 
-export type ListingWithRealtor = DbListing & {
-  realtorProfile: DbRealtorProfile
-}
-
 // Supabase client types
 export type SupabaseClient = ReturnType<typeof import('@supabase/supabase-js').createClient>
 export type SupabaseResponse<T> = {

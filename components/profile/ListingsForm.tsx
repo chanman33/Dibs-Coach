@@ -25,8 +25,14 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Database, ImagePlus, Trophy, DollarSign, Calendar, Home, Pencil } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
-import { createListingSchema, type CreateListing, getValidSubTypes, PropertyTypeEnum } from "@/utils/types/listing"
-import { ListingWithRealtor } from "@/utils/supabase/types"
+import { 
+  createListingSchema, 
+  type CreateListing, 
+  getValidSubTypes, 
+  PropertyTypeEnum, 
+  ListingStatusEnum,
+  type ListingWithRealtor 
+} from "@/utils/types/listing"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -38,29 +44,30 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 
 interface ListingsFormProps {
   onSubmit: (data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void>
-  onUpdate?: (id: number, data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void>
+  onUpdate?: (ulid: string, data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void>
   className?: string
   activeListings?: ListingWithRealtor[]
   successfulTransactions?: ListingWithRealtor[]
   isSubmitting?: boolean
 }
 
-export default function ListingsForm({ onSubmit, onUpdate, className, activeListings = [], successfulTransactions = [], isSubmitting = false }: ListingsFormProps) {
+export default function ListingsForm({
+  onSubmit,
+  onUpdate,
+  className,
+  activeListings = [],
+  successfulTransactions = [],
+  isSubmitting = false
+}: ListingsFormProps) {
   const { toast } = useToast()
   const [editingListing, setEditingListing] = useState<ListingWithRealtor | null>(null)
   const form = useForm<CreateListing>({
     resolver: zodResolver(createListingSchema),
     defaultValues: {
-      // Core Identification
       listingKey: "",
-      parcelNumber: "",
-      taxLot: "",
-      taxBlock: "",
-      taxMapNumber: "",
-      taxLegalDescription: "",
       mlsId: "",
       mlsSource: null,
-      status: "Active",
+      status: ListingStatusEnum.enum.ACTIVE,
 
       // Location Information
       streetNumber: "",
@@ -80,7 +87,7 @@ export default function ListingsForm({ onSubmit, onUpdate, className, activeList
       closeDate: null,
 
       // Physical Characteristics
-      propertyType: "Residential" as const,
+      propertyType: PropertyTypeEnum.enum.SINGLE_FAMILY,
       propertySubType: null,
       bedroomsTotal: 0,
       bathroomsTotal: 0,
@@ -113,31 +120,31 @@ export default function ListingsForm({ onSubmit, onUpdate, className, activeList
         listingKey: editingListing.listingKey || "",
         mlsSource: editingListing.mlsSource as CreateListing['mlsSource'],
         mlsId: editingListing.mlsId || null,
-        parcelNumber: editingListing.parcelNumber || undefined,
-        taxLot: editingListing.taxLot || undefined,
-        taxBlock: editingListing.taxBlock || undefined,
-        taxMapNumber: editingListing.taxMapNumber || undefined,
-        taxLegalDescription: editingListing.taxLegalDescription || undefined,
-        propertyType: editingListing.propertyType,
-        propertySubType: editingListing.propertySubType || null,
-        status: editingListing.status,
-        streetNumber: editingListing.streetNumber,
-        streetName: editingListing.streetName,
+        parcelNumber: editingListing.parcelNumber || "",
+        taxLot: editingListing.taxLot || "",
+        taxBlock: editingListing.taxBlock || "",
+        taxMapNumber: editingListing.taxMapNumber || "",
+        taxLegalDescription: editingListing.taxLegalDescription || "",
+        propertyType: editingListing.propertyType as CreateListing['propertyType'],
+        propertySubType: editingListing.propertySubType as CreateListing['propertySubType'],
+        status: editingListing.status as CreateListing['status'],
+        streetNumber: editingListing.streetNumber || "",
+        streetName: editingListing.streetName || "",
         unitNumber: editingListing.unitNumber || null,
-        city: editingListing.city,
-        stateOrProvince: editingListing.stateOrProvince,
-        postalCode: editingListing.postalCode,
-        listPrice: editingListing.listPrice,
+        city: editingListing.city || "",
+        stateOrProvince: editingListing.stateOrProvince || "",
+        postalCode: editingListing.postalCode || "",
+        listPrice: editingListing.listPrice || 0,
         originalListPrice: editingListing.originalListPrice || null,
         closePrice: editingListing.closePrice || null,
         listingContractDate: editingListing.listingContractDate ? new Date(editingListing.listingContractDate) : null,
         closeDate: editingListing.closeDate ? new Date(editingListing.closeDate) : null,
-        bedroomsTotal: editingListing.bedroomsTotal || null,
-        bathroomsTotal: editingListing.bathroomsTotal || null,
+        bedroomsTotal: editingListing.bedroomsTotal || 0,
+        bathroomsTotal: editingListing.bathroomsTotal || 0,
         livingArea: editingListing.livingArea || null,
         yearBuilt: editingListing.yearBuilt || null,
         publicRemarks: editingListing.publicRemarks || "",
-        isFeatured: editingListing.isFeatured,
+        isFeatured: editingListing.isFeatured || false,
         mlsLink: editingListing.mlsLink || null,
         publicListingUrl: editingListing.publicListingUrl || null,
         source: "MANUAL",
@@ -156,7 +163,57 @@ export default function ListingsForm({ onSubmit, onUpdate, className, activeList
       form.reset(formData);
     } else {
       form.reset({
-        // ... existing default values ...
+        listingKey: "",
+        mlsId: "",
+        mlsSource: null,
+        status: ListingStatusEnum.enum.ACTIVE,
+
+        // Location Information
+        streetNumber: "",
+        streetName: "",
+        unitNumber: "",
+        city: "",
+        stateOrProvince: "",
+        postalCode: "",
+
+        // Price Information
+        listPrice: 0,
+        originalListPrice: null,
+        closePrice: null,
+
+        // Dates
+        listingContractDate: new Date(),
+        closeDate: null,
+
+        // Physical Characteristics
+        propertyType: PropertyTypeEnum.enum.SINGLE_FAMILY,
+        propertySubType: null,
+        bedroomsTotal: 0,
+        bathroomsTotal: 0,
+        livingArea: null,
+        yearBuilt: null,
+
+        // Marketing Information
+        publicRemarks: "",
+        isFeatured: false,
+        mlsLink: null,
+        publicListingUrl: null,
+
+        // Source Information
+        source: "MANUAL" as const,
+        
+        // Property Features
+        isWaterfront: false,
+        hasFireplace: false,
+        hasPatio: false,
+        hasDeck: false,
+        hasPorch: false,
+        
+        // Utilities
+        electricityAvailable: true,
+        gasAvailable: true,
+        sewerAvailable: true,
+        waterAvailable: true,
       });
     }
   }, [editingListing, form]);
@@ -246,7 +303,7 @@ export default function ListingsForm({ onSubmit, onUpdate, className, activeList
     if (!editingListing || !onUpdate) return
 
     console.log("[LISTINGS_FORM_EDIT_START]", {
-      listingId: editingListing.id,
+      listingUlid: editingListing.ulid,
       formData: data,
       formState: form.formState,
       errors: form.formState.errors
@@ -269,7 +326,7 @@ export default function ListingsForm({ onSubmit, onUpdate, className, activeList
         return
       }
 
-      const result = await onUpdate(editingListing.id, validationResult.data)
+      const result = await onUpdate(editingListing.ulid, validationResult.data)
       
       if (result && 'error' in result && result.error) {
         console.error("[LISTINGS_FORM_ERROR]", result.error)
@@ -325,7 +382,7 @@ export default function ListingsForm({ onSubmit, onUpdate, className, activeList
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Dialog open={editingListing?.id === (listing as ListingWithRealtor).id} onOpenChange={(open) => !open && setEditingListing(null)}>
+            <Dialog open={editingListing?.ulid === (listing as ListingWithRealtor).ulid} onOpenChange={(open) => !open && setEditingListing(null)}>
               <DialogTrigger asChild>
                 <Button 
                   variant="ghost" 
@@ -819,7 +876,7 @@ export default function ListingsForm({ onSubmit, onUpdate, className, activeList
                 </Form>
               </DialogContent>
             </Dialog>
-            <Badge variant={listing.status === "Active" ? "default" : "secondary"}>
+            <Badge variant={listing.status === ListingStatusEnum.enum.ACTIVE ? "default" : "secondary"}>
               {listing.status}
             </Badge>
           </div>

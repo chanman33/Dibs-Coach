@@ -52,4 +52,17 @@ export const getAchievementDate = (achievement: MenteeAchievement | CoachAchieve
     return achievement.earnedAt;
   }
   return achievement.date;
-} 
+}
+
+import { z } from "zod";
+
+export const goalsSchema = z.object({
+  salesTarget: z.number().min(0).optional(),
+  listingsTarget: z.number().min(0).optional(),
+  clientsTarget: z.number().min(0).optional(),
+  timeframe: z.enum(["monthly", "quarterly", "yearly"]).optional(),
+  customGoals: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+});
+
+export type Goals = z.infer<typeof goalsSchema>; 

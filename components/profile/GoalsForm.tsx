@@ -68,20 +68,41 @@ const goalSchema = z.object({
     "certifications",
     "training_hours",
     "networking_events",
+    "coaching_sessions",
+    "mentee_satisfaction",
+    "session_revenue",
+    "session_completion",
+    "response_time",
+    "mentee_milestones",
+    "group_sessions",
+    "active_mentees",
     "custom"
   ]),
   status: z.enum(["in_progress", "completed", "overdue"]).default("in_progress"),
 })
 
-type GoalFormValues = z.infer<typeof goalSchema>
+export type GoalFormValues = z.infer<typeof goalSchema>
 
-interface Goal extends GoalFormValues {
-  id: number
-  createdAt: string
-  updatedAt: string
+interface Goal {
+  ulid: string;
+  userUlid: string;
+  title: string;
+  description: string | null;
+  target: number;
+  current: number;
+  deadline: string;
+  type: z.infer<typeof goalSchema>["type"];
+  status: "in_progress" | "completed" | "overdue";
+  format: "number" | "currency" | "percentage" | "time";
+  createdAt: string;
+  updatedAt: string;
 }
 
-export default function GoalsForm() {
+interface GoalsFormProps {
+  onSubmit: (data: GoalFormValues) => Promise<void>;
+}
+
+export default function GoalsForm({ onSubmit }: GoalsFormProps) {
   const [goals, setGoals] = useState<Goal[]>([])
   const [showForm, setShowForm] = useState(false)
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
@@ -107,7 +128,7 @@ export default function GoalsForm() {
 
   const loadGoals = async () => {
     try {
-      const { data, error } = await fetchGoals()
+      const { data, error } = await fetchGoals({})
       if (error) {
         toast.error("Failed to load goals")
         return
@@ -115,6 +136,9 @@ export default function GoalsForm() {
       if (data) {
         setGoals(data)
       }
+    } catch (error) {
+      console.error("[LOAD_GOALS_ERROR]", error)
+      toast.error("Failed to load goals")
     } finally {
       setIsInitialLoading(false)
     }
@@ -124,12 +148,11 @@ export default function GoalsForm() {
     setIsLoading(true)
     try {
       if (editingGoal) {
-        const { error } = await updateGoal(editingGoal.id, data)
+        const { error } = await updateGoal({ goalUlid: editingGoal.ulid, ...data })
         if (error) throw error
         toast.success("Goal updated successfully")
       } else {
-        const { error } = await createGoal(data)
-        if (error) throw error
+        await onSubmit(data)
         toast.success("Goal created successfully")
       }
       await loadGoals()
@@ -186,7 +209,7 @@ export default function GoalsForm() {
   const handleDeleteGoal = async (goal: Goal) => {
     setIsLoading(true)
     try {
-      const { error } = await deleteGoal(goal.id)
+      const { error } = await deleteGoal({ goalUlid: goal.ulid })
       if (error) throw error
       toast.success("Goal deleted successfully")
       await loadGoals()
@@ -353,7 +376,7 @@ export default function GoalsForm() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {goals.map((goal) => (
-              <Card key={goal.id} className="p-4">
+              <Card key={goal.ulid} className="p-4">
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <h4 className="font-semibold">{goal.title}</h4>
@@ -419,7 +442,7 @@ export default function GoalsForm() {
           </div>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
               <FormField
                 control={form.control}
                 name="title"
@@ -587,9 +610,10 @@ export default function GoalsForm() {
                   <FormItem>
                     <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder="Describe your goal..."
+                      <Textarea 
                         {...field}
+                        value={field.value ?? ""}
+                        placeholder="Enter goal description"
                       />
                     </FormControl>
                     <FormMessage />

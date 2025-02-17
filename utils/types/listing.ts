@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ulidSchema } from './auth'
 
 // ==========================================
 // Core RESO Enums
@@ -35,13 +36,12 @@ export const MLSSourceEnum = z.enum([
 ]);
 
 export const PropertyTypeEnum = z.enum([
-  "BusinessOpportunity",
-  "CommercialLease",
-  "CommercialSale",
-  "Farm",
-  "Land",
-  "ManufacturedInPark",
-  "Residential",
+  "SINGLE_FAMILY",
+  "MULTI_FAMILY",
+  "CONDO",
+  "TOWNHOUSE",
+  "LAND",
+  "COMMERCIAL"
 ]);
 
 export const PropertySubTypeEnum = z.enum([
@@ -96,17 +96,12 @@ export const PropertySubTypeEnum = z.enum([
 ]);
 
 export const ListingStatusEnum = z.enum([
-  "Active",
-  "ActiveUnderContract",
-  "Canceled",
-  "Closed",
-  "ComingSoon",
-  "Delete",
-  "Expired",
-  "Hold",
-  "Incomplete",
-  "Pending",
-  "Withdrawn",
+  "ACTIVE",
+  "PENDING",
+  "SOLD",
+  "WITHDRAWN",
+  "EXPIRED",
+  "DRAFT"
 ]);
 
 // ==========================================
@@ -406,13 +401,12 @@ export const listingFormFields: ListingFormField[] = [
     type: "select",
     required: true,
     options: [
-      { value: "BusinessOpportunity", label: "Business Opportunity" },
-      { value: "CommercialLease", label: "Commercial Lease" },
-      { value: "CommercialSale", label: "Commercial Sale" },
-      { value: "Farm", label: "Farm" },
-      { value: "Land", label: "Land" },
-      { value: "ManufacturedInPark", label: "Manufactured In Park" },
-      { value: "Residential", label: "Residential" },
+      { value: "SINGLE_FAMILY", label: "Single Family" },
+      { value: "MULTI_FAMILY", label: "Multi Family" },
+      { value: "CONDO", label: "Condo" },
+      { value: "TOWNHOUSE", label: "Townhouse" },
+      { value: "LAND", label: "Land" },
+      { value: "COMMERCIAL", label: "Commercial" },
     ],
   },
   {
@@ -421,15 +415,12 @@ export const listingFormFields: ListingFormField[] = [
     type: "select",
     required: true,
     options: [
-      { value: "Active", label: "Active" },
-      { value: "ActiveUnderContract", label: "Active Under Contract" },
-      { value: "Canceled", label: "Canceled" },
-      { value: "Closed", label: "Closed" },
-      { value: "ComingSoon", label: "Coming Soon" },
-      { value: "Expired", label: "Expired" },
-      { value: "Hold", label: "Hold" },
-      { value: "Pending", label: "Pending" },
-      { value: "Withdrawn", label: "Withdrawn" },
+      { value: "ACTIVE", label: "Active" },
+      { value: "PENDING", label: "Pending" },
+      { value: "SOLD", label: "Sold" },
+      { value: "WITHDRAWN", label: "Withdrawn" },
+      { value: "EXPIRED", label: "Expired" },
+      { value: "DRAFT", label: "Draft" },
     ],
   },
 
@@ -584,7 +575,7 @@ export const listingFormFields: ListingFormField[] = [
 // Add helper function to get valid subtypes
 export const getValidSubTypes = (propertyType: PropertyType | undefined): string[] => {
   switch (propertyType) {
-    case "Residential":
+    case "SINGLE_FAMILY":
       return [
         "Apartment",
         "Cabin",
@@ -598,19 +589,18 @@ export const getValidSubTypes = (propertyType: PropertyType | undefined): string
         "Triplex",
         "Quadruplex",
       ];
-    case "CommercialLease":
-    case "CommercialSale":
+    case "MULTI_FAMILY":
       return [
         "Hotel",
-        "CommercialIndustrial",
-        "CommercialMixedUse",
         "MultiFamily",
-        "Office",
-        "Retail",
-        "Restaurant",
-        "Warehouse",
       ];
-    case "Land":
+    case "CONDO":
+    case "TOWNHOUSE":
+      return [
+        "Condominium",
+        "Townhouse",
+      ];
+    case "LAND":
       return [
         "AgriculturalLand",
         "CommercialLand",
@@ -618,26 +608,61 @@ export const getValidSubTypes = (propertyType: PropertyType | undefined): string
         "LandMixedUse",
         "ResidentialLand",
       ];
-    case "Farm":
+    case "COMMERCIAL":
       return [
-        "Equestrian",
-        "Ranch",
-        "TimberLand",
-        "Vineyard",
-      ];
-    case "BusinessOpportunity":
-      return [
-        "BusinessOnly",
-        "BusinessWithProperty",
-        "BusinessWithRealEstate",
-      ];
-    case "ManufacturedInPark":
-      return [
-        "DoubleWide",
-        "SingleWide",
-        "TripleWide",
+        "Hotel",
+        "CommercialIndustrial",
+        "CommercialMixedUse",
+        "Office",
+        "Retail",
+        "Restaurant",
+        "Warehouse",
       ];
     default:
       return [];
   }
-}; 
+};
+
+// Full listing schema including database fields
+export const ListingSchema = listingBaseSchema.extend({
+  ulid: ulidSchema,
+  userUlid: ulidSchema,
+  brokerUlid: ulidSchema.optional(),
+  teamUlid: ulidSchema.optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
+})
+
+// Query parameters for listing search
+export const ListingQuerySchema = z.object({
+  status: ListingStatusEnum.optional(),
+  propertyType: PropertyTypeEnum.optional(),
+  minPrice: z.number().optional(),
+  maxPrice: z.number().optional(),
+  bedrooms: z.number().optional(),
+  bathrooms: z.number().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  limit: z.number().min(1).max(100).default(20),
+  offset: z.number().min(0).default(0),
+  sortBy: z.enum(['createdAt', 'price', 'updatedAt']).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).default('desc')
+})
+
+// Type exports
+export type Listing = z.infer<typeof ListingSchema>
+export type ListingQuery = z.infer<typeof ListingQuerySchema>
+
+// Extended type for listings with realtor information
+export type ListingWithRealtor = Listing & {
+  realtorProfile: {
+    ulid: string
+    userDbId: number
+    bio: string | null
+    yearsExperience: number | null
+    certifications: string[] | null
+    languages: string[] | null
+    createdAt: string
+    updatedAt: string
+  }
+} 
