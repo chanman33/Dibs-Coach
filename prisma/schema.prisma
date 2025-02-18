@@ -10,9 +10,9 @@ datasource db {
 
 // User & Role Enums
 enum UserRole {
-  SYSTEM_ADMIN     // Full system access: User management, system configuration, analytics, billing
-  SYSTEM_MODERATOR // Limited system access: Content moderation, support tickets, basic user management
-  USER             // Standard user with basic platform access
+  SYSTEM_OWNER      // Full system access: User management, system configuration, analytics, billing
+  SYSTEM_MODERATOR  // Limited system access: Content moderation, support tickets, basic user management
+  USER              // Standard user with basic platform access
 }
 
 // User capabilities (can have multiple)
@@ -28,48 +28,58 @@ enum UserStatus {
 }
 
 enum OrgType {
-  INDIVIDUAL
-  BUSINESS
-  ENTERPRISE
+  INDIVIDUAL    // Single agent/broker
+  BUSINESS      // Small to medium business
+  ENTERPRISE    // Large organization
+  FRANCHISE     // Franchise operation
+  NETWORK       // Network of affiliated businesses
 }
 
 enum OrgStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
+  ACTIVE        // Fully operational
+  INACTIVE      // Temporarily suspended
+  SUSPENDED     // Administratively suspended
+  PENDING       // Awaiting approval/setup
+  ARCHIVED      // Historical record
 }
 
 enum OrgTier {
-  FREE
-  STARTER
-  PROFESSIONAL
-  ENTERPRISE
+  FREE          // Basic features
+  STARTER       // Essential features
+  PROFESSIONAL  // Full feature set
+  ENTERPRISE    // Custom solutions
+  PARTNER       // Special partner tier
 }
 
 enum OrgRole {
   // Global Level Roles
-  GLOBAL_ADMIN        // Full system access across all organizations
-  GLOBAL_DIRECTOR     // Strategic oversight across regions
-  GLOBAL_MANAGER      // Cross-regional program management
+  GLOBAL_OWNER         // Full system access across all organizations
+  GLOBAL_DIRECTOR      // Strategic oversight across regions
+  GLOBAL_MANAGER       // Cross-regional program management
   
   // Regional Level Roles
-  REGIONAL_DIRECTOR   // Regional strategic leadership
-  REGIONAL_MANAGER    // Regional operations management
+  REGIONAL_OWNER       // Regional strategic leadership
+  REGIONAL_DIRECTOR    // Regional operations oversight
+  REGIONAL_MANAGER     // Regional operations management
   
   // Local Level Roles
-  LOCAL_ADMIN         // Local office administration
-  LOCAL_MANAGER       // Local team/office management
+  LOCAL_OWNER          // Local office ownership/leadership
+  LOCAL_DIRECTOR       // Local office direction
+  LOCAL_MANAGER        // Local team/office management
   
-  // Standard Roles (Available at any level)
-  OWNER              // Organization owner
-  MEMBER             // Standard member
-  GUEST              // Limited access member
+  // Standard Roles
+  OWNER               // Organization owner
+  DIRECTOR            // Organization director
+  MANAGER             // Team/department manager
+  MEMBER              // Standard member
+  GUEST               // Limited access member
 }
 
 enum OrgLevel {
   GLOBAL      // Parent company (e.g., REMAX, COMPASS)
   REGIONAL    // Regional operations (e.g., Western US)
   LOCAL       // Local operations (e.g., Utah Real Estate)
+  BRANCH      // Branch/satellite office
 }
 
 enum MemberStatus {
@@ -1491,15 +1501,33 @@ model Organization {
   ulid                String   @id @db.Char(26)
   name                String
   description         String?
-  status             String              @default("ACTIVE")
-  metadata           Json?               @db.JsonB
+  status             String    @default("ACTIVE")
+  type               OrgType   @default(INDIVIDUAL)
+  level              OrgLevel  @default(LOCAL)
+  tier               OrgTier   @default(FREE)
+  parentUlid         String?   @db.Char(26)
+  metadata           Json?     @db.JsonB
+  
+  // Existing relations
   rolePermissions    RolePermission[]
   members            OrganizationMember[]
   subscriptions      Subscription[]
-  createdAt          DateTime           @default(now()) @db.Timestamptz
-  updatedAt          DateTime           @updatedAt @db.Timestamptz
+  
+  // New relations for hierarchy
+  parent             Organization?  @relation("OrganizationHierarchy", fields: [parentUlid], references: [ulid])
+  children           Organization[] @relation("OrganizationHierarchy")
+  
+  // Add the regions relation
+  regions            Region[]
+  
+  // Existing timestamps
+  createdAt          DateTime     @default(now()) @db.Timestamptz
+  updatedAt          DateTime     @updatedAt @db.Timestamptz
 
   @@index([status])
+  @@index([type])
+  @@index([level])
+  @@index([parentUlid])
   @@map("Organization")
 }
 
@@ -1593,4 +1621,25 @@ model DomainVerification {
   @@index([type])
   @@index([status])
   @@map("DomainVerification")
+}
+
+// Optional: Add a Region model for better geographic organization
+model Region {
+  ulid              String   @id @db.Char(26)
+  organizationUlid  String   @db.Char(26)
+  name              String
+  type              String   // e.g., "STATE", "METRO_AREA", "COUNTRY"
+  parentUlid        String?  @db.Char(26)
+  metadata          Json?    @db.JsonB
+  
+  organization      Organization @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+  parent            Region?      @relation("RegionHierarchy", fields: [parentUlid], references: [ulid])
+  children          Region[]     @relation("RegionHierarchy")
+  
+  createdAt         DateTime     @default(now()) @db.Timestamptz
+  updatedAt         DateTime     @updatedAt @db.Timestamptz
+
+  @@index([organizationUlid])
+  @@index([parentUlid])
+  @@map("Region")
 }

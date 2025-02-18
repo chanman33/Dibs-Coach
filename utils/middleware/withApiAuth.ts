@@ -77,7 +77,7 @@ export function withApiAuth<T>(handler: ApiHandler<T>, options: ApiAuthOptions =
       const userData = data as Pick<DbUser, 'ulid' | 'systemRole'>
 
       // Validate that the role is a valid UserRole
-      const validRoles: DbUserRole[] = ['SYSTEM_ADMIN', 'SYSTEM_MODERATOR', 'USER']
+      const validRoles: DbUserRole[] = ['SYSTEM_OWNER', 'SYSTEM_MODERATOR', 'USER']
       if (!validRoles.includes(userData.systemRole)) {
         console.error('[AUTH_ERROR]', { userId: session.userId, role: userData.systemRole })
         return NextResponse.json<ApiResponse<never>>({ 
