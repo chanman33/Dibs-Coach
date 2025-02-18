@@ -1,6 +1,6 @@
 'use client'
 
-import { BrowseCoaches } from '@/components/coaching/browse/BrowseCoaches'
+import { BrowseCoaches } from '@/components/coaching/BrowseCoaches'
 
 export default function MenteeBrowseCoachesPage() {
   return <BrowseCoaches role="MENTEE" />;

@@ -100,24 +100,6 @@ export const fetchUserSessions = withServerAction<TransformedSession[]>(
     try {
       const supabase = await createAuthClient()
 
-      // Get user's role
-      const { data: user, error: userError } = await supabase
-        .from('User')
-        .select('ulid, role')
-        .eq('ulid', userUlid)
-        .single()
-
-      if (userError || !user) {
-        console.error('[FETCH_SESSIONS_ERROR] User not found:', { userUlid, error: userError })
-        return {
-          data: null,
-          error: {
-            code: 'USER_NOT_FOUND',
-            message: 'User not found'
-          }
-        }
-      }
-
       // Fetch sessions where user is either coach or mentee
       const { data: sessions, error: sessionsError } = await supabase
         .from('Session')

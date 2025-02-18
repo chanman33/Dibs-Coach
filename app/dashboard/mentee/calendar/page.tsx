@@ -26,7 +26,7 @@ export default function MenteeCalendarPage() {
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['mentee-sessions'],
     queryFn: async () => {
-      const response = await fetchUserSessions({ role: 'mentee' })
+      const response = await fetchUserSessions(null)
       return response?.data?.map(session => ({
         ...session,
         id: parseInt(session.ulid),

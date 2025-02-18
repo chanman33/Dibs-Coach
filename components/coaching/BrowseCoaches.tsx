@@ -9,11 +9,11 @@ import { useBrowseCoaches } from '@/utils/hooks/useBrowseCoaches'
 import { BrowseCoachData, SessionConfig } from '@/utils/types/browse-coaches'
 import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ROLES } from '@/utils/roles/roles'
+import { USER_CAPABILITIES } from '@/utils/roles/roles'
 
 
 export interface BrowseCoachProps {
-  role: keyof typeof ROLES;
+  role: keyof typeof USER_CAPABILITIES;
   isBooked?: boolean;
 }
 
@@ -42,10 +42,22 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
       {coaches.map(coach => (
         <Coach
           key={coach.id}
-          {...coach}
-          specialty={coach.strength}
+          id={coach.id}
+          userId={coach.id.toString()}
+          name={`${coach.firstName} ${coach.lastName}`}
+          imageUrl={coach.profileImageUrl}
+          specialty={coach.specialties?.[0] || 'General Coach'}
+          bio={coach.bio}
+          experience={null}
+          certifications={[]}
+          availability="Available"
+          sessionLength="60 minutes"
+          specialties={coach.specialties || []}
+          calendlyUrl={null}
+          eventTypeUrl={null}
           isBooked={isBooked}
           onProfileClick={() => handleCoachClick(coach)}
+          sessionConfig={getSessionConfig(coach)}
         />
       ))}
     </div>
@@ -54,9 +66,9 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
   const getSessionConfig = (coach: BrowseCoachData): SessionConfig => ({
     durations: [30, 60, 90],
     rates: {
-      '30': coach.rate || 0,
-      '60': (coach.rate || 0) * 2,
-      '90': (coach.rate || 0) * 3
+      '30': coach.hourlyRate || 0,
+      '60': (coach.hourlyRate || 0) * 2,
+      '90': (coach.hourlyRate || 0) * 3
     },
     currency: 'USD',
     defaultDuration: 60,
@@ -98,7 +110,7 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
             renderCoaches(filteredBookedCoaches, true)
           ) : (
             <p className="text-center text-muted-foreground py-12">
-              {role === ROLES.MENTEE 
+              {role === USER_CAPABILITIES.MENTEE 
                 ? "You haven't booked any coaches yet. Browse our recommended coaches below!"
                 : "You haven't connected with any other coaches yet. Browse our recommended coaches below!"}
             </p>
@@ -119,7 +131,7 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
             renderCoaches(filteredRecommendedCoaches)
           ) : (
             <p className="text-center text-muted-foreground py-12">
-              {role === ROLES.MENTEE
+              {role === USER_CAPABILITIES.MENTEE
                 ? "No coaches available at the moment. Please check back later!"
                 : "No other coaches available at the moment. Please check back later!"}
             </p>
@@ -133,10 +145,19 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           coach={{
-            ...selectedCoach,
-            specialty: selectedCoach.strength,
-            calendlyUrl: selectedCoach.calendlyUrl,
-            eventTypeUrl: selectedCoach.eventTypeUrl,
+            id: selectedCoach.id,
+            userId: selectedCoach.id.toString(),
+            name: `${selectedCoach.firstName} ${selectedCoach.lastName}`,
+            imageUrl: selectedCoach.profileImageUrl,
+            specialty: selectedCoach.specialties?.[0] || 'General Coach',
+            bio: selectedCoach.bio,
+            experience: null,
+            certifications: [],
+            availability: "Available",
+            sessionLength: "60 minutes",
+            specialties: selectedCoach.specialties || [],
+            calendlyUrl: null,
+            eventTypeUrl: null,
             sessionConfig: getSessionConfig(selectedCoach)
           }}
         />

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowseCoachData } from '../types/browse-coaches';
-import { fetchCoaches } from '@/app/api/user/coach/route';
+import { fetchCoaches } from '@/utils/actions/browse-coaches';
 
 interface PostgrestError {
   code?: string;
@@ -40,7 +40,7 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
     const getCoaches = async () => {
       try {
         setError(null);
-        const { data: coachesData, error: fetchError } = await fetchCoaches();
+        const { data: coachesData, error: fetchError } = await fetchCoaches(null);
         
         if (fetchError) {
           // Check if it's a PGRST200 error (no results)
@@ -64,43 +64,29 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
           return;
         }
 
-        const formattedCoaches: BrowseCoachData[] = coachesData.map(coach => {
-          const coachProfile = coach.CoachProfile;
-          const realtorProfile = coach.RealtorProfile;
-
-          // Get primary specialty from coach specialties or default to first specialization
-          const primarySpecialty = coachProfile?.coachingSpecialties?.[0] || 
-                                 realtorProfile?.specializations?.[0] || 
-                                 'General Coach';
-
-          return {
-            id: coach.id,
-            userId: coach.userId,
-            name: `${coach.firstName || ''} ${coach.lastName || ''}`.trim(),
-            strength: primarySpecialty,
-            imageUrl: coach.profileImageUrl,
-            bio: realtorProfile?.bio || null,
-            experience: realtorProfile?.yearsExperience?.toString() || coachProfile?.yearsCoaching?.toString() || null,
-            certifications: realtorProfile?.certifications || null,
-            // Default to 60 minutes if no duration is specified
-            availability: '60 minutes',
-            sessionLength: '60 minutes',
-            specialties: coachProfile?.coachingSpecialties || realtorProfile?.specializations || [],
-            calendlyUrl: coachProfile?.calendlyUrl || null,
-            eventTypeUrl: coachProfile?.eventTypeUrl || null,
-            rate: coachProfile?.hourlyRate ? parseFloat(coachProfile.hourlyRate.toString()) : null
-          };
-        });
+        const formattedCoaches: BrowseCoachData[] = coachesData.map(coach => ({
+          id: coach.id,
+          firstName: coach.firstName,
+          lastName: coach.lastName,
+          email: coach.email,
+          profileImageUrl: coach.profileImageUrl,
+          bio: coach.bio,
+          specialties: coach.specialties,
+          hourlyRate: coach.hourlyRate,
+          rating: coach.rating,
+          totalSessions: coach.totalSessions,
+          isAvailable: coach.isAvailable
+        }));
 
         // Filter out any coaches with invalid/incomplete data
         const validCoaches = formattedCoaches.filter(coach => 
-          coach.name && coach.strength && (!coach.specialties || Array.isArray(coach.specialties))
+          coach.firstName && coach.lastName && coach.email
         );
 
         // Sort coaches by those with complete profiles first
         const sortedCoaches = validCoaches.sort((a, b) => {
-          const aComplete = !!(a.bio && a.experience && a.specialties.length && a.rate);
-          const bComplete = !!(b.bio && b.experience && b.specialties.length && b.rate);
+          const aComplete = !!(a.bio && a.specialties?.length && a.hourlyRate);
+          const bComplete = !!(b.bio && b.specialties?.length && b.hourlyRate);
           if (aComplete && !bComplete) return -1;
           if (!aComplete && bComplete) return 1;
           return 0;
@@ -122,10 +108,11 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
   }, []);
 
   const filterCoaches = (term: string, specialty: string) => {
-    const filterFunction = (coach: BrowseCoachData) =>
-      (coach.name.toLowerCase().includes(term.toLowerCase()) ||
-       coach.strength.toLowerCase().includes(term.toLowerCase())) &&
-      (specialty === 'all' || coach.strength === specialty);
+    const filterFunction = (coach: BrowseCoachData) => {
+      const fullName = `${coach.firstName} ${coach.lastName}`.toLowerCase();
+      return fullName.includes(term.toLowerCase()) &&
+        (specialty === 'all' || coach.specialties?.includes(specialty));
+    };
 
     setFilteredBookedCoaches(bookedCoaches.filter(filterFunction));
     setFilteredRecommendedCoaches(recommendedCoaches.filter(filterFunction));
@@ -142,7 +129,10 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
   };
 
   const allSpecialties = Array.from(
-    new Set([...bookedCoaches, ...recommendedCoaches].map(coach => coach.strength))
+    new Set(
+      [...bookedCoaches, ...recommendedCoaches]
+        .flatMap(coach => coach.specialties || [])
+    )
   );
 
   return {

@@ -2,19 +2,16 @@ import { z } from "zod";
 
 export interface BrowseCoachData {
   id: number;
-  userId: string;
-  name: string;
-  strength: string;
-  imageUrl: string | null;
+  firstName: string;
+  lastName: string;
+  email: string;
+  profileImageUrl: string | null;
   bio: string | null;
-  experience: string | null;
-  certifications: string[] | null;
-  availability: string | null;
-  sessionLength: string | null;
-  specialties: string[];
-  calendlyUrl: string | null;
-  eventTypeUrl: string | null;
-  rate: number | null;
+  specialties: string[] | null;
+  hourlyRate: number | null;
+  rating: number | null;
+  totalSessions: number;
+  isAvailable: boolean;
 }
 
 export interface SessionConfig {
