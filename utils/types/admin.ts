@@ -16,11 +16,15 @@ export const SystemHealthSchema = z.object({
 export type SystemHealth = z.infer<typeof SystemHealthSchema>
 
 // Key Metrics Types
-export const MetricsSchema = z.object({
+export const SystemMetricsSchema = z.object({
   totalUsers: z.number(),
-  activeCoaches: z.number(),
-  monthlyRevenue: z.number(),
+  activeUsers: z.number(),
+  totalSessions: z.number(),
   completedSessions: z.number(),
+  activeCoaches: z.number(),
+  pendingCoaches: z.number(),
+  monthlyRevenue: z.number(),
+  totalRevenue: z.number(),
   metrics: z.object({
     userGrowth: z.number(),
     coachGrowth: z.number(),
@@ -30,29 +34,29 @@ export const MetricsSchema = z.object({
   lastUpdated: z.string().datetime(),
 })
 
-export type Metrics = z.infer<typeof MetricsSchema>
+export type SystemMetrics = z.infer<typeof SystemMetricsSchema>
 
 // Activity Types
-export const ActivitySchema = z.object({
-  id: z.string(),
+export const SystemActivitySchema = z.object({
+  ulid: ulidSchema,
   type: z.enum([
-    'USER_REGISTRATION',
-    'COACH_APPLICATION',
-    'SESSION_COMPLETED',
-    'USER_REPORT',
+    'USER_ACTION',
     'SYSTEM_EVENT',
+    'ERROR',
+    'SECURITY'
   ]),
-  title: z.string(),
+  severity: z.enum(['info', 'warning', 'error', 'critical']),
   description: z.string(),
-  timestamp: z.string().datetime(),
-  severity: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
 })
 
-export type Activity = z.infer<typeof ActivitySchema>
+export type SystemActivity = z.infer<typeof SystemActivitySchema>
 
 // System Alert Types
-export const AlertSchema = z.object({
-  id: z.string(),
+export const SystemAlertSchema = z.object({
+  ulid: ulidSchema,
   type: z.enum([
     'SYSTEM_LOAD',
     'DATABASE',
@@ -66,77 +70,30 @@ export const AlertSchema = z.object({
   timestamp: z.string().datetime(),
 })
 
-export type Alert = z.infer<typeof AlertSchema>
-
-// Admin Metrics Schema
-export const AdminMetricsSchema = z.object({
-  ulid: ulidSchema,
-  totalUsers: z.number(),
-  activeUsers: z.number(),
-  newUsers: z.number(),
-  totalSessions: z.number(),
-  completedSessions: z.number(),
-  canceledSessions: z.number(),
-  totalRevenue: z.number(),
-  periodRevenue: z.number(),
-  conversionRate: z.number(),
-  retentionRate: z.number(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
-})
-
-export type AdminMetrics = z.infer<typeof AdminMetricsSchema>
-
-// Admin Activity Schema
-export const AdminActivitySchema = z.object({
-  ulid: ulidSchema,
-  adminUlid: ulidSchema,
-  type: z.enum(['user_action', 'system_event', 'error', 'security']),
-  severity: z.enum(['info', 'warning', 'error', 'critical']),
-  description: z.string(),
-  metadata: z.record(z.string(), z.any()).optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
-})
-
-export type AdminActivity = z.infer<typeof AdminActivitySchema>
-
-// System Alert Schema
-export const SystemAlertSchema = z.object({
-  ulid: ulidSchema,
-  type: z.enum(['security', 'performance', 'error', 'notification']),
-  severity: z.enum(['info', 'warning', 'error', 'critical']),
-  message: z.string(),
-  status: z.enum(['active', 'resolved', 'dismissed']),
-  metadata: z.record(z.string(), z.any()).optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime()
-})
-
 export type SystemAlert = z.infer<typeof SystemAlertSchema>
 
 // Dashboard Data Schema
 export const DashboardDataSchema = z.object({
   systemHealth: SystemHealthSchema,
-  metrics: AdminMetricsSchema,
-  recentActivity: z.array(AdminActivitySchema),
+  metrics: SystemMetricsSchema,
+  recentActivity: z.array(SystemActivitySchema),
   systemAlerts: z.array(SystemAlertSchema)
 })
 
 export type DashboardData = z.infer<typeof DashboardDataSchema>
 
-// Admin Audit Log Schema
-export const AdminAuditLogSchema = z.object({
-  id: z.number(),
-  adminDbId: z.number(),
+// System Audit Log Schema
+export const SystemAuditLogSchema = z.object({
+  ulid: ulidSchema,
+  systemUserUlid: ulidSchema,
   action: z.string(),
   targetType: z.string(),
-  targetId: z.number(),
+  targetUlid: ulidSchema,
   details: z.record(z.unknown()),
   createdAt: z.string().datetime(),
 })
 
-export type AdminAuditLog = z.infer<typeof AdminAuditLogSchema>
+export type SystemAuditLog = z.infer<typeof SystemAuditLogSchema>
 
 // User Analytics Schema
 export const UserAnalyticsSchema = z.object({

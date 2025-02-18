@@ -15,7 +15,7 @@ import {
   FileText,
 } from "lucide-react"
 
-export function AdminSidebar() {
+export function SystemSidebar() {
   const pathname = usePathname()
 
   const NavLink = ({ href, icon: Icon, children }: { href: string; icon: any; children: React.ReactNode }) => (
@@ -35,14 +35,14 @@ export function AdminSidebar() {
     <div className="lg:block hidden border-r h-full">
       <div className="flex h-full max-h-screen flex-col gap-2">
         <div className="flex h-[55px] items-center justify-between border-b px-3 w-full">
-          <Link className="flex items-center gap-2 font-semibold ml-1" href="/dashboard/admin">
-            <span>Admin Portal</span>
+          <Link className="flex items-center gap-2 font-semibold ml-1" href="/dashboard/system">
+            <span>System Portal</span>
           </Link>
         </div>
         <div className="flex-1 overflow-auto py-2">
           <nav className="grid items-start px-4 text-sm font-medium gap-1">
             {/* Overview */}
-            <NavLink href="/dashboard/admin" icon={HomeIcon}>
+            <NavLink href="/dashboard/system" icon={HomeIcon}>
               Dashboard
             </NavLink>
 
@@ -50,13 +50,13 @@ export function AdminSidebar() {
             
             {/* User Management */}
             <div className="text-xs uppercase text-gray-500 mt-2 mb-1">User Management</div>
-            <NavLink href="/dashboard/admin/user-mgmt" icon={Users}>
+            <NavLink href="/dashboard/system/user-mgmt" icon={Users}>
               Users Overview
             </NavLink>
-            <NavLink href="/dashboard/admin/coach-applications" icon={ClipboardCheck}>
+            <NavLink href="/dashboard/system/coach-applications" icon={ClipboardCheck}>
               Coach Applications
             </NavLink>
-            <NavLink href="/dashboard/admin/permissions" icon={Shield}>
+            <NavLink href="/dashboard/system/permissions" icon={Shield}>
               Roles & Permissions
             </NavLink>
 
@@ -64,10 +64,10 @@ export function AdminSidebar() {
 
             {/* Analytics */}
             <div className="text-xs uppercase text-gray-500 mt-2 mb-1">Analytics</div>
-            <NavLink href="/dashboard/admin/analytics/revenue" icon={DollarSign}>
+            <NavLink href="/dashboard/system/analytics/revenue" icon={DollarSign}>
               Revenue Analytics
             </NavLink>
-            {/* <NavLink href="/dashboard/admin/analytics/reports" icon={FileText}>
+            {/* <NavLink href="/dashboard/system/analytics/reports" icon={FileText}>
               Reports
             </NavLink> */}
 
@@ -75,10 +75,10 @@ export function AdminSidebar() {
 
             {/* System */}
             <div className="text-xs uppercase text-gray-500 mt-2 mb-1">System</div>
-            <NavLink href="/dashboard/admin/monitoring" icon={Activity}>
+            <NavLink href="/dashboard/system/monitoring" icon={Activity}>
               System Health
             </NavLink>
-            <NavLink href="/dashboard/admin/settings" icon={Settings}>
+            <NavLink href="/dashboard/system/settings" icon={Settings}>
               Settings
             </NavLink>
           </nav>

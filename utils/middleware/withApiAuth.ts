@@ -2,21 +2,35 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createAuthClient } from '@/utils/supabase/server'
 import { ApiResponse } from '@/utils/types/api'
-import { ROLES, Permission, UserRole, hasAnyRole, hasPermissions } from '@/utils/roles/roles'
+import { 
+  SystemRole, 
+  OrgRole, 
+  OrgLevel,
+  Permission,
+  UserCapability,
+  hasSystemRole,
+  hasOrgRole,
+  hasPermission,
+  hasCapability,
+  UserRoleContext
+} from '@/utils/roles/roles'
 import type { Database } from '@/types/supabase'
 
 type DbUser = Database['public']['Tables']['User']['Row']
-type DbUserRole = Database['public']['Enums']['UserRole']
 
 export interface AuthenticatedApiContext {
-  userId: string    // Clerk ID
-  userUlid: string  // Database ULID
-  role: DbUserRole  // Database role: SYSTEM_ADMIN | SYSTEM_MODERATOR | USER
+  userId: string           // Clerk ID
+  userUlid: string        // Database ULID
+  systemRole: SystemRole  // System-level role
+  roleContext: UserRoleContext // Full role context including org roles
 }
 
 interface ApiAuthOptions {
-  requiredRoles?: DbUserRole[]
+  requiredSystemRole?: SystemRole
+  requiredOrgRole?: OrgRole
+  requiredOrgLevel?: OrgLevel
   requiredPermissions?: Permission[]
+  requiredCapabilities?: UserCapability[]
   requireAll?: boolean
 }
 
@@ -31,8 +45,8 @@ type ApiHandler<T = any> = (
  * 
  * Pattern:
  * 1. Validates Clerk session
- * 2. Retrieves user data from database using service key
- * 3. Validates roles and permissions
+ * 2. Retrieves user data and role context from database
+ * 3. Validates roles, permissions, and capabilities
  * 4. Provides authenticated context to handler
  * 
  * Security:
@@ -55,15 +69,21 @@ export function withApiAuth<T>(handler: ApiHandler<T>, options: ApiAuthOptions =
         }, { status: 401 })
       }
 
-      // Get user's ULID and role using server client
+      // Get user's role context using server client
       const supabase = createAuthClient()
-      const { data, error: userError } = await supabase
+      
+      // First get the user's basic info and system role
+      const { data: userData, error: userError } = await supabase
         .from('User')
-        .select('ulid, systemRole')
+        .select(`
+          ulid,
+          systemRole,
+          capabilities
+        `)
         .eq('userId', session.userId)
         .single()
 
-      if (userError || !data) {
+      if (userError || !userData) {
         console.error('[AUTH_ERROR]', { userId: session.userId, error: userError })
         return NextResponse.json<ApiResponse<never>>({ 
           data: null, 
@@ -74,33 +94,59 @@ export function withApiAuth<T>(handler: ApiHandler<T>, options: ApiAuthOptions =
         }, { status: 404 })
       }
 
-      const userData = data as Pick<DbUser, 'ulid' | 'systemRole'>
+      // Then get the user's organization memberships if they exist
+      const { data: orgMembership, error: orgError } = await supabase
+        .from('OrganizationMember')
+        .select(`
+          role,
+          scope,
+          customPermissions,
+          organization:organizationUlid (
+            level
+          )
+        `)
+        .eq('userUlid', userData.ulid)
+        .eq('status', 'ACTIVE')
+        .single()
 
-      // Validate that the role is a valid UserRole
-      const validRoles: DbUserRole[] = ['SYSTEM_OWNER', 'SYSTEM_MODERATOR', 'USER']
-      if (!validRoles.includes(userData.systemRole)) {
-        console.error('[AUTH_ERROR]', { userId: session.userId, role: userData.systemRole })
+      // Build the role context
+      const roleContext: UserRoleContext = {
+        systemRole: userData.systemRole,
+        capabilities: userData.capabilities || [],
+        orgRole: orgMembership?.role,
+        orgLevel: orgMembership?.organization?.level,
+        customPermissions: orgMembership?.customPermissions as Permission[] | undefined
+      }
+
+      // System role validation
+      if (options.requiredSystemRole && !hasSystemRole(roleContext.systemRole, options.requiredSystemRole)) {
         return NextResponse.json<ApiResponse<never>>({ 
           data: null, 
           error: {
-            code: 'INVALID_ROLE',
-            message: 'Invalid user role'
+            code: 'FORBIDDEN',
+            message: 'Insufficient system role'
           }
-        }, { status: 400 })
+        }, { status: 403 })
       }
 
-      // Role validation
-      if (options.requiredRoles?.length) {
-        const hasRequiredRole = options.requireAll
-          ? options.requiredRoles.every(role => userData.systemRole === role)
-          : options.requiredRoles.some(role => userData.systemRole === role)
-
-        if (!hasRequiredRole) {
+      // Organization role validation
+      if (options.requiredOrgRole && options.requiredOrgLevel) {
+        if (!roleContext.orgRole || !roleContext.orgLevel) {
           return NextResponse.json<ApiResponse<never>>({ 
             data: null, 
             error: {
               code: 'FORBIDDEN',
-              message: 'Insufficient role permissions'
+              message: 'Organization role required'
+            }
+          }, { status: 403 })
+        }
+
+        if (!hasOrgRole(roleContext.orgRole, options.requiredOrgRole, roleContext.orgLevel, options.requiredOrgLevel)) {
+          return NextResponse.json<ApiResponse<never>>({ 
+            data: null, 
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Insufficient organization role'
             }
           }, { status: 403 })
         }
@@ -108,8 +154,9 @@ export function withApiAuth<T>(handler: ApiHandler<T>, options: ApiAuthOptions =
 
       // Permission validation
       if (options.requiredPermissions?.length) {
-        // TODO: Update permission system to use new roles
-        const hasRequiredPermissions = true // Temporary until we update permissions
+        const hasRequiredPermissions = options.requireAll
+          ? options.requiredPermissions.every(p => hasPermission(roleContext, p))
+          : options.requiredPermissions.some(p => hasPermission(roleContext, p))
 
         if (!hasRequiredPermissions) {
           return NextResponse.json<ApiResponse<never>>({ 
@@ -122,11 +169,29 @@ export function withApiAuth<T>(handler: ApiHandler<T>, options: ApiAuthOptions =
         }
       }
 
+      // Capability validation
+      if (options.requiredCapabilities?.length) {
+        const hasRequiredCapabilities = options.requireAll
+          ? options.requiredCapabilities.every(c => hasCapability(roleContext, c))
+          : options.requiredCapabilities.some(c => hasCapability(roleContext, c))
+
+        if (!hasRequiredCapabilities) {
+          return NextResponse.json<ApiResponse<never>>({ 
+            data: null, 
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Required capabilities not found'
+            }
+          }, { status: 403 })
+        }
+      }
+
       // Call the handler with authenticated context
       return handler(req, {
         userId: session.userId,
         userUlid: userData.ulid,
-        role: userData.systemRole
+        systemRole: userData.systemRole,
+        roleContext
       })
     } catch (error) {
       console.error('[API_AUTH_ERROR]', error)

@@ -1,21 +1,49 @@
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import { ROLES, type UserRole, type UserRoles, hasAnyRole } from "@/utils/roles/roles";
+import { 
+  SystemRole,
+  OrgRole,
+  OrgLevel,
+  Permission,
+  UserCapability,
+  hasSystemRole,
+  hasOrgRole,
+  hasPermission,
+  hasCapability,
+  UserRoleContext,
+  SYSTEM_ROLES
+} from "@/utils/roles/roles";
 import NotAuthorized from "../not-authorized";
 import config from '@/config';
 
 interface WithRoleOptions {
-  requiredRoles: UserRole[];
+  requiredSystemRole?: SystemRole;
+  requiredOrgRole?: OrgRole;
+  requiredOrgLevel?: OrgLevel;
+  requiredPermissions?: Permission[];
+  requiredCapabilities?: UserCapability[];
   requireAll?: boolean;
+  requireOrganization?: boolean;
+}
+
+interface UserRoleData {
+  systemRole: SystemRole;
+  capabilities: UserCapability[];
+  organization?: {
+    role: OrgRole;
+    level: OrgLevel;
+    status: string;
+    customPermissions?: Permission[];
+  };
 }
 
 export function withRole(
   WrappedComponent: React.ComponentType,
-  options: WithRoleOptions | UserRole[]
+  options: WithRoleOptions | SystemRole[]
 ) {
   // Handle backward compatibility
-  const { requiredRoles, requireAll } = Array.isArray(options) 
-    ? { requiredRoles: options, requireAll: false }
+  const normalizedOptions: WithRoleOptions = Array.isArray(options) 
+    ? { requiredSystemRole: options[0] }
     : options;
 
   return function WithRoleWrapper(props: any) {
@@ -24,7 +52,7 @@ export function withRole(
     }
 
     const { user } = useUser();
-    const [userRoles, setUserRoles] = useState<UserRoles | null>(null);
+    const [roleContext, setRoleContext] = useState<UserRoleContext | null>(null);
     const [loading, setLoading] = useState(true);
     const [isInitialLoad, setIsInitialLoad] = useState(true);
 
@@ -33,8 +61,17 @@ export function withRole(
         if (user?.id) {
           try {
             const response = await fetch(`/api/user/role?userId=${user.id}&isInitialSignup=${isInitialLoad}`);
-            const data = await response.json();
-            setUserRoles(data.roles);
+            const data: { roleData: UserRoleData } = await response.json();
+            
+            // Build role context from API response
+            setRoleContext({
+              systemRole: data.roleData.systemRole,
+              capabilities: data.roleData.capabilities,
+              orgRole: data.roleData.organization?.role,
+              orgLevel: data.roleData.organization?.level,
+              customPermissions: data.roleData.organization?.customPermissions
+            });
+            
             setIsInitialLoad(false);
           } catch (error) {
             console.error("[ROLE_FETCH_ERROR]", {
@@ -42,7 +79,11 @@ export function withRole(
               error,
               context: { isInitialLoad }
             });
-            setUserRoles([ROLES.MENTEE]);
+            // Fallback to basic user role
+            setRoleContext({
+              systemRole: SYSTEM_ROLES.USER,
+              capabilities: []
+            });
             setIsInitialLoad(false);
           }
           setLoading(false);
@@ -56,10 +97,59 @@ export function withRole(
       return <div>Loading...</div>;
     }
 
-    if (!userRoles || !hasAnyRole(userRoles, requiredRoles)) {
+    if (!roleContext) {
       return <NotAuthorized />;
     }
 
-    return <WrappedComponent {...props} userRoles={userRoles} />;
+    // System role validation
+    if (normalizedOptions.requiredSystemRole && 
+        !hasSystemRole(roleContext.systemRole, normalizedOptions.requiredSystemRole)) {
+      return <NotAuthorized />;
+    }
+
+    // Organization validation
+    if (normalizedOptions.requireOrganization && !roleContext.orgRole) {
+      return <NotAuthorized />;
+    }
+
+    // Organization role validation
+    if (normalizedOptions.requiredOrgRole && normalizedOptions.requiredOrgLevel) {
+      if (!roleContext.orgRole || !roleContext.orgLevel) {
+        return <NotAuthorized />;
+      }
+
+      if (!hasOrgRole(
+        roleContext.orgRole, 
+        normalizedOptions.requiredOrgRole,
+        roleContext.orgLevel,
+        normalizedOptions.requiredOrgLevel
+      )) {
+        return <NotAuthorized />;
+      }
+    }
+
+    // Permission validation
+    if (normalizedOptions.requiredPermissions?.length) {
+      const hasRequiredPermissions = normalizedOptions.requireAll
+        ? normalizedOptions.requiredPermissions.every(p => hasPermission(roleContext, p))
+        : normalizedOptions.requiredPermissions.some(p => hasPermission(roleContext, p));
+
+      if (!hasRequiredPermissions) {
+        return <NotAuthorized />;
+      }
+    }
+
+    // Capability validation
+    if (normalizedOptions.requiredCapabilities?.length) {
+      const hasRequiredCapabilities = normalizedOptions.requireAll
+        ? normalizedOptions.requiredCapabilities.every(c => hasCapability(roleContext, c))
+        : normalizedOptions.requiredCapabilities.some(c => hasCapability(roleContext, c));
+
+      if (!hasRequiredCapabilities) {
+        return <NotAuthorized />;
+      }
+    }
+
+    return <WrappedComponent {...props} roleContext={roleContext} />;
   };
 } 

@@ -1,84 +1,259 @@
-export const ROLES = {
-  MENTEE: 'MENTEE',
+// System-level roles (from Prisma schema)
+export const SYSTEM_ROLES = {
+  SYSTEM_OWNER: 'SYSTEM_OWNER',
+  SYSTEM_ADMIN: 'SYSTEM_ADMIN',
+  SYSTEM_SUPPORT: 'SYSTEM_SUPPORT',
   COACH: 'COACH',
-  ADMIN: 'ADMIN'
+  USER: 'USER',
 } as const;
 
-export type UserRole = typeof ROLES[keyof typeof ROLES];
-export type UserRoles = UserRole[];
+export type SystemRole = keyof typeof SYSTEM_ROLES;
 
-export const rolePermissions = {
-  [ROLES.MENTEE]: {
-    canAccessDashboard: true,
-    canAccessSessions: true,
-    canBookSessions: true,
-    canAccessProfile: true,
-    canAccessSettings: true,
-    canAccessAiTools: true,
-    canAccessCalculators: true,
-  },
-  [ROLES.COACH]: {
-    canAccessDashboard: true,
-    canAccessSessions: true,
-    canManageSessions: true,
-    canAccessProfile: true,
-    canAccessSettings: true,
-    canSetAvailability: true,
-    canViewAnalytics: true,
-    canAccessAiTools: true,
-    canAccessCalculators: true,
-  },
-  [ROLES.ADMIN]: {
-    canAccessDashboard: true,
-    canAccessSessions: true,
-    canManageSessions: true,
-    canAccessProfile: true,
-    canAccessSettings: true,
-    canManageUsers: true,
-    canManageRoles: true,
-    canViewAnalytics: true,
-    canManageSystem: true,
-    canAccessAiTools: true,
-    canAccessCalculators: true,
-  },
+// Organization-level roles (from Prisma schema)
+export const ORG_ROLES = {
+  // Global Level Roles
+  GLOBAL_OWNER: 'GLOBAL_OWNER',
+  GLOBAL_DIRECTOR: 'GLOBAL_DIRECTOR',
+  GLOBAL_MANAGER: 'GLOBAL_MANAGER',
+  
+  // Regional Level Roles
+  REGIONAL_OWNER: 'REGIONAL_OWNER',
+  REGIONAL_DIRECTOR: 'REGIONAL_DIRECTOR',
+  REGIONAL_MANAGER: 'REGIONAL_MANAGER',
+  
+  // Local Level Roles
+  LOCAL_OWNER: 'LOCAL_OWNER',
+  LOCAL_DIRECTOR: 'LOCAL_DIRECTOR',
+  LOCAL_MANAGER: 'LOCAL_MANAGER',
+  
+  // Standard Roles
+  OWNER: 'OWNER',
+  DIRECTOR: 'DIRECTOR',
+  MANAGER: 'MANAGER',
+  MEMBER: 'MEMBER',
+  GUEST: 'GUEST',
 } as const;
 
-export type Permission = keyof typeof rolePermissions[UserRole];
+export type OrgRole = typeof ORG_ROLES[keyof typeof ORG_ROLES];
 
-// Helper functions for role management
-export function hasAnyRole(userRoles: UserRoles, requiredRoles: UserRole[]): boolean {
-  return userRoles.some(role => requiredRoles.includes(role));
+// User capabilities (from Prisma schema)
+export const USER_CAPABILITIES = {
+  MENTEE: 'MENTEE',
+} as const;
+
+export type UserCapability = typeof USER_CAPABILITIES[keyof typeof USER_CAPABILITIES];
+
+// Organization levels (from Prisma schema)
+export const ORG_LEVELS = {
+  GLOBAL: 'GLOBAL',
+  REGIONAL: 'REGIONAL',
+  LOCAL: 'LOCAL',
+  BRANCH: 'BRANCH',
+} as const;
+
+export type OrgLevel = typeof ORG_LEVELS[keyof typeof ORG_LEVELS];
+
+// Permission definitions
+export const PERMISSIONS = {
+  // System Management
+  MANAGE_SYSTEM: 'MANAGE_SYSTEM',
+  VIEW_ANALYTICS: 'VIEW_ANALYTICS',
+  MANAGE_USERS: 'MANAGE_USERS',
+  MANAGE_COACHES: 'MANAGE_COACHES',
+  MANAGE_SETTINGS: 'MANAGE_SETTINGS',
+  VIEW_LOGS: 'VIEW_LOGS',
+  
+  // Coach Management
+  MANAGE_SESSIONS: 'MANAGE_SESSIONS',
+  VIEW_COACH_ANALYTICS: 'VIEW_COACH_ANALYTICS',
+  MANAGE_AVAILABILITY: 'MANAGE_AVAILABILITY',
+  
+  // User Management
+  BOOK_SESSIONS: 'BOOK_SESSIONS',
+  VIEW_HISTORY: 'VIEW_HISTORY',
+  MANAGE_PROFILE: 'MANAGE_PROFILE',
+  
+  // Organization Permissions
+  MANAGE_ORGANIZATION: 'MANAGE_ORGANIZATION',
+  MANAGE_MEMBERS: 'MANAGE_MEMBERS',
+  MANAGE_ROLES: 'MANAGE_ROLES',
+  VIEW_ORG_ANALYTICS: 'VIEW_ORG_ANALYTICS',
+  
+  // Feature Permissions
+  ACCESS_DASHBOARD: 'ACCESS_DASHBOARD',
+  ACCESS_AI_TOOLS: 'ACCESS_AI_TOOLS',
+  ACCESS_CALCULATORS: 'ACCESS_CALCULATORS',
+} as const;
+
+export type Permission = keyof typeof PERMISSIONS;
+
+// Role permission mappings
+export const ROLE_PERMISSIONS: Record<SystemRole, readonly Permission[]> = {
+  SYSTEM_OWNER: [
+    PERMISSIONS.MANAGE_SYSTEM,
+    PERMISSIONS.VIEW_ANALYTICS,
+    PERMISSIONS.MANAGE_USERS,
+    PERMISSIONS.MANAGE_COACHES,
+    PERMISSIONS.MANAGE_SETTINGS,
+    PERMISSIONS.VIEW_LOGS,
+    PERMISSIONS.MANAGE_SESSIONS,
+    PERMISSIONS.VIEW_COACH_ANALYTICS,
+    PERMISSIONS.MANAGE_AVAILABILITY,
+    PERMISSIONS.BOOK_SESSIONS,
+    PERMISSIONS.VIEW_HISTORY,
+    PERMISSIONS.MANAGE_PROFILE,
+  ],
+  SYSTEM_ADMIN: [
+    PERMISSIONS.VIEW_ANALYTICS,
+    PERMISSIONS.MANAGE_USERS,
+    PERMISSIONS.MANAGE_COACHES,
+    PERMISSIONS.MANAGE_SETTINGS,
+    PERMISSIONS.VIEW_LOGS,
+    PERMISSIONS.MANAGE_SESSIONS,
+    PERMISSIONS.VIEW_COACH_ANALYTICS,
+  ],
+  SYSTEM_SUPPORT: [
+    PERMISSIONS.VIEW_ANALYTICS,
+    PERMISSIONS.VIEW_LOGS,
+    PERMISSIONS.MANAGE_SESSIONS,
+  ],
+  COACH: [
+    PERMISSIONS.MANAGE_SESSIONS,
+    PERMISSIONS.VIEW_COACH_ANALYTICS,
+    PERMISSIONS.MANAGE_AVAILABILITY,
+    PERMISSIONS.MANAGE_PROFILE,
+  ],
+  USER: [
+    PERMISSIONS.BOOK_SESSIONS,
+    PERMISSIONS.VIEW_HISTORY,
+    PERMISSIONS.MANAGE_PROFILE,
+  ],
+} as const;
+
+// Helper Types
+export interface UserRoleContext {
+  systemRole: SystemRole;
+  orgRole?: OrgRole;
+  orgLevel?: OrgLevel;
+  capabilities: UserCapability[];
+  customPermissions?: Permission[];
 }
 
-export function hasAllRoles(userRoles: UserRoles, requiredRoles: UserRole[]): boolean {
-  return requiredRoles.every(role => userRoles.includes(role));
+// Helper Functions
+export function hasSystemRole(userRole: SystemRole, requiredRole: SystemRole): boolean {
+  const roleHierarchy = [
+    SYSTEM_ROLES.SYSTEM_OWNER,
+    SYSTEM_ROLES.SYSTEM_ADMIN,
+    SYSTEM_ROLES.SYSTEM_SUPPORT,
+    SYSTEM_ROLES.COACH,
+    SYSTEM_ROLES.USER
+  ]
+  const userRoleIndex = roleHierarchy.indexOf(SYSTEM_ROLES[userRole])
+  const requiredRoleIndex = roleHierarchy.indexOf(SYSTEM_ROLES[requiredRole])
+  return userRoleIndex !== -1 && requiredRoleIndex !== -1 && userRoleIndex <= requiredRoleIndex
 }
 
-export function hasPermissions(userRoles: UserRoles, requiredPermissions: Permission[]): boolean {
-  return requiredPermissions.every(permission => 
-    userRoles.some(role => rolePermissions[role]?.[permission])
-  );
-}
-
-export function getRolePermissions(userRoles: UserRoles): Set<Permission> {
-  return new Set(
-    userRoles.flatMap(role => 
-      Object.entries(rolePermissions[role])
-        .filter(([_, hasPermission]) => hasPermission)
-        .map(([permission]) => permission as Permission)
-    )
-  );
-}
-
-// Validation
-export function isValidRole(role: string): role is UserRole {
-  return Object.values(ROLES).includes(role.toUpperCase() as UserRole);
-}
-
-export function validateRoles(roles: string[]): UserRole[] {
-  const validRoles = roles.map(role => role.toUpperCase()).filter(isValidRole);
-  if (validRoles.length === 0) {
-    throw new Error('At least one valid role must be provided');
+export function hasOrgRole(userRole: OrgRole, requiredRole: OrgRole, userLevel: OrgLevel, requiredLevel: OrgLevel): boolean {
+  // First check levels
+  const levelHierarchy = [ORG_LEVELS.GLOBAL, ORG_LEVELS.REGIONAL, ORG_LEVELS.LOCAL, ORG_LEVELS.BRANCH];
+  const userLevelIndex = levelHierarchy.indexOf(userLevel);
+  const requiredLevelIndex = levelHierarchy.indexOf(requiredLevel);
+  
+  if (userLevelIndex > requiredLevelIndex) {
+    return false;
   }
-  return validRoles as UserRole[];
+  
+  // Then check roles within the same level category
+  const getRoleCategory = (role: OrgRole): string => {
+    if (role.startsWith('GLOBAL_')) return 'GLOBAL';
+    if (role.startsWith('REGIONAL_')) return 'REGIONAL';
+    if (role.startsWith('LOCAL_')) return 'LOCAL';
+    return 'STANDARD';
+  };
+  
+  const roleHierarchy = {
+    GLOBAL: ['GLOBAL_OWNER', 'GLOBAL_DIRECTOR', 'GLOBAL_MANAGER'],
+    REGIONAL: ['REGIONAL_OWNER', 'REGIONAL_DIRECTOR', 'REGIONAL_MANAGER'],
+    LOCAL: ['LOCAL_OWNER', 'LOCAL_DIRECTOR', 'LOCAL_MANAGER'],
+    STANDARD: ['OWNER', 'DIRECTOR', 'MANAGER', 'MEMBER', 'GUEST'],
+  };
+  
+  const userCategory = getRoleCategory(userRole);
+  const requiredCategory = getRoleCategory(requiredRole);
+  
+  if (userCategory !== requiredCategory) {
+    return false;
+  }
+  
+  const hierarchy = roleHierarchy[userCategory as keyof typeof roleHierarchy];
+  const userRoleIndex = hierarchy.indexOf(userRole);
+  const requiredRoleIndex = hierarchy.indexOf(requiredRole);
+  
+  return userRoleIndex <= requiredRoleIndex;
+}
+
+export function hasPermission(userRole: SystemRole, permission: Permission): boolean {
+  return ROLE_PERMISSIONS[userRole]?.includes(permission) ?? false
+}
+
+export function hasPermissions(userRole: SystemRole, permissions: Permission[]): boolean {
+  return permissions.every(permission => hasPermission(userRole, permission))
+}
+
+export function getRolePermissions(role: SystemRole): Permission[] {
+  return [...(ROLE_PERMISSIONS[role] || [])]
+}
+
+export function hasCapability(context: UserRoleContext, capability: UserCapability): boolean {
+  return context.capabilities.includes(capability);
+}
+
+export function getAllPermissions(context: UserRoleContext): Permission[] {
+  const permissions = new Set<Permission>();
+  
+  // Add system role permissions
+  ROLE_PERMISSIONS[context.systemRole].forEach(p => permissions.add(p));
+  
+  // Add org role permissions
+  if (context.orgRole) {
+    orgRolePermissions[context.orgRole].forEach(p => permissions.add(p));
+  }
+  
+  // Add custom permissions
+  context.customPermissions?.forEach(p => permissions.add(p));
+  
+  return Array.from(permissions);
+}
+
+// Validation Functions
+export function isValidSystemRole(role: string): role is SystemRole {
+  return Object.values(SYSTEM_ROLES).includes(role as SystemRole);
+}
+
+export function isValidOrgRole(role: string): role is OrgRole {
+  return Object.values(ORG_ROLES).includes(role as OrgRole);
+}
+
+export function isValidOrgLevel(level: string): level is OrgLevel {
+  return Object.values(ORG_LEVELS).includes(level as OrgLevel);
+}
+
+export function isValidCapability(capability: string): capability is UserCapability {
+  return Object.values(USER_CAPABILITIES).includes(capability as UserCapability);
+}
+
+export function isValidPermission(permission: string): permission is Permission {
+  return Object.values(PERMISSIONS).includes(permission as Permission);
+}
+
+export function getAllUserPermissions(userRole: SystemRole): Set<Permission> {
+  const permissions = new Set<Permission>()
+  const rolePermissions = getRolePermissions(userRole)
+  rolePermissions.forEach(permission => permissions.add(permission))
+  return permissions
+}
+
+// Remove any references to orgRolePermissions
+export function getUserPermissions(userRole: SystemRole): Permission[] {
+  return getRolePermissions(userRole)
 } 
