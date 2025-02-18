@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { fetchUserSessions } from '@/utils/actions/sessions'
-import { CoachingCalendar } from '@/components/calendar/CoachingCalendar'
+import { MenteeCalendar } from '@/components/calendar/MenteeCalendar'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
@@ -26,20 +26,25 @@ export default function MenteeCalendarPage() {
   const { data: sessions, isLoading } = useQuery({
     queryKey: ['mentee-sessions'],
     queryFn: async () => {
-      const data = await fetchUserSessions()
-      if (!data) return []
-      return data
+      const response = await fetchUserSessions({ role: 'mentee' })
+      return response?.data?.map(session => ({
+        ...session,
+        id: parseInt(session.ulid),
+        calendlyEventId: '',
+        otherParty: {
+          ...session.otherParty,
+          id: parseInt(session.otherParty.ulid)
+        }
+      })) || []
     },
   })
 
   return (
-    <div className="p-6 space-y-6">
-      <CoachingCalendar 
+    <div>
+      <MenteeCalendar 
         sessions={sessions}
         isLoading={isLoading}
         title="My Coaching Calendar"
-        userRole="mentee"
-        showCalendlyButton={false}
       />
       {!isLoading && sessions?.length === 0 && <NoSessionsPrompt />}
     </div>

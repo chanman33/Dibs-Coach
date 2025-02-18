@@ -9,7 +9,7 @@ import {
   CoachingScheduleSchema,
   AvailabilityRules
 } from '@/utils/types/coaching'
-import { ROLES } from '@/utils/roles/roles'
+import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { z } from 'zod'
 
 // Response types
@@ -25,6 +25,16 @@ interface AvailabilitySchedule {
   updatedAt: string
 }
 
+interface BookedSession {
+  ulid: string
+  startTime: string
+  endTime: string
+  coachUlid: string
+  menteeUlid: string
+  status: 'scheduled' | 'completed' | 'canceled'
+  createdAt: string
+}
+
 // Validation schemas
 const SaveAvailabilitySchema = z.object({
   schedule: z.record(WeekDay, z.array(TimeSlot))
@@ -32,9 +42,9 @@ const SaveAvailabilitySchema = z.object({
 
 // Fetch coach availability schedule
 export const fetchCoachAvailability = withServerAction<AvailabilitySchedule | null>(
-  async (_, { userUlid, role }) => {
+  async (_, { userUlid, roleContext }) => {
     try {
-      if (role !== ROLES.COACH) {
+      if (!roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {
         return {
           data: null,
           error: {
@@ -85,9 +95,9 @@ export const fetchCoachAvailability = withServerAction<AvailabilitySchedule | nu
 
 // Save coach availability schedule
 export const saveCoachAvailability = withServerAction<{ success: true }, z.infer<typeof SaveAvailabilitySchema>>(
-  async (params, { userUlid, role }) => {
+  async (params, { userUlid, roleContext }) => {
     try {
-      if (role !== ROLES.COACH) {
+      if (!roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {
         return {
           data: null,
           error: {
@@ -189,42 +199,62 @@ export const saveCoachAvailability = withServerAction<{ success: true }, z.infer
   }
 )
 
-// Fetch coach availability for calendar
-export const fetchCoachAvailabilityForCalendar = withServerAction<AvailabilitySchedule | null>(
-  async (params: { coachUlid: string }, { role }) => {
+// Fetch booked sessions for calendar
+export const fetchBookedSessions = withServerAction<BookedSession[]>(
+  async (params: { startDate: string, endDate: string }, { userUlid, roleContext }) => {
     try {
       const supabase = await createAuthClient()
+      const query = supabase
+        .from('CoachingSession')
+        .select(`
+          ulid,
+          startTime,
+          endTime,
+          coachUlid,
+          menteeUlid,
+          status,
+          createdAt
+        `)
+        .gte('startTime', params.startDate)
+        .lte('endTime', params.endDate)
 
-      // Get the most recently updated active default schedule
-      const { data: scheduleData, error: scheduleError } = await supabase
-        .from('CoachingAvailabilitySchedule')
-        .select('*')
-        .eq('userUlid', params.coachUlid)
-        .eq('isDefault', true)
-        .eq('active', true)
-        .order('updatedAt', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (scheduleError) {
-        console.error('[FETCH_CALENDAR_AVAILABILITY_ERROR]', { coachUlid: params.coachUlid, error: scheduleError })
+      // Filter based on user role
+      if (roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {
+        query.eq('coachUlid', userUlid)
+      } else if (roleContext.capabilities.includes(USER_CAPABILITIES.MENTEE)) {
+        query.eq('menteeUlid', userUlid)
+      } else {
         return {
-          data: null,
+          data: [],
+          error: {
+            code: 'FORBIDDEN',
+            message: 'User must be either a coach or mentee'
+          }
+        }
+      }
+
+      const { data: sessions, error: sessionsError } = await query
+        .order('startTime', { ascending: true })
+
+      if (sessionsError) {
+        console.error('[FETCH_SESSIONS_ERROR]', { userUlid, error: sessionsError })
+        return {
+          data: [],
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Failed to fetch availability schedule'
+            message: 'Failed to fetch booked sessions'
           }
         }
       }
 
       return {
-        data: scheduleData,
+        data: sessions || [],
         error: null
       }
     } catch (error) {
-      console.error('[FETCH_CALENDAR_AVAILABILITY_ERROR]', error)
+      console.error('[FETCH_SESSIONS_ERROR]', error)
       return {
-        data: null,
+        data: [],
         error: {
           code: 'INTERNAL_ERROR',
           message: 'An unexpected error occurred',

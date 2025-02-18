@@ -15,7 +15,7 @@ import {
   AvailabilityEventResource
 } from '@/utils/types/calendly'
 import Link from 'next/link'
-import { fetchCoachAvailabilityForCalendar } from '@/utils/actions/availability'
+import { fetchCoachAvailability as fetchCoachAvailabilityForCalendar } from '@/utils/actions/availability'
 import { useQuery } from '@tanstack/react-query'
 import { WeekDay, TimeSlot } from '@/utils/types/coaching'
 
@@ -176,9 +176,15 @@ export function CoachingCalendar({
     resource: busyTime
   }))
 
+  // Get availability events for the current view's date range
+  const availabilityEvents = getAvailabilityEvents(
+    moment(date).startOf('month').toDate(),
+    moment(date).endOf('month').toDate()
+  )
+
   // Convert weekly schedule to calendar events
   const getAvailabilityEvents = (startDate: Date, endDate: Date) => {
-    if (!availabilityData?.rules?.weeklySchedule) return []
+    if (!availabilityData?.data?.rules?.weeklySchedule) return []
 
     const events: CalendarEvent[] = []
     const start = moment(startDate).startOf('week')
@@ -187,7 +193,7 @@ export function CoachingCalendar({
     // For each day in the range
     for (let day = moment(start); day.isSameOrBefore(end); day.add(1, 'day')) {
       const weekday = day.format('dddd').toUpperCase() as WeekDay
-      const daySchedule = availabilityData.rules.weeklySchedule[weekday] || []
+      const daySchedule = availabilityData.data.rules.weeklySchedule[weekday] || []
 
       // For each time slot in the day's schedule
       daySchedule.forEach((slot: TimeSlot) => {
@@ -203,19 +209,13 @@ export function CoachingCalendar({
           start: slotStart.toDate(),
           end: slotEnd.toDate(),
           type: 'availability',
-          resource: { type: 'availability', timezone: availabilityData.timezone }
+          resource: { type: 'availability', timezone: availabilityData.data.timezone }
         })
       })
     }
 
     return events
   }
-
-  // Get availability events for the current view's date range
-  const availabilityEvents = getAvailabilityEvents(
-    moment(date).startOf('month').toDate(),
-    moment(date).endOf('month').toDate()
-  )
 
   // Filter out availability slots that overlap with busy times or sessions
   const filteredAvailabilityEvents = availabilityEvents.filter(availEvent => {
