@@ -5,6 +5,32 @@ import { withServerAction } from '@/utils/middleware/withServerAction'
 import { generateUlid } from '@/utils/ulid'
 import { z } from 'zod'
 
+// Define available features
+const SUBSCRIPTION_FEATURES = {
+  COACHING: {
+    PAY_AS_YOU_GO: 'pay_as_you_go_coaching',
+    DISCOUNTED: 'discounted_coaching',
+    UNLIMITED: 'unlimited_coaching'
+  },
+  AI_TOOLS: {
+    BASIC: 'basic_ai_tools',
+    ADVANCED: 'advanced_ai_tools'
+  },
+  SUPPORT: {
+    BASIC: 'basic_support',
+    PRIORITY: 'priority_support',
+    DEDICATED: 'dedicated_support'
+  },
+  ORGANIZATION: {
+    TEAM_MANAGEMENT: 'team_management',
+    SSO: 'sso_auth',
+    CUSTOM_INTEGRATION: 'custom_integration'
+  }
+} as const
+
+type FeatureSet = typeof SUBSCRIPTION_FEATURES
+type Feature = FeatureSet[keyof FeatureSet][keyof FeatureSet[keyof FeatureSet]]
+
 // Schema for subscription data
 const SubscriptionSchema = z.object({
   ulid: z.string(),
@@ -12,13 +38,16 @@ const SubscriptionSchema = z.object({
   userUlid: z.string().nullable(),
   organizationUlid: z.string().nullable(),
   stripeCustomerId: z.string(),
-  status: z.string(),
+  status: z.enum(['active', 'inactive', 'past_due', 'canceled', 'trialing']),
   startDate: z.date(),
   endDate: z.date().nullable(),
   planUlid: z.string(),
   defaultPaymentMethodId: z.string().nullable(),
-  quantity: z.number(),
+  quantity: z.number().default(1), // Number of seats for org plans
+  billingCycle: z.enum(['monthly', 'annual']).default('monthly'),
   metadata: z.record(z.any()).default({}),
+  createdAt: z.date(),
+  updatedAt: z.date()
 })
 
 const SubscriptionPlanSchema = z.object({
@@ -27,17 +56,113 @@ const SubscriptionPlanSchema = z.object({
   name: z.string(),
   description: z.string(),
   type: z.enum(['INDIVIDUAL', 'ORGANIZATION']),
+  billingModel: z.enum(['FREE', 'FIXED', 'PER_SEAT', 'CUSTOM']),
   amount: z.number(),
   currency: z.string(),
-  interval: z.string(),
-  features: z.record(z.any()).default({}),
-  limits: z.record(z.any()).default({}),
+  interval: z.enum(['month', 'year']),
+  features: z.array(z.string()),
   isActive: z.boolean(),
   metadata: z.record(z.any()).default({}),
+  createdAt: z.date(),
+  updatedAt: z.date()
 })
 
 type Subscription = z.infer<typeof SubscriptionSchema>
 type SubscriptionPlan = z.infer<typeof SubscriptionPlanSchema>
+
+// Default subscription plans
+const DEFAULT_PLANS = {
+  FREE: {
+    ulid: generateUlid(),
+    planId: 'price_free',
+    name: 'Free Tier',
+    description: 'Basic access with pay-as-you-go coaching',
+    type: 'INDIVIDUAL',
+    billingModel: 'FREE',
+    amount: 0,
+    currency: 'USD',
+    interval: 'month',
+    features: [
+      SUBSCRIPTION_FEATURES.COACHING.PAY_AS_YOU_GO,
+      SUBSCRIPTION_FEATURES.AI_TOOLS.BASIC,
+      SUBSCRIPTION_FEATURES.SUPPORT.BASIC
+    ],
+    isActive: true,
+    metadata: {},
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  PRO: {
+    ulid: generateUlid(),
+    planId: 'price_pro',
+    name: 'Professional',
+    description: 'Enhanced features with discounted coaching',
+    type: 'INDIVIDUAL',
+    billingModel: 'FIXED',
+    amount: 49,
+    currency: 'USD',
+    interval: 'month',
+    features: [
+      SUBSCRIPTION_FEATURES.COACHING.DISCOUNTED,
+      SUBSCRIPTION_FEATURES.AI_TOOLS.ADVANCED,
+      SUBSCRIPTION_FEATURES.SUPPORT.PRIORITY
+    ],
+    isActive: true,
+    metadata: {},
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  BUSINESS: {
+    ulid: generateUlid(),
+    planId: 'price_business',
+    name: 'Business',
+    description: 'Team access with per-seat pricing',
+    type: 'ORGANIZATION',
+    billingModel: 'PER_SEAT',
+    amount: 29,
+    currency: 'USD',
+    interval: 'month',
+    features: [
+      SUBSCRIPTION_FEATURES.COACHING.DISCOUNTED,
+      SUBSCRIPTION_FEATURES.AI_TOOLS.ADVANCED,
+      SUBSCRIPTION_FEATURES.SUPPORT.PRIORITY,
+      SUBSCRIPTION_FEATURES.ORGANIZATION.TEAM_MANAGEMENT,
+      SUBSCRIPTION_FEATURES.ORGANIZATION.SSO
+    ],
+    isActive: true,
+    metadata: {},
+    createdAt: new Date(),
+    updatedAt: new Date()
+  },
+  ENTERPRISE: {
+    ulid: generateUlid(),
+    planId: 'price_enterprise',
+    name: 'Enterprise',
+    description: 'Custom enterprise solution',
+    type: 'ORGANIZATION',
+    billingModel: 'CUSTOM',
+    amount: 0, // Custom pricing
+    currency: 'USD',
+    interval: 'month',
+    features: [
+      SUBSCRIPTION_FEATURES.COACHING.UNLIMITED,
+      SUBSCRIPTION_FEATURES.AI_TOOLS.ADVANCED,
+      SUBSCRIPTION_FEATURES.SUPPORT.DEDICATED,
+      SUBSCRIPTION_FEATURES.ORGANIZATION.TEAM_MANAGEMENT,
+      SUBSCRIPTION_FEATURES.ORGANIZATION.SSO,
+      SUBSCRIPTION_FEATURES.ORGANIZATION.CUSTOM_INTEGRATION
+    ],
+    isActive: true,
+    metadata: {},
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }
+} as const;
+
+// Helper function to check if a plan has a feature
+export async function hasFeature(plan: SubscriptionPlan, feature: Feature): Promise<boolean> {
+  return plan.features.includes(feature);
+}
 
 // Get or create default free tier plan
 async function getOrCreateFreePlan(): Promise<SubscriptionPlan | null> {
@@ -55,31 +180,9 @@ async function getOrCreateFreePlan(): Promise<SubscriptionPlan | null> {
   }
   
   // If no free plan exists, create it
-  const freePlan = {
-    ulid: generateUlid(),
-    planId: 'price_free',
-    name: 'Free Tier',
-    description: 'Basic access with pay-as-you-go coaching',
-    type: 'INDIVIDUAL',
-    amount: 0,
-    currency: 'USD',
-    interval: 'month',
-    features: {
-      coachingSessions: 'pay-as-you-go',
-      aiListingGenerator: 3,
-      basicSupport: true
-    },
-    limits: {
-      aiListingsPerMonth: 3,
-      coachingRate: 149
-    },
-    isActive: true,
-    metadata: {}
-  } as const
-  
   const { data: newPlan, error: createError } = await supabase
     .from('SubscriptionPlan')
-    .insert(freePlan)
+    .insert(DEFAULT_PLANS.FREE)
     .select()
     .single()
     
@@ -100,7 +203,18 @@ export const getOrCreateSubscription = withServerAction<Subscription | null>(
       // First check if user already has a subscription
       const { data: existingSub, error: fetchError } = await supabase
         .from('Subscription')
-        .select('*')
+        .select(`
+          *,
+          organization:organizationUlid (
+            ulid,
+            name,
+            subscription:subscriptions!inner (
+              ulid,
+              status,
+              planUlid
+            )
+          )
+        `)
         .eq('userUlid', userUlid)
         .single()
         
@@ -122,21 +236,32 @@ export const getOrCreateSubscription = withServerAction<Subscription | null>(
           }
         }
       }
-      
-      // Create new subscription with free plan
+
+      // Check if user belongs to an organization with an active subscription
+      const { data: orgMember } = await supabase
+        .from('OrganizationMember')
+        .select('organizationUlid')
+        .eq('userUlid', userUlid)
+        .eq('status', 'ACTIVE')
+        .single()
+
+      // Create new subscription
       const newSubscription = {
         ulid: generateUlid(),
-        subscriptionId: `sub_free_${userUlid}`,
+        subscriptionId: `sub_${userUlid}`,
         userUlid,
-        organizationUlid: null,
+        organizationUlid: orgMember?.organizationUlid || null,
         stripeCustomerId: 'none', // No Stripe customer for free tier
-        status: 'active',
+        status: 'active' as const,
         startDate: new Date(),
         endDate: null,
         planUlid: freePlan.ulid,
         defaultPaymentMethodId: null,
         quantity: 1,
-        metadata: {}
+        billingCycle: 'monthly' as const,
+        metadata: {},
+        createdAt: new Date(),
+        updatedAt: new Date()
       }
       
       const { data: subscription, error: createError } = await supabase
@@ -188,7 +313,16 @@ export const getSubscriptionDetails = withServerAction<{
         .from('Subscription')
         .select(`
           *,
-          plan:planUlid (*)
+          plan:planUlid (*),
+          organization:organizationUlid (
+            ulid,
+            name,
+            Subscription (
+              ulid,
+              status,
+              planUlid
+            )
+          )
         `)
         .eq('userUlid', userUlid)
         .single()
@@ -203,7 +337,16 @@ export const getSubscriptionDetails = withServerAction<{
               .from('Subscription')
               .select(`
                 *,
-                plan:planUlid (*)
+                plan:planUlid (*),
+                organization:organizationUlid (
+                  ulid,
+                  name,
+                  subscription:subscriptions!inner (
+                    ulid,
+                    status,
+                    planUlid
+                  )
+                )
               `)
               .eq('userUlid', userUlid)
               .single()

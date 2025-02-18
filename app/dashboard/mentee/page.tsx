@@ -169,21 +169,6 @@ function MenteeDashboard() {
           </CardContent>
         </Card>
       </div>
-
-      {/* AI Tools Usage */}
-      <Card>
-        <CardHeader>
-          <CardTitle>AI Tools Usage</CardTitle>
-          <CardDescription>
-            Generate AI-powered listing descriptions
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" className="w-full">
-            Generate New Listing
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   )
 }
