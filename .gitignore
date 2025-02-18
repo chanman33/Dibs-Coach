@@ -7,26 +7,38 @@
 
 # testing
 /coverage
+/coverage-e2e
+*.lcov
+.nyc_output
 
 # next.js
 /.next/
 /out/
+.next-test/
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
 *.pem
+.idea/
+.vscode/
+*.swp
+*.swo
+.env.development
+.env.test
+.env.production
+.env*.local
+.env
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# local env files
-.env*.local
-.env
+.pnpm-debug.log*
+debug.log
 
 # vercel
 .vercel
@@ -34,3 +46,40 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# supabase
+/supabase/.temp
+.supabase
+
+# testing artifacts
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/cypress/videos/
+/cypress/screenshots/
+
+# storybook
+/storybook-static
+
+# cache
+.cache/
+.eslintcache
+.stylelintcache
+
+# local files
+*.local
+local.*
+*.local.*
+
+# logs
+logs/
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

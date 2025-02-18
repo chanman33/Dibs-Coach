@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server"
 import { createAuthClient } from "@/utils/auth"
 import { Permission, UserRole, hasAnyRole, hasPermissions } from "@/utils/roles/roles"
 import { ApiResponse } from "@/utils/types/api"
+import { generateUlid } from '@/utils/ulid'
 
 export interface ServerActionContext {
   userId: string
@@ -19,6 +20,27 @@ type ServerAction<T, P = any> = (
   params: P,
   ctx: ServerActionContext
 ) => Promise<ApiResponse<T>>
+
+/**
+ * Ensures ULIDs are present in data for Supabase operations
+ */
+const ensureUlids = (data: any): any => {
+  if (!data) return data
+
+  // Handle array of records
+  if (Array.isArray(data)) {
+    return data.map(item => ({
+      ...item,
+      ulid: item.ulid || generateUlid()
+    }))
+  }
+
+  // Handle single record
+  return {
+    ...data,
+    ulid: data.ulid || generateUlid()
+  }
+}
 
 export function withServerAction<T, P = any>(
   action: ServerAction<T, P>,

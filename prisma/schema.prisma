@@ -8,37 +8,148 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// Enums
-enum PaymentStatus {
-  pending
-  completed
-  failed
-  refunded
+// User & Role Enums
+enum UserRole {
+  SYSTEM_ADMIN     // Full system access: User management, system configuration, analytics, billing
+  SYSTEM_MODERATOR // Limited system access: Content moderation, support tickets, basic user management
+  USER             // Standard user with basic platform access
 }
 
-enum TicketStatus {
-  open
-  in_progress
-  closed
+// User capabilities (can have multiple)
+enum UserCapability {
+  COACH    // Can provide coaching services
+  MENTEE   // Can receive coaching services
 }
 
 enum UserStatus {
-  active
-  inactive
-  suspended
+  ACTIVE
+  INACTIVE
+  SUSPENDED
 }
 
+enum OrgType {
+  INDIVIDUAL
+  BUSINESS
+  ENTERPRISE
+}
+
+enum OrgStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum OrgTier {
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum OrgRole {
+  // Global Level Roles
+  GLOBAL_ADMIN        // Full system access across all organizations
+  GLOBAL_DIRECTOR     // Strategic oversight across regions
+  GLOBAL_MANAGER      // Cross-regional program management
+  
+  // Regional Level Roles
+  REGIONAL_DIRECTOR   // Regional strategic leadership
+  REGIONAL_MANAGER    // Regional operations management
+  
+  // Local Level Roles
+  LOCAL_ADMIN         // Local office administration
+  LOCAL_MANAGER       // Local team/office management
+  
+  // Standard Roles (Available at any level)
+  OWNER              // Organization owner
+  MEMBER             // Standard member
+  GUEST              // Limited access member
+}
+
+enum OrgLevel {
+  GLOBAL      // Parent company (e.g., REMAX, COMPASS)
+  REGIONAL    // Regional operations (e.g., Western US)
+  LOCAL       // Local operations (e.g., Utah Real Estate)
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+// Domain Expertise Enums
+enum DomainType {
+  REALTOR
+  LOAN_OFFICER
+  TITLE_OFFICER
+  PROPERTY_MANAGER
+  INVESTOR
+}
+
+enum DomainStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ExpertiseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum VerificationType {
+  LICENSE
+  CERTIFICATION
+  EMPLOYMENT
+  REFERENCE
+  BACKGROUND_CHECK
+  DOCUMENT
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum CertificationStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  PENDING
+}
+
+// Session & Payment Enums
 enum SessionStatus {
-  scheduled
-  completed
-  cancelled
-  no_show
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
 }
 
-enum Currency {
-  USD
-  EUR
-  GBP
+enum SessionType {
+  PEER_TO_PEER
+  MENTORSHIP
+  GROUP
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
 }
 
 enum PaymentMethod {
@@ -48,27 +159,54 @@ enum PaymentMethod {
 }
 
 enum PayoutStatus {
-  pending
-  processed
-  failed
+  PENDING
+  PROCESSED
+  FAILED
 }
 
 enum RefundStatus {
-  pending
-  completed
-  failed
+  PENDING
+  COMPLETED
+  FAILED
 }
 
-enum DisputeStatus {
-  open
-  resolved
-  rejected
+enum Currency {
+  USD
+  EUR
+  GBP
 }
 
+// Subscription & Plan Enums
+enum PlanType {
+  INDIVIDUAL
+  TEAM
+  ENTERPRISE
+}
+
+// Application & Review Enums
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CoachApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReviewStatus {
+  PENDING
+  PUBLISHED
+  HIDDEN
+}
+
+// Goal & Achievement Enums
 enum GoalStatus {
-  in_progress
-  completed
-  overdue
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
 }
 
 enum GoalType {
@@ -116,52 +254,17 @@ enum GoalType {
 }
 
 enum AchievementType {
-  milestone
-  performance
-  learning
+  MILESTONE
+  PERFORMANCE
+  LEARNING
 }
 
-enum UserRole {
-  MENTEE
-  COACH
-  ADMIN
+enum RecognitionType {
+  AWARD        // e.g., "Top Producer Award"
+  ACHIEVEMENT  // e.g., "Sold $10M in Properties"
 }
 
-enum SessionType {
-  PEER_TO_PEER
-  MENTORSHIP
-  GROUP
-}
-
-enum ReviewStatus {
-  PENDING
-  PUBLISHED
-  HIDDEN
-}
-
-enum CoachApplicationStatus {
-  pending
-  approved
-  rejected
-}
-
-enum Role {
-  USER
-  COACH
-  ADMIN
-}
-
-enum Status {
-  ACTIVE
-  INACTIVE
-}
-
-enum ApplicationStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
+// System & Activity Enums
 enum ActivityType {
   USER
   COACH
@@ -175,6 +278,19 @@ enum ActivitySeverity {
   ERROR
 }
 
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+enum DisputeStatus {
+  OPEN
+  RESOLVED
+  REJECTED
+}
+
+// Property & Listing Enums
 enum ListingStatus {
   Active
   ActiveUnderContract
@@ -280,7 +396,6 @@ enum ListingAgreement {
   PocketListing
 }
 
-// Add new enums for RESO compliance
 enum ArchitecturalStyle {
   Colonial
   Contemporary
@@ -320,13 +435,16 @@ enum ViewType {
 
 // Models
 model User {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userId                 String   @unique // Clerk ID
   email                  String   @unique
   firstName              String?
   lastName               String?
   displayName            String?
-  role                   String   @default("MENTEE")
+  systemRole            UserRole  @default(USER)  // Changed from role to systemRole
+  capabilities          UserCapability[] // Add capabilities field
+  isCoach               Boolean   @default(false)  // Quick access flag
+  isMentee              Boolean   @default(false)  // Quick access flag
   stripeCustomerId       String?  @unique
   stripeConnectAccountId String?  @unique
   createdAt              DateTime @default(now()) @db.Timestamptz
@@ -341,7 +459,7 @@ model User {
   phoneNumber           String?
 
   // Application-specific fields
-  status               UserStatus @default(active)
+  status               UserStatus @default(ACTIVE)
   profileImageUrl      String?
 
   // Profile Relations
@@ -394,52 +512,61 @@ model User {
   // Admin relations
   adminAuditLogs       AdminAuditLog[]    @relation("AdminAuditLogs")
 
+  // Organization Relations
+  organizationMemberships OrganizationMember[]
+  
+  // Domain Expertise Relations
+  domainExpertise        DomainExpertise[]
+  domainVerifications    DomainVerification[]
+
   @@index([userId])
   @@index([email])
-  @@index([role])
+  @@index([systemRole])
+  @@index([isCoach])
+  @@index([isMentee])
   @@index([status])
   @@map("User")
 }
 
 // Base profile for all realtors (both coaches and mentees)
 model RealtorProfile {
-  ulid              String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
-  userUlid          String   @unique @db.Char(26)
-  bio               String?
-  yearsExperience   Int?
+  ulid                   String   @id @db.Char(26)
+  userUlid               String   @unique @db.Char(26)
+  bio                    String?
+  yearsExperience        Int?
   
   // Professional Information
-  propertyTypes     String[]
-  specializations   String[]
-  certifications    String[]
-  languages         String[]
+  propertyTypes          String[]
+  specializations        String[]
+  certifications         String[]
+  languages            String[]
   
   // Geographic Focus
-  geographicFocus   Json
-  primaryMarket     String?
+  geographicFocus        Json
+  primaryMarket          String?
 
   // Marketing Information
-  slogan            String?
-  websiteUrl        String?
-  facebookUrl       String?
-  instagramUrl      String?
-  linkedinUrl       String?
-  youtubeUrl        String?
-  marketingAreas    String[]
-  testimonials      Json
+  slogan               String?
+  websiteUrl           String?
+  facebookUrl          String?
+  instagramUrl         String?
+  linkedinUrl          String?
+  youtubeUrl           String?
+  marketingAreas       String[]
+  testimonials         Json
 
   // Relations
-  user              User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  listings          Listing[]
+  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  listings             Listing[]
   professionalRecognitions ProfessionalRecognition[]
 
   // MLS Integration fields
-  mlsId             String?  @unique
-  mlsName           String?
-  mlsStatus         String?
+  mlsId                String?  @unique
+  mlsName              String?
+  mlsStatus            String?  @default("ACTIVE")
 
-  createdAt         DateTime @default(now()) @db.Timestamptz
-  updatedAt         DateTime @updatedAt @db.Timestamptz
+  createdAt            DateTime @default(now()) @db.Timestamptz
+  updatedAt            DateTime @updatedAt @db.Timestamptz
 
   @@index([userUlid])
   @@map("RealtorProfile")
@@ -447,21 +574,21 @@ model RealtorProfile {
 
 // Mentee-specific profile data
 model MenteeProfile {
-  ulid              String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
-  userUlid          String   @unique @db.Char(26)
-  focusAreas        String[]
-  experienceLevel   String?
-  learningStyle     String?
-  goals             Json?
-  sessionsCompleted Int      @default(0)
-  isActive          Boolean  @default(true)
-  lastSessionDate   DateTime?
+  ulid               String   @id @db.Char(26)
+  userUlid           String   @unique @db.Char(26)
+  focusAreas         String[]
+  experienceLevel    String?
+  learningStyle      String?
+  goals              Json?
+  sessionsCompleted  Int      @default(0)
+  isActive           Boolean  @default(true)
+  lastSessionDate    DateTime?
 
   // Relations
-  user              User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  user               User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt         DateTime @default(now()) @db.Timestamptz
-  updatedAt         DateTime @updatedAt @db.Timestamptz
+  createdAt          DateTime @default(now()) @db.Timestamptz
+  updatedAt          DateTime @updatedAt @db.Timestamptz
 
   @@index([userUlid])
   @@map("MenteeProfile")
@@ -469,10 +596,10 @@ model MenteeProfile {
 
 // Coach-specific profile data
 model CoachProfile {
-  ulid                String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                String   @id @db.Char(26)
   userUlid            String   @unique @db.Char(26)
   coachingSpecialties String[]
-  yearsCoaching       Int?
+  yearsCoaching        Int?
   hourlyRate          Decimal? @db.Decimal(10, 2)
 
   // Calendly Integration
@@ -499,12 +626,12 @@ model CoachProfile {
 }
 
 model Session {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   menteeUlid             String   @db.Char(26)
   coachUlid              String   @db.Char(26)
   startTime              DateTime @db.Timestamptz
   endTime                DateTime @db.Timestamptz
-  status                 SessionStatus @default(scheduled)
+  status                 SessionStatus @default(SCHEDULED)
   sessionType            SessionType?
   sessionNotes           String?
   zoomMeetingId          String?
@@ -540,13 +667,13 @@ model Session {
 }
 
 model Payment {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   sessionUlid            String?  @unique @db.Char(26)
   payerUlid              String   @db.Char(26)
   payeeUlid              String   @db.Char(26)
   amount                 Decimal  @db.Decimal(10, 2)
   currency               Currency @default(USD)
-  status                 PaymentStatus @default(pending)
+  status                 PaymentStatus @default(PENDING)
   stripePaymentId        String?
 
   session                Session? @relation("SessionPayment", fields: [sessionUlid], references: [ulid])
@@ -565,7 +692,7 @@ model Payment {
 }
 
 model Review {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   reviewerUlid           String   @db.Char(26)
   revieweeUlid           String   @db.Char(26)
   sessionUlid            String?  @db.Char(26)
@@ -587,9 +714,9 @@ model Review {
 }
 
 model CoachApplication {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   applicantUlid          String   @db.Char(26)
-  status                 CoachApplicationStatus @default(pending)
+  status                 CoachApplicationStatus @default(PENDING)
   experience             String
   specialties            String[] @default([])
   applicationDate        DateTime @default(now())
@@ -621,7 +748,7 @@ model CoachApplication {
 }
 
 model Note {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   authorUlid             String   @db.Char(26)
   relatedUserUlid        String?  @db.Char(26)
   sessionUlid            String?  @db.Char(26)
@@ -641,11 +768,11 @@ model Note {
 }
 
 model SupportTicket {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userUlid               String   @db.Char(26)
   title                  String
   description            String
-  status                 TicketStatus @default(open)
+  status                 TicketStatus @default(OPEN)
 
   user                   User     @relation("UserSupportTickets", fields: [userUlid], references: [ulid], onDelete: Cascade)
 
@@ -656,12 +783,12 @@ model SupportTicket {
 }
 
 model Payout {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   payeeUlid              String   @db.Char(26)
   amount                 Decimal  @db.Decimal(10, 2)
   currency               String   @default("USD")
   stripeTransferId       String?
-  status                 PayoutStatus @default(pending)
+  status                 PayoutStatus @default(PENDING)
   scheduledDate          DateTime
   processedAt            DateTime?
 
@@ -674,7 +801,7 @@ model Payout {
 }
 
 model Dispute {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   stripeDisputeId        String   @unique
   sessionUlid            String?  @db.Char(26)
   session                Session? @relation("SessionDisputes", fields: [sessionUlid], references: [ulid], onDelete: SetNull)
@@ -698,7 +825,7 @@ model Dispute {
 }
 
 model Chargeback {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   paymentUlid            String   @db.Char(26)
   reason                 String?
   status                 String   @default("open")
@@ -712,10 +839,10 @@ model Chargeback {
 }
 
 model Refund {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   paymentUlid            String   @db.Char(26)
   reason                 String?
-  status                 RefundStatus @default(pending)
+  status                 RefundStatus @default(PENDING)
 
   payment                Payment  @relation(fields: [paymentUlid], references: [ulid], onDelete: Cascade)
 
@@ -726,7 +853,7 @@ model Refund {
 }
 
 model Message {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   senderUlid             String   @db.Char(26)
   recipientUlid          String   @db.Char(26)
   content                String
@@ -744,7 +871,7 @@ model Message {
 }
 
 model Referral {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   referrerUlid           String   @db.Char(26)
   refereeUlid            String   @db.Char(26)
   referralCode           String   @unique
@@ -761,7 +888,7 @@ model Referral {
 }
 
 model Reminder {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userUlid               String   @db.Char(26)
   sessionUlid            String?  @db.Char(26)
   message                String
@@ -779,7 +906,7 @@ model Reminder {
 }
 
 model CalendlyIntegration {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userUlid               String   @unique @db.Char(26)
   user                   User     @relation(fields: [userUlid], references: [ulid])
   userId                 String    // Calendly user ID
@@ -802,17 +929,22 @@ model CalendlyIntegration {
 }
 
 model Subscription {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   subscriptionId         String   @unique
-  userUlid               String   @db.Char(26)
+  userUlid               String?  @db.Char(26)
+  organizationUlid       String?  @db.Char(26)
   stripeCustomerId       String
   status                 String
   startDate              DateTime
   endDate                DateTime?
   planUlid               String   @db.Char(26)
   defaultPaymentMethodId String?
+  quantity               Int      @default(1)
+  metadata               Json     @default("{}")
 
-  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  // Relations
+  user                   User?          @relation(fields: [userUlid], references: [ulid], onDelete: SetNull)
+  organization           Organization?  @relation(fields: [organizationUlid], references: [ulid], onDelete: SetNull)
   plan                   SubscriptionPlan @relation(fields: [planUlid], references: [ulid], onDelete: Restrict)
   invoices               Invoice[]
 
@@ -820,27 +952,35 @@ model Subscription {
   updatedAt              DateTime @updatedAt
 
   @@index([userUlid])
+  @@index([organizationUlid])
   @@index([planUlid])
 }
 
 model SubscriptionPlan {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   planId                 String   @unique
   name                   String
   description            String
+  type                   PlanType @default(INDIVIDUAL)
   amount                 Decimal  @db.Decimal(10, 2)
   currency               String   @default("USD")
   interval               String
+  features               Json     @default("{}")
+  limits                 Json     @default("{}")
   isActive               Boolean  @default(true)
+  metadata               Json     @default("{}")
 
   subscriptions          Subscription[]
 
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
+
+  @@index([type])
+  @@index([isActive])
 }
 
 model Invoice {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   invoiceId              String   @unique
   subscriptionId         String
   userUlid               String?  @db.Char(26)
@@ -861,7 +1001,7 @@ model Invoice {
 }
 
 model CalendlyWebhookEvent {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   eventType              String
   payload                Json
   processed              Boolean  @default(false)
@@ -874,7 +1014,7 @@ model CalendlyWebhookEvent {
 }
 
 model CalendlyEvent {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   eventUuid              String   @unique
   userUlid               String   @db.Char(26)
   status                 String
@@ -895,7 +1035,7 @@ model CalendlyEvent {
 }
 
 model ZoomSession {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   sessionUlid            String   @unique @db.Char(26)
   topic                  String
   status                 String
@@ -911,7 +1051,7 @@ model ZoomSession {
 }
 
 model Goal {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userUlid               String   @db.Char(26)
   title                  String
   description            String?
@@ -919,7 +1059,7 @@ model Goal {
   current                Float      @default(0)
   deadline               DateTime
   type                   GoalType
-  status                 GoalStatus @default(in_progress)
+  status                 GoalStatus @default(IN_PROGRESS)
 
   // Relationships
   user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
@@ -934,7 +1074,7 @@ model Goal {
 
 // Application-specific achievements
 model Achievement {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userUlid               String   @db.Char(26)
   type                   String   // e.g., "SESSION_MILESTONE", "RATING_MILESTONE"
   milestone              String   // e.g., "10_SESSIONS", "100_FIVE_STAR_REVIEWS"
@@ -953,7 +1093,7 @@ model Achievement {
 
 // Professional recognition (formerly stored in RealtorProfile.achievements)
 model ProfessionalRecognition {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   realtorProfileUlid     String   @db.Char(26)
   title                  String
   type                   RecognitionType
@@ -972,13 +1112,8 @@ model ProfessionalRecognition {
   @@map("ProfessionalRecognition")
 }
 
-enum RecognitionType {
-  AWARD        // e.g., "Top Producer Award"
-  ACHIEVEMENT  // e.g., "Sold $10M in Properties"
-}
-
 model CoachingAvailabilitySchedule {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userUlid               String   @db.Char(26)
   name                   String // e.g., "Standard Schedule", "Holiday Hours"
   timezone               String
@@ -1013,7 +1148,7 @@ model CoachingAvailabilitySchedule {
 }
 
 model StripePaymentMethod {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userUlid               String   @db.Char(26)
   stripePaymentMethodId  String
   type                   String // card, bank_account
@@ -1031,7 +1166,7 @@ model StripePaymentMethod {
 }
 
 model SetupIntent {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userUlid               String   @db.Char(26)
   stripeSetupIntentId    String
   status                 String
@@ -1046,7 +1181,7 @@ model SetupIntent {
 }
 
 model StripeConnectedAccount {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userUlid               String   @unique @db.Char(26)
   stripeAccountId        String   @unique
   country                String
@@ -1066,7 +1201,7 @@ model StripeConnectedAccount {
 }
 
 model Transaction {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   type                   String // session_payment, bundle_payment, payout, refund
   status                 String // pending, completed, failed, refunded
   amount                 Float
@@ -1094,7 +1229,7 @@ model Transaction {
 }
 
 model SystemHealth {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   status                 Int
   activeSessions         Int
   pendingReviews         Int
@@ -1108,7 +1243,7 @@ model SystemHealth {
 }
 
 model AdminMetrics {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   totalUsers             Int
   activeUsers            Int
   totalCoaches           Int
@@ -1126,7 +1261,7 @@ model AdminMetrics {
 }
 
 model SystemActivity {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   type                   String    // Enum in application layer
   title                  String
   description            String
@@ -1140,7 +1275,7 @@ model SystemActivity {
 }
 
 model SystemAlerts {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   type                   String    // Enum in application layer
   title                  String
   message                String
@@ -1155,7 +1290,7 @@ model SystemAlerts {
 
 // Admin Dashboard MVP Models
 model AdminActivity {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   type                   String    // USER_ACTION, COACH_APPLICATION, SESSION, SYSTEM
   title                  String
   description            String
@@ -1171,7 +1306,7 @@ model AdminActivity {
 
 // Keep track of important admin actions for audit
 model AdminAuditLog {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   adminUlid              String   @db.Char(26)
   admin                  User     @relation("AdminAuditLogs", fields: [adminUlid], references: [ulid])
   action                 String    // Type of action performed
@@ -1188,7 +1323,7 @@ model AdminAuditLog {
 
 // New Listing model with RESO compliance
 model Listing {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   // Core Identification (RESO format)
   listingKey             String?       @unique  // RESO: Unique identifier for MLS integration
   parcelNumber           String?       @db.VarChar(50)  // RESO: Official parcel/tax ID
@@ -1318,7 +1453,7 @@ model Listing {
 
 // AI Chat Models
 model AIThread {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   userUlid               String   @db.Char(26)
   title                  String
   category               String
@@ -1335,7 +1470,7 @@ model AIThread {
 }
 
 model AIMessage {
-  ulid                   String   @id @db.Char(26) @default(dbgenerated("generate_ulid()"))
+  ulid                   String   @id @db.Char(26)
   threadUlid             String   @db.Char(26)
   role                   String   // user or assistant
   content                String   @db.Text
@@ -1349,4 +1484,113 @@ model AIMessage {
 
   @@index([threadUlid])
   @@map("AIMessage")
+}
+
+// Organization and Team Management Models
+model Organization {
+  ulid                String   @id @db.Char(26)
+  name                String
+  description         String?
+  status             String              @default("ACTIVE")
+  metadata           Json?               @db.JsonB
+  rolePermissions    RolePermission[]
+  members            OrganizationMember[]
+  subscriptions      Subscription[]
+  createdAt          DateTime           @default(now()) @db.Timestamptz
+  updatedAt          DateTime           @updatedAt @db.Timestamptz
+
+  @@index([status])
+  @@map("Organization")
+}
+
+model OrganizationMember {
+  ulid              String        @id @db.Char(26)
+  organizationUlid  String        @db.Char(26)
+  userUlid         String        @db.Char(26)
+  role             OrgRole       @default(MEMBER)
+  scope            String?       @default("LOCAL")
+  status           String        @default("ACTIVE")
+  customPermissions Json?        @db.JsonB
+  metadata         Json?         @db.JsonB
+  
+  organization     Organization  @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+  user            User          @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  
+  createdAt       DateTime      @default(now()) @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @db.Timestamptz
+
+  @@unique([organizationUlid, userUlid])
+  @@index([organizationUlid])
+  @@index([userUlid])
+  @@index([role])
+  @@index([status])
+  @@map("OrganizationMember")
+}
+
+model RolePermission {
+  ulid              String        @id @db.Char(26)
+  organizationUlid  String        @db.Char(26)
+  role             OrgRole
+  permissions      Json          @db.JsonB
+  metadata         Json?         @db.JsonB
+  
+  organization     Organization  @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+  
+  createdAt       DateTime      @default(now()) @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @db.Timestamptz
+
+  @@unique([organizationUlid, role])
+  @@index([organizationUlid])
+  @@index([role])
+  @@map("RolePermission")
+}
+
+// Domain Expertise Models
+model DomainExpertise {
+  ulid              String   @id @db.Char(26)
+  userUlid         String   @db.Char(26)
+  type             String   // e.g., "REALTOR", "PROPERTY_MANAGER"
+  level            String   // e.g., "BEGINNER", "INTERMEDIATE", "EXPERT"
+  status           String   @default("PENDING")
+  yearsExperience  Int                 @default(0)
+  description      String?
+  metadata         Json?               @db.JsonB
+  
+  // Relations
+  user             User                @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  verifications    DomainVerification[]
+  
+  createdAt        DateTime            @default(now()) @db.Timestamptz
+  updatedAt        DateTime            @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@index([type])
+  @@index([level])
+  @@index([status])
+  @@map("DomainExpertise")
+}
+
+model DomainVerification {
+  ulid                  String   @id @db.Char(26)
+  domainExpertiseUlid   String   @db.Char(26)
+  userUlid             String   @db.Char(26)
+  type                 String   // e.g., "LICENSE", "CERTIFICATION"
+  status               String   @default("PENDING")
+  documentUrl          String?
+  verificationData     Json?           @db.JsonB
+  expiresAt            DateTime?       @db.Timestamptz
+  metadata             Json?           @db.JsonB
+  
+  // Relations
+  domainExpertise      DomainExpertise @relation(fields: [domainExpertiseUlid], references: [ulid], onDelete: Cascade)
+  user                 User            @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  
+  createdAt            DateTime        @default(now()) @db.Timestamptz
+  updatedAt            DateTime        @updatedAt @db.Timestamptz
+
+  @@index([domainExpertiseUlid])
+  @@index([userUlid])
+  @@index([type])
+  @@index([status])
+  @@map("DomainVerification")
 }

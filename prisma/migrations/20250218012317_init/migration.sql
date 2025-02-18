@@ -1,65 +1,107 @@
 -- CreateEnum
-CREATE TYPE "PaymentStatus" AS ENUM ('pending', 'completed', 'failed', 'refunded');
+CREATE TYPE "UserRole" AS ENUM ('SYSTEM_ADMIN', 'SYSTEM_MODERATOR', 'USER');
 
 -- CreateEnum
-CREATE TYPE "TicketStatus" AS ENUM ('open', 'in_progress', 'closed');
+CREATE TYPE "UserCapability" AS ENUM ('COACH', 'MENTEE');
 
 -- CreateEnum
-CREATE TYPE "UserStatus" AS ENUM ('active', 'inactive', 'suspended');
+CREATE TYPE "UserStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
 
 -- CreateEnum
-CREATE TYPE "SessionStatus" AS ENUM ('scheduled', 'completed', 'cancelled', 'no_show');
+CREATE TYPE "OrgType" AS ENUM ('INDIVIDUAL', 'BUSINESS', 'ENTERPRISE');
 
 -- CreateEnum
-CREATE TYPE "Currency" AS ENUM ('USD', 'EUR', 'GBP');
+CREATE TYPE "OrgStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
 
 -- CreateEnum
-CREATE TYPE "PaymentMethod" AS ENUM ('credit_card', 'debit_card', 'bank_transfer');
+CREATE TYPE "OrgTier" AS ENUM ('FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE');
 
 -- CreateEnum
-CREATE TYPE "PayoutStatus" AS ENUM ('pending', 'processed', 'failed');
+CREATE TYPE "OrgRole" AS ENUM ('GLOBAL_ADMIN', 'GLOBAL_DIRECTOR', 'GLOBAL_MANAGER', 'REGIONAL_DIRECTOR', 'REGIONAL_MANAGER', 'LOCAL_ADMIN', 'LOCAL_MANAGER', 'OWNER', 'MEMBER', 'GUEST');
 
 -- CreateEnum
-CREATE TYPE "RefundStatus" AS ENUM ('pending', 'completed', 'failed');
+CREATE TYPE "OrgLevel" AS ENUM ('GLOBAL', 'REGIONAL', 'LOCAL');
 
 -- CreateEnum
-CREATE TYPE "DisputeStatus" AS ENUM ('open', 'resolved', 'rejected');
+CREATE TYPE "MemberStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
 
 -- CreateEnum
-CREATE TYPE "GoalStatus" AS ENUM ('in_progress', 'completed', 'overdue');
+CREATE TYPE "InviteStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED');
 
 -- CreateEnum
-CREATE TYPE "GoalType" AS ENUM ('sales_volume', 'commission_income', 'gci', 'avg_sale_price', 'listings', 'buyer_transactions', 'closed_deals', 'days_on_market', 'coaching_sessions', 'group_sessions', 'session_revenue', 'active_mentees', 'mentee_satisfaction', 'response_time', 'session_completion', 'mentee_milestones', 'new_clients', 'referrals', 'client_retention', 'reviews', 'market_share', 'territory_expansion', 'social_media', 'website_traffic', 'certifications', 'training_hours', 'networking_events', 'custom');
+CREATE TYPE "DomainType" AS ENUM ('REALTOR', 'LOAN_OFFICER', 'TITLE_OFFICER', 'PROPERTY_MANAGER', 'INVESTOR');
 
 -- CreateEnum
-CREATE TYPE "AchievementType" AS ENUM ('milestone', 'performance', 'learning');
+CREATE TYPE "DomainStatus" AS ENUM ('PENDING', 'ACTIVE', 'INACTIVE', 'SUSPENDED');
 
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('MENTEE', 'COACH', 'ADMIN');
+CREATE TYPE "ExpertiseLevel" AS ENUM ('BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'EXPERT');
+
+-- CreateEnum
+CREATE TYPE "VerificationType" AS ENUM ('LICENSE', 'CERTIFICATION', 'EMPLOYMENT', 'REFERENCE', 'BACKGROUND_CHECK', 'DOCUMENT');
+
+-- CreateEnum
+CREATE TYPE "VerificationStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'EXPIRED');
+
+-- CreateEnum
+CREATE TYPE "CertificationStatus" AS ENUM ('ACTIVE', 'EXPIRED', 'REVOKED', 'PENDING');
+
+-- CreateEnum
+CREATE TYPE "SessionStatus" AS ENUM ('SCHEDULED', 'COMPLETED', 'CANCELLED', 'NO_SHOW');
 
 -- CreateEnum
 CREATE TYPE "SessionType" AS ENUM ('PEER_TO_PEER', 'MENTORSHIP', 'GROUP');
 
 -- CreateEnum
-CREATE TYPE "ReviewStatus" AS ENUM ('PENDING', 'PUBLISHED', 'HIDDEN');
+CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED');
 
 -- CreateEnum
-CREATE TYPE "CoachApplicationStatus" AS ENUM ('pending', 'approved', 'rejected');
+CREATE TYPE "PaymentMethod" AS ENUM ('credit_card', 'debit_card', 'bank_transfer');
 
 -- CreateEnum
-CREATE TYPE "Role" AS ENUM ('USER', 'COACH', 'ADMIN');
+CREATE TYPE "PayoutStatus" AS ENUM ('PENDING', 'PROCESSED', 'FAILED');
 
 -- CreateEnum
-CREATE TYPE "Status" AS ENUM ('ACTIVE', 'INACTIVE');
+CREATE TYPE "RefundStatus" AS ENUM ('PENDING', 'COMPLETED', 'FAILED');
+
+-- CreateEnum
+CREATE TYPE "Currency" AS ENUM ('USD', 'EUR', 'GBP');
+
+-- CreateEnum
+CREATE TYPE "PlanType" AS ENUM ('INDIVIDUAL', 'TEAM', 'ENTERPRISE');
 
 -- CreateEnum
 CREATE TYPE "ApplicationStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "CoachApplicationStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "ReviewStatus" AS ENUM ('PENDING', 'PUBLISHED', 'HIDDEN');
+
+-- CreateEnum
+CREATE TYPE "GoalStatus" AS ENUM ('IN_PROGRESS', 'COMPLETED', 'OVERDUE');
+
+-- CreateEnum
+CREATE TYPE "GoalType" AS ENUM ('sales_volume', 'commission_income', 'gci', 'avg_sale_price', 'listings', 'buyer_transactions', 'closed_deals', 'days_on_market', 'coaching_sessions', 'group_sessions', 'session_revenue', 'active_mentees', 'mentee_satisfaction', 'response_time', 'session_completion', 'mentee_milestones', 'new_clients', 'referrals', 'client_retention', 'reviews', 'market_share', 'territory_expansion', 'social_media', 'website_traffic', 'certifications', 'training_hours', 'networking_events', 'custom');
+
+-- CreateEnum
+CREATE TYPE "AchievementType" AS ENUM ('MILESTONE', 'PERFORMANCE', 'LEARNING');
+
+-- CreateEnum
+CREATE TYPE "RecognitionType" AS ENUM ('AWARD', 'ACHIEVEMENT');
 
 -- CreateEnum
 CREATE TYPE "ActivityType" AS ENUM ('USER', 'COACH', 'SYSTEM', 'SECURITY');
 
 -- CreateEnum
 CREATE TYPE "ActivitySeverity" AS ENUM ('INFO', 'WARNING', 'ERROR');
+
+-- CreateEnum
+CREATE TYPE "TicketStatus" AS ENUM ('OPEN', 'IN_PROGRESS', 'CLOSED');
+
+-- CreateEnum
+CREATE TYPE "DisputeStatus" AS ENUM ('OPEN', 'RESOLVED', 'REJECTED');
 
 -- CreateEnum
 CREATE TYPE "ListingStatus" AS ENUM ('Active', 'ActiveUnderContract', 'Canceled', 'Closed', 'ComingSoon', 'Delete', 'Expired', 'Hold', 'Incomplete', 'Pending', 'Withdrawn');
@@ -94,18 +136,18 @@ CREATE TYPE "RoofType" AS ENUM ('Asphalt', 'Metal', 'Slate', 'Tile', 'Wood');
 -- CreateEnum
 CREATE TYPE "ViewType" AS ENUM ('City', 'Golf', 'Lake', 'Mountain', 'Ocean', 'Park', 'River', 'Woods');
 
--- CreateEnum
-CREATE TYPE "RecognitionType" AS ENUM ('AWARD', 'ACHIEVEMENT');
-
 -- CreateTable
 CREATE TABLE "User" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userId" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "firstName" TEXT,
     "lastName" TEXT,
     "displayName" TEXT,
-    "role" TEXT NOT NULL DEFAULT 'MENTEE',
+    "systemRole" "UserRole" NOT NULL DEFAULT 'USER',
+    "capabilities" "UserCapability"[],
+    "isCoach" BOOLEAN NOT NULL DEFAULT false,
+    "isMentee" BOOLEAN NOT NULL DEFAULT false,
     "stripeCustomerId" TEXT,
     "stripeConnectAccountId" TEXT,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -116,7 +158,7 @@ CREATE TABLE "User" (
     "licenseNumber" TEXT,
     "companyName" TEXT,
     "phoneNumber" TEXT,
-    "status" "UserStatus" NOT NULL DEFAULT 'active',
+    "status" "UserStatus" NOT NULL DEFAULT 'ACTIVE',
     "profileImageUrl" TEXT,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("ulid")
@@ -124,7 +166,7 @@ CREATE TABLE "User" (
 
 -- CreateTable
 CREATE TABLE "RealtorProfile" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "bio" TEXT,
     "yearsExperience" INTEGER,
@@ -144,7 +186,7 @@ CREATE TABLE "RealtorProfile" (
     "testimonials" JSONB NOT NULL,
     "mlsId" TEXT,
     "mlsName" TEXT,
-    "mlsStatus" TEXT,
+    "mlsStatus" TEXT DEFAULT 'ACTIVE',
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMPTZ NOT NULL,
 
@@ -153,7 +195,7 @@ CREATE TABLE "RealtorProfile" (
 
 -- CreateTable
 CREATE TABLE "MenteeProfile" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "focusAreas" TEXT[],
     "experienceLevel" TEXT,
@@ -170,7 +212,7 @@ CREATE TABLE "MenteeProfile" (
 
 -- CreateTable
 CREATE TABLE "CoachProfile" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "coachingSpecialties" TEXT[],
     "yearsCoaching" INTEGER,
@@ -192,12 +234,12 @@ CREATE TABLE "CoachProfile" (
 
 -- CreateTable
 CREATE TABLE "Session" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "menteeUlid" CHAR(26) NOT NULL,
     "coachUlid" CHAR(26) NOT NULL,
     "startTime" TIMESTAMPTZ NOT NULL,
     "endTime" TIMESTAMPTZ NOT NULL,
-    "status" "SessionStatus" NOT NULL DEFAULT 'scheduled',
+    "status" "SessionStatus" NOT NULL DEFAULT 'SCHEDULED',
     "sessionType" "SessionType",
     "sessionNotes" TEXT,
     "zoomMeetingId" TEXT,
@@ -217,13 +259,13 @@ CREATE TABLE "Session" (
 
 -- CreateTable
 CREATE TABLE "Payment" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "sessionUlid" CHAR(26),
     "payerUlid" CHAR(26) NOT NULL,
     "payeeUlid" CHAR(26) NOT NULL,
     "amount" DECIMAL(10,2) NOT NULL,
     "currency" "Currency" NOT NULL DEFAULT 'USD',
-    "status" "PaymentStatus" NOT NULL DEFAULT 'pending',
+    "status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
     "stripePaymentId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -233,7 +275,7 @@ CREATE TABLE "Payment" (
 
 -- CreateTable
 CREATE TABLE "Review" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "reviewerUlid" CHAR(26) NOT NULL,
     "revieweeUlid" CHAR(26) NOT NULL,
     "sessionUlid" CHAR(26),
@@ -249,9 +291,9 @@ CREATE TABLE "Review" (
 
 -- CreateTable
 CREATE TABLE "CoachApplication" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "applicantUlid" CHAR(26) NOT NULL,
-    "status" "CoachApplicationStatus" NOT NULL DEFAULT 'pending',
+    "status" "CoachApplicationStatus" NOT NULL DEFAULT 'PENDING',
     "experience" TEXT NOT NULL,
     "specialties" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "applicationDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -274,7 +316,7 @@ CREATE TABLE "CoachApplication" (
 
 -- CreateTable
 CREATE TABLE "Note" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "authorUlid" CHAR(26) NOT NULL,
     "relatedUserUlid" CHAR(26),
     "sessionUlid" CHAR(26),
@@ -288,11 +330,11 @@ CREATE TABLE "Note" (
 
 -- CreateTable
 CREATE TABLE "SupportTicket" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
-    "status" "TicketStatus" NOT NULL DEFAULT 'open',
+    "status" "TicketStatus" NOT NULL DEFAULT 'OPEN',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -301,12 +343,12 @@ CREATE TABLE "SupportTicket" (
 
 -- CreateTable
 CREATE TABLE "Payout" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "payeeUlid" CHAR(26) NOT NULL,
     "amount" DECIMAL(10,2) NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'USD',
     "stripeTransferId" TEXT,
-    "status" "PayoutStatus" NOT NULL DEFAULT 'pending',
+    "status" "PayoutStatus" NOT NULL DEFAULT 'PENDING',
     "scheduledDate" TIMESTAMP(3) NOT NULL,
     "processedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -317,7 +359,7 @@ CREATE TABLE "Payout" (
 
 -- CreateTable
 CREATE TABLE "Dispute" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "stripeDisputeId" TEXT NOT NULL,
     "sessionUlid" CHAR(26),
     "amount" INTEGER NOT NULL,
@@ -336,7 +378,7 @@ CREATE TABLE "Dispute" (
 
 -- CreateTable
 CREATE TABLE "Chargeback" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "paymentUlid" CHAR(26) NOT NULL,
     "reason" TEXT,
     "status" TEXT NOT NULL DEFAULT 'open',
@@ -348,10 +390,10 @@ CREATE TABLE "Chargeback" (
 
 -- CreateTable
 CREATE TABLE "Refund" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "paymentUlid" CHAR(26) NOT NULL,
     "reason" TEXT,
-    "status" "RefundStatus" NOT NULL DEFAULT 'pending',
+    "status" "RefundStatus" NOT NULL DEFAULT 'PENDING',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -360,7 +402,7 @@ CREATE TABLE "Refund" (
 
 -- CreateTable
 CREATE TABLE "Message" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "senderUlid" CHAR(26) NOT NULL,
     "recipientUlid" CHAR(26) NOT NULL,
     "content" TEXT NOT NULL,
@@ -374,7 +416,7 @@ CREATE TABLE "Message" (
 
 -- CreateTable
 CREATE TABLE "Referral" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "referrerUlid" CHAR(26) NOT NULL,
     "refereeUlid" CHAR(26) NOT NULL,
     "referralCode" TEXT NOT NULL,
@@ -387,7 +429,7 @@ CREATE TABLE "Referral" (
 
 -- CreateTable
 CREATE TABLE "Reminder" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "sessionUlid" CHAR(26),
     "message" TEXT NOT NULL,
@@ -401,7 +443,7 @@ CREATE TABLE "Reminder" (
 
 -- CreateTable
 CREATE TABLE "CalendlyIntegration" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "userId" TEXT NOT NULL,
     "eventTypeId" TEXT,
@@ -423,15 +465,18 @@ CREATE TABLE "CalendlyIntegration" (
 
 -- CreateTable
 CREATE TABLE "Subscription" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "subscriptionId" TEXT NOT NULL,
-    "userUlid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26),
+    "organizationUlid" CHAR(26),
     "stripeCustomerId" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "startDate" TIMESTAMP(3) NOT NULL,
     "endDate" TIMESTAMP(3),
     "planUlid" CHAR(26) NOT NULL,
     "defaultPaymentMethodId" TEXT,
+    "quantity" INTEGER NOT NULL DEFAULT 1,
+    "metadata" JSONB NOT NULL DEFAULT '{}',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -440,14 +485,18 @@ CREATE TABLE "Subscription" (
 
 -- CreateTable
 CREATE TABLE "SubscriptionPlan" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "planId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
+    "type" "PlanType" NOT NULL DEFAULT 'INDIVIDUAL',
     "amount" DECIMAL(10,2) NOT NULL,
     "currency" TEXT NOT NULL DEFAULT 'USD',
     "interval" TEXT NOT NULL,
+    "features" JSONB NOT NULL DEFAULT '{}',
+    "limits" JSONB NOT NULL DEFAULT '{}',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "metadata" JSONB NOT NULL DEFAULT '{}',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -456,7 +505,7 @@ CREATE TABLE "SubscriptionPlan" (
 
 -- CreateTable
 CREATE TABLE "Invoice" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "invoiceId" TEXT NOT NULL,
     "subscriptionId" TEXT NOT NULL,
     "userUlid" CHAR(26),
@@ -473,7 +522,7 @@ CREATE TABLE "Invoice" (
 
 -- CreateTable
 CREATE TABLE "CalendlyWebhookEvent" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "eventType" TEXT NOT NULL,
     "payload" JSONB NOT NULL,
     "processed" BOOLEAN NOT NULL DEFAULT false,
@@ -486,7 +535,7 @@ CREATE TABLE "CalendlyWebhookEvent" (
 
 -- CreateTable
 CREATE TABLE "CalendlyEvent" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "eventUuid" TEXT NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "status" TEXT NOT NULL,
@@ -502,7 +551,7 @@ CREATE TABLE "CalendlyEvent" (
 
 -- CreateTable
 CREATE TABLE "ZoomSession" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "sessionUlid" CHAR(26) NOT NULL,
     "topic" TEXT NOT NULL,
     "status" TEXT NOT NULL,
@@ -515,7 +564,7 @@ CREATE TABLE "ZoomSession" (
 
 -- CreateTable
 CREATE TABLE "Goal" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
@@ -523,7 +572,7 @@ CREATE TABLE "Goal" (
     "current" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "deadline" TIMESTAMP(3) NOT NULL,
     "type" "GoalType" NOT NULL,
-    "status" "GoalStatus" NOT NULL DEFAULT 'in_progress',
+    "status" "GoalStatus" NOT NULL DEFAULT 'IN_PROGRESS',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -532,7 +581,7 @@ CREATE TABLE "Goal" (
 
 -- CreateTable
 CREATE TABLE "Achievement" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "type" TEXT NOT NULL,
     "milestone" TEXT NOT NULL,
@@ -546,7 +595,7 @@ CREATE TABLE "Achievement" (
 
 -- CreateTable
 CREATE TABLE "ProfessionalRecognition" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "realtorProfileUlid" CHAR(26) NOT NULL,
     "title" TEXT NOT NULL,
     "type" "RecognitionType" NOT NULL,
@@ -562,7 +611,7 @@ CREATE TABLE "ProfessionalRecognition" (
 
 -- CreateTable
 CREATE TABLE "CoachingAvailabilitySchedule" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "name" TEXT NOT NULL,
     "timezone" TEXT NOT NULL,
@@ -587,7 +636,7 @@ CREATE TABLE "CoachingAvailabilitySchedule" (
 
 -- CreateTable
 CREATE TABLE "StripePaymentMethod" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "stripePaymentMethodId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
@@ -601,7 +650,7 @@ CREATE TABLE "StripePaymentMethod" (
 
 -- CreateTable
 CREATE TABLE "SetupIntent" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "stripeSetupIntentId" TEXT NOT NULL,
     "status" TEXT NOT NULL,
@@ -613,7 +662,7 @@ CREATE TABLE "SetupIntent" (
 
 -- CreateTable
 CREATE TABLE "StripeConnectedAccount" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "stripeAccountId" TEXT NOT NULL,
     "country" TEXT NOT NULL,
@@ -631,7 +680,7 @@ CREATE TABLE "StripeConnectedAccount" (
 
 -- CreateTable
 CREATE TABLE "Transaction" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "type" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "amount" DOUBLE PRECISION NOT NULL,
@@ -652,7 +701,7 @@ CREATE TABLE "Transaction" (
 
 -- CreateTable
 CREATE TABLE "SystemHealth" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "status" INTEGER NOT NULL,
     "activeSessions" INTEGER NOT NULL,
     "pendingReviews" INTEGER NOT NULL,
@@ -666,7 +715,7 @@ CREATE TABLE "SystemHealth" (
 
 -- CreateTable
 CREATE TABLE "AdminMetrics" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "totalUsers" INTEGER NOT NULL,
     "activeUsers" INTEGER NOT NULL,
     "totalCoaches" INTEGER NOT NULL,
@@ -684,7 +733,7 @@ CREATE TABLE "AdminMetrics" (
 
 -- CreateTable
 CREATE TABLE "SystemActivity" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "type" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
@@ -697,7 +746,7 @@ CREATE TABLE "SystemActivity" (
 
 -- CreateTable
 CREATE TABLE "SystemAlerts" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "type" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "message" TEXT NOT NULL,
@@ -710,7 +759,7 @@ CREATE TABLE "SystemAlerts" (
 
 -- CreateTable
 CREATE TABLE "AdminActivity" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "type" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
@@ -724,7 +773,7 @@ CREATE TABLE "AdminActivity" (
 
 -- CreateTable
 CREATE TABLE "AdminAuditLog" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "adminUlid" CHAR(26) NOT NULL,
     "action" TEXT NOT NULL,
     "targetType" TEXT NOT NULL,
@@ -737,7 +786,7 @@ CREATE TABLE "AdminAuditLog" (
 
 -- CreateTable
 CREATE TABLE "Listing" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "listingKey" TEXT,
     "parcelNumber" VARCHAR(50),
     "taxLot" VARCHAR(50),
@@ -824,7 +873,7 @@ CREATE TABLE "Listing" (
 
 -- CreateTable
 CREATE TABLE "AIThread" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
     "title" TEXT NOT NULL,
     "category" TEXT NOT NULL,
@@ -837,7 +886,7 @@ CREATE TABLE "AIThread" (
 
 -- CreateTable
 CREATE TABLE "AIMessage" (
-    "ulid" CHAR(26) NOT NULL DEFAULT generate_ulid(),
+    "ulid" CHAR(26) NOT NULL,
     "threadUlid" CHAR(26) NOT NULL,
     "role" TEXT NOT NULL,
     "content" TEXT NOT NULL,
@@ -847,6 +896,81 @@ CREATE TABLE "AIMessage" (
     "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "AIMessage_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "Organization" (
+    "ulid" CHAR(26) NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "metadata" JSONB,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "Organization_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "OrganizationMember" (
+    "ulid" CHAR(26) NOT NULL,
+    "organizationUlid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "role" "OrgRole" NOT NULL DEFAULT 'MEMBER',
+    "scope" TEXT DEFAULT 'LOCAL',
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "customPermissions" JSONB,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "OrganizationMember_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "RolePermission" (
+    "ulid" CHAR(26) NOT NULL,
+    "organizationUlid" CHAR(26) NOT NULL,
+    "role" "OrgRole" NOT NULL,
+    "permissions" JSONB NOT NULL,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "RolePermission_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "DomainExpertise" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "type" TEXT NOT NULL,
+    "level" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "yearsExperience" INTEGER NOT NULL DEFAULT 0,
+    "description" TEXT,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "DomainExpertise_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "DomainVerification" (
+    "ulid" CHAR(26) NOT NULL,
+    "domainExpertiseUlid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "type" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "documentUrl" TEXT,
+    "verificationData" JSONB,
+    "expiresAt" TIMESTAMPTZ,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "DomainVerification_pkey" PRIMARY KEY ("ulid")
 );
 
 -- CreateIndex
@@ -874,7 +998,13 @@ CREATE INDEX "User_userId_idx" ON "User"("userId");
 CREATE INDEX "User_email_idx" ON "User"("email");
 
 -- CreateIndex
-CREATE INDEX "User_role_idx" ON "User"("role");
+CREATE INDEX "User_systemRole_idx" ON "User"("systemRole");
+
+-- CreateIndex
+CREATE INDEX "User_isCoach_idx" ON "User"("isCoach");
+
+-- CreateIndex
+CREATE INDEX "User_isMentee_idx" ON "User"("isMentee");
 
 -- CreateIndex
 CREATE INDEX "User_status_idx" ON "User"("status");
@@ -1000,10 +1130,19 @@ CREATE UNIQUE INDEX "Subscription_subscriptionId_key" ON "Subscription"("subscri
 CREATE INDEX "Subscription_userUlid_idx" ON "Subscription"("userUlid");
 
 -- CreateIndex
+CREATE INDEX "Subscription_organizationUlid_idx" ON "Subscription"("organizationUlid");
+
+-- CreateIndex
 CREATE INDEX "Subscription_planUlid_idx" ON "Subscription"("planUlid");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "SubscriptionPlan_planId_key" ON "SubscriptionPlan"("planId");
+
+-- CreateIndex
+CREATE INDEX "SubscriptionPlan_type_idx" ON "SubscriptionPlan"("type");
+
+-- CreateIndex
+CREATE INDEX "SubscriptionPlan_isActive_idx" ON "SubscriptionPlan"("isActive");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Invoice_invoiceId_key" ON "Invoice"("invoiceId");
@@ -1143,6 +1282,57 @@ CREATE INDEX "AIThread_userUlid_idx" ON "AIThread"("userUlid");
 -- CreateIndex
 CREATE INDEX "AIMessage_threadUlid_idx" ON "AIMessage"("threadUlid");
 
+-- CreateIndex
+CREATE INDEX "Organization_status_idx" ON "Organization"("status");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMember_organizationUlid_idx" ON "OrganizationMember"("organizationUlid");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMember_userUlid_idx" ON "OrganizationMember"("userUlid");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMember_role_idx" ON "OrganizationMember"("role");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMember_status_idx" ON "OrganizationMember"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "OrganizationMember_organizationUlid_userUlid_key" ON "OrganizationMember"("organizationUlid", "userUlid");
+
+-- CreateIndex
+CREATE INDEX "RolePermission_organizationUlid_idx" ON "RolePermission"("organizationUlid");
+
+-- CreateIndex
+CREATE INDEX "RolePermission_role_idx" ON "RolePermission"("role");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RolePermission_organizationUlid_role_key" ON "RolePermission"("organizationUlid", "role");
+
+-- CreateIndex
+CREATE INDEX "DomainExpertise_userUlid_idx" ON "DomainExpertise"("userUlid");
+
+-- CreateIndex
+CREATE INDEX "DomainExpertise_type_idx" ON "DomainExpertise"("type");
+
+-- CreateIndex
+CREATE INDEX "DomainExpertise_level_idx" ON "DomainExpertise"("level");
+
+-- CreateIndex
+CREATE INDEX "DomainExpertise_status_idx" ON "DomainExpertise"("status");
+
+-- CreateIndex
+CREATE INDEX "DomainVerification_domainExpertiseUlid_idx" ON "DomainVerification"("domainExpertiseUlid");
+
+-- CreateIndex
+CREATE INDEX "DomainVerification_userUlid_idx" ON "DomainVerification"("userUlid");
+
+-- CreateIndex
+CREATE INDEX "DomainVerification_type_idx" ON "DomainVerification"("type");
+
+-- CreateIndex
+CREATE INDEX "DomainVerification_status_idx" ON "DomainVerification"("status");
+
 -- AddForeignKey
 ALTER TABLE "RealtorProfile" ADD CONSTRAINT "RealtorProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -1231,7 +1421,10 @@ ALTER TABLE "Reminder" ADD CONSTRAINT "Reminder_sessionUlid_fkey" FOREIGN KEY ("
 ALTER TABLE "CalendlyIntegration" ADD CONSTRAINT "CalendlyIntegration_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_planUlid_fkey" FOREIGN KEY ("planUlid") REFERENCES "SubscriptionPlan"("ulid") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1292,3 +1485,21 @@ ALTER TABLE "AIThread" ADD CONSTRAINT "AIThread_userUlid_fkey" FOREIGN KEY ("use
 
 -- AddForeignKey
 ALTER TABLE "AIMessage" ADD CONSTRAINT "AIMessage_threadUlid_fkey" FOREIGN KEY ("threadUlid") REFERENCES "AIThread"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationMember" ADD CONSTRAINT "OrganizationMember_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationMember" ADD CONSTRAINT "OrganizationMember_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DomainExpertise" ADD CONSTRAINT "DomainExpertise_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DomainVerification" ADD CONSTRAINT "DomainVerification_domainExpertiseUlid_fkey" FOREIGN KEY ("domainExpertiseUlid") REFERENCES "DomainExpertise"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "DomainVerification" ADD CONSTRAINT "DomainVerification_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
