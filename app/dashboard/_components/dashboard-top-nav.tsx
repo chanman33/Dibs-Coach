@@ -12,7 +12,7 @@ import Link from 'next/link'
 
 
 // Add this import
-import { AdminSidebar } from '@/app/dashboard/admin/_components/admin-sidebar'
+import { SystemSidebar } from '@/app/dashboard/system/_components/system-sidebar'
 import { CoachSidebar } from '@/app/dashboard/coach/_components/coach-sidebar'
 import { MenteeSidebar } from '../mentee/_components/mentee-sidebar'
 
@@ -21,8 +21,8 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
 
   // Update getSidebarContent to handle admin case
   const getSidebarContent = () => {
-    if (pathname.startsWith('/dashboard/admin')) {
-      return <AdminSidebar />
+    if (pathname.startsWith('/dashboard/system')) {
+      return <SystemSidebar />
     }
     if (pathname.startsWith('/dashboard/coach')) {
       return <CoachSidebar />
@@ -36,8 +36,8 @@ export default function DashboardTopNav({ children }: { children: ReactNode }) {
 
   // Update getPortalTitle to include admin case
   const getPortalTitle = () => {
-    if (pathname.startsWith('/dashboard/admin')) {
-      return 'Admin Portal'
+    if (pathname.startsWith('/dashboard/system')) {
+      return 'System Portal'
     }
     if (pathname.startsWith('/dashboard/mentee')) {
       return 'Mentee Portal'

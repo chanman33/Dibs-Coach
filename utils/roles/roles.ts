@@ -1,9 +1,7 @@
 // System-level roles (from Prisma schema)
 export const SYSTEM_ROLES = {
   SYSTEM_OWNER: 'SYSTEM_OWNER',
-  SYSTEM_ADMIN: 'SYSTEM_ADMIN',
-  SYSTEM_SUPPORT: 'SYSTEM_SUPPORT',
-  COACH: 'COACH',
+  SYSTEM_MODERATOR: 'SYSTEM_MODERATOR',
   USER: 'USER',
 } as const;
 
@@ -38,6 +36,7 @@ export type OrgRole = typeof ORG_ROLES[keyof typeof ORG_ROLES];
 
 // User capabilities (from Prisma schema)
 export const USER_CAPABILITIES = {
+  COACH: 'COACH',
   MENTEE: 'MENTEE',
 } as const;
 
@@ -87,6 +86,28 @@ export const PERMISSIONS = {
 
 export type Permission = keyof typeof PERMISSIONS;
 
+// Base role permissions definitions
+const BASE_ROLE_PERMISSIONS = {
+  OWNER: [
+    PERMISSIONS.MANAGE_ORGANIZATION,
+    PERMISSIONS.MANAGE_MEMBERS,
+    PERMISSIONS.MANAGE_ROLES,
+    PERMISSIONS.VIEW_ORG_ANALYTICS,
+    PERMISSIONS.ACCESS_DASHBOARD,
+  ],
+  DIRECTOR: [
+    PERMISSIONS.MANAGE_MEMBERS,
+    PERMISSIONS.MANAGE_ROLES,
+    PERMISSIONS.VIEW_ORG_ANALYTICS,
+    PERMISSIONS.ACCESS_DASHBOARD,
+  ],
+  MANAGER: [
+    PERMISSIONS.MANAGE_MEMBERS,
+    PERMISSIONS.VIEW_ORG_ANALYTICS,
+    PERMISSIONS.ACCESS_DASHBOARD,
+  ],
+} as const;
+
 // Role permission mappings
 export const ROLE_PERMISSIONS: Record<SystemRole, readonly Permission[]> = {
   SYSTEM_OWNER: [
@@ -103,7 +124,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, readonly Permission[]> = {
     PERMISSIONS.VIEW_HISTORY,
     PERMISSIONS.MANAGE_PROFILE,
   ],
-  SYSTEM_ADMIN: [
+  SYSTEM_MODERATOR: [
     PERMISSIONS.VIEW_ANALYTICS,
     PERMISSIONS.MANAGE_USERS,
     PERMISSIONS.MANAGE_COACHES,
@@ -112,23 +133,89 @@ export const ROLE_PERMISSIONS: Record<SystemRole, readonly Permission[]> = {
     PERMISSIONS.MANAGE_SESSIONS,
     PERMISSIONS.VIEW_COACH_ANALYTICS,
   ],
-  SYSTEM_SUPPORT: [
-    PERMISSIONS.VIEW_ANALYTICS,
-    PERMISSIONS.VIEW_LOGS,
-    PERMISSIONS.MANAGE_SESSIONS,
-  ],
-  COACH: [
-    PERMISSIONS.MANAGE_SESSIONS,
-    PERMISSIONS.VIEW_COACH_ANALYTICS,
-    PERMISSIONS.MANAGE_AVAILABILITY,
-    PERMISSIONS.MANAGE_PROFILE,
-  ],
   USER: [
     PERMISSIONS.BOOK_SESSIONS,
     PERMISSIONS.VIEW_HISTORY,
     PERMISSIONS.MANAGE_PROFILE,
   ],
 } as const;
+
+// Organization role permission mappings
+export const ORG_ROLE_PERMISSIONS: Record<OrgRole, readonly Permission[]> = {
+  // Global Level Roles
+  GLOBAL_OWNER: [
+    PERMISSIONS.MANAGE_ORGANIZATION,
+    PERMISSIONS.MANAGE_MEMBERS,
+    PERMISSIONS.MANAGE_ROLES,
+    PERMISSIONS.VIEW_ORG_ANALYTICS,
+    PERMISSIONS.ACCESS_DASHBOARD,
+  ],
+  GLOBAL_DIRECTOR: [
+    PERMISSIONS.MANAGE_MEMBERS,
+    PERMISSIONS.MANAGE_ROLES,
+    PERMISSIONS.VIEW_ORG_ANALYTICS,
+    PERMISSIONS.ACCESS_DASHBOARD,
+  ],
+  GLOBAL_MANAGER: [
+    PERMISSIONS.MANAGE_MEMBERS,
+    PERMISSIONS.VIEW_ORG_ANALYTICS,
+    PERMISSIONS.ACCESS_DASHBOARD,
+  ],
+  
+  // Regional Level Roles
+  REGIONAL_OWNER: [...BASE_ROLE_PERMISSIONS.OWNER],
+  REGIONAL_DIRECTOR: [...BASE_ROLE_PERMISSIONS.DIRECTOR],
+  REGIONAL_MANAGER: [...BASE_ROLE_PERMISSIONS.MANAGER],
+  
+  // Local Level Roles
+  LOCAL_OWNER: [...BASE_ROLE_PERMISSIONS.OWNER],
+  LOCAL_DIRECTOR: [...BASE_ROLE_PERMISSIONS.DIRECTOR],
+  LOCAL_MANAGER: [...BASE_ROLE_PERMISSIONS.MANAGER],
+  
+  // Standard Roles
+  OWNER: [...BASE_ROLE_PERMISSIONS.OWNER],
+  DIRECTOR: [...BASE_ROLE_PERMISSIONS.DIRECTOR],
+  MANAGER: [...BASE_ROLE_PERMISSIONS.MANAGER],
+  MEMBER: [
+    PERMISSIONS.VIEW_ORG_ANALYTICS,
+    PERMISSIONS.ACCESS_DASHBOARD,
+  ],
+  GUEST: [
+    PERMISSIONS.ACCESS_DASHBOARD,
+  ],
+} as const;
+
+// Combined permission check function
+export function hasPermission(context: UserRoleContext, permission: Permission): boolean {
+  const allPermissions = getAllPermissions(context);
+  return allPermissions.includes(permission);
+}
+
+export function getAllPermissions(context: UserRoleContext): Permission[] {
+  const permissions = new Set<Permission>();
+  
+  // Add system role permissions
+  ROLE_PERMISSIONS[context.systemRole].forEach(p => permissions.add(p));
+  
+  // Add org role permissions if present
+  if (context.orgRole) {
+    ORG_ROLE_PERMISSIONS[context.orgRole].forEach(p => permissions.add(p));
+  }
+  
+  // Add custom permissions
+  context.customPermissions?.forEach(p => permissions.add(p));
+  
+  return Array.from(permissions);
+}
+
+// Helper function for getting role permissions (used internally)
+function getRolePermissions(role: SystemRole): Permission[] {
+  return [...(ROLE_PERMISSIONS[role] || [])];
+}
+
+function getOrgRolePermissions(role: OrgRole): Permission[] {
+  return [...(ORG_ROLE_PERMISSIONS[role] || [])];
+}
 
 // Helper Types
 export interface UserRoleContext {
@@ -143,9 +230,7 @@ export interface UserRoleContext {
 export function hasSystemRole(userRole: SystemRole, requiredRole: SystemRole): boolean {
   const roleHierarchy = [
     SYSTEM_ROLES.SYSTEM_OWNER,
-    SYSTEM_ROLES.SYSTEM_ADMIN,
-    SYSTEM_ROLES.SYSTEM_SUPPORT,
-    SYSTEM_ROLES.COACH,
+    SYSTEM_ROLES.SYSTEM_MODERATOR,
     SYSTEM_ROLES.USER
   ]
   const userRoleIndex = roleHierarchy.indexOf(SYSTEM_ROLES[userRole])
@@ -192,37 +277,8 @@ export function hasOrgRole(userRole: OrgRole, requiredRole: OrgRole, userLevel: 
   return userRoleIndex <= requiredRoleIndex;
 }
 
-export function hasPermission(userRole: SystemRole, permission: Permission): boolean {
-  return ROLE_PERMISSIONS[userRole]?.includes(permission) ?? false
-}
-
-export function hasPermissions(userRole: SystemRole, permissions: Permission[]): boolean {
-  return permissions.every(permission => hasPermission(userRole, permission))
-}
-
-export function getRolePermissions(role: SystemRole): Permission[] {
-  return [...(ROLE_PERMISSIONS[role] || [])]
-}
-
 export function hasCapability(context: UserRoleContext, capability: UserCapability): boolean {
   return context.capabilities.includes(capability);
-}
-
-export function getAllPermissions(context: UserRoleContext): Permission[] {
-  const permissions = new Set<Permission>();
-  
-  // Add system role permissions
-  ROLE_PERMISSIONS[context.systemRole].forEach(p => permissions.add(p));
-  
-  // Add org role permissions
-  if (context.orgRole) {
-    orgRolePermissions[context.orgRole].forEach(p => permissions.add(p));
-  }
-  
-  // Add custom permissions
-  context.customPermissions?.forEach(p => permissions.add(p));
-  
-  return Array.from(permissions);
 }
 
 // Validation Functions
@@ -244,16 +300,4 @@ export function isValidCapability(capability: string): capability is UserCapabil
 
 export function isValidPermission(permission: string): permission is Permission {
   return Object.values(PERMISSIONS).includes(permission as Permission);
-}
-
-export function getAllUserPermissions(userRole: SystemRole): Set<Permission> {
-  const permissions = new Set<Permission>()
-  const rolePermissions = getRolePermissions(userRole)
-  rolePermissions.forEach(permission => permissions.add(permission))
-  return permissions
-}
-
-// Remove any references to orgRolePermissions
-export function getUserPermissions(userRole: SystemRole): Permission[] {
-  return getRolePermissions(userRole)
 } 

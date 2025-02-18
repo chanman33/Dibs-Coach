@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
-import { ROLES, hasAnyRole } from "@/utils/roles/roles";
+import { SYSTEM_ROLES, USER_CAPABILITIES, hasCapability, hasSystemRole, type UserRoleContext } from "@/utils/roles/roles";
 import { redirect } from "next/navigation";
 import { ensureUserExists } from "@/utils/auth";
 
@@ -15,37 +15,47 @@ export default async function DashboardPage() {
     user = await ensureUserExists();
   } catch (error) {
     console.error('[DASHBOARD_ERROR] Error setting up user:', error);
-    redirect("/error?code=setup_failed");
+    // Instead of immediately redirecting to error, try to recover
+    if (error instanceof Error && error.message.includes('not authenticated')) {
+      redirect("/sign-in");
+    }
+    
+    // For other errors, redirect to a special onboarding error page
+    // This allows us to handle the error more gracefully and potentially retry user creation
+    redirect("/onboarding/error?code=setup_failed");
   }
 
-  // Route based on user's role
-  const roles = Array.isArray(user.role) ? user.role : [user.role];
+  // Create proper UserRoleContext from user data
+  const userContext: UserRoleContext = {
+    systemRole: user.systemRole,
+    capabilities: user.capabilities || [],
+  };
   
   // Log roles for debugging
   console.log('[DASHBOARD_DEBUG] Processing roles:', {
     userId,
-    roles,
-    validRoles: Object.values(ROLES)
+    userContext,
+    validRoles: Object.values(SYSTEM_ROLES)
   });
 
   // Route to role-specific dashboard
-  if (hasAnyRole(roles, [ROLES.ADMIN])) {
-    redirect("/dashboard/admin");
+  if (hasSystemRole(userContext.systemRole, SYSTEM_ROLES.SYSTEM_OWNER)) {
+    redirect("/dashboard/system");
   } 
   
-  if (hasAnyRole(roles, [ROLES.COACH])) {
+  if (hasCapability(userContext, USER_CAPABILITIES.COACH)) {
     redirect("/dashboard/coach");
   } 
   
-  if (hasAnyRole(roles, [ROLES.MENTEE])) {
+  if (hasCapability(userContext, USER_CAPABILITIES.MENTEE)) {
     redirect("/dashboard/mentee");
   }
 
-  // No valid role found - this will only execute if none of the above redirects happen
+  // No valid role found - redirect to onboarding instead of error
   console.error('[DASHBOARD_ERROR] Invalid role for user:', { 
     userId, 
-    roles,
-    validRoles: Object.values(ROLES)
+    userContext,
+    validRoles: Object.values(SYSTEM_ROLES)
   });
-  redirect("/error?code=invalid_role");
+  redirect("/onboarding/role");
 } 

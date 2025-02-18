@@ -227,8 +227,8 @@ export function withServerAction<T, P = any>(
       // Permission validation
       if (options.requiredPermissions?.length) {
         const hasRequiredPermissions = options.requireAll
-          ? options.requiredPermissions.every(p => hasPermission(roleContext.systemRole, p))
-          : options.requiredPermissions.some(p => hasPermission(roleContext.systemRole, p))
+          ? options.requiredPermissions.every(p => hasPermission(roleContext, p))
+          : options.requiredPermissions.some(p => hasPermission(roleContext, p))
 
         if (!hasRequiredPermissions) {
           return {

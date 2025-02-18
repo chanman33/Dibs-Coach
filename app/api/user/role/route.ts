@@ -1,9 +1,9 @@
-import { getUserRoles } from "@/utils/roles/checkUserRole";
-import { validateRoles } from "@/utils/roles/roles";
-import { auth } from "@clerk/nextjs/server";
-import { createAuthClient } from "@/utils/auth";
 import { NextRequest, NextResponse } from "next/server";
 import { ensureUserExists } from "@/utils/auth";
+import { getUserRoleContext } from "@/utils/roles/checkUserRole";
+import { auth } from "@clerk/nextjs/server";
+import { createAuthClient } from "@/utils/auth";
+import { SYSTEM_ROLES, USER_CAPABILITIES } from "@/utils/roles/roles";
 import type { Database } from "@/types/supabase";
 
 type UserRecord = Database["public"]["Tables"]["User"]["Row"];
@@ -25,13 +25,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const roles = await getUserRoles(user.ulid, { isInitialSignup });
+    const roleContext = await getUserRoleContext(userId, { isInitialSignup });
     
-    if (!roles) {
+    if (!roleContext) {
       return NextResponse.json({ exists: false }, { status: 404 });
     }
     
-    return NextResponse.json({ exists: true, roles });
+    return NextResponse.json({ 
+      exists: true, 
+      roleData: {
+        systemRole: roleContext.systemRole,
+        capabilities: roleContext.capabilities
+      }
+    });
   } catch (error) {
     console.error("[GET_USER_ROLES] Error:", error);
     return NextResponse.json(
@@ -50,22 +56,21 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { roles: newRoles } = body;
+    const { systemRole, capabilities } = body;
 
-    if (!Array.isArray(newRoles)) {
+    // Validate system role
+    if (!Object.values(SYSTEM_ROLES).includes(systemRole)) {
       return NextResponse.json(
-        { error: "Roles must be an array" },
+        { error: "Invalid system role provided" },
         { status: 400 }
       );
     }
 
-    // Validate roles
-    let validatedRoles;
-    try {
-      validatedRoles = validateRoles(newRoles);
-    } catch (error) {
+    // Validate capabilities
+    if (!Array.isArray(capabilities) || 
+        !capabilities.every(c => Object.values(USER_CAPABILITIES).includes(c))) {
       return NextResponse.json(
-        { error: "Invalid roles provided" },
+        { error: "Invalid capabilities provided" },
         { status: 400 }
       );
     }
@@ -83,7 +88,11 @@ export async function POST(req: NextRequest) {
     // Update user roles using ULID
     const { error: updateError } = await supabase
       .from("User")
-      .update({ role: validatedRoles })
+      .update({ 
+        systemRole,
+        capabilities,
+        updatedAt: new Date().toISOString()
+      })
       .eq("ulid", user.ulid);
 
     if (updateError) {
@@ -94,7 +103,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    return NextResponse.json({ roles: validatedRoles });
+    return NextResponse.json({ 
+      systemRole,
+      capabilities
+    });
   } catch (error) {
     console.error("[UPDATE_USER_ROLES] Error:", error);
     return NextResponse.json(

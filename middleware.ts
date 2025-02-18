@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ROLES } from './utils/roles/roles'
+import { SYSTEM_ROLES, USER_CAPABILITIES, hasCapability, type UserRoleContext } from './utils/roles/roles'
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 
@@ -100,7 +100,7 @@ export default function middleware(req: NextRequest) {
       // Check if user exists in database
       const { data: user, error } = await supabase
         .from('User')
-        .select('ulid, role')
+        .select('ulid, role, capabilities')
         .eq('userId', resolvedAuth.userId)
         .single();
 
@@ -113,26 +113,28 @@ export default function middleware(req: NextRequest) {
       const { role, ulid } = user;
 
       // Handle role-specific route access
-      if (ADMIN_ROUTES.some(route => pathname.match(route)) && role !== ROLES.ADMIN) {
+      if (ADMIN_ROUTES.some(route => pathname.match(route)) && role !== SYSTEM_ROLES.SYSTEM_MODERATOR) {
         return new NextResponse('Access denied. Admin role required.', { status: 403 });
       }
 
       if (COACH_ROUTES.some(route => pathname.match(route)) && 
-          role !== ROLES.COACH && role !== ROLES.ADMIN) {
-        return new NextResponse('Access denied. Coach role required.', { status: 403 });
+          !hasCapability({ systemRole: role, capabilities: user.capabilities || [] } as UserRoleContext, USER_CAPABILITIES.COACH)) {
+        return new NextResponse('Access denied. Coach capability required.', { status: 403 });
       }
 
       if (MENTEE_ROUTES.some(route => pathname.match(route)) && 
-          role !== ROLES.MENTEE && role !== ROLES.ADMIN) {
-        return new NextResponse('Access denied. Mentee role required.', { status: 403 });
+          !hasCapability({ systemRole: role, capabilities: user.capabilities || [] } as UserRoleContext, USER_CAPABILITIES.MENTEE)) {
+        return new NextResponse('Access denied. Mentee capability required.', { status: 403 });
       }
 
       // Handle shared tool routes - allow access for both coaches and mentees
       // This covers both direct /dashboard/tools/* access and role-specific /dashboard/{role}/tools/* access
       if (SHARED_TOOL_ROUTES.some(route => pathname.match(route)) || pathname.match(/\/dashboard\/(coach|mentee)\/tools\/.*/)) {
-        const hasToolAccess = role === ROLES.COACH || role === ROLES.MENTEE || role === ROLES.ADMIN;
+        const hasToolAccess = hasCapability({ systemRole: role, capabilities: user.capabilities || [] } as UserRoleContext, USER_CAPABILITIES.COACH) || 
+                             hasCapability({ systemRole: role, capabilities: user.capabilities || [] } as UserRoleContext, USER_CAPABILITIES.MENTEE) ||
+                             role === SYSTEM_ROLES.SYSTEM_MODERATOR;
         if (!hasToolAccess) {
-          return new NextResponse('Access denied. Coach or Mentee role required.', { status: 403 });
+          return new NextResponse('Access denied. Coach or Mentee capability required.', { status: 403 });
         }
       }
 

@@ -5,6 +5,8 @@ import { Webhook } from 'svix'
 import { WebhookEvent } from '@clerk/nextjs/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { generateUlid } from '@/utils/ulid'
+import { SYSTEM_ROLES, USER_CAPABILITIES } from '@/utils/roles/roles'
 
 interface UserUpdateData {
   email?: string;
@@ -13,6 +15,19 @@ interface UserUpdateData {
   displayName?: string;
   profileImageUrl?: string | null;
   updatedAt: string;
+}
+
+interface UserData {
+  ulid: string;
+  userId: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  profileImageUrl?: string;
+  systemRole?: string;
+  memberStatus?: string;
+  capabilities?: string[];
 }
 
 // Create a reusable Supabase client for webhook operations
@@ -35,6 +50,32 @@ async function createWebhookClient() {
       },
     }
   )
+}
+
+// Retry wrapper for database operations
+async function withRetry<T>(
+  operation: () => Promise<{ data: T | null; error: any; }>,
+  maxRetries: number = 3,
+  delay: number = 1000
+): Promise<{ data: T | null; error: any }> {
+  let lastError: any;
+  
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const result = await operation();
+      if (result.error) throw result.error;
+      return { data: result.data, error: null };
+    } catch (error: any) {
+      lastError = error;
+      console.error(`[CLERK_WEBHOOK_ERROR] Attempt ${i + 1} failed:`, error);
+      
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+      }
+    }
+  }
+  
+  return { data: null, error: lastError };
 }
 
 export async function POST(req: Request) {
@@ -104,12 +145,17 @@ export async function POST(req: Request) {
           throw new Error('Missing required userId in webhook payload');
         }
 
-        // Check if user exists
-        const { data: existingUser } = await supabase
-          .from('User')
-          .select('ulid, userId')
-          .eq('userId', payload.data.id)
-          .single();
+        // Check if user exists - with retry
+        const { data: existingUser } = await withRetry<Pick<UserData, 'ulid' | 'userId'>>(() => 
+          Promise.resolve(
+            supabase
+              .from('User')
+              .select('ulid, userId')
+              .eq('userId', payload.data.id)
+              .single()
+              .then(result => ({ data: result.data, error: result.error }))
+          )
+        );
 
         if (existingUser) {
           console.log('[CLERK_WEBHOOK] User already exists:', existingUser);
@@ -120,22 +166,34 @@ export async function POST(req: Request) {
           });
         }
 
-        // Create new user
-        const { data: newUser, error: createError } = await supabase
-          .from('User')
-          .insert({
-            userId: payload.data.id,
-            email: payload.data.email_addresses?.[0]?.email_address,
-            firstName: payload.data.first_name,
-            lastName: payload.data.last_name,
-            profileImageUrl: payload.data.image_url,
-            role: 'MENTEE',
-            memberStatus: 'active',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          })
-          .select('ulid, userId, email, firstName, lastName, profileImageUrl, role, memberStatus')
-          .single();
+        // Create new user - with retry
+        const { data: newUser, error: createError } = await withRetry<UserData>(() => 
+          Promise.resolve(
+            supabase
+              .from('User')
+              .insert({
+                ulid: generateUlid(),
+                userId: payload.data.id,
+                email: payload.data.email_addresses?.[0]?.email_address,
+                firstName: payload.data.first_name,
+                lastName: payload.data.last_name,
+                displayName: payload.data.first_name && payload.data.last_name 
+                  ? `${payload.data.first_name} ${payload.data.last_name}`.trim() 
+                  : payload.data.email_addresses?.[0]?.email_address?.split('@')[0],
+                profileImageUrl: payload.data.image_url,
+                systemRole: SYSTEM_ROLES.USER,
+                capabilities: [USER_CAPABILITIES.MENTEE],
+                isCoach: false,
+                isMentee: true,
+                memberStatus: 'active',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              })
+              .select('ulid, userId, email, firstName, lastName, profileImageUrl, systemRole, memberStatus, capabilities')
+              .single()
+              .then(result => ({ data: result.data, error: result.error }))
+          )
+        );
 
         if (createError) throw createError;
 
@@ -152,9 +210,11 @@ export async function POST(req: Request) {
           stack: error.stack,
           payload: payload?.data
         });
+        
+        // Return 500 but don't expose internal error details
         return NextResponse.json({
           status: 500,
-          error: error.message || 'Failed to create user'
+          error: 'Failed to create user. Please try signing in again.'
         });
       }
     }
@@ -165,12 +225,17 @@ export async function POST(req: Request) {
           throw new Error('Missing required userId in webhook payload');
         }
 
-        // Get current user data to check if displayName was manually set
-        const { data: currentUser } = await supabase
-          .from('User')
-          .select('ulid, displayName, firstName, lastName')
-          .eq('userId', payload.data.id)
-          .single();
+        // Get current user data to check if displayName was manually set - with retry
+        const { data: currentUser } = await withRetry<Pick<UserData, 'ulid' | 'displayName' | 'firstName' | 'lastName'>>(() =>
+          Promise.resolve(
+            supabase
+              .from('User')
+              .select('ulid, displayName, firstName, lastName')
+              .eq('userId', payload.data.id)
+              .single()
+              .then(result => ({ data: result.data, error: result.error }))
+          )
+        );
 
         // Only update displayName if it matches the old name pattern
         const oldNamePattern = currentUser?.firstName && currentUser?.lastName ? 
@@ -191,12 +256,18 @@ export async function POST(req: Request) {
             currentUser.displayName;
         }
 
-        const { data: updatedUser, error: updateError } = await supabase
-          .from('User')
-          .update(updateData)
-          .eq('userId', payload.data.id)
-          .select('ulid, userId, email, firstName, lastName, displayName, profileImageUrl')
-          .single();
+        // Update user - with retry
+        const { data: updatedUser, error: updateError } = await withRetry<UserData>(() =>
+          Promise.resolve(
+            supabase
+              .from('User')
+              .update(updateData)
+              .eq('userId', payload.data.id)
+              .select('ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole')
+              .single()
+              .then(result => ({ data: result.data, error: result.error }))
+          )
+        );
 
         if (updateError) throw updateError;
 
@@ -209,7 +280,7 @@ export async function POST(req: Request) {
         console.error('[CLERK_WEBHOOK_ERROR] Failed to update user:', error);
         return NextResponse.json({
           status: 500,
-          error: error.message || 'Failed to update user'
+          error: 'Failed to update user'
         });
       }
     }

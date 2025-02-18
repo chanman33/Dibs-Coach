@@ -4,6 +4,7 @@ import { createAuthClient } from "@/utils/auth";
 import { auth } from "@clerk/nextjs/server";
 import { InvalidClerkUserIdError, UserNotFoundError } from "@/utils/types/auth";
 import config from "@/config";
+import { getSubscriptionDetails } from "@/utils/actions/subscription-actions";
 
 export const isAuthorized = async (): Promise<{ authorized: boolean; message: string }> => {
   try {
@@ -36,43 +37,55 @@ export const isAuthorized = async (): Promise<{ authorized: boolean; message: st
       throw new UserNotFoundError({ clerkUserId: session.userId });
     }
 
-    // Check subscription status using ULID
-    const { data: subscriptionData, error: subscriptionError } = await supabase
-      .from("Subscription")
-      .select("status")
-      .eq("userUlid", userData.ulid)
-      .single();
+    // Get subscription details (will create free tier if none exists)
+    const { data: subscriptionData, error: subscriptionError } = await getSubscriptionDetails(null);
 
     if (subscriptionError) {
       console.error("[SUBSCRIPTION_ERROR]", { 
         userUlid: userData.ulid, 
         error: subscriptionError 
       });
+      // Even if there's an error, we'll authorize the user since they should have access to free tier
       return {
-        authorized: false,
-        message: "Error checking subscription status",
+        authorized: true,
+        message: "Defaulting to free tier access",
       };
     }
 
     if (!subscriptionData) {
+      // If no subscription data but also no error, we'll still authorize for free tier
       return {
-        authorized: false,
-        message: "No active subscription found",
+        authorized: true,
+        message: "Free tier access granted",
       };
     }
 
+    const { subscription, plan } = subscriptionData;
+
+    // Free plan is always authorized
+    if (plan.planId === 'price_free') {
+      return {
+        authorized: true,
+        message: "Free tier active",
+      };
+    }
+
+    // For paid plans, check subscription status
     return {
-      authorized: subscriptionData.status === "active",
-      message: subscriptionData.status === "active" 
-        ? "User has active subscription"
-        : "Subscription is not active",
+      authorized: subscription.status === "active",
+      message: subscription.status === "active" 
+        ? `Active ${plan.name} subscription`
+        : `Subscription status: ${subscription.status}`,
     };
 
   } catch (error) {
     console.error("[AUTHORIZATION_ERROR]", error);
+    // In case of errors, default to providing free tier access
     return {
-      authorized: false,
-      message: error instanceof Error ? error.message : "Authorization check failed",
+      authorized: true,
+      message: error instanceof Error 
+        ? `Error checking subscription, defaulting to free tier: ${error.message}`
+        : "Error checking subscription, defaulting to free tier",
     };
   }
 };

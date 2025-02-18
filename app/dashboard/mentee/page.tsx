@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { withRole } from "@/components/wrapper/with-role"
-import { ROLES } from "@/utils/roles/roles"
+import { USER_CAPABILITIES } from "@/utils/roles/roles"
 import { Users, Target, Clock, TrendingUp, ArrowUpRight, Trophy } from "lucide-react"
 import Link from 'next/link'
 import { Progress } from "@/components/ui/progress"
@@ -18,7 +18,7 @@ function MenteeDashboard() {
           <CardHeader>
             <CardTitle className="text-lg">Book Your Next Session</CardTitle>
             <CardDescription>
-              Next milestone review in 5 days
+              Schedule your next coaching session
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -47,12 +47,12 @@ function MenteeDashboard() {
           <CardHeader>
             <CardTitle className="text-lg">Premium Features</CardTitle>
             <CardDescription>
-              Unlock advanced tools & resources
+              Access advanced tools & resources
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="outline" className="w-full">
-              Upgrade Plan
+              View Features
             </Button>
           </CardContent>
         </Card>
@@ -169,8 +169,27 @@ function MenteeDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* AI Tools Usage */}
+      <Card>
+        <CardHeader>
+          <CardTitle>AI Tools Usage</CardTitle>
+          <CardDescription>
+            Generate AI-powered listing descriptions
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" className="w-full">
+            Generate New Listing
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }
 
-export default withRole(MenteeDashboard, [ROLES.MENTEE]) 
+// Simple role check using withRole HOC
+export default withRole(MenteeDashboard, {
+  requiredCapabilities: [USER_CAPABILITIES.MENTEE],
+  requireAll: true
+}); 

@@ -1,15 +1,15 @@
 "use client"
 
-import { AdminSidebar } from "./_components/admin-sidebar"
+import { SystemSidebar } from "./_components/system-sidebar"
 
-export default function AdminLayout({
+export default function SystemLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
   return (
     <div className="flex h-screen">
-      <AdminSidebar />
+      <SystemSidebar />
       <main className="flex-1 overflow-y-auto">
         {children}
       </main>

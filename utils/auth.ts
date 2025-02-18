@@ -1,7 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies as getCookie } from 'next/headers'
 import { auth, currentUser } from "@clerk/nextjs/server"
-import { ROLES } from './roles/roles'
+import { SYSTEM_ROLES, USER_CAPABILITIES } from './roles/roles'
+import { generateUlid } from './ulid'
 import { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies'
 
 // Create a reusable Supabase client for auth operations
@@ -27,16 +28,16 @@ export async function getUserUlidAndRole(userId: string) {
 
   const { data: user, error } = await supabase
     .from('User')
-    .select('ulid, role')
+    .select('ulid, systemRole')
     .eq('userId', userId)
     .single()
 
   if (error || !user) {
     console.error('[AUTH_ERROR] Error fetching user:', error)
-    return { userUlid: null, role: null }
+    return { userUlid: null, systemRole: null }
   }
 
-  return { userUlid: user.ulid, role: user.role }
+  return { userUlid: user.ulid, systemRole: user.systemRole }
 }
 
 // Ensure user exists in database
@@ -56,7 +57,7 @@ export async function ensureUserExists() {
 
   const { data: existingUser, error: checkError } = await supabase
     .from("User")
-    .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, role, memberStatus")
+    .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, memberStatus, capabilities")
     .or(`userId.eq."${userId}",email.eq."${user.emailAddresses[0]?.emailAddress}"`)
     .single()
 
@@ -75,7 +76,7 @@ export async function ensureUserExists() {
           updatedAt: new Date().toISOString()
         })
         .eq('ulid', existingUser.ulid)
-        .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, role, memberStatus")
+        .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, memberStatus, capabilities")
         .single()
 
       if (updateError) {
@@ -90,18 +91,22 @@ export async function ensureUserExists() {
   const { data: newUser, error: createError } = await supabase
     .from("User")
     .insert({
+      ulid: generateUlid(),
       userId: user.id,
       email: user.emailAddresses[0]?.emailAddress,
       firstName: user.firstName,
       lastName: user.lastName,
       displayName: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}`.trim() : user.emailAddresses[0]?.emailAddress?.split('@')[0],
       profileImageUrl: user.imageUrl,
-      role: ROLES.MENTEE,
+      systemRole: SYSTEM_ROLES.USER,
       memberStatus: 'active',
+      capabilities: [USER_CAPABILITIES.MENTEE], // Set initial capabilities
+      isCoach: false,
+      isMentee: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     })
-    .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, role, memberStatus")
+    .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, memberStatus, capabilities")
     .single()
 
   if (createError) {
@@ -151,7 +156,7 @@ export async function updateUser({
     .from('User')
     .update(updates)
     .eq('ulid', user.ulid)
-    .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, role")
+    .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole")
     .single()
 
   if (error) {

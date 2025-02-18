@@ -1,6 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { ROLES, type UserRole, type UserRoles, validateRoles, rolePermissions, Permission } from "./roles";
+import { 
+  SYSTEM_ROLES, 
+  USER_CAPABILITIES,
+  type SystemRole,
+  type UserCapability,
+  type UserRoleContext
+} from "./roles";
 import config from '@/config';
 
 const MAX_RETRIES = 3;
@@ -31,7 +37,7 @@ function logMetrics(metric: RoleCheckMetrics) {
   });
 }
 
-export async function getUserRoles(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRoles | null> {
+export async function getUserRoleContext(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRoleContext | null> {
   const startTime = Date.now();
   let userUlid: string | undefined;
 
@@ -44,7 +50,10 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
       duration: Date.now() - startTime,
       userUlid
     });
-    return [ROLES.MENTEE];
+    return {
+      systemRole: SYSTEM_ROLES.USER,
+      capabilities: [USER_CAPABILITIES.MENTEE]
+    };
   }
 
   const cookieStore = await cookies();
@@ -63,8 +72,8 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
   try {
     const { data, error } = await supabase
       .from("User")
-      .select("ulid, role")
-      .eq("userId", `${userId}`)
+      .select("ulid, systemRole, capabilities")
+      .eq("userId", userId)
       .single();
 
     if (error) {
@@ -93,24 +102,30 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
       userUlid
     });
 
-    // Handle the case where role is either a string array or needs to be parsed
-    let roles: string[] = [];
-    if (data?.role) {
-      roles = Array.isArray(data.role) ? data.role : [data.role];
-    }
-
-    // Validate and return roles, defaulting to MENTEE if no valid roles
-    try {
-      return validateRoles(roles);
-    } catch (e) {
-      console.warn("[GET_USER_ROLES] No valid roles found, using default:", {
+    // Validate system role
+    const systemRole = data.systemRole as SystemRole;
+    if (!Object.values(SYSTEM_ROLES).includes(systemRole)) {
+      console.warn("[GET_USER_ROLES] Invalid system role, using default:", {
         userId,
         userUlid,
-        roles,
-        error: e
+        systemRole
       });
-      return [ROLES.MENTEE];
+      return {
+        systemRole: SYSTEM_ROLES.USER,
+        capabilities: [USER_CAPABILITIES.MENTEE]
+      };
     }
+
+    // Validate capabilities
+    const capabilities = Array.isArray(data.capabilities) 
+      ? data.capabilities.filter(c => Object.values(USER_CAPABILITIES).includes(c))
+      : [USER_CAPABILITIES.MENTEE];
+
+    return {
+      systemRole,
+      capabilities
+    };
+
   } catch (error) {
     console.error("[GET_USER_ROLES] Error:", {
       userId,
@@ -118,14 +133,19 @@ export async function getUserRoles(userId: string, context: { isInitialSignup?: 
       error: error instanceof Error ? error.message : 'Unknown error',
       duration: `${Date.now() - startTime}ms`
     });
-    return [ROLES.MENTEE];
+
+    // Return default role context on error
+    return {
+      systemRole: SYSTEM_ROLES.USER,
+      capabilities: [USER_CAPABILITIES.MENTEE]
+    };
   }
 }
 
 // For backward compatibility
-export async function getUserRole(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<UserRole> {
-  const roles = await getUserRoles(userId, context) || [ROLES.MENTEE];
-  return roles[0];
+export async function getUserRole(userId: string, context: { isInitialSignup?: boolean } = {}): Promise<SystemRole> {
+  const roleContext = await getUserRoleContext(userId, context) || { systemRole: SYSTEM_ROLES.USER, capabilities: [USER_CAPABILITIES.MENTEE] };
+  return roleContext.systemRole;
 }
 
 // Export metrics for monitoring
@@ -144,6 +164,6 @@ export function getRoleCheckMetrics() {
   };
 }
 
-export function hasPermission(userRole: UserRole, permission: string): boolean {
-  return rolePermissions[userRole]?.[permission as Permission] || false;
+export function hasPermission(roleContext: UserRoleContext, permission: UserCapability): boolean {
+  return roleContext.capabilities.includes(permission);
 } 
