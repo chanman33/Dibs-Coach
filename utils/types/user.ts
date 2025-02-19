@@ -23,15 +23,6 @@ export const userSchema = z.object({
   profileImageUrl: z.string().nullable(),
   stripeCustomerId: z.string().nullable(),
   stripeConnectAccountId: z.string().nullable(),
-  
-  // RESO Member fields
-  memberKey: z.string().nullable(),
-  memberStatus: z.string(),
-  designations: z.array(z.string()),
-  licenseNumber: z.string().nullable(),
-  companyName: z.string().nullable(),
-  phoneNumber: z.string().nullable(),
-  
   createdAt: z.date(),
   updatedAt: z.date(),
 });

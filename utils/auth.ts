@@ -57,7 +57,7 @@ export async function ensureUserExists() {
 
   const { data: existingUser, error: checkError } = await supabase
     .from("User")
-    .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, memberStatus, capabilities")
+    .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, capabilities")
     .or(`userId.eq."${userId}",email.eq."${user.emailAddresses[0]?.emailAddress}"`)
     .single()
 
@@ -76,7 +76,7 @@ export async function ensureUserExists() {
           updatedAt: new Date().toISOString()
         })
         .eq('ulid', existingUser.ulid)
-        .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, memberStatus, capabilities")
+        .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, capabilities")
         .single()
 
       if (updateError) {
@@ -106,7 +106,7 @@ export async function ensureUserExists() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     })
-    .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, memberStatus, capabilities")
+    .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, capabilities")
     .single()
 
   if (createError) {

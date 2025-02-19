@@ -33,7 +33,7 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
           )
         `)
         .eq('isCoach', true)
-        .eq('memberStatus', 'active')
+        .eq('status', 'ACTIVE')
         .not('CoachProfile', 'is', null)
 
       if (error) {

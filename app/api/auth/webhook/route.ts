@@ -26,7 +26,6 @@ interface UserData {
   displayName?: string;
   profileImageUrl?: string;
   systemRole?: string;
-  memberStatus?: string;
   capabilities?: string[];
 }
 
@@ -185,11 +184,10 @@ export async function POST(req: Request) {
                 capabilities: [USER_CAPABILITIES.MENTEE],
                 isCoach: false,
                 isMentee: true,
-                memberStatus: 'active',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
               })
-              .select('ulid, userId, email, firstName, lastName, profileImageUrl, systemRole, memberStatus, capabilities')
+              .select('ulid, userId, email, firstName, lastName, profileImageUrl, systemRole, capabilities')
               .single()
               .then(result => ({ data: result.data, error: result.error }))
           )
