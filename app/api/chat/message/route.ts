@@ -18,16 +18,37 @@ const getQuerySchema = z.object({
 
 // Request body validation for POST request
 const postBodySchema = z.object({
-  threadId: z.number().nullish(), // allows both null and undefined
+  threadUlid: z.string().nullish(), // allows both null and undefined
   userId: z.string(),
-  userDbId: z.number(),
+  userUlid: z.string(),
   category: z.enum(['GENERAL', 'PROPERTY', 'CLIENT', 'TRANSACTION', 'MARKET_ANALYSIS', 'DOCUMENT']),
   message: z.string().min(1),
 });
 
-export const runtime = 'edge';
-export const preferredRegion = 'cle1'; // Cloudflare Eastern region
-export const maxDuration = 30; // Max duration in seconds
+// ULID generator for Edge Runtime
+function generateEdgeUlid() {
+  const ENCODING = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  const timestamp = Date.now();
+  const randomValues = new Uint8Array(10);
+  crypto.getRandomValues(randomValues);
+  
+  // Convert timestamp to Crockford's Base32
+  let id = '';
+  let tsLeft = timestamp;
+  for (let i = 9; i >= 0; i--) {
+    id = ENCODING[tsLeft % 32] + id;
+    tsLeft = Math.floor(tsLeft / 32);
+  }
+  
+  // Convert random bytes to Crockford's Base32
+  for (let i = 0; i < 16; i++) {
+    const byte = randomValues[Math.floor(i / 1.6)];
+    const shift = (i % 2) * 4;
+    id += ENCODING[(byte >> shift) & 0x1f];
+  }
+  
+  return id; // Returns exactly 26 characters
+}
 
 export async function GET(req: Request) {
   try {
@@ -176,7 +197,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { threadId, userId, userDbId, category, message } = result.data;
+    const { threadUlid, userId, userUlid, category, message } = result.data;
 
     // Verify user matches
     if (session.userId !== userId) {
@@ -189,21 +210,23 @@ export async function POST(req: Request) {
     const supabase = createAuthClient();
 
     // Get or create thread
-    let currentThreadId: number;
-    if (threadId) {
-      currentThreadId = threadId;
+    let currentThreadUlid: string;
+    if (threadUlid) {
+      currentThreadUlid = threadUlid;
     } else {
       const now = new Date().toISOString();
+      const newThreadUlid = generateEdgeUlid();
       const { data: thread, error: threadError } = await supabase
         .from("AIThread")
         .insert({
-          userDbId,
+          ulid: newThreadUlid,
+          userUlid,
           title: message.slice(0, 50) + "...",
           category,
           status: "ACTIVE",
           updatedAt: now,
         })
-        .select("id")
+        .select("ulid")
         .single();
 
       if (threadError) {
@@ -216,22 +239,22 @@ export async function POST(req: Request) {
           { status: 500, headers: { "Content-Type": "application/json" } }
         );
       }
-      if (!thread?.id) {
+      if (!thread?.ulid) {
         return new NextResponse(
           JSON.stringify({ 
             error: "Failed to create thread", 
-            details: "No thread ID returned" 
+            details: "No thread ULID returned" 
           }), 
           { status: 500, headers: { "Content-Type": "application/json" } }
         );
       }
-      currentThreadId = thread.id;
+      currentThreadUlid = thread.ulid;
     }
 
     // Insert user message
     const now = new Date().toISOString();
     console.log("[SAVING_USER_MESSAGE]", {
-      threadId: currentThreadId,
+      threadUlid: currentThreadUlid,
       message,
       timestamp: now
     });
@@ -239,7 +262,8 @@ export async function POST(req: Request) {
     const { error: messageError } = await supabase
       .from("AIMessage")
       .insert({
-        threadId: currentThreadId,
+        ulid: generateEdgeUlid(),
+        threadUlid: currentThreadUlid,
         role: "user",
         content: message,
         model: "gpt-4",
@@ -259,7 +283,7 @@ export async function POST(req: Request) {
     }
 
     console.log("[USER_MESSAGE_SAVED]", {
-      threadId: currentThreadId,
+      threadUlid: currentThreadUlid,
       timestamp: now
     });
 
@@ -267,7 +291,7 @@ export async function POST(req: Request) {
     const { data: threadMessages, error: contextError } = await supabase
       .from("AIMessage")
       .select("role, content")
-      .eq("threadId", currentThreadId)
+      .eq("threadUlid", currentThreadUlid)
       .order("createdAt", { ascending: false })
       .limit(10);
 
@@ -345,7 +369,7 @@ export async function POST(req: Request) {
       // Store assistant response after stream completes
       const now2 = new Date().toISOString();
       console.log("[SAVING_ASSISTANT_MESSAGE]", {
-        threadId: currentThreadId,
+        threadUlid: currentThreadUlid,
         responseLength: fullResponse.length,
         timestamp: now2
       });
@@ -353,7 +377,8 @@ export async function POST(req: Request) {
       const { error: assistantError } = await supabase
         .from("AIMessage")
         .insert({
-          threadId: currentThreadId,
+          ulid: generateEdgeUlid(),
+          threadUlid: currentThreadUlid,
           role: "assistant",
           content: fullResponse,
           model: "gpt-4",
@@ -367,7 +392,7 @@ export async function POST(req: Request) {
       }
 
       console.log("[ASSISTANT_MESSAGE_SAVED]", {
-        threadId: currentThreadId,
+        threadUlid: currentThreadUlid,
         timestamp: now2
       });
 
@@ -375,7 +400,7 @@ export async function POST(req: Request) {
       const { error: updateError } = await supabase
         .from("AIThread")
         .update({ updatedAt: now2 })
-        .eq("id", currentThreadId);
+        .eq("ulid", currentThreadUlid);
 
       if (updateError) {
         console.error("[UPDATE_ERROR]", updateError);
@@ -391,7 +416,7 @@ export async function POST(req: Request) {
           'Content-Type': 'text/event-stream',
           'Cache-Control': 'no-cache',
           'Connection': 'keep-alive',
-          'x-thread-id': currentThreadId.toString(),
+          'x-thread-id': currentThreadUlid,
         },
       });
 

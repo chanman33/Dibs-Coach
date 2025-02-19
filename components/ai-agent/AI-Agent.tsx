@@ -10,8 +10,8 @@ import ChatSidebar from "./ChatSidebar";
 import { createAIThread, saveAIChatMessages, getAIChatMessages } from "@/utils/actions/ai-chat-actions";
 
 interface AIMessage {
-  id?: number;
-  threadId?: number;
+  ulid?: string;
+  threadUlid?: string;
   role: 'user' | 'assistant';
   content: string;
   model?: string;
@@ -22,21 +22,21 @@ interface AIMessage {
 
 interface AIAgentChatProps {
   userId: string;
-  userDbId: number;
+  userUlid: string;
   threadCategory?: 'GENERAL' | 'PROPERTY' | 'CLIENT' | 'TRANSACTION' | 'MARKET_ANALYSIS' | 'DOCUMENT';
   className?: string;
 }
 
 const AIAgentChat = ({
   userId,
-  userDbId,
+  userUlid,
   threadCategory = 'GENERAL',
   className,
 }: AIAgentChatProps) => {
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [currentThread, setCurrentThread] = useState<number | null>(null);
+  const [currentThread, setCurrentThread] = useState<string | null>(null);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
 
   const handleSubmit = async (e: FormEvent) => {
@@ -57,7 +57,7 @@ const AIAgentChat = ({
       // If no current thread, create one
       if (!currentThread) {
         const result = await createAIThread({
-          userDbId,
+          userUlid: userUlid,
           title: userMessage.content.slice(0, 50) + "...",
           category: threadCategory,
           initialMessage: userMessage.content
@@ -67,7 +67,7 @@ const AIAgentChat = ({
           throw new Error(result.error);
         }
 
-        setCurrentThread(result.threadId);
+        setCurrentThread(result.threadUlid);
       }
 
       // Get streaming response from API
@@ -78,10 +78,10 @@ const AIAgentChat = ({
         },
         body: JSON.stringify({
           userId,
-          userDbId,
+          userUlid,
           category: threadCategory,
           message: userMessage.content,
-          threadId: currentThread
+          threadUlid: currentThread
         }),
       });
 
@@ -111,7 +111,7 @@ const AIAgentChat = ({
               if (data.trim() === '[DONE]') {
                 // Stream completed, save both messages
                 await saveAIChatMessages({
-                  threadId: currentThread!,
+                  threadUlid: currentThread!,
                   messages: [
                     userMessage,
                     {
@@ -157,20 +157,18 @@ const AIAgentChat = ({
     }
   };
 
-  const handleThreadSelect = async (threadId: number) => {
+  const handleThreadSelect = async (threadUlid: string) => {
     try {
-      setCurrentThread(threadId);
+      setCurrentThread(threadUlid);
       setMessages([]);
       setIsLoading(true);
 
-      console.log('Loading messages for thread:', threadId);
-      const result = await getAIChatMessages(threadId);
+      const result = await getAIChatMessages(threadUlid);
       
       if (!result.success) {
         throw new Error(result.error);
       }
 
-      console.log('Loaded messages:', result.data);
       setMessages(result.data as AIMessage[]);
     } catch (error) {
       console.error('Error fetching thread messages:', error);
@@ -183,8 +181,8 @@ const AIAgentChat = ({
     <div className={cn("flex h-[600px] w-full", className)}>
       <ChatSidebar
         userId={userId}
-        userDbId={userDbId}
-        currentThreadId={currentThread}
+        userUlid={userUlid}
+        currentThreadUlid={currentThread}
         onThreadSelect={handleThreadSelect}
       />
       
@@ -193,7 +191,7 @@ const AIAgentChat = ({
           <div className="space-y-4 flex flex-col">
             {messages.map((message, index) => (
               <div
-                key={index}
+                key={message.ulid || index}
                 className={cn(
                   "flex flex-col",
                   message.role === "user" ? "items-end" : "items-start"

@@ -3,6 +3,8 @@
 import { createAuthClient } from "@/utils/auth";
 import { revalidatePath } from "next/cache";
 import { auth } from "@clerk/nextjs/server";
+import { generateUlid } from "@/utils/ulid";
+import { NextResponse } from "next/server";
 
 /**
  * Types for AI Chat functionality
@@ -15,14 +17,14 @@ interface AIChatMessage {
 }
 
 interface AIThreadOptions {
-  userDbId: number;
+  userUlid: string;
   title: string;
   category: 'GENERAL' | 'PROPERTY' | 'CLIENT' | 'TRANSACTION' | 'MARKET_ANALYSIS' | 'DOCUMENT';
   initialMessage: string;
 }
 
 interface AIThreadFilters {
-  userDbId: number;
+  userUlid: string;
   category?: string;
   status?: string;
   page?: number;
@@ -33,7 +35,7 @@ interface AIThreadFilters {
  * Creates a new AI chat thread with an initial message
  */
 export async function createAIThread({
-  userDbId,
+  userUlid,
   title,
   category,
   initialMessage,
@@ -44,38 +46,43 @@ export async function createAIThread({
 
     const supabase = createAuthClient();
     const now = new Date().toISOString();
+    const threadUlid = generateUlid();
 
     // Create thread
     const { data: thread, error: threadError } = await supabase
       .from("AIThread")
       .insert({
-        userDbId,
+        ulid: threadUlid,
+        userUlid,
         title,
         category,
         status: "ACTIVE",
+        createdAt: now,
         updatedAt: now,
       })
-      .select("id")
+      .select("ulid")
       .single();
 
     if (threadError) throw threadError;
-    if (!thread?.id) throw new Error("Failed to create thread");
+    if (!thread?.ulid) throw new Error("Failed to create thread");
 
     // Save initial message
     const { error: messageError } = await supabase
       .from("AIMessage")
       .insert({
-        threadId: thread.id,
+        ulid: generateUlid(),
+        threadUlid: thread.ulid,
         role: "user",
         content: initialMessage,
         model: "gpt-4",
+        createdAt: now,
         updatedAt: now,
       });
 
     if (messageError) throw messageError;
 
     revalidatePath("/dashboard/ai-agent");
-    return { success: true, threadId: thread.id };
+    return { success: true, threadUlid: thread.ulid };
   } catch (error) {
     console.error("[CREATE_AI_THREAD_ERROR]", error);
     return { 
@@ -89,10 +96,10 @@ export async function createAIThread({
  * Saves multiple AI chat messages to a thread
  */
 export async function saveAIChatMessages({
-  threadId,
+  threadUlid,
   messages,
 }: {
-  threadId: number;
+  threadUlid: string;
   messages: AIChatMessage[];
 }) {
   try {
@@ -107,11 +114,13 @@ export async function saveAIChatMessages({
       .from("AIMessage")
       .insert(
         messages.map(msg => ({
-          threadId,
+          ulid: generateUlid(),
+          threadUlid,
           role: msg.role,
           content: msg.content,
           model: msg.model || "gpt-4",
           tokens: msg.tokens || 0,
+          createdAt: now,
           updatedAt: now,
         }))
       );
@@ -122,7 +131,7 @@ export async function saveAIChatMessages({
     const { error: updateError } = await supabase
       .from("AIThread")
       .update({ updatedAt: now })
-      .eq("id", threadId);
+      .eq("ulid", threadUlid);
 
     if (updateError) {
       console.error("[UPDATE_AI_THREAD_ERROR]", updateError);
@@ -142,7 +151,7 @@ export async function saveAIChatMessages({
 /**
  * Retrieves all messages from an AI chat thread
  */
-export async function getAIChatMessages(threadId: number) {
+export async function getAIChatMessages(threadUlid: string) {
   try {
     const session = await auth();
     if (!session?.userId) throw new Error("Unauthorized");
@@ -152,7 +161,7 @@ export async function getAIChatMessages(threadId: number) {
     const { data, error } = await supabase
       .from("AIMessage")
       .select("*")
-      .eq("threadId", threadId)
+      .eq("threadUlid", threadUlid)
       .order("createdAt", { ascending: true });
 
     if (error) throw error;
@@ -170,7 +179,7 @@ export async function getAIChatMessages(threadId: number) {
  * Retrieves AI chat threads with optional filtering and pagination
  */
 export async function getAIChatThreads({
-  userDbId,
+  userUlid,
   category,
   status,
   page = 1,
@@ -193,7 +202,7 @@ export async function getAIChatThreads({
           createdAt
         )
       `, { count: 'exact' })
-      .eq("userDbId", userDbId)
+      .eq("userUlid", userUlid)
       .order("updatedAt", { ascending: false });
 
     if (category && category !== 'ALL') {
@@ -227,5 +236,73 @@ export async function getAIChatThreads({
       success: false, 
       error: error instanceof Error ? error.message : "Failed to fetch AI threads" 
     };
+  }
+}
+
+export async function saveUserMessage(currentThreadId: string, message: string) {
+  try {
+    const session = await auth();
+    if (!session?.userId) throw new Error("Unauthorized");
+
+    const supabase = createAuthClient();
+    const now = new Date().toISOString();
+
+    const { error: messageError } = await supabase
+      .from("AIMessage")
+      .insert({
+        ulid: generateUlid(),
+        threadUlid: currentThreadId,
+        role: "user",
+        content: message,
+        model: "gpt-4",
+        updatedAt: now,
+        createdAt: now,
+      });
+
+    if (messageError) {
+      console.error("[MESSAGE_ERROR]", messageError);
+      return new NextResponse(
+        JSON.stringify({ 
+          error: "Failed to save user message", 
+          details: messageError.message 
+        }), 
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("[USER_MESSAGE_SAVED]", {
+      threadUlid: currentThreadId,
+      timestamp: now
+    });
+
+    // Get thread context (last few messages)
+    const { data: threadMessages, error: contextError } = await supabase
+      .from("AIMessage")
+      .select("role, content")
+      .eq("threadUlid", currentThreadId)
+      .order("createdAt", { ascending: false })
+      .limit(10);
+
+    if (contextError) throw contextError;
+
+    return new NextResponse(
+      JSON.stringify({ 
+        success: true,
+        data: {
+          threadUlid: currentThreadId,
+          messages: threadMessages
+        }
+      }), 
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    console.error("[SAVE_USER_MESSAGE_ERROR]", error);
+    return new NextResponse(
+      JSON.stringify({ 
+        error: "Failed to save user message", 
+        details: error instanceof Error ? error.message : "Unknown error" 
+      }), 
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 } 
