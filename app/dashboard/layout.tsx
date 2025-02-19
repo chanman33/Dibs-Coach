@@ -5,12 +5,33 @@ import { currentUser } from "@clerk/nextjs/server"
 import NotAuthorized from "@/components/not-authorized"
 import DashboardTopNav from "./_components/dashboard-top-nav"
 import config from '@/config';
+import { ensureUserExists } from "@/utils/auth"
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await currentUser()
   
   if (!user?.id) {
     redirect('/sign-in')
+  }
+
+  // Ensure user exists in database before proceeding
+  try {
+    await ensureUserExists()
+  } catch (error) {
+    console.error("[DASHBOARD_ERROR] Failed to ensure user exists:", error)
+    // If this is a new sign-up, show a friendly message
+    if (error instanceof Error && error.message.includes('User not found')) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center space-y-4">
+            <h2 className="text-2xl font-semibold">Setting up your account...</h2>
+            <p className="text-muted-foreground">This may take a few moments.</p>
+            {/* Add a loading spinner component here */}
+          </div>
+        </div>
+      )
+    }
+    redirect('/error?code=setup_failed')
   }
 
   if (!config.roles.enabled) {
@@ -23,7 +44,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     );
   }
 
-  const { authorized, message } = await isAuthorized(user.id)
+  const { authorized, message } = await isAuthorized()
   if (!authorized) {
     return <NotAuthorized />
   }

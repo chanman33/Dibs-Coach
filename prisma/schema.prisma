@@ -950,6 +950,7 @@ model Subscription {
   planUlid               String   @db.Char(26)
   defaultPaymentMethodId String?
   quantity               Int      @default(1)
+  billingCycle          String   @default("monthly")
   metadata               Json     @default("{}")
 
   // Relations

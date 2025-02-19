@@ -245,7 +245,8 @@ export const getOrCreateSubscription = withServerAction<Subscription | null>(
         .eq('status', 'ACTIVE')
         .single()
 
-      // Create new subscription
+      // Create new subscription with required fields
+      const now = new Date()
       const newSubscription = {
         ulid: generateUlid(),
         subscriptionId: `sub_${userUlid}`,
@@ -253,15 +254,15 @@ export const getOrCreateSubscription = withServerAction<Subscription | null>(
         organizationUlid: orgMember?.organizationUlid || null,
         stripeCustomerId: 'none', // No Stripe customer for free tier
         status: 'active' as const,
-        startDate: new Date(),
+        startDate: now,
         endDate: null,
         planUlid: freePlan.ulid,
         defaultPaymentMethodId: null,
         quantity: 1,
         billingCycle: 'monthly' as const,
         metadata: {},
-        createdAt: new Date(),
-        updatedAt: new Date()
+        createdAt: now,
+        updatedAt: now
       }
       
       const { data: subscription, error: createError } = await supabase
@@ -271,7 +272,45 @@ export const getOrCreateSubscription = withServerAction<Subscription | null>(
         .single()
         
       if (createError) {
-        console.error('[SUBSCRIPTION_ERROR] Failed to create subscription:', createError)
+        console.error('[SUBSCRIPTION_ERROR] Failed to create subscription:', { error: createError, subscription: newSubscription })
+        
+        // If the error is schema-related, try creating without optional fields
+        if (createError.code === 'PGRST204') {
+          const { data: fallbackSub, error: fallbackError } = await supabase
+            .from('Subscription')
+            .insert({
+              ulid: generateUlid(),
+              subscriptionId: `sub_${userUlid}`,
+              userUlid,
+              stripeCustomerId: 'none',
+              status: 'active',
+              startDate: now,
+              planUlid: freePlan.ulid,
+              quantity: 1,
+              metadata: {},
+              createdAt: now,
+              updatedAt: now
+            })
+            .select()
+            .single()
+            
+          if (fallbackError) {
+            console.error('[SUBSCRIPTION_ERROR] Fallback creation failed:', fallbackError)
+            return {
+              data: null,
+              error: {
+                code: 'CREATE_ERROR',
+                message: 'Failed to create subscription'
+              }
+            }
+          }
+          
+          return {
+            data: fallbackSub,
+            error: null
+          }
+        }
+        
         return {
           data: null,
           error: {

@@ -38,7 +38,7 @@ export const isAuthorized = async (): Promise<{ authorized: boolean; message: st
     }
 
     // Get subscription details (will create free tier if none exists)
-    const { data: subscriptionData, error: subscriptionError } = await getSubscriptionDetails(null);
+    const { data: subscriptionData, error: subscriptionError } = await getSubscriptionDetails({ userUlid: userData.ulid });
 
     if (subscriptionError) {
       console.error("[SUBSCRIPTION_ERROR]", { 
