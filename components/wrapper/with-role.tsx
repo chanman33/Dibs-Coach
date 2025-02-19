@@ -15,6 +15,7 @@ import {
 } from "@/utils/roles/roles";
 import NotAuthorized from "../not-authorized";
 import config from '@/config';
+import { Loader2 } from "lucide-react";
 
 interface WithRoleOptions {
   requiredSystemRole?: SystemRole;
@@ -35,6 +36,19 @@ interface UserRoleData {
     status: string;
     customPermissions?: Permission[];
   };
+}
+
+function RoleCheckLoading() {
+  return (
+    <div className="flex h-[calc(100vh-4rem)] w-full items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-2">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground animate-pulse">
+          Checking permissions...
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function withRole(
@@ -94,7 +108,7 @@ export function withRole(
     }, [user?.id]);
 
     if (loading) {
-      return <div>Loading...</div>;
+      return <RoleCheckLoading />;
     }
 
     if (!roleContext) {
