@@ -238,14 +238,60 @@ types:
     structure:
       - "Domain-specific files in utils/types/"
       - "Root types.ts only re-exports and common utilities"
+      - "Keep enums and constants in the domain file where they are primarily used"
+      - "Export types from a single source of truth"
     naming:
       schemas: "camelCase with Schema suffix (e.g., userSchema)"
       types: "PascalCase (e.g., User, SessionWithRelations)"
       files: "domain name in singular form (e.g., user.ts, session.ts)"
+      enums:
+        format: "SCREAMING_SNAKE_CASE for values"
+        examples:
+          - "export const GOAL_STATUS = { IN_PROGRESS: 'IN_PROGRESS' }"
+          - "export const GOAL_TYPE = { SALES_VOLUME: 'SALES_VOLUME' }"
+        rules:
+          - "Enum values should match their keys"
+          - "Use 'as const' assertion for type safety"
+          - "Export both enum and derived type"
     validation:
       - "Use Zod for all schema definitions"
-      - "Use Prisma native enums where available"
+      - "Remove reference to Prisma native enums"
       - "Export both schemas and inferred types"
+      - "Ensure enum values match their types exactly"
+      - "For Zod enums, use z.enum() with explicit values array"
+      - "Define enum values as uppercase constants"
+      - "Validate enum values match database constraints"
+      examples:
+        - |
+          export const GOAL_STATUS = {
+            IN_PROGRESS: 'IN_PROGRESS',
+            COMPLETED: 'COMPLETED',
+            OVERDUE: 'OVERDUE'
+          } as const;
+          
+          export const goalSchema = z.object({
+            status: z.enum(Object.values(GOAL_STATUS))
+          });
+    type_safety:
+      - "Avoid duplicate type definitions across files"
+      - "Import types from their canonical source"
+      - "Use type assertions sparingly and only when necessary"
+      - "Ensure enum values and their types are synchronized"
+      - "Use 'as const' with enum objects to preserve literal types"
+      - "Export both enum object and TypeScript type"
+      examples:
+        - |
+          // Correct enum definition
+          export const GOAL_STATUS = {
+            IN_PROGRESS: 'IN_PROGRESS'
+          } as const;
+          
+          export type GoalStatus = typeof GOAL_STATUS[keyof typeof GOAL_STATUS];
+          
+          // Correct schema usage
+          export const goalSchema = z.object({
+            status: z.enum(Object.values(GOAL_STATUS) as [string, ...string[]])
+          });
     required_patterns:
       base_schemas:
         - "createSchema for creation"
@@ -255,10 +301,29 @@ types:
         - "id: z.number() for database IDs"
         - "createdAt/updatedAt as dates"
         - "Proper nullability with .nullable()"
+      enums:
+        - "Define constants and types in the same file"
+        - "Use string literal types that match exactly"
+        - "Export both const object and type"
     imports:
-      - "Import Prisma types from @prisma/client"
+      - "Import Supabase types from '@supabase/supabase-js'"
+      - "Import Database types from '@/types/supabase'"
       - "Import Zod from zod"
       - "No cross-importing between domain files"
+      - "Import types from their original definition file"
+      - "Use generated Supabase types for database operations"
+      - "Keep custom type definitions aligned with Supabase schema"
+
+    supabase_types:
+      - "Use Database type for table definitions"
+      - "Use Tables type for table names"
+      - "Use Enums type for database enums"
+      - "Use generated types for insert/update operations"
+      examples:
+        - "type DbTables = Database['public']['Tables']"
+        - "type User = DbTables['User']['Row']"
+        - "type InsertUser = DbTables['User']['Insert']"
+        - "type UpdateUser = DbTables['User']['Update']"
 
 # Error Handling
 errors:
@@ -266,6 +331,95 @@ errors:
     format: "console.error('[CONTEXT_ERROR]', error)"
     contexts: ["API", "AUTH", "DB", "PAYMENT", "WEBHOOK", "TYPE", "VALIDATION"]
   return_format: "{ data: T | null, error: Error | null }"
+  client_server:
+    validation_errors:
+      format: |
+        {
+          code: 'VALIDATION_ERROR',
+          message: string,
+          details: z.ZodError.flatten()
+        }
+      handling:
+        - "Always return structured error objects from server actions"
+        - "Include error code, message, and details"
+        - "Preserve ZodError details for form validation"
+        - "Log full error on server, sanitized error on client"
+      examples: |
+        // Server-side
+        if (error instanceof z.ZodError) {
+          console.error('[VALIDATION_ERROR]', {
+            error,
+            stack: error.stack,
+            timestamp: new Date().toISOString()
+          });
+          return {
+            data: null,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid form data',
+              details: error.flatten()
+            }
+          };
+        }
+
+        // Client-side
+        try {
+          const result = await submitForm(data);
+          if (result.error) {
+            if (result.error.code === 'VALIDATION_ERROR') {
+              // Handle validation errors in the form
+              setFormErrors(result.error.details);
+            } else {
+              // Handle other errors
+              toast.error(result.error.message);
+            }
+          }
+        } catch (error) {
+          console.error('[SUBMIT_FORM_ERROR]', {
+            error,
+            timestamp: new Date().toISOString()
+          });
+          toast.error('Failed to submit form');
+        }
+
+  server_actions:
+    error_handling:
+      - "Use withServerAction wrapper for consistent error handling"
+      - "Log full error context on server side"
+      - "Return structured error responses"
+      - "Include error code and message"
+      - "Add timestamp to error logs"
+      - "Preserve stack traces in development"
+    validation:
+      - "Validate all inputs with Zod schemas"
+      - "Return detailed validation errors"
+      - "Log validation failures with context"
+      - "Include original and parsed values in logs"
+    examples: |
+      export const submitForm = withServerAction(
+        async (data, { userUlid }) => {
+          try {
+            const validatedData = schema.parse(data);
+            // ... rest of the action
+          } catch (error) {
+            console.error('[ACTION_ERROR]', {
+              error,
+              data,
+              userUlid,
+              stack: error instanceof Error ? error.stack : undefined,
+              timestamp: new Date().toISOString()
+            });
+            return {
+              data: null,
+              error: {
+                code: error instanceof z.ZodError ? 'VALIDATION_ERROR' : 'INTERNAL_ERROR',
+                message: error instanceof Error ? error.message : 'An unexpected error occurred',
+                details: error instanceof z.ZodError ? error.flatten() : undefined
+              }
+            };
+          }
+        }
+      );
 
 # Integrations
 integrations:

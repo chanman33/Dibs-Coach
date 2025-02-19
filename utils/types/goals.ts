@@ -1,68 +1,94 @@
-// Shared types for goals and achievements
-export interface BaseGoal {
-  id: number
-  title: string
-  target: number
-  current: number
-  deadline: string
-  status: 'in_progress' | 'completed' | 'overdue'
-}
-
-export interface MenteeGoal extends BaseGoal {
-  type: 'sales' | 'listings' | 'clients' | 'custom'
-}
-
-export interface CoachGoal extends BaseGoal {
-  type: 'revenue' | 'clients' | 'sessions' | 'retention' | 'custom'
-}
-
-export interface BaseAchievement {
-  id: number
-  title: string
-  description: string
-  icon: string
-}
-
-export interface MenteeAchievement extends BaseAchievement {
-  earnedAt: string
-  type: 'milestone' | 'performance' | 'learning'
-}
-
-export interface CoachAchievement extends BaseAchievement {
-  date: string
-  type: 'milestone' | 'certification' | 'award'
-}
-
-export interface CoachMetrics {
-  totalClients: number
-  activeClients: number
-  sessionCompletionRate: number
-  averageRating: number
-  clientRetentionRate: number
-  revenueGoalProgress: number
-  monthlySessionsCompleted: number
-  monthlySessionsGoal: number
-  positiveReviews: number
-  totalReviews: number
-}
-
-// Helper function for date handling
-export const getAchievementDate = (achievement: MenteeAchievement | CoachAchievement): string => {
-  if ('earnedAt' in achievement) {
-    return achievement.earnedAt;
-  }
-  return achievement.date;
-}
-
 import { z } from "zod";
 
-export const goalsSchema = z.object({
-  salesTarget: z.number().min(0).optional(),
-  listingsTarget: z.number().min(0).optional(),
-  clientsTarget: z.number().min(0).optional(),
-  timeframe: z.enum(["monthly", "quarterly", "yearly"]).optional(),
-  customGoals: z.array(z.string()).optional(),
-  notes: z.string().optional(),
+// Enum definitions
+export const GOAL_STATUS = {
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  OVERDUE: 'OVERDUE'
+} as const;
+
+export const GOAL_TYPE = {
+  SALES_VOLUME: 'sales_volume',
+  COMMISSION_INCOME: 'commission_income',
+  GCI: 'gci',
+  AVG_SALE_PRICE: 'avg_sale_price',
+  LISTINGS: 'listings',
+  BUYER_TRANSACTIONS: 'buyer_transactions',
+  CLOSED_DEALS: 'closed_deals',
+  DAYS_ON_MARKET: 'days_on_market',
+  NEW_CLIENTS: 'new_clients',
+  REFERRALS: 'referrals',
+  CLIENT_RETENTION: 'client_retention',
+  REVIEWS: 'reviews',
+  MARKET_SHARE: 'market_share',
+  TERRITORY_EXPANSION: 'territory_expansion',
+  SOCIAL_MEDIA: 'social_media',
+  WEBSITE_TRAFFIC: 'website_traffic',
+  CERTIFICATIONS: 'certifications',
+  TRAINING_HOURS: 'training_hours',
+  NETWORKING_EVENTS: 'networking_events',
+  COACHING_SESSIONS: 'coaching_sessions',
+  MENTEE_SATISFACTION: 'mentee_satisfaction',
+  SESSION_REVENUE: 'session_revenue',
+  SESSION_COMPLETION: 'session_completion',
+  RESPONSE_TIME: 'response_time',
+  MENTEE_MILESTONES: 'mentee_milestones',
+  GROUP_SESSIONS: 'group_sessions',
+  ACTIVE_MENTEES: 'active_mentees',
+  CUSTOM: 'custom'
+} as const;
+
+export const GOAL_FORMAT = {
+  NUMBER: 'NUMBER',
+  CURRENCY: 'CURRENCY',
+  PERCENTAGE: 'PERCENTAGE',
+  TIME: 'TIME'
+} as const;
+
+// Type definitions
+export type GoalStatus = typeof GOAL_STATUS[keyof typeof GOAL_STATUS];
+export type GoalType = typeof GOAL_TYPE[keyof typeof GOAL_TYPE];
+export type GoalFormat = typeof GOAL_FORMAT[keyof typeof GOAL_FORMAT];
+
+// Goal Schema for validation
+export const GoalSchema = z.object({
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  target: z.number().min(0, "Target must be a positive number"),
+  current: z.number().min(0, "Current value must be a positive number"),
+  deadline: z.string().min(1, "Deadline is required"),
+  type: z.enum(Object.values(GOAL_TYPE) as [string, ...string[]]),
+  status: z.enum(Object.values(GOAL_STATUS) as [string, ...string[]]).default(GOAL_STATUS.IN_PROGRESS),
 });
 
-export type Goals = z.infer<typeof goalsSchema>; 
+export const UpdateGoalSchema = GoalSchema.partial();
+
+// Form types
+export interface GoalFormValues {
+  title: string;
+  description?: string;
+  target: number;
+  current: number;
+  deadline: string;
+  type: GoalType;
+  status: GoalStatus;
+}
+
+// Database types
+export interface Goal {
+  ulid: string;
+  userUlid: string;
+  title: string;
+  description: string | null;
+  target: number;
+  current: number;
+  deadline: string;
+  type: GoalType;
+  status: GoalStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Input types
+export type GoalInput = z.infer<typeof GoalSchema>;
+export type UpdateGoalInput = z.infer<typeof UpdateGoalSchema>; 

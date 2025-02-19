@@ -3,111 +3,15 @@
 import { createAuthClient } from '@/utils/auth'
 import { withServerAction } from '@/utils/middleware/withServerAction'
 import { ApiResponse } from '@/utils/types/api'
+import { generateUlid } from '@/utils/ulid'
+import { 
+  Goal, 
+  GoalInput, 
+  UpdateGoalInput,
+  GoalSchema,
+  UpdateGoalSchema,
+} from '@/utils/types/goals'
 import { z } from 'zod'
-import { ulidSchema } from '@/utils/types/auth'
-
-// Goal validation schemas
-const GoalSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
-  description: z.string().optional(),
-  target: z.number().min(0, 'Target must be a positive number').transform(val => Number(val.toFixed(2))),
-  current: z.number().min(0, 'Current value must be a positive number').transform(val => Number(val.toFixed(2))),
-  deadline: z.string().min(1, 'Deadline is required'),
-  type: z.enum([
-    // Coaching & Mentorship
-    'coaching_sessions',
-    'group_sessions',
-    'session_revenue',
-    'active_mentees',
-    'mentee_satisfaction',
-    'response_time',
-    'session_completion',
-    'mentee_milestones',
-    
-    // Financial Goals
-    'sales_volume',
-    'commission_income',
-    'gci',
-    'avg_sale_price',
-    
-    // Transaction Goals
-    'listings',
-    'buyer_transactions',
-    'closed_deals',
-    'days_on_market',
-    
-    // Client Goals
-    'new_clients',
-    'referrals',
-    'client_retention',
-    'reviews',
-    
-    // Market Presence
-    'market_share',
-    'territory_expansion',
-    'social_media',
-    'website_traffic',
-    
-    // Professional Development
-    'certifications',
-    'training_hours',
-    'networking_events',
-    
-    'custom'
-  ]),
-  status: z.enum(['in_progress', 'completed', 'overdue']).default('in_progress'),
-})
-
-const UpdateGoalSchema = GoalSchema.partial()
-
-// Types
-type GoalInput = z.infer<typeof GoalSchema>
-type UpdateGoalInput = z.infer<typeof UpdateGoalSchema>
-
-interface Goal {
-  ulid: string
-  userUlid: string
-  title: string
-  description: string | null
-  target: number
-  current: number
-  deadline: string
-  type: GoalInput['type']
-  status: 'in_progress' | 'completed' | 'overdue'
-  format: 'number' | 'currency' | 'percentage' | 'time'
-  createdAt: string
-  updatedAt: string
-}
-
-// Helper function to determine format based on goal type
-function getFormatForGoalType(type: GoalInput['type']): Goal['format'] {
-  switch (type) {
-    // Currency format
-    case 'sales_volume':
-    case 'commission_income':
-    case 'gci':
-    case 'avg_sale_price':
-    case 'session_revenue':
-      return 'currency'
-    
-    // Percentage format
-    case 'market_share':
-    case 'client_retention':
-    case 'mentee_satisfaction':
-    case 'session_completion':
-      return 'percentage'
-    
-    // Time format (hours)
-    case 'response_time':
-    case 'training_hours':
-    case 'days_on_market':
-      return 'time'
-    
-    // Number format (default)
-    default:
-      return 'number'
-  }
-}
 
 // Create goal
 export const createGoal = withServerAction<Goal, GoalInput>(
@@ -115,15 +19,15 @@ export const createGoal = withServerAction<Goal, GoalInput>(
     try {
       // Validate input data
       const validatedData = GoalSchema.parse(data)
-      const format = getFormatForGoalType(validatedData.type)
       const now = new Date().toISOString()
 
       const supabase = await createAuthClient()
 
-      // Create goal
+      // Create goal with ULID
       const { data: goal, error: goalError } = await supabase
         .from('Goal')
         .insert({
+          ulid: generateUlid(),
           userUlid,
           title: validatedData.title,
           description: validatedData.description,
@@ -132,7 +36,6 @@ export const createGoal = withServerAction<Goal, GoalInput>(
           deadline: new Date(validatedData.deadline).toISOString(),
           type: validatedData.type,
           status: validatedData.status,
-          format,
           createdAt: now,
           updatedAt: now
         })
@@ -140,7 +43,11 @@ export const createGoal = withServerAction<Goal, GoalInput>(
         .single() as { data: Goal | null, error: any }
 
       if (goalError) {
-        console.error('[CREATE_GOAL_ERROR]', { userUlid, error: goalError })
+        console.error('[CREATE_GOAL_ERROR]', { 
+          userUlid, 
+          error: goalError,
+          timestamp: new Date().toISOString()
+        })
         return {
           data: null,
           error: {
@@ -155,7 +62,11 @@ export const createGoal = withServerAction<Goal, GoalInput>(
         error: null
       }
     } catch (error) {
-      console.error('[CREATE_GOAL_ERROR]', error)
+      console.error('[CREATE_GOAL_ERROR]', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      })
       if (error instanceof z.ZodError) {
         return {
           data: null,
@@ -186,16 +97,15 @@ export const updateGoal = withServerAction<Goal, { goalUlid: string } & UpdateGo
       
       // Validate input data
       const validatedData = UpdateGoalSchema.parse(updateData)
-      const format = validatedData.type ? getFormatForGoalType(validatedData.type) : undefined
+      const now = new Date().toISOString()
 
       const supabase = await createAuthClient()
 
       // Create update data with proper typing
       const updates = {
         ...validatedData,
-        format,
         deadline: validatedData.deadline ? new Date(validatedData.deadline).toISOString() : undefined,
-        updatedAt: new Date().toISOString()
+        updatedAt: now
       }
 
       // Update goal
@@ -208,7 +118,12 @@ export const updateGoal = withServerAction<Goal, { goalUlid: string } & UpdateGo
         .single() as { data: Goal | null, error: any }
 
       if (goalError) {
-        console.error('[UPDATE_GOAL_ERROR]', { userUlid, goalUlid, error: goalError })
+        console.error('[UPDATE_GOAL_ERROR]', { 
+          userUlid, 
+          goalUlid, 
+          error: goalError,
+          timestamp: new Date().toISOString()
+        })
         return {
           data: null,
           error: {
@@ -223,7 +138,11 @@ export const updateGoal = withServerAction<Goal, { goalUlid: string } & UpdateGo
         error: null
       }
     } catch (error) {
-      console.error('[UPDATE_GOAL_ERROR]', error)
+      console.error('[UPDATE_GOAL_ERROR]', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      })
       if (error instanceof z.ZodError) {
         return {
           data: null,
@@ -260,7 +179,12 @@ export const deleteGoal = withServerAction<{ success: true }, { goalUlid: string
         .eq('userUlid', userUlid)
 
       if (goalError) {
-        console.error('[DELETE_GOAL_ERROR]', { userUlid, goalUlid: data.goalUlid, error: goalError })
+        console.error('[DELETE_GOAL_ERROR]', { 
+          userUlid, 
+          goalUlid: data.goalUlid, 
+          error: goalError,
+          timestamp: new Date().toISOString()
+        })
         return {
           data: null,
           error: {
@@ -275,7 +199,11 @@ export const deleteGoal = withServerAction<{ success: true }, { goalUlid: string
         error: null
       }
     } catch (error) {
-      console.error('[DELETE_GOAL_ERROR]', error)
+      console.error('[DELETE_GOAL_ERROR]', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      })
       return {
         data: null,
         error: {
@@ -302,7 +230,11 @@ export const fetchGoals = withServerAction<Goal[]>(
         .order('createdAt', { ascending: false }) as { data: Goal[] | null, error: any }
 
       if (goalsError) {
-        console.error('[FETCH_GOALS_ERROR]', { userUlid, error: goalsError })
+        console.error('[FETCH_GOALS_ERROR]', { 
+          userUlid, 
+          error: goalsError,
+          timestamp: new Date().toISOString()
+        })
         return {
           data: null,
           error: {
@@ -317,7 +249,11 @@ export const fetchGoals = withServerAction<Goal[]>(
         error: null
       }
     } catch (error) {
-      console.error('[FETCH_GOALS_ERROR]', error)
+      console.error('[FETCH_GOALS_ERROR]', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      })
       return {
         data: null,
         error: {

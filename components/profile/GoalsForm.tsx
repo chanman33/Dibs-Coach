@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -35,79 +36,40 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { useForm, type SubmitHandler } from "react-hook-form"
 import * as z from "zod"
 import { Badge } from "@/components/ui/badge"
 import { PlusCircle, Pencil, X, Loader2 } from "lucide-react"
 import { createGoal, updateGoal, deleteGoal, fetchGoals } from "@/utils/actions/goals"
 import { toast } from "sonner"
+import { Goal, GoalFormValues, GOAL_TYPE, GOAL_STATUS, GOAL_FORMAT, type GoalType, type GoalStatus, type GoalFormat } from "@/utils/types/goals"
+import { type ValidationError } from "@/utils/types/errors"
 
+// Validation schema
 const goalSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   target: z.number().min(0, "Target must be a positive number"),
   current: z.number().min(0, "Current value must be a positive number"),
   deadline: z.string().min(1, "Deadline is required"),
-  type: z.enum([
-    "sales_volume",
-    "commission_income",
-    "gci",
-    "avg_sale_price",
-    "listings",
-    "buyer_transactions",
-    "closed_deals",
-    "days_on_market",
-    "new_clients",
-    "referrals",
-    "client_retention",
-    "reviews",
-    "market_share",
-    "territory_expansion",
-    "social_media",
-    "website_traffic",
-    "certifications",
-    "training_hours",
-    "networking_events",
-    "coaching_sessions",
-    "mentee_satisfaction",
-    "session_revenue",
-    "session_completion",
-    "response_time",
-    "mentee_milestones",
-    "group_sessions",
-    "active_mentees",
-    "custom"
-  ]),
-  status: z.enum(["in_progress", "completed", "overdue"]).default("in_progress"),
+  type: z.enum(Object.values(GOAL_TYPE) as [string, ...string[]]),
+  status: z.enum(Object.values(GOAL_STATUS) as [string, ...string[]]).default(GOAL_STATUS.IN_PROGRESS),
 })
 
-export type GoalFormValues = z.infer<typeof goalSchema>
-
-interface Goal {
-  ulid: string;
-  userUlid: string;
-  title: string;
-  description: string | null;
-  target: number;
-  current: number;
-  deadline: string;
-  type: z.infer<typeof goalSchema>["type"];
-  status: "in_progress" | "completed" | "overdue";
-  format: "number" | "currency" | "percentage" | "time";
-  createdAt: string;
-  updatedAt: string;
-}
+// Database types following .cursorrules conventions
 
 interface GoalsFormProps {
-  onSubmit: (data: GoalFormValues) => Promise<void>;
+  open: boolean;
+  onClose: () => void;
 }
 
-export default function GoalsForm({ onSubmit }: GoalsFormProps) {
+const GoalsForm = ({ open, onClose }: GoalsFormProps) => {
   const [goals, setGoals] = useState<Goal[]>([])
   const [showForm, setShowForm] = useState(false)
-  const [editingGoal, setEditingGoal] = useState<Goal | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [formErrors, setFormErrors] = useState<ValidationError['details']['fieldErrors']>({})
+  const [currentEditingGoal, setCurrentEditingGoal] = useState<Goal | null>(null)
 
   const form = useForm<GoalFormValues>({
     resolver: zodResolver(goalSchema),
@@ -116,8 +78,8 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
       description: "",
       target: 0,
       current: 0,
-      status: "in_progress",
-      type: "custom" as const,
+      status: GOAL_STATUS.IN_PROGRESS,
+      type: GOAL_TYPE.CUSTOM,
       deadline: new Date().toISOString().split('T')[0],
     },
   })
@@ -128,44 +90,86 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
 
   const loadGoals = async () => {
     try {
+      console.log('[LOAD_GOALS_START]', {
+        timestamp: new Date().toISOString()
+      });
+
       const { data, error } = await fetchGoals({})
+      
       if (error) {
+        console.error('[LOAD_GOALS_ERROR]', {
+          error,
+          timestamp: new Date().toISOString()
+        });
         toast.error("Failed to load goals")
         return
       }
+      
       if (data) {
+        console.log('[LOAD_GOALS_SUCCESS]', {
+          count: data.length,
+          timestamp: new Date().toISOString()
+        });
         setGoals(data)
       }
     } catch (error) {
-      console.error("[LOAD_GOALS_ERROR]", error)
+      console.error("[LOAD_GOALS_ERROR]", {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       toast.error("Failed to load goals")
     } finally {
       setIsInitialLoading(false)
     }
   }
 
-  const handleSubmit = async (data: GoalFormValues) => {
-    setIsLoading(true)
+  const handleSubmit: SubmitHandler<GoalFormValues> = async (data) => {
+    setIsLoading(true);
+    
     try {
-      if (editingGoal) {
-        const { error } = await updateGoal({ goalUlid: editingGoal.ulid, ...data })
-        if (error) throw error
-        toast.success("Goal updated successfully")
-      } else {
-        await onSubmit(data)
-        toast.success("Goal created successfully")
+      const baseGoalData = {
+        title: data.title,
+        description: data.description,
+        target: data.target,
+        current: data.current,
+        deadline: data.deadline,
+        type: data.type,
+        status: data.status,
+      };
+
+      const result = currentEditingGoal 
+        ? await updateGoal({ 
+            goalUlid: currentEditingGoal.ulid,
+            ...baseGoalData 
+          })
+        : await createGoal(baseGoalData);
+      
+      if (result.error) {
+        console.error('[SUBMIT_GOAL_ERROR]', result.error);
+        if (result.error.code === 'VALIDATION_ERROR') {
+          const validationError = result.error as ValidationError;
+          setFormErrors(validationError.details.fieldErrors);
+          toast.error(Object.values(validationError.details.fieldErrors).flat().join('\n'));
+        } else {
+          toast.error(result.error.message);
+        }
+        return;
       }
-      await loadGoals()
-      handleCloseForm()
+
+      toast.success(`Goal ${currentEditingGoal ? 'updated' : 'created'} successfully!`);
+      await loadGoals();
+      handleCloseForm();
     } catch (error) {
-      toast.error(editingGoal ? "Failed to update goal" : "Failed to create goal")
+      console.error('[SUBMIT_GOAL_ERROR]', error);
+      toast.error('Failed to submit goal');
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleEditGoal = (goal: Goal) => {
-    setEditingGoal(goal)
+    setCurrentEditingGoal(goal)
     form.reset({
       title: goal.title,
       description: goal.description || "",
@@ -180,27 +184,27 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
 
   const handleCloseForm = () => {
     setShowForm(false)
-    setEditingGoal(null)
+    setCurrentEditingGoal(null)
     form.reset({
       title: "",
       description: "",
       target: 0,
       current: 0,
-      status: "in_progress",
-      type: "custom" as const,
+      status: GOAL_STATUS.IN_PROGRESS,
+      type: GOAL_TYPE.CUSTOM,
       deadline: new Date().toISOString().split('T')[0],
     })
   }
 
   const handleAddNewGoal = () => {
-    setEditingGoal(null)
+    setCurrentEditingGoal(null)
     form.reset({
       title: "",
       description: "",
       target: 0,
       current: 0,
-      status: "in_progress",
-      type: "custom" as const,
+      status: GOAL_STATUS.IN_PROGRESS,
+      type: GOAL_TYPE.CUSTOM,
       deadline: new Date().toISOString().split('T')[0],
     })
     setShowForm(true)
@@ -428,7 +432,7 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
         <Card className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-semibold">
-              {editingGoal ? 'Update Goal' : 'Add New Goal'}
+              {currentEditingGoal ? 'Update Goal' : 'Add New Goal'}
             </h3>
             <Button
               variant="ghost"
@@ -464,7 +468,7 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                   <FormItem>
                     <FormLabel>Type</FormLabel>
                     <Select 
-                      onValueChange={(value) => {
+                      onValueChange={(value: GoalType) => {
                         field.onChange(value)
                         // Reset target and current values when type changes to prevent formatting issues
                         form.setValue("target", 0)
@@ -483,7 +487,10 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                             if (!acc[option.group]) {
                               acc[option.group] = []
                             }
-                            acc[option.group].push(option)
+                            acc[option.group].push({
+                              ...option,
+                              value: GOAL_TYPE[option.value.toUpperCase() as keyof typeof GOAL_TYPE]
+                            })
                             return acc
                           }, {} as Record<string, typeof goalTypeOptions>)
                         ).map(([group, options]) => (
@@ -517,8 +524,9 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                           )}
                           <Input 
                             type="number"
+                            placeholder="0"
                             {...field}
-                            value={field.value || 0}
+                            value={field.value === 0 ? "" : field.value}
                             className={
                               getFormatForGoalType(form.getValues("type")) === "currency" 
                                 ? "pl-7" 
@@ -527,8 +535,14 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                                   : ""
                             }
                             onChange={(e) => {
-                              const value = e.target.value === "" ? 0 : parseFloat(e.target.value)
-                              field.onChange(value)
+                              const value = e.target.value === "" ? 0 : parseFloat(e.target.value);
+                              field.onChange(value);
+                            }}
+                            onBlur={(e) => {
+                              field.onBlur();
+                              if (e.target.value === "") {
+                                field.onChange(0);
+                              }
                             }}
                             step={getFormatForGoalType(form.getValues("type")) === "currency" ? "0.01" : "1"}
                             min="0"
@@ -559,8 +573,9 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                           )}
                           <Input 
                             type="number"
+                            placeholder="0"
                             {...field}
-                            value={field.value || 0}
+                            value={field.value === 0 ? "" : field.value}
                             className={
                               getFormatForGoalType(form.getValues("type")) === "currency" 
                                 ? "pl-7" 
@@ -569,8 +584,14 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                                   : ""
                             }
                             onChange={(e) => {
-                              const value = e.target.value === "" ? 0 : parseFloat(e.target.value)
-                              field.onChange(value)
+                              const value = e.target.value === "" ? 0 : parseFloat(e.target.value);
+                              field.onChange(value);
+                            }}
+                            onBlur={(e) => {
+                              field.onBlur();
+                              if (e.target.value === "") {
+                                field.onChange(0);
+                              }
                             }}
                             step={getFormatForGoalType(form.getValues("type")) === "currency" ? "0.01" : "1"}
                             min="0"
@@ -634,9 +655,9 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                        <SelectItem value="overdue">Overdue</SelectItem>
+                        <SelectItem value={GOAL_STATUS.IN_PROGRESS}>In Progress</SelectItem>
+                        <SelectItem value={GOAL_STATUS.COMPLETED}>Completed</SelectItem>
+                        <SelectItem value={GOAL_STATUS.OVERDUE}>Overdue</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -645,7 +666,7 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
               />
 
               <div className="flex justify-between items-center gap-3">
-                {editingGoal && (
+                {currentEditingGoal && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button 
@@ -661,14 +682,14 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete Goal</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Are you sure you want to delete "{editingGoal.title}"? This action cannot be undone.
+                          Are you sure you want to delete "{currentEditingGoal.title}"? This action cannot be undone.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction
                           className="bg-destructive hover:bg-destructive/90"
-                          onClick={() => handleDeleteGoal(editingGoal)}
+                          onClick={() => handleDeleteGoal(currentEditingGoal)}
                         >
                           Delete
                         </AlertDialogAction>
@@ -686,7 +707,7 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
                     Cancel
                   </Button>
                   <Button type="submit" disabled={isLoading}>
-                    {editingGoal ? 'Update Goal' : 'Add Goal'}
+                    {currentEditingGoal ? 'Update Goal' : 'Add Goal'}
                   </Button>
                 </div>
               </div>
@@ -696,4 +717,6 @@ export default function GoalsForm({ onSubmit }: GoalsFormProps) {
       )}
     </div>
   )
-} 
+}
+
+export default GoalsForm 
