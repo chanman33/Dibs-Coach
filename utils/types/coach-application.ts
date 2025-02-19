@@ -54,6 +54,8 @@ export type ApplicationData = {
     firstName: string | null;
     lastName: string | null;
     email: string;
+    phoneNumber: string | null;
+    profileImageUrl: string | null;
   } | null;
   reviewer: {
     ulid: string;

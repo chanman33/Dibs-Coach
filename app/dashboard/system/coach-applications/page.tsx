@@ -73,16 +73,47 @@ export default function CoachApplicationsPage() {
   useEffect(() => {
     const fetchApplications = async () => {
       try {
+        console.log('[FETCH_APPLICATIONS_START]', 'Fetching coach applications');
         const result = await getAllCoachApplications(null);
+        
         if (result.error) {
+          console.error('[FETCH_APPLICATIONS_ERROR]', {
+            error: result.error,
+            message: 'Error returned from getAllCoachApplications'
+          });
           throw new Error(result.error.message);
         }
+        
         if (!result.data) {
+          console.error('[FETCH_APPLICATIONS_ERROR]', {
+            message: 'No data returned from server',
+            result
+          });
           throw new Error('No data returned from server');
         }
+
+        console.log('[FETCH_APPLICATIONS_SUCCESS]', {
+          count: result.data.length,
+          sampleApplication: result.data[0] ? {
+            ulid: result.data[0].ulid,
+            status: result.data[0].status,
+            hasApplicant: !!result.data[0].applicant,
+            applicantInfo: result.data[0].applicant ? {
+              firstName: !!result.data[0].applicant.firstName,
+              lastName: !!result.data[0].applicant.lastName,
+              email: !!result.data[0].applicant.email,
+              phoneNumber: !!result.data[0].applicant.phoneNumber
+            } : null
+          } : 'No applications'
+        });
+        
         setApplications(result.data);
       } catch (error) {
-        console.error('[FETCH_APPLICATIONS_ERROR]', error);
+        console.error('[FETCH_APPLICATIONS_ERROR]', {
+          error,
+          message: 'Failed to fetch applications',
+          stack: error instanceof Error ? error.stack : undefined
+        });
         toast({
           title: 'Error',
           description: error instanceof Error ? error.message : 'Failed to fetch applications',
@@ -228,18 +259,93 @@ export default function CoachApplicationsPage() {
   );
 
   const handleViewApplication = async (application: ApplicationData) => {
-    setSelectedApplication(application);
-    if (application.resumeUrl) {
-      const result = await getSignedResumeUrl(application.resumeUrl);
-      if (result.data) {
-        setResumeUrl(result.data);
-      } else if (result.error) {
-        toast({
-          title: 'Error',
-          description: 'Failed to get resume URL',
-          variant: 'destructive'
-        });
+    try {
+      console.log('[VIEW_APPLICATION_START]', {
+        applicationId: application.ulid,
+        hasApplicant: !!application.applicant,
+        applicantInfo: application.applicant ? {
+          firstName: application.applicant.firstName,
+          lastName: application.applicant.lastName,
+          email: application.applicant.email,
+          phoneNumber: application.applicant.phoneNumber
+        } : null,
+        hasResumeUrl: !!application.resumeUrl,
+        applicationDetails: {
+          experience: application.experience,
+          specialtiesCount: application.specialties.length,
+          hasLinkedIn: !!application.linkedIn,
+          hasPrimarySocialMedia: !!application.primarySocialMedia,
+          hasAdditionalInfo: !!application.additionalInfo
+        }
+      });
+
+      // Set the application data first
+      setSelectedApplication(application);
+      
+      // Then handle resume URL separately
+      if (application.resumeUrl) {
+        try {
+          console.log('[FETCH_RESUME_START]', {
+            applicationId: application.ulid,
+            resumeUrl: application.resumeUrl
+          });
+
+          const result = await getSignedResumeUrl(application.resumeUrl);
+          
+          if (result.data) {
+            console.log('[FETCH_RESUME_SUCCESS]', {
+              applicationId: application.ulid,
+              hasSignedUrl: !!result.data
+            });
+            setResumeUrl(result.data);
+          } else if (result.error) {
+            console.error('[FETCH_RESUME_ERROR]', {
+              applicationId: application.ulid,
+              error: result.error,
+              resumeUrl: application.resumeUrl,
+              errorCode: result.error.code,
+              errorMessage: result.error.message
+            });
+            // Show toast but don't block the dialog
+            toast({
+              title: 'Resume Unavailable',
+              description: 'The resume file could not be accessed at this time.',
+              variant: 'destructive'
+            });
+          }
+        } catch (error) {
+          console.error('[FETCH_RESUME_ERROR]', {
+            applicationId: application.ulid,
+            error: error instanceof Error ? {
+              message: error.message,
+              stack: error.stack
+            } : error,
+            resumeUrl: application.resumeUrl
+          });
+          // Show toast but don't block the dialog
+          toast({
+            title: 'Resume Unavailable',
+            description: 'There was an error accessing the resume file.',
+            variant: 'destructive'
+          });
+        }
+      } else {
+        // Reset resume URL if no resume attached
+        setResumeUrl(null);
       }
+    } catch (error) {
+      console.error('[VIEW_APPLICATION_ERROR]', {
+        error: error instanceof Error ? {
+          message: error.message,
+          stack: error.stack
+        } : error,
+        applicationId: application.ulid
+      });
+      toast({
+        title: 'Error',
+        description: 'Failed to load application details',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -247,6 +353,19 @@ export default function CoachApplicationsPage() {
     setSelectedApplication(null);
     setResumeUrl(null);
   };
+
+  // Add logging to filtered applications
+  useEffect(() => {
+    console.log('[FILTERED_APPLICATIONS]', {
+      total: applications.length,
+      filtered: filteredApplications.length,
+      searchTerm: search || 'none',
+      statusFilter,
+      currentPage,
+      itemsPerPage: ITEMS_PER_PAGE,
+      paginatedCount: paginatedApplications.length
+    });
+  }, [applications, filteredApplications, paginatedApplications, search, statusFilter, currentPage]);
 
   if (loading) {
     return (
@@ -357,16 +476,24 @@ export default function CoachApplicationsPage() {
                         {/* User Details */}
                         <div>
                           <h3 className="text-lg font-semibold">
-                            {application.applicant?.firstName} {application.applicant?.lastName}
+                            {application.applicant?.firstName || ''} {application.applicant?.lastName || ''}
                           </h3>
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Mail className="h-4 w-4" />
-                            <span className="text-sm">{application.applicant?.email}</span>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Mail className="h-4 w-4" />
+                              <span className="text-sm">{application.applicant?.email}</span>
+                            </div>
+                            {application.applicant?.phoneNumber && (
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Phone className="h-4 w-4" />
+                                <span className="text-sm">{application.applicant.phoneNumber}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                         
                         {/* Application Details */}
-                        <div className="flex gap-6">
+                        <div className="grid grid-cols-3 gap-4">
                           <div>
                             <p className="text-sm text-muted-foreground">Experience</p>
                             <p className="font-medium">{application.experience} years</p>
@@ -376,6 +503,21 @@ export default function CoachApplicationsPage() {
                             <p className="font-medium">
                               {format(new Date(application.createdAt), 'MMM d, yyyy')}
                             </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">Specialties</p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {application.specialties.slice(0, 2).map((specialty, index) => (
+                                <Badge key={index} variant="outline" className="text-xs">
+                                  {specialty}
+                                </Badge>
+                              ))}
+                              {application.specialties.length > 2 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{application.specialties.length - 2}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -441,13 +583,19 @@ export default function CoachApplicationsPage() {
                       <div>
                         <Label className="text-gray-500">Full Name</Label>
                         <p className="font-medium">
-                          {selectedApplication.applicant?.firstName} {selectedApplication.applicant?.lastName}
+                          {selectedApplication.applicant?.firstName || ''} {selectedApplication.applicant?.lastName || ''}
                         </p>
                       </div>
                       <div>
                         <Label className="text-gray-500">Email</Label>
                         <p className="font-medium">{selectedApplication.applicant?.email}</p>
                       </div>
+                      {selectedApplication.applicant?.phoneNumber && (
+                        <div>
+                          <Label className="text-gray-500">Phone Number</Label>
+                          <p className="font-medium">{selectedApplication.applicant.phoneNumber}</p>
+                        </div>
+                      )}
                       <div>
                         <Label className="text-gray-500">Years of Experience</Label>
                         <p className="font-medium">{selectedApplication.experience} years</p>
@@ -514,12 +662,14 @@ export default function CoachApplicationsPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">Additional Information</h3>
-                    <p className="text-gray-700 whitespace-pre-wrap">
-                      {selectedApplication.additionalInfo}
-                    </p>
-                  </div>
+                  {selectedApplication.additionalInfo && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Additional Information</h3>
+                      <p className="text-gray-700 whitespace-pre-wrap">
+                        {selectedApplication.additionalInfo}
+                      </p>
+                    </div>
+                  )}
 
                   {selectedApplication.status === COACH_APPLICATION_STATUS.PENDING && (
                     <div className="space-y-4">
