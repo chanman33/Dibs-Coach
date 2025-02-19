@@ -53,7 +53,7 @@ async function processImage(file: File | null, description: string, openai: Open
     const base64Image = buffer.toString('base64')
     
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4-1106-vision-preview",
       messages: [
         {
           role: "system",
@@ -75,9 +75,13 @@ async function processImage(file: File | null, description: string, openai: Open
       max_tokens: 150,
     })
 
+    if (!response.choices[0]?.message?.content) {
+      throw new Error('No content generated from image analysis')
+    }
+
     return response.choices[0].message.content
   } catch (error) {
-    console.error(`Error processing image: ${error}`)
+    console.error(`Error processing image: ${error instanceof Error ? error.message : 'Unknown error'}`)
     return null
   }
 }
@@ -229,11 +233,11 @@ export const POST = withApiAuth<GenerateListingResponse>(async (req, { userUlid 
     const listing = await withRetry(
       async () => {
         const completion = await openai.chat.completions.create({
-          model: "gpt-4",
+          model: "gpt-4-1106-preview",
           messages: [
             {
               role: "system",
-              content: "You are an expert real estate copywriter skilled in creating compelling property listings."
+              content: "You are an expert real estate copywriter skilled in creating compelling property listings. Format your response using markdown:\n- Use **bold** for important features and key points\n- Use emojis where appropriate (e.g., 🏠 for property, 🛁 for bathrooms)\n- Use headings with # for sections\n- Use bullet points for listing features\n- Ensure proper spacing between sections"
             },
             {
               role: "user",

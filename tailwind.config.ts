@@ -155,6 +155,7 @@ const config: Config = {
   // Merging plugins, adding any unique plugins from both files
   plugins: [
     require("tailwindcss-animate"), // Assuming require is resolved in your environment
+    require("@tailwindcss/typography"),
     // Add other unique plugins here
     function ({ matchUtilities, theme }: any) {
       matchUtilities(

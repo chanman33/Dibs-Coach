@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkEmoji from 'remark-emoji';
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -203,17 +206,35 @@ const AIAgentChat = ({
                     message.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted",
-                    "max-w-[85%] min-w-[50px]"
+                    "max-w-[85%] min-w-[50px] prose prose-sm dark:prose-invert prose-headings:font-bold prose-strong:font-bold"
                   )}
                 >
-                  {message.content}
+                  {message.role === "assistant" ? (
+                    <ReactMarkdown 
+                      remarkPlugins={[remarkGfm, remarkEmoji]}
+                      components={{
+                        strong: ({node, ...props}) => <span className="font-bold" {...props} />
+                      }}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                  ) : (
+                    message.content
+                  )}
                 </div>
               </div>
             ))}
             {streamingMessage && (
               <div className="flex flex-col items-start">
-                <div className="rounded-lg px-4 py-2 bg-muted break-words whitespace-pre-wrap max-w-[85%] min-w-[50px]">
-                  {streamingMessage}
+                <div className="rounded-lg px-4 py-2 bg-muted break-words whitespace-pre-wrap max-w-[85%] min-w-[50px] prose prose-sm dark:prose-invert prose-headings:font-bold prose-strong:font-bold">
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm, remarkEmoji]}
+                    components={{
+                      strong: ({node, ...props}) => <span className="font-bold" {...props} />
+                    }}
+                  >
+                    {streamingMessage}
+                  </ReactMarkdown>
                 </div>
               </div>
             )}

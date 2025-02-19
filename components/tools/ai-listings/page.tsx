@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { withRole } from "@/components/wrapper/with-role"
-import { ROLES } from "@/utils/roles/roles"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Building2, ImageIcon, Loader2, X } from "lucide-react"
-import { useState } from "react"
-import { useForm } from "react-hook-form"
-import * as z from "zod"
 import Image from "next/image"
+import * as z from "zod"
+import { useForm } from "react-hook-form"
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import remarkEmoji from 'remark-emoji'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
@@ -41,6 +42,21 @@ export default function AIListingGenerator() {
   const [kitchenImagePreview, setKitchenImagePreview] = useState<string | null>(null)
   const [mainRoomImagePreview, setMainRoomImagePreview] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [timeoutWarning, setTimeoutWarning] = useState(false)
+  
+  // Add timeout warning after 20 seconds
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout
+    if (isGenerating) {
+      timeoutId = setTimeout(() => {
+        setTimeoutWarning(true)
+      }, 20000)
+    }
+    return () => {
+      clearTimeout(timeoutId)
+      setTimeoutWarning(false)
+    }
+  }, [isGenerating])
 
   const form = useForm<z.infer<typeof propertyFormSchema>>({
     resolver: zodResolver(propertyFormSchema),
@@ -89,6 +105,7 @@ export default function AIListingGenerator() {
   async function onSubmit(values: z.infer<typeof propertyFormSchema>) {
     setIsGenerating(true)
     setError(null)
+    setTimeoutWarning(false)
 
     try {
       const formData = new FormData()
@@ -110,15 +127,20 @@ export default function AIListingGenerator() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to generate listing")
+        throw new Error(data.error?.message || data.error?.details?.message || "Failed to generate listing")
       }
 
-      setGeneratedListing(data.listing)
+      if (!data.data?.listing) {
+        throw new Error("No listing content received")
+      }
+
+      setGeneratedListing(data.data.listing)
     } catch (error) {
       console.error("Error generating listing:", error)
       setError(error instanceof Error ? error.message : "Failed to generate listing")
     } finally {
       setIsGenerating(false)
+      setTimeoutWarning(false)
     }
   }
 
@@ -134,6 +156,12 @@ export default function AIListingGenerator() {
       {error && (
         <div className="bg-destructive/15 text-destructive px-4 py-2 rounded-lg">
           {error}
+        </div>
+      )}
+
+      {timeoutWarning && isGenerating && (
+        <div className="bg-yellow-100 text-yellow-800 px-4 py-2 rounded-lg">
+          This is taking longer than usual. Please wait while we process your images and generate the listing...
         </div>
       )}
 
@@ -466,7 +494,7 @@ export default function AIListingGenerator() {
                   {isGenerating ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
+                      {timeoutWarning ? "Still generating..." : "Generating..."}
                     </>
                   ) : (
                     "Generate Listing"
@@ -487,7 +515,14 @@ export default function AIListingGenerator() {
           <CardContent>
             {generatedListing ? (
               <div className="prose max-w-none dark:prose-invert">
-                <div className="whitespace-pre-wrap">{generatedListing}</div>
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm, remarkEmoji]}
+                  components={{
+                    strong: ({node, ...props}) => <span className="font-bold" {...props} />
+                  }}
+                >
+                  {generatedListing}
+                </ReactMarkdown>
                 <Button 
                   className="mt-4"
                   onClick={() => {
