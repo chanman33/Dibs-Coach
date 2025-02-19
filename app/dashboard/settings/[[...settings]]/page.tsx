@@ -10,9 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { useState, useEffect } from 'react'
 import { ConnectCalendly } from '@/components/calendly/ConnectCalendly'
-import { CalendlyEventTypes } from '@/components/calendly/CalendlyEventTypes'
-import { AvailabilityManager } from '@/components/coaching/AvailabilityManager'
-import { ROLES, type UserRole, hasAnyRole } from "@/utils/roles/roles"
+import { SYSTEM_ROLES, USER_CAPABILITIES, type SystemRole } from "@/utils/roles/roles"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
 
@@ -20,7 +18,7 @@ export default function Settings() {
   const router = useRouter()
   const { user } = useUser()
   const [loading, setLoading] = useState(false)
-  const [userRoles, setUserRoles] = useState<UserRole[]>([])
+  const [userRoles, setUserRoles] = useState<SystemRole[]>([SYSTEM_ROLES.USER])
   const [loadingRoles, setLoadingRoles] = useState(true)
 
   useEffect(() => {
@@ -32,7 +30,7 @@ export default function Settings() {
           setUserRoles(data.roles)
         } catch (error) {
           console.error("[ROLE_FETCH_ERROR]", error)
-          setUserRoles(['MENTEE'])
+          setUserRoles([SYSTEM_ROLES.USER])
         }
         setLoadingRoles(false)
       }
@@ -41,7 +39,7 @@ export default function Settings() {
     fetchUserRoles()
   }, [user?.id])
 
-  const isCoachOrAdmin = hasAnyRole(userRoles, [ROLES.COACH, ROLES.ADMIN])
+  const isCoachOrAdmin = userRoles?.includes(SYSTEM_ROLES.SYSTEM_OWNER) || false
 
   if (loadingRoles) {
     return <div>Loading...</div>
