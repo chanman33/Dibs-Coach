@@ -71,8 +71,14 @@ export default function CoachApplicationsPage() {
   useEffect(() => {
     const fetchApplications = async () => {
       try {
-        const data = await getCoachApplication();
-        setApplications(data || []);
+        const result = await getCoachApplication({});
+        if (result.error) {
+          toast.error(result.error.message);
+          return;
+        }
+        // Cast the data to match the expected type
+        const applications = result.data ? [result.data as unknown as CoachApplication] : [];
+        setApplications(applications);
       } catch (error) {
         console.error('[FETCH_APPLICATIONS_ERROR]', error);
         toast.error('Failed to fetch applications');
@@ -216,8 +222,12 @@ export default function CoachApplicationsPage() {
   const handleViewApplication = async (application: CoachApplication) => {
     setSelectedApplication(application);
     if (application.resumeUrl) {
-      const url = await getSignedResumeUrl(application.resumeUrl);
-      setResumeUrl(url);
+      const result = await getSignedResumeUrl(application.resumeUrl);
+      if (result.data) {
+        setResumeUrl(result.data);
+      } else if (result.error) {
+        toast.error('Failed to get resume URL');
+      }
     }
   };
 

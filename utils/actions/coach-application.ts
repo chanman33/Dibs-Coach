@@ -3,9 +3,10 @@
 import { createAuthClient } from '@/utils/auth'
 import { withServerAction } from '@/utils/middleware/withServerAction'
 import { ApiResponse } from '@/utils/types/api'
-import { ROLES } from '@/utils/roles/roles'
+import { SYSTEM_ROLES, USER_CAPABILITIES } from '@/utils/roles/roles'
 import { z } from 'zod'
 import { ulidSchema } from '@/utils/types/auth'
+import { COACH_APPLICATION_STATUS } from '@/utils/types/coach-application'
 
 // Validation schemas
 const CoachApplicationSchema = z.object({
@@ -226,22 +227,19 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
 )
 
 // Review coach application
-export const reviewCoachApplication = withServerAction<ApplicationResponse, z.infer<typeof ApplicationReviewSchema>>(
-  async (data, { userUlid, role }) => {
+export const reviewCoachApplication = withServerAction<boolean>(
+  async ({ applicationId, status, notes }, { systemRole, userUlid }) => {
     try {
       // Validate admin role
-      if (role !== ROLES.ADMIN) {
+      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
-            message: 'Only administrators can review applications'
+            message: 'Only system owners can review coach applications'
           }
         }
       }
-
-      // Validate input data
-      const validatedData = ApplicationReviewSchema.parse(data)
 
       const supabase = await createAuthClient()
 
@@ -249,95 +247,108 @@ export const reviewCoachApplication = withServerAction<ApplicationResponse, z.in
       const { data: application, error: updateError } = await supabase
         .from('CoachApplication')
         .update({
-          status: validatedData.status,
-          reviewerUlid: userUlid,
-          notes: validatedData.notes,
+          status,
+          notes,
+          reviewerDbId: userUlid,
           reviewDate: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         })
-        .eq('ulid', validatedData.applicationUlid)
-        .select(`
-          ulid,
-          status,
-          experience,
-          specialties,
-          notes,
-          applicationDate,
-          reviewDate,
-          createdAt,
-          updatedAt,
-          applicant:applicantUlid (
-            ulid,
-            firstName,
-            lastName,
-            email
-          ),
-          reviewer:reviewerUlid (
-            ulid,
-            firstName,
-            lastName
-          )
-        `)
-        .single() as { data: ApplicationData | null, error: any }
+        .eq('id', applicationId)
+        .select('applicantDbId')
+        .single()
 
       if (updateError) {
-        console.error('[REVIEW_APPLICATION_ERROR]', { 
-          reviewerUlid: userUlid, 
-          applicationUlid: validatedData.applicationUlid,
-          error: updateError 
-        })
-        return {
-          data: null,
-          error: {
-            code: 'UPDATE_ERROR',
-            message: 'Failed to update application'
-          }
-        }
+        console.error('[UPDATE_APPLICATION_ERROR]', updateError)
+        throw updateError
       }
 
-      // If approved, update user role to COACH
-      if (validatedData.status === 'approved' && application) {
-        const { error: roleError } = await supabase
+      if (!application) {
+        throw new Error('Application not found')
+      }
+
+      // Update user role if approved
+      if (status === COACH_APPLICATION_STATUS.APPROVED) {
+        // Add coach capability to user
+        const { error: userUpdateError } = await supabase
           .from('User')
           .update({ 
-            role: ROLES.COACH,
+            capabilities: [USER_CAPABILITIES.COACH],
             updatedAt: new Date().toISOString()
           })
-          .eq('ulid', application.applicant.ulid)
+          .eq('ulid', application.applicantDbId)
 
-        if (roleError) {
-          console.error('[REVIEW_APPLICATION_ERROR] Failed to update user role:', {
-            userUlid: application.applicant.ulid,
-            error: roleError
-          })
+        if (userUpdateError) {
+          console.error('[UPDATE_USER_ERROR]', userUpdateError)
+          throw userUpdateError
         }
       }
 
       return {
-        data: application,
+        data: true,
         error: null
       }
     } catch (error) {
       console.error('[REVIEW_APPLICATION_ERROR]', error)
-      if (error instanceof z.ZodError) {
-        return {
-          data: null,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid review data',
-            details: error.flatten()
-          }
-        }
-      }
       return {
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
+          message: 'Failed to review application',
           details: error instanceof Error ? { message: error.message } : undefined
         }
       }
     }
   },
-  { requiredRoles: [ROLES.ADMIN] }
+  { requiredSystemRole: SYSTEM_ROLES.SYSTEM_OWNER }
+)
+
+// Get signed URL for resume file
+export const getSignedResumeUrl = withServerAction<string>(
+  async (resumePath: string, { systemRole }) => {
+    try {
+      // Only system owners can access resume files
+      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
+        return {
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only system owners can access resume files'
+          }
+        }
+      }
+
+      const supabase = await createAuthClient()
+
+      // Get signed URL that expires in 1 hour
+      const { data, error } = await supabase
+        .storage
+        .from('resumes')
+        .createSignedUrl(resumePath, 3600) // 1 hour expiry
+
+      if (error) {
+        console.error('[GET_RESUME_URL_ERROR]', error)
+        throw error
+      }
+
+      if (!data?.signedUrl) {
+        throw new Error('Failed to generate signed URL')
+      }
+
+      return {
+        data: data.signedUrl,
+        error: null
+      }
+    } catch (error) {
+      console.error('[GET_RESUME_URL_ERROR]', error)
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to get resume URL',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      }
+    }
+  },
+  { requiredSystemRole: SYSTEM_ROLES.SYSTEM_OWNER }
 ) 
