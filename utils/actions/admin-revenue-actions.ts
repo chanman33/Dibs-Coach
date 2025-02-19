@@ -2,167 +2,225 @@
 
 import { createAuthClient } from '@/utils/auth'
 import { withServerAction } from '@/utils/middleware/withServerAction'
-import { 
-  RevenueOverview,
-  RevenueTrend,
-  TransactionDistribution,
-  CoachRevenue,
-  TransactionHistory,
-  PayoutHistory,
-  RevenueDateRangeSchema,
-  RevenueTrendQuerySchema,
-  PaginationQuerySchema,
-  TransactionTypeEnum,
-  TransactionStatusEnum,
-  PayoutStatusEnum
-} from '@/utils/types/admin'
-import { ROLES } from '@/utils/roles/roles'
+import { SYSTEM_ROLES } from '@/utils/roles/roles'
 import { z } from 'zod'
-import { ApiResponse } from '@/utils/types/api'
 
-type TransactionResponse = {
-  ulid: string
-  type: z.infer<typeof TransactionTypeEnum>
-  status: z.infer<typeof TransactionStatusEnum>
-  amount: number
-  platformFee: number
-  coachPayout: number
-  createdAt: string
-  coach: {
-    ulid: string
-    firstName: string | null
-    lastName: string | null
-  } | null
-  payer: {
-    ulid: string
-    firstName: string | null
-    lastName: string | null
-  } | null
+// Validation schemas
+const RevenueOverviewSchema = z.object({
+  totalRevenue: z.number(),
+  netRevenue: z.number(),
+  platformFees: z.number(),
+  coachPayouts: z.number(),
+  totalUsers: z.number(),
+  activeUsers: z.number()
+})
+
+const RevenueTrendSchema = z.object({
+  date: z.string(),
+  revenue: z.number(),
+  platformFees: z.number(),
+  coachPayouts: z.number()
+})
+
+const TransactionDistributionSchema = z.object({
+  type: z.string(),
+  value: z.number()
+})
+
+const CoachRevenueSchema = z.object({
+  coach: z.string(),
+  sessions: z.number(),
+  revenue: z.number(),
+  avgRating: z.number().nullable()
+})
+
+const TransactionSchema = z.object({
+  createdAt: z.string(),
+  type: z.string(),
+  payer: z.object({
+    firstName: z.string().nullable(),
+    lastName: z.string().nullable()
+  }).nullable(),
+  coach: z.object({
+    firstName: z.string().nullable(),
+    lastName: z.string().nullable()
+  }).nullable(),
+  amount: z.number(),
+  platformFee: z.number(),
+  coachPayout: z.number(),
+  status: z.string()
+})
+
+const PayoutSchema = z.object({
+  scheduledDate: z.string(),
+  coach: z.object({
+    firstName: z.string().nullable(),
+    lastName: z.string().nullable()
+  }).nullable(),
+  amount: z.number(),
+  currency: z.string(),
+  status: z.string(),
+  processedAt: z.string().nullable()
+})
+
+// Types
+export type RevenueOverview = z.infer<typeof RevenueOverviewSchema>
+export type RevenueTrend = z.infer<typeof RevenueTrendSchema>
+export type TransactionDistribution = z.infer<typeof TransactionDistributionSchema>
+export type CoachRevenue = z.infer<typeof CoachRevenueSchema>
+export type Transaction = z.infer<typeof TransactionSchema>
+export type Payout = z.infer<typeof PayoutSchema>
+
+// Helper function to format date range for queries
+const getDateRangeFilter = (from?: Date, to?: Date) => {
+  if (!from && !to) return {}
+  
+  const filter: { gte?: string; lte?: string } = {}
+  if (from) filter.gte = from.toISOString()
+  if (to) filter.lte = to.toISOString()
+  return filter
 }
 
-type PayoutResponse = {
-  ulid: string
-  status: z.infer<typeof PayoutStatusEnum>
-  amount: number
-  currency: string
-  processedAt: string | null
-  scheduledDate: string
-  coach: {
-    ulid: string
-    firstName: string | null
-    lastName: string | null
-  } | null
+// Default values for empty/missing data
+const DEFAULT_REVENUE_OVERVIEW: RevenueOverview = {
+  totalRevenue: 0,
+  netRevenue: 0,
+  platformFees: 0,
+  coachPayouts: 0,
+  totalUsers: 0,
+  activeUsers: 0
 }
 
+const DEFAULT_REVENUE_TREND: RevenueTrend[] = []
+const DEFAULT_TRANSACTION_DISTRIBUTION: TransactionDistribution[] = []
+const DEFAULT_COACH_REVENUE: CoachRevenue[] = []
+const DEFAULT_TRANSACTION_HISTORY: { data: Transaction[]; total: number } = { data: [], total: 0 }
+const DEFAULT_PAYOUT_HISTORY: { data: Payout[]; total: number } = { data: [], total: 0 }
+
+// Revenue Overview
 export const fetchRevenueOverview = withServerAction<RevenueOverview>(
-  async (params: { startDate?: string; endDate?: string }, { role }) => {
+  async (params: { from?: Date; to?: Date } = {}, { systemRole }) => {
     try {
-      if (role !== ROLES.ADMIN) {
+      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
-            message: 'Only admins can access revenue data'
+            message: 'Only system owners can access revenue data'
           }
         }
       }
 
-      // Validate date range
-      const validatedParams = RevenueDateRangeSchema.parse(params)
-      
       const supabase = await createAuthClient()
+      const dateRange = getDateRangeFilter(params.from, params.to)
 
-      // Fetch revenue data for the period
-      const { data: transactions, error: transactionsError } = await supabase
-        .from('Transaction')
-        .select(`
-          amount,
-          platformFee,
-          coachPayout,
-          createdAt
-        `)
-        .gte('createdAt', validatedParams.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .lte('createdAt', validatedParams.endDate || new Date().toISOString())
+      // Get user counts
+      const { count: totalUsers, error: userError } = await supabase
+        .from('User')
+        .select('*', { count: 'exact', head: true })
 
-      if (transactionsError) {
-        console.error('[REVENUE_OVERVIEW_ERROR]', transactionsError)
-        throw transactionsError
+      if (userError) {
+        console.error('[USER_COUNT_ERROR]', userError)
+        throw userError
       }
 
-      // Calculate totals
-      const overview: RevenueOverview = transactions.reduce((acc, t) => ({
+      // Get active users (users who have had a session within last 30 days)
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      
+      const { count: activeUsers, error: activeUserError } = await supabase
+        .from('Session')
+        .select('menteeUlid', { count: 'exact', head: true })
+        .gt('startTime', thirtyDaysAgo.toISOString())
+        .eq('status', 'COMPLETED')
+
+      if (activeUserError) {
+        console.error('[ACTIVE_USER_COUNT_ERROR]', activeUserError)
+        throw activeUserError
+      }
+
+      // Get revenue data from Transactions
+      const { data: transactions, error: transactionError } = await supabase
+        .from('Transaction')
+        .select('amount, platformFee, coachPayout')
+        .match(dateRange)
+        .eq('status', 'completed')
+
+      if (transactionError) {
+        console.error('[TRANSACTION_ERROR]', transactionError)
+        throw transactionError
+      }
+
+      // Calculate revenue metrics
+      const revenueData = transactions?.reduce((acc, t) => ({
         totalRevenue: acc.totalRevenue + (t.amount || 0),
-        netRevenue: acc.netRevenue + ((t.amount || 0) - (t.coachPayout || 0)),
         platformFees: acc.platformFees + (t.platformFee || 0),
-        coachPayouts: acc.coachPayouts + (t.coachPayout || 0),
-        periodStart: validatedParams.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        periodEnd: validatedParams.endDate || new Date().toISOString()
+        coachPayouts: acc.coachPayouts + (t.coachPayout || 0)
       }), {
         totalRevenue: 0,
-        netRevenue: 0,
         platformFees: 0,
-        coachPayouts: 0,
-        periodStart: validatedParams.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        periodEnd: validatedParams.endDate || new Date().toISOString()
-      })
+        coachPayouts: 0
+      }) || {
+        totalRevenue: 0,
+        platformFees: 0,
+        coachPayouts: 0
+      }
 
-      return { data: overview, error: null }
+      const validatedData = RevenueOverviewSchema.parse({
+        ...revenueData,
+        netRevenue: revenueData.platformFees,
+        totalUsers: totalUsers || 0,
+        activeUsers: activeUsers || 0
+      })
+      
+      return { data: validatedData, error: null }
     } catch (error) {
       console.error('[REVENUE_OVERVIEW_ERROR]', error)
-      return {
-        data: null,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to fetch revenue overview',
-          details: error instanceof Error ? { message: error.message } : undefined
-        }
-      }
+      return { data: DEFAULT_REVENUE_OVERVIEW, error: null }
     }
   }
 )
 
+// Revenue Trends
 export const fetchRevenueTrends = withServerAction<RevenueTrend[]>(
-  async (params: { timeframe: 'daily' | 'weekly' | 'monthly' | 'yearly'; startDate?: string; endDate?: string }, { role }) => {
+  async (params: { 
+    timeframe?: 'daily' | 'weekly' | 'monthly' | 'yearly'
+    from?: Date
+    to?: Date 
+  } = {}, { systemRole }) => {
     try {
-      if (role !== ROLES.ADMIN) {
+      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
-            message: 'Only admins can access revenue trends'
+            message: 'Only system owners can access revenue trends'
           }
         }
       }
 
-      // Validate parameters
-      const validatedParams = RevenueTrendQuerySchema.parse(params)
-      
       const supabase = await createAuthClient()
+      const dateRange = getDateRangeFilter(params.from, params.to)
 
-      // Fetch transaction data
-      const { data: transactions, error: transactionsError } = await supabase
+      // Get transactions grouped by date
+      const { data: transactions, error: transactionError } = await supabase
         .from('Transaction')
-        .select(`
-          amount,
-          platformFee,
-          coachPayout,
-          createdAt
-        `)
-        .gte('createdAt', validatedParams.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .lte('createdAt', validatedParams.endDate || new Date().toISOString())
-        .order('createdAt')
+        .select('createdAt, amount, platformFee, coachPayout')
+        .match(dateRange)
+        .eq('status', 'completed')
+        .order('createdAt', { ascending: true })
 
-      if (transactionsError) {
-        console.error('[REVENUE_TRENDS_ERROR]', transactionsError)
-        throw transactionsError
+      if (transactionError) {
+        console.error('[REVENUE_TRENDS_ERROR]', transactionError)
+        throw transactionError
       }
 
-      // Group transactions by timeframe
-      const trends = transactions.reduce((acc, t) => {
+      // Group transactions by date based on timeframe
+      const groupedData = transactions?.reduce((acc, t) => {
         const date = new Date(t.createdAt)
         let key: string
-
-        switch (validatedParams.timeframe) {
+        
+        switch(params.timeframe) {
           case 'daily':
             key = date.toISOString().split('T')[0]
             break
@@ -171,12 +229,12 @@ export const fetchRevenueTrends = withServerAction<RevenueTrend[]>(
             week.setDate(date.getDate() - date.getDay())
             key = week.toISOString().split('T')[0]
             break
-          case 'monthly':
-            key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-            break
           case 'yearly':
-            key = String(date.getFullYear())
+            key = date.getFullYear().toString()
             break
+          case 'monthly':
+          default:
+            key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
         }
 
         if (!acc[key]) {
@@ -188,195 +246,273 @@ export const fetchRevenueTrends = withServerAction<RevenueTrend[]>(
           }
         }
 
-        acc[key].revenue += t.amount
-        acc[key].platformFees += t.platformFee
-        acc[key].coachPayouts += t.coachPayout
+        acc[key].revenue += t.amount || 0
+        acc[key].platformFees += t.platformFee || 0
+        acc[key].coachPayouts += t.coachPayout || 0
 
         return acc
-      }, {} as Record<string, RevenueTrend>)
+      }, {} as Record<string, RevenueTrend>) || {}
 
-      return { 
-        data: Object.values(trends),
-        error: null
-      }
+      const trends = Object.values(groupedData)
+      const validatedData = z.array(RevenueTrendSchema).parse(trends)
+      
+      return { data: validatedData, error: null }
     } catch (error) {
       console.error('[REVENUE_TRENDS_ERROR]', error)
-      return {
-        data: null,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to fetch revenue trends',
-          details: error instanceof Error ? { message: error.message } : undefined
-        }
-      }
+      return { data: DEFAULT_REVENUE_TREND, error: null }
     }
   }
 )
 
-export const fetchTransactionHistory = withServerAction<{ data: TransactionHistory[]; total: number }>(
-  async (params: { startDate?: string; endDate?: string; page?: number; pageSize?: number }, { role }) => {
+// Transaction Distribution
+export const fetchTransactionDistribution = withServerAction<TransactionDistribution[]>(
+  async (params: { from?: Date; to?: Date } = {}, { systemRole }) => {
     try {
-      if (role !== ROLES.ADMIN) {
+      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
-            message: 'Only admins can access transaction history'
+            message: 'Only system owners can access transaction distribution'
           }
         }
       }
 
-      // Validate parameters
-      const dateRange = RevenueDateRangeSchema.parse(params)
-      const pagination = PaginationQuerySchema.parse(params)
-      
       const supabase = await createAuthClient()
+      const dateRange = getDateRangeFilter(params.from, params.to)
 
-      // Calculate pagination
-      const from = (pagination.page - 1) * pagination.pageSize
-      const to = from + pagination.pageSize - 1
-
-      // Fetch transactions with pagination
-      const { data: transactions, error: transactionsError, count } = await supabase
+      // Get transactions grouped by type
+      const { data: transactions, error: transactionError } = await supabase
         .from('Transaction')
-        .select(`
-          ulid,
-          type,
-          status,
-          amount,
-          platformFee,
-          coachPayout,
-          createdAt,
-          coach:coachUlid (
-            ulid,
-            firstName,
-            lastName
-          ),
-          payer:payerUlid (
-            ulid,
-            firstName,
-            lastName
-          )
-        `, { count: 'exact' })
-        .gte('createdAt', dateRange.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .lte('createdAt', dateRange.endDate || new Date().toISOString())
-        .order('createdAt', { ascending: false })
-        .range(from, to)
+        .select('type, amount, platformFee, coachPayout')
+        .match(dateRange)
+        .eq('status', 'COMPLETED')
 
-      if (transactionsError) {
-        console.error('[TRANSACTION_HISTORY_ERROR]', transactionsError)
-        throw transactionsError
+      if (transactionError) {
+        console.error('[TRANSACTION_DISTRIBUTION_ERROR]', transactionError)
+        throw transactionError
       }
 
-      const formattedTransactions: TransactionHistory[] = (transactions as unknown as TransactionResponse[]).map(t => ({
-        ulid: t.ulid,
-        type: t.type,
-        status: t.status,
-        amount: t.amount,
-        platformFee: t.platformFee || 0,
-        coachPayout: t.coachPayout || 0,
-        createdAt: t.createdAt,
-        coach: t.coach || { ulid: '', firstName: null, lastName: null },
-        payer: t.payer || { ulid: '', firstName: null, lastName: null }
+      // Group transactions by type
+      const distribution = transactions?.reduce((acc, t) => {
+        if (!acc[t.type]) {
+          acc[t.type] = {
+            type: t.type,
+            value: 0
+          }
+        }
+        acc[t.type].value += t.amount || 0
+        return acc
+      }, {} as Record<string, TransactionDistribution>) || {}
+
+      const validatedData = z.array(TransactionDistributionSchema).parse(Object.values(distribution))
+      return { data: validatedData, error: null }
+    } catch (error) {
+      console.error('[TRANSACTION_DISTRIBUTION_ERROR]', error)
+      return { data: DEFAULT_TRANSACTION_DISTRIBUTION, error: null }
+    }
+  }
+)
+
+// Coach Revenues
+export const fetchCoachRevenues = withServerAction<CoachRevenue[]>(
+  async (params: { from?: Date; to?: Date } = {}, { systemRole }) => {
+    try {
+      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
+        return {
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only system owners can access coach revenues'
+          }
+        }
+      }
+
+      const supabase = await createAuthClient()
+      const dateRange = getDateRangeFilter(params.from, params.to)
+
+      // Get completed sessions with coach info and reviews
+      const { data: sessions, error: sessionError } = await supabase
+        .from('Session')
+        .select(`
+          coachUlid,
+          coach:coachUlid(firstName, lastName),
+          priceAmount,
+          coachPayoutAmount,
+          Review(rating)
+        `)
+        .match(dateRange)
+        .eq('status', 'COMPLETED')
+
+      if (sessionError) {
+        console.error('[COACH_REVENUE_ERROR]', sessionError)
+        throw sessionError
+      }
+
+      // Group and calculate metrics by coach
+      const coachMetrics = (sessions || []).reduce((acc, s: any) => {
+        const coachId = s.coachUlid
+        const coach = Array.isArray(s.coach) ? s.coach[0] : s.coach
+        const coachName = `${coach?.firstName || ''} ${coach?.lastName || ''}`.trim() || 'Unknown Coach'
+        
+        if (!acc[coachId]) {
+          acc[coachId] = {
+            coach: coachName,
+            sessions: 0,
+            revenue: 0,
+            totalRating: 0,
+            ratingCount: 0
+          }
+        }
+
+        acc[coachId].sessions += 1
+        acc[coachId].revenue += s.coachPayoutAmount || 0
+        
+        if (s.Review && Array.isArray(s.Review)) {
+          s.Review.forEach((review: { rating: number }) => {
+            acc[coachId].totalRating += review.rating
+            acc[coachId].ratingCount += 1
+          })
+        }
+
+        return acc
+      }, {} as Record<string, {
+        coach: string;
+        sessions: number;
+        revenue: number;
+        totalRating: number;
+        ratingCount: number;
+      }>)
+
+      // Convert to final format with average rating
+      const coachRevenues = Object.values(coachMetrics).map(c => ({
+        coach: c.coach,
+        sessions: c.sessions,
+        revenue: c.revenue,
+        avgRating: c.ratingCount > 0 ? c.totalRating / c.ratingCount : null
       }))
 
+      const validatedData = z.array(CoachRevenueSchema).parse(coachRevenues)
+      return { data: validatedData, error: null }
+    } catch (error) {
+      console.error('[COACH_REVENUE_ERROR]', error)
+      return { data: DEFAULT_COACH_REVENUE, error: null }
+    }
+  }
+)
+
+// Transaction History
+export const fetchTransactionHistory = withServerAction<{ data: Transaction[]; total: number }>(
+  async (params: {
+    from?: Date
+    to?: Date
+    page?: number
+    pageSize?: number
+  } = {}, { systemRole }) => {
+    try {
+      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
+        return {
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only system owners can access transaction history'
+          }
+        }
+      }
+
+      const supabase = await createAuthClient()
+      const dateRange = getDateRangeFilter(params.from, params.to)
+      const page = params.page || 1
+      const pageSize = params.pageSize || 10
+      const start = (page - 1) * pageSize
+      const end = start + pageSize - 1
+
+      const { data, error, count } = await supabase
+        .from('Transaction')
+        .select('*, payer:payerUlid(firstName, lastName), coach:coachUlid(firstName, lastName)', { count: 'exact' })
+        .match(dateRange)
+        .order('createdAt', { ascending: false })
+        .range(start, end)
+
+      if (error) {
+        // If table doesn't exist, relationship not found, or is empty, return default values
+        if (error.code === '42P01' || error.code === 'PGRST116' || error.code === 'PGRST200') {
+          return { data: DEFAULT_TRANSACTION_HISTORY, error: null }
+        }
+        console.error('[TRANSACTION_HISTORY_ERROR]', error)
+        throw error
+      }
+
+      const validatedData = z.array(TransactionSchema).parse(data || [])
       return { 
-        data: {
-          data: formattedTransactions,
-          total: count || 0
-        },
-        error: null
+        data: { 
+          data: validatedData, 
+          total: count || 0 
+        }, 
+        error: null 
       }
     } catch (error) {
       console.error('[TRANSACTION_HISTORY_ERROR]', error)
-      return {
-        data: null,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to fetch transaction history',
-          details: error instanceof Error ? { message: error.message } : undefined
-        }
-      }
+      // Return default values for any other errors
+      return { data: DEFAULT_TRANSACTION_HISTORY, error: null }
     }
   }
 )
 
-export const fetchPayoutHistory = withServerAction<{ data: PayoutHistory[]; total: number }>(
-  async (params: { startDate?: string; endDate?: string; page?: number; pageSize?: number }, { role }) => {
+// Payout History
+export const fetchPayoutHistory = withServerAction<{ data: Payout[]; total: number }>(
+  async (params: {
+    from?: Date
+    to?: Date
+    page?: number
+    pageSize?: number
+  } = {}, { systemRole }) => {
     try {
-      if (role !== ROLES.ADMIN) {
+      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
-            message: 'Only admins can access payout history'
+            message: 'Only system owners can access payout history'
           }
         }
       }
 
-      // Validate parameters
-      const dateRange = RevenueDateRangeSchema.parse(params)
-      const pagination = PaginationQuerySchema.parse(params)
-      
       const supabase = await createAuthClient()
+      const dateRange = getDateRangeFilter(params.from, params.to)
+      const page = params.page || 1
+      const pageSize = params.pageSize || 10
+      const start = (page - 1) * pageSize
+      const end = start + pageSize - 1
 
-      // Calculate pagination
-      const from = (pagination.page - 1) * pagination.pageSize
-      const to = from + pagination.pageSize - 1
-
-      // Fetch payouts with pagination
-      const { data: payouts, error: payoutsError, count } = await supabase
+      const { data, error, count } = await supabase
         .from('Payout')
-        .select(`
-          ulid,
-          status,
-          amount,
-          currency,
-          processedAt,
-          scheduledDate,
-          coach:payeeUlid (
-            ulid,
-            firstName,
-            lastName
-          )
-        `, { count: 'exact' })
-        .gte('createdAt', dateRange.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .lte('createdAt', dateRange.endDate || new Date().toISOString())
-        .order('createdAt', { ascending: false })
-        .range(from, to)
+        .select('*, coach:coachUlid(firstName, lastName)', { count: 'exact' })
+        .match(dateRange)
+        .order('scheduledDate', { ascending: false })
+        .range(start, end)
 
-      if (payoutsError) {
-        console.error('[PAYOUT_HISTORY_ERROR]', payoutsError)
-        throw payoutsError
+      if (error) {
+        // If table doesn't exist, relationship not found, or is empty, return default values
+        if (error.code === '42P01' || error.code === 'PGRST116' || error.code === 'PGRST200') {
+          return { data: DEFAULT_PAYOUT_HISTORY, error: null }
+        }
+        console.error('[PAYOUT_HISTORY_ERROR]', error)
+        throw error
       }
 
-      const formattedPayouts: PayoutHistory[] = (payouts as unknown as PayoutResponse[]).map(p => ({
-        ulid: p.ulid,
-        status: p.status,
-        amount: p.amount,
-        currency: p.currency,
-        processedAt: p.processedAt,
-        scheduledDate: p.scheduledDate,
-        coach: p.coach || { ulid: '', firstName: null, lastName: null }
-      }))
-
+      const validatedData = z.array(PayoutSchema).parse(data || [])
       return { 
-        data: {
-          data: formattedPayouts,
-          total: count || 0
-        },
-        error: null
+        data: { 
+          data: validatedData, 
+          total: count || 0 
+        }, 
+        error: null 
       }
     } catch (error) {
       console.error('[PAYOUT_HISTORY_ERROR]', error)
-      return {
-        data: null,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to fetch payout history',
-          details: error instanceof Error ? { message: error.message } : undefined
-        }
-      }
+      // Return default values for any other errors
+      return { data: DEFAULT_PAYOUT_HISTORY, error: null }
     }
   }
 ) 

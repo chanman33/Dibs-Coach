@@ -78,9 +78,7 @@ export function SystemSidebar() {
             <NavLink href="/dashboard/system/monitoring" icon={Activity}>
               System Health
             </NavLink>
-            <NavLink href="/dashboard/system/settings" icon={Settings}>
-              Settings
-            </NavLink>
+
           </nav>
         </div>
       </div>

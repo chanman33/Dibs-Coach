@@ -16,13 +16,17 @@ import { BarChart, LineChart, DonutChart } from '@tremor/react';
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { toast } from '@/components/ui/use-toast';
 import { 
   fetchRevenueOverview,
   fetchRevenueTrends,
   fetchTransactionDistribution,
   fetchCoachRevenues,
   fetchTransactionHistory,
-  fetchPayoutHistory
+  fetchPayoutHistory,
+  type Transaction,
+  type Payout,
+  type CoachRevenue
 } from '@/utils/actions/admin-revenue-actions';
 
 interface RevenueOverview {
@@ -30,6 +34,8 @@ interface RevenueOverview {
   netRevenue: number;
   platformFees: number;
   coachPayouts: number;
+  totalUsers: number;
+  activeUsers: number;
 }
 
 interface RevenueTrend {
@@ -44,13 +50,6 @@ interface TransactionDistribution {
   value: number;
 }
 
-interface CoachRevenue {
-  coach: string;
-  sessions: number;
-  revenue: number;
-  avgRating: number;
-}
-
 interface PageData {
   overview: RevenueOverview | null;
   trends: RevenueTrend[];
@@ -62,8 +61,16 @@ interface PageData {
 const RevenueOverviewCard = ({ data }: { data: RevenueOverview | null }) => {
   return (
     <Card className="p-6">
-      <h3 className="text-lg font-semibold mb-4">Revenue Overview</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <h3 className="text-lg font-semibold mb-4">Overview</h3>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div>
+          <p className="text-sm text-muted-foreground">Total Users</p>
+          <p className="text-2xl font-bold">{data?.totalUsers?.toLocaleString() || '0'}</p>
+        </div>
+        <div>
+          <p className="text-sm text-muted-foreground">Active Users</p>
+          <p className="text-2xl font-bold">{data?.activeUsers?.toLocaleString() || '0'}</p>
+        </div>
         <div>
           <p className="text-sm text-muted-foreground">Total Revenue</p>
           <p className="text-2xl font-bold">${data?.totalRevenue?.toFixed(2) || '0.00'}</p>
@@ -150,17 +157,46 @@ const CoachRevenueRankings = ({ data }: { data: CoachRevenue[] }) => {
 // Transaction History Table Component
 const TransactionHistoryTable = ({ dateRange }: { dateRange: DateRange | undefined }) => {
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<{ data: any[]; total: number }>({ data: [], total: 0 });
+  const [data, setData] = useState<{ data: Transaction[]; total: number }>({ data: [], total: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const result = await fetchTransactionHistory(dateRange?.from, dateRange?.to, page);
-        setData(result);
+        const result = await fetchTransactionHistory({
+          from: dateRange?.from,
+          to: dateRange?.to,
+          page,
+          pageSize: 10
+        });
+
+        if (result.error) {
+          toast({
+            title: 'Error',
+            description: result.error.message,
+            variant: 'destructive'
+          });
+          return;
+        }
+
+        if (!result.data) {
+          toast({
+            title: 'Error',
+            description: 'No data received from server',
+            variant: 'destructive'
+          });
+          return;
+        }
+
+        setData(result.data);
       } catch (error) {
         console.error('[TRANSACTION_ERROR]', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch transactions',
+          variant: 'destructive'
+        });
       } finally {
         setLoading(false);
       }
@@ -238,17 +274,46 @@ const TransactionHistoryTable = ({ dateRange }: { dateRange: DateRange | undefin
 // Payout History Table Component
 const PayoutHistoryTable = ({ dateRange }: { dateRange: DateRange | undefined }) => {
   const [page, setPage] = useState(1);
-  const [data, setData] = useState<{ data: any[]; total: number }>({ data: [], total: 0 });
+  const [data, setData] = useState<{ data: Payout[]; total: number }>({ data: [], total: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const result = await fetchPayoutHistory(dateRange?.from, dateRange?.to, page);
-        setData(result);
+        const result = await fetchPayoutHistory({
+          from: dateRange?.from,
+          to: dateRange?.to,
+          page,
+          pageSize: 10
+        });
+
+        if (result.error) {
+          toast({
+            title: 'Error',
+            description: result.error.message,
+            variant: 'destructive'
+          });
+          return;
+        }
+
+        if (!result.data) {
+          toast({
+            title: 'Error',
+            description: 'No data received from server',
+            variant: 'destructive'
+          });
+          return;
+        }
+
+        setData(result.data);
       } catch (error) {
         console.error('[PAYOUT_ERROR]', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch payouts',
+          variant: 'destructive'
+        });
       } finally {
         setLoading(false);
       }
@@ -321,25 +386,43 @@ export default function RevenueAnalyticsPage() {
       setLoading(true);
       try {
         const [overview, trends, distribution, coachRevenues] = await Promise.all([
-          fetchRevenueOverview(dateRange?.from, dateRange?.to),
-          fetchRevenueTrends(
-            timeframe as 'daily' | 'weekly' | 'monthly' | 'yearly',
-            dateRange?.from,
-            dateRange?.to
-          ),
-          fetchTransactionDistribution(dateRange?.from, dateRange?.to),
-          fetchCoachRevenues(dateRange?.from, dateRange?.to)
+          fetchRevenueOverview({
+            from: dateRange?.from,
+            to: dateRange?.to
+          }),
+          fetchRevenueTrends({
+            timeframe: timeframe as 'daily' | 'weekly' | 'monthly' | 'yearly',
+            from: dateRange?.from,
+            to: dateRange?.to
+          }),
+          fetchTransactionDistribution({
+            from: dateRange?.from,
+            to: dateRange?.to
+          }),
+          fetchCoachRevenues({
+            from: dateRange?.from,
+            to: dateRange?.to
+          })
         ]);
 
+        if (overview.error) throw new Error(overview.error.message);
+        if (trends.error) throw new Error(trends.error.message);
+        if (distribution.error) throw new Error(distribution.error.message);
+        if (coachRevenues.error) throw new Error(coachRevenues.error.message);
+
         setData({
-          overview,
-          trends,
-          distribution,
-          coachRankings: coachRevenues
+          overview: overview.data,
+          trends: trends.data || [],
+          distribution: distribution.data || [],
+          coachRankings: coachRevenues.data || []
         });
       } catch (error) {
         console.error('[REVENUE_ERROR]', error);
-        // TODO: Add error toast notification
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to load revenue data',
+          variant: 'destructive'
+        });
       } finally {
         setLoading(false);
       }

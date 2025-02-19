@@ -322,57 +322,6 @@ export default function SystemDashboard() {
           ))}
         </div>
       )}
-
-      {/* Quick Actions */}
-      <Card className="border-2">
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <Button
-              variant="outline"
-              className="h-20 w-full"
-              onClick={() => router.push('/dashboard/system/user-management')}
-            >
-              <div className="flex flex-col items-center space-y-2">
-                <Users className="h-5 w-5" />
-                <span>User Management</span>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 w-full"
-              onClick={() => router.push('/dashboard/system/permissions')}
-            >
-              <div className="flex flex-col items-center space-y-2">
-                <Lock className="h-5 w-5" />
-                <span>Permissions</span>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 w-full"
-              onClick={() => router.push('/dashboard/system/monitoring')}
-            >
-              <div className="flex flex-col items-center space-y-2">
-                <Activity className="h-5 w-5" />
-                <span>Monitoring</span>
-              </div>
-            </Button>
-            <Button
-              variant="outline"
-              className="h-20 w-full"
-              onClick={() => router.push('/dashboard/system/analytics')}
-            >
-              <div className="flex flex-col items-center space-y-2">
-                <BarChart className="h-5 w-5" />
-                <span>Analytics</span>
-              </div>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

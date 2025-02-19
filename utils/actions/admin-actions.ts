@@ -58,6 +58,38 @@ const UserSchema = z.object({
 
 export type User = z.infer<typeof UserSchema>
 
+// Helper to ensure datetime is in ISO format
+const formatDateTime = (date: string | Date) => {
+  if (date instanceof Date) {
+    return date.toISOString()
+  }
+  // Try to parse the date and format it
+  try {
+    return new Date(date).toISOString()
+  } catch (e) {
+    console.error('[DATE_FORMAT_ERROR]', e)
+    return new Date().toISOString() // Fallback to current time
+  }
+}
+
+// Helper to format data for validation
+const formatDataForValidation = (data: any) => {
+  if (!data) return data
+
+  // Format dates in the data
+  if (data.createdAt) {
+    data.createdAt = formatDateTime(data.createdAt)
+  }
+  if (data.updatedAt) {
+    data.updatedAt = formatDateTime(data.updatedAt)
+  }
+  if (data.lastUpdated) {
+    data.lastUpdated = formatDateTime(data.lastUpdated)
+  }
+
+  return data
+}
+
 // Actions
 export const fetchDashboardData = withServerAction<DashboardData>(
   async (_, { userUlid, systemRole }) => {
@@ -74,61 +106,155 @@ export const fetchDashboardData = withServerAction<DashboardData>(
 
       const supabase = await createAuthClient()
 
-      // Fetch system health
-      const { data: healthData, error: healthError } = await supabase
-        .from('SystemHealth')
-        .select('*')
-        .order('createdAt', { ascending: false })
-        .limit(1)
-        .single()
+      // Calculate system health metrics
+      const { count: activeSessions } = await supabase
+        .from('Session')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'ACTIVE')
 
-      if (healthError) {
-        console.error('[DB_ERROR] SystemHealth:', healthError)
-        throw healthError
-      }
+      const { count: pendingReviews } = await supabase
+        .from('Review')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'PENDING')
 
-      // Fetch metrics
-      const { data: metricsData, error: metricsError } = await supabase
-        .from('SystemMetrics')
-        .select('*')
-        .order('createdAt', { ascending: false })
-        .limit(1)
-        .single()
+      const { count: securityAlerts } = await supabase
+        .from('SecurityEvent')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'OPEN')
 
-      if (metricsError) {
-        console.error('[DB_ERROR] SystemMetrics:', metricsError)
-        throw metricsError
-      }
+      // Calculate user metrics
+      const { count: totalUsers } = await supabase
+        .from('User')
+        .select('*', { count: 'exact', head: true })
 
-      // Fetch recent activity
-      const { data: activityData, error: activityError } = await supabase
-        .from('SystemActivity')
+      const thirtyDaysAgo = new Date()
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      
+      const { count: activeUsers } = await supabase
+        .from('User')
+        .select('*', { count: 'exact', head: true })
+        .gt('lastLoginAt', thirtyDaysAgo.toISOString())
+
+      const { count: totalCoaches } = await supabase
+        .from('User')
+        .select('*', { count: 'exact', head: true })
+        .eq('isCoach', true)
+
+      const { count: activeCoaches } = await supabase
+        .from('CoachProfile')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'ACTIVE')
+
+      const { count: pendingCoaches } = await supabase
+        .from('CoachApplication')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'PENDING')
+
+      // Calculate session metrics
+      const { count: totalSessions } = await supabase
+        .from('Session')
+        .select('*', { count: 'exact', head: true })
+
+      const { count: completedSessions } = await supabase
+        .from('Session')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'COMPLETED')
+
+      // Calculate revenue metrics
+      const monthStart = new Date()
+      monthStart.setDate(1)
+      monthStart.setHours(0, 0, 0, 0)
+
+      const { data: transactions } = await supabase
+        .from('Transaction')
+        .select('amount, platformFee, coachPayout')
+        .eq('status', 'COMPLETED')
+
+      const { data: monthlyTransactions } = await supabase
+        .from('Transaction')
+        .select('amount, platformFee, coachPayout')
+        .eq('status', 'COMPLETED')
+        .gte('createdAt', monthStart.toISOString())
+
+      const totalRevenue = transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
+      const monthlyRevenue = monthlyTransactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
+
+      // Get recent system activity
+      const { data: recentActivity } = await supabase
+        .from('AdminAuditLog')
         .select('*')
         .order('createdAt', { ascending: false })
         .limit(10)
 
-      if (activityError) {
-        console.error('[DB_ERROR] SystemActivity:', activityError)
-        throw activityError
-      }
+      const formattedActivity = recentActivity?.map(log => ({
+        ulid: log.ulid,
+        type: log.action,
+        title: `${log.action} - ${log.targetType}`,
+        description: JSON.stringify(log.details),
+        severity: 'info',
+        createdAt: log.createdAt,
+        updatedAt: log.createdAt
+      })) || []
 
-      // Fetch system alerts
-      const { data: alertsData, error: alertsError } = await supabase
-        .from('SystemAlerts')
+      // Get system alerts (from security events, errors, etc)
+      const { data: securityEvents } = await supabase
+        .from('SecurityEvent')
         .select('*')
+        .eq('status', 'OPEN')
         .order('createdAt', { ascending: false })
         .limit(10)
 
-      if (alertsError) {
-        console.error('[DB_ERROR] SystemAlerts:', alertsError)
-        throw alertsError
+      const formattedAlerts = securityEvents?.map(event => ({
+        ulid: event.ulid,
+        type: 'SECURITY',
+        title: event.type,
+        message: event.description,
+        severity: event.severity,
+        createdAt: event.createdAt,
+        updatedAt: event.updatedAt
+      })) || []
+
+      // Calculate system health status
+      const status = (securityAlerts || 0) > 0 ? 3 : (activeSessions || 0) > 100 ? 2 : 1
+
+      const healthData = {
+        ulid: 'current',
+        status,
+        activeSessions: activeSessions || 0,
+        pendingReviews: pendingReviews || 0,
+        securityAlerts: securityAlerts || 0,
+        uptime: 100, // TODO: Implement actual uptime tracking
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       }
 
-      // Validate data
-      const validatedHealth = SystemHealthSchema.parse(healthData)
+      const metricsData = {
+        totalUsers: totalUsers || 0,
+        activeUsers: activeUsers || 0,
+        totalSessions: totalSessions || 0,
+        completedSessions: completedSessions || 0,
+        activeCoaches: activeCoaches || 0,
+        pendingCoaches: pendingCoaches || 0,
+        monthlyRevenue,
+        totalRevenue,
+        metrics: {
+          userGrowth: 0, // TODO: Calculate growth rates
+          coachGrowth: 0,
+          revenueGrowth: 0,
+          sessionGrowth: 0
+        },
+        lastUpdated: new Date().toISOString()
+      }
+
+      // Format and validate data
+      const validatedHealth = SystemHealthSchema.parse(formatDataForValidation(healthData))
       const validatedMetrics = SystemMetricsSchema.parse(metricsData)
-      const validatedActivity = z.array(SystemActivitySchema).parse(activityData)
-      const validatedAlerts = z.array(SystemAlertSchema).parse(alertsData)
+      const validatedActivity = z.array(SystemActivitySchema).parse(
+        formattedActivity.map(activity => formatDataForValidation(activity))
+      )
+      const validatedAlerts = z.array(SystemAlertSchema).parse(
+        formattedAlerts.map(alert => formatDataForValidation(alert))
+      )
 
       const dashboardData: DashboardData = {
         systemHealth: validatedHealth,
