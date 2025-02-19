@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import CoachApplicationForm from '@/app/apply-coach/_components/CoachApplicationForm';
 import { getCoachApplication } from '@/utils/actions/coach-application';
-import { COACH_APPLICATION_STATUS } from '@/utils/types';
 import { createAuthClient } from '@/utils/auth';
 
 export default async function ApplyCoachPage() {
@@ -14,27 +13,53 @@ export default async function ApplyCoachPage() {
   }
 
   // Get existing application if any
-  const applications = await getCoachApplication();
-  const existingApplication = applications?.[0];
+  const { data: application, error: applicationError } = await getCoachApplication(userId);
+  
+  if (applicationError) {
+    console.error('[APPLY_COACH_ERROR]', applicationError);
+    // Handle error gracefully - you might want to show an error UI component
+    return (
+      <div className="flex-1 p-6 pt-16">
+        <div className="container max-w-2xl mx-auto">
+          <div className="bg-destructive/15 text-destructive p-4 rounded-md">
+            <p>Unable to load application data. Please try again later.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Get user data from Supabase
   const supabase = await createAuthClient();
-  const { data: userData } = await supabase
+  const { data: userData, error: userError } = await supabase
     .from('User')
     .select('firstName, lastName, email, phoneNumber')
     .eq('userId', userId)
     .single();
 
-  // Format application data for the form
-  const formattedApplication = existingApplication ? {
-    id: existingApplication.id,
-    status: existingApplication.status,
-    experience: existingApplication.experience,
-    specialties: existingApplication.specialties,
-    resumeUrl: existingApplication.resumeUrl,
-    linkedIn: existingApplication.linkedIn,
-    primarySocialMedia: existingApplication.primarySocialMedia,
-    additionalInfo: existingApplication.additionalInfo
+  if (userError) {
+    console.error('[APPLY_COACH_ERROR]', userError);
+    return (
+      <div className="flex-1 p-6 pt-16">
+        <div className="container max-w-2xl mx-auto">
+          <div className="bg-destructive/15 text-destructive p-4 rounded-md">
+            <p>Unable to load user data. Please try again later.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Format application data for the form if it exists
+  const formattedApplication = application ? {
+    id: application.ulid,
+    status: application.status,
+    experience: application.experience,
+    specialties: application.specialties,
+    resumeUrl: null,
+    linkedIn: null,
+    primarySocialMedia: null,
+    additionalInfo: application.notes
   } : undefined;
 
   // Format user data for the form

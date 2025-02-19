@@ -1,24 +1,11 @@
 import { z } from "zod"
 import { CoachApplicationStatus } from "./coach"
 
-// Update CoachApplicationStatus to include draft
-export const COACH_APPLICATION_STATUS = {
-  DRAFT: 'draft',
-  PENDING: 'pending',
-  APPROVED: 'approved',
-  REJECTED: 'rejected'
-} as const;
-
 // Coach Application Schema
 export const CoachApplicationSchema = z.object({
   id: z.number(),
   applicantDbId: z.number(),
-  status: z.enum([
-    COACH_APPLICATION_STATUS.DRAFT,
-    COACH_APPLICATION_STATUS.PENDING,
-    COACH_APPLICATION_STATUS.APPROVED,
-    COACH_APPLICATION_STATUS.REJECTED
-  ]),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'DRAFT']),
   experience: z.string(),
   specialties: z.array(z.string()),
   notes: z.string().nullable(),
@@ -41,13 +28,47 @@ export type CoachApplication = z.infer<typeof CoachApplicationSchema>;
 
 // Review Application Input Schema
 export const ReviewApplicationInputSchema = z.object({
-  applicationId: z.number(),
-  status: z.enum([
-    COACH_APPLICATION_STATUS.PENDING,
-    COACH_APPLICATION_STATUS.APPROVED,
-    COACH_APPLICATION_STATUS.REJECTED
-  ]),
+  applicationUlid: z.string(),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'DRAFT']),
   notes: z.string().optional(),
 });
 
-export type ReviewApplicationInput = z.infer<typeof ReviewApplicationInputSchema>; 
+export type ReviewApplicationInput = z.infer<typeof ReviewApplicationInputSchema>;
+
+export type ApplicationData = {
+  ulid: string;
+  status: CoachApplicationStatus;
+  experience: string;
+  specialties: string[];
+  notes: string | null;
+  applicationDate: string;
+  reviewDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resumeUrl: string | null;
+  linkedIn: string | null;
+  primarySocialMedia: string | null;
+  additionalInfo: string | null;
+  applicant: {
+    ulid: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  } | null;
+  reviewer: {
+    ulid: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+};
+
+export type ApiResponse<T> = {
+  data: T | null;
+  error: {
+    code: string;
+    message: string;
+    details?: Record<string, any>;
+  } | null;
+};
+
+export type ReviewStatusType = CoachApplicationStatus; 

@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { submitCoachApplication } from '@/utils/actions/coach-application';
-import { COACH_APPLICATION_STATUS } from '@/utils/types/coach-application';
+import { COACH_APPLICATION_STATUS } from '@/utils/types/coach';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { FileUpload } from '@/components/ui/file-upload';
@@ -29,14 +29,14 @@ interface CoachApplicationFormData {
 
 interface CoachApplicationFormProps {
   existingApplication?: {
-    id?: number;
+    id: string;
     status: typeof COACH_APPLICATION_STATUS[keyof typeof COACH_APPLICATION_STATUS];
     experience: string;
     specialties: string[];
-    resumeUrl?: string | null;
-    linkedIn?: string | null;
-    primarySocialMedia?: string | null;
-    additionalInfo?: string | null;
+    resumeUrl: string | null;
+    linkedIn: string | null;
+    primarySocialMedia: string | null;
+    additionalInfo: string | null;
   };
   userData?: {
     firstName: string;
@@ -69,16 +69,33 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
     setLoading(true);
     try {
       const formData = new FormData();
-      Object.entries(data).forEach(([key, value]) => {
-        if (value !== null) {
-          formData.append(key, value);
-        }
-      });
+      
+      // Add form fields
+      formData.append('firstName', data.firstName);
+      formData.append('lastName', data.lastName);
+      formData.append('email', data.email);
+      formData.append('phoneNumber', data.phoneNumber);
+      formData.append('yearsOfExperience', data.yearsOfExperience);
+      formData.append('expertise', data.expertise);
+      
+      // Add optional fields
+      if (data.resume) {
+        formData.append('resume', data.resume);
+      }
+      if (data.linkedIn) {
+        formData.append('linkedIn', data.linkedIn);
+      }
+      if (data.primarySocialMedia) {
+        formData.append('primarySocialMedia', data.primarySocialMedia);
+      }
+      if (data.additionalInfo) {
+        formData.append('additionalInfo', data.additionalInfo);
+      }
 
       // Add application status and ID if updating
       formData.append('status', isDraft ? 'draft' : 'pending');
       if (existingApplication?.id) {
-        formData.append('applicationId', existingApplication.id.toString());
+        formData.append('applicationId', existingApplication.id);
       }
 
       await submitCoachApplication(formData);

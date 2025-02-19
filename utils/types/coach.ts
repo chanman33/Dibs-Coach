@@ -75,15 +75,17 @@ export const CoachMetricsSchema = z.object({
 });
 
 export enum CoachApplicationStatus {
-  pending = 'pending',
-  approved = 'approved',
-  rejected = 'rejected'
+  DRAFT = 'DRAFT',
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED'
 }
 
 export const COACH_APPLICATION_STATUS = {
-  PENDING: CoachApplicationStatus.pending,
-  APPROVED: CoachApplicationStatus.approved,
-  REJECTED: CoachApplicationStatus.rejected,
+  DRAFT: CoachApplicationStatus.DRAFT,
+  PENDING: CoachApplicationStatus.PENDING,
+  APPROVED: CoachApplicationStatus.APPROVED,
+  REJECTED: CoachApplicationStatus.REJECTED,
 } as const;
 
 export type CoachApplicationStatusType = typeof COACH_APPLICATION_STATUS[keyof typeof COACH_APPLICATION_STATUS];

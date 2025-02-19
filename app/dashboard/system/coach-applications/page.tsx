@@ -22,9 +22,9 @@ import {
   Phone,
   Clock
 } from 'lucide-react';
-import { COACH_APPLICATION_STATUS } from '@/utils/types/coach-application';
-import type { CoachApplication } from '@/utils/types/coach-application';
-import { getCoachApplication, reviewCoachApplication, getSignedResumeUrl } from '@/utils/actions/coach-application';
+import { type ApplicationData, type ApiResponse } from '@/utils/types/coach-application';
+import { COACH_APPLICATION_STATUS, type CoachApplicationStatus } from '@/utils/types/coach';
+import { getCoachApplication, reviewCoachApplication, getSignedResumeUrl, getAllCoachApplications } from '@/utils/actions/coach-application';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -40,9 +40,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import clsx from 'clsx';
+import { useToast } from '@/components/ui/use-toast';
 
-type CoachApplicationStatusType = (typeof COACH_APPLICATION_STATUS)[keyof typeof COACH_APPLICATION_STATUS];
-type ReviewStatusType = 'pending' | 'approved' | 'rejected';
+type StatusFilter = CoachApplicationStatus | 'ALL';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -55,74 +55,87 @@ type Applicant = {
 };
 
 export default function CoachApplicationsPage() {
-  const [applications, setApplications] = useState<CoachApplication[]>([]);
+  const [applications, setApplications] = useState<ApplicationData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
-  const [processingIds, setProcessingIds] = useState<number[]>([]);
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [processingIds, setProcessingIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<CoachApplicationStatusType | 'ALL'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [sortBy, setSortBy] = useState<'date' | 'name'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedApplication, setSelectedApplication] = useState<CoachApplication | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<ApplicationData | null>(null);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
+  const [selectedApplications, setSelectedApplications] = useState<string[]>([]);
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchApplications = async () => {
       try {
-        const result = await getCoachApplication({});
+        const result = await getAllCoachApplications(null);
         if (result.error) {
-          toast.error(result.error.message);
-          return;
+          throw new Error(result.error.message);
         }
-        // Cast the data to match the expected type
-        const applications = result.data ? [result.data as unknown as CoachApplication] : [];
-        setApplications(applications);
+        if (!result.data) {
+          throw new Error('No data returned from server');
+        }
+        setApplications(result.data);
       } catch (error) {
         console.error('[FETCH_APPLICATIONS_ERROR]', error);
-        toast.error('Failed to fetch applications');
+        toast({
+          title: 'Error',
+          description: error instanceof Error ? error.message : 'Failed to fetch applications',
+          variant: 'destructive'
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchApplications();
-  }, []);
+  }, [toast]);
 
-  const handleReview = async (applicationId: number, status: ReviewStatusType) => {
-    setProcessingIds(prev => [...prev, applicationId]);
+  const handleReview = async (applicationUlid: string, status: CoachApplicationStatus) => {
     try {
+      setProcessingIds(prev => [...prev, applicationUlid]);
+      const application = applications.find(app => app.ulid === applicationUlid);
+      if (!application) {
+        throw new Error('Application not found');
+      }
+
       const result = await reviewCoachApplication({
-        applicationId,
+        applicationUlid,
         status,
-        notes: reviewNotes[applicationId]
+        notes: reviewNotes[applicationUlid]
       });
 
-      if (!result) throw new Error('Failed to review application');
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
 
       // Update local state
-      const now = new Date().toISOString();
       setApplications(prev =>
         prev.map(app =>
-          app.id === applicationId
-            ? {
-              ...app,
-              status,
-              notes: reviewNotes[applicationId] || null,
-              reviewedAt: now,
-              updatedAt: now,
-            }
+          app.ulid === applicationUlid
+            ? { ...app, status, notes: reviewNotes[applicationUlid] || null, reviewDate: new Date().toISOString() }
             : app
         )
       );
 
-      toast.success(`Application ${status === COACH_APPLICATION_STATUS.APPROVED ? 'approved' : 'rejected'}`);
+      toast({
+        title: 'Success',
+        description: `Application ${status.toLowerCase()} successfully`
+      });
     } catch (error) {
       console.error('[REVIEW_APPLICATION_ERROR]', error);
-      toast.error('Failed to review application');
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to review application',
+        variant: 'destructive'
+      });
     } finally {
-      setProcessingIds(prev => prev.filter(id => id !== applicationId));
+      setProcessingIds(prev => prev.filter(id => id !== applicationUlid));
     }
   };
 
@@ -162,49 +175,44 @@ export default function CoachApplicationsPage() {
   }, [search, statusFilter, sortBy, sortOrder]);
 
   // Handle bulk actions
-  const handleBulkAction = async (status: ReviewStatusType) => {
-    if (!selectedIds.length) return;
-
-    const confirmed = window.confirm(
-      `Are you sure you want to ${status.toLowerCase()} ${selectedIds.length} application(s)?`
-    );
-
-    if (!confirmed) return;
-
-    setProcessingIds(selectedIds);
-
+  const handleBulkAction = async (status: CoachApplicationStatus) => {
     try {
-      await Promise.all(
-        selectedIds.map(id =>
-          reviewCoachApplication({
-            applicationId: id,
-            status,
-            notes: reviewNotes[id]
-          })
-        )
-      );
+      setProcessingIds(selectedApplications);
+      
+      // Process applications in sequence
+      for (const applicationUlid of selectedApplications) {
+        const result = await reviewCoachApplication({
+          applicationUlid,
+          status,
+          notes: reviewNotes[applicationUlid]
+        });
+
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
+      }
 
       // Update local state
-      const now = new Date().toISOString();
       setApplications(prev =>
         prev.map(app =>
-          selectedIds.includes(app.id)
-            ? {
-              ...app,
-              status,
-              notes: reviewNotes[app.id] || null,
-              reviewedAt: now,
-              updatedAt: now,
-            }
+          selectedApplications.includes(app.ulid)
+            ? { ...app, status, notes: reviewNotes[app.ulid] || null, reviewDate: new Date().toISOString() }
             : app
         )
       );
 
-      setSelectedIds([]);
-      toast.success(`Successfully ${status.toLowerCase()} ${selectedIds.length} application(s)`);
+      setSelectedApplications([]);
+      toast({
+        title: 'Success',
+        description: `${selectedApplications.length} applications ${status.toLowerCase()} successfully`
+      });
     } catch (error) {
       console.error('[BULK_REVIEW_ERROR]', error);
-      toast.error('Failed to process bulk action');
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to process bulk action',
+        variant: 'destructive'
+      });
     } finally {
       setProcessingIds([]);
     }
@@ -214,19 +222,23 @@ export default function CoachApplicationsPage() {
   const stats = applications.reduce(
     (acc, app) => ({
       ...acc,
-      [app.status]: (acc[app.status] || 0) + 1
+      [app.status]: (acc[app.status as keyof typeof COACH_APPLICATION_STATUS] || 0) + 1
     }),
-    {} as Record<CoachApplicationStatusType, number>
+    {} as Record<keyof typeof COACH_APPLICATION_STATUS, number>
   );
 
-  const handleViewApplication = async (application: CoachApplication) => {
+  const handleViewApplication = async (application: ApplicationData) => {
     setSelectedApplication(application);
     if (application.resumeUrl) {
       const result = await getSignedResumeUrl(application.resumeUrl);
       if (result.data) {
         setResumeUrl(result.data);
       } else if (result.error) {
-        toast.error('Failed to get resume URL');
+        toast({
+          title: 'Error',
+          description: 'Failed to get resume URL',
+          variant: 'destructive'
+        });
       }
     }
   };
@@ -274,7 +286,7 @@ export default function CoachApplicationsPage() {
             className="max-w-xs"
           />
 
-          <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+          <Select value={statusFilter} onValueChange={(value: StatusFilter) => setStatusFilter(value)}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
@@ -320,7 +332,7 @@ export default function CoachApplicationsPage() {
           <>
             {paginatedApplications.map((application) => (
               <Card 
-                key={application.id} 
+                key={application.ulid} 
                 className="hover:shadow-lg transition-shadow"
               >
                 <CardContent className="p-4">
@@ -329,12 +341,12 @@ export default function CoachApplicationsPage() {
                     <div className="flex items-start gap-4">
                       {application.status === COACH_APPLICATION_STATUS.PENDING && (
                         <Checkbox
-                          checked={selectedIds.includes(application.id)}
+                          checked={selectedIds.includes(application.ulid)}
                           onCheckedChange={(checked) => {
                             setSelectedIds(prev =>
                               checked
-                                ? [...prev, application.id]
-                                : prev.filter(id => id !== application.id)
+                                ? [...prev, application.ulid]
+                                : prev.filter(id => id !== application.ulid)
                             );
                           }}
                           className="mt-2"
@@ -380,7 +392,7 @@ export default function CoachApplicationsPage() {
                           application.status === COACH_APPLICATION_STATUS.REJECTED && "bg-red-100 text-red-800 hover:bg-red-100"
                         )}
                       >
-                        {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+                        {application.status}
                       </Badge>
                       
                       <Button
@@ -514,19 +526,19 @@ export default function CoachApplicationsPage() {
                       <h3 className="text-lg font-semibold">Review Decision</h3>
                       <Textarea
                         placeholder="Add review notes..."
-                        value={reviewNotes[selectedApplication.id] || ''}
+                        value={reviewNotes[selectedApplication.ulid] || ''}
                         onChange={(e) => setReviewNotes(prev => ({
                           ...prev,
-                          [selectedApplication.id]: e.target.value
+                          [selectedApplication.ulid]: e.target.value
                         }))}
                       />
                       <div className="flex gap-4">
                         <Button
-                          onClick={() => handleReview(selectedApplication.id, COACH_APPLICATION_STATUS.APPROVED)}
-                          disabled={processingIds.includes(selectedApplication.id)}
+                          onClick={() => handleReview(selectedApplication.ulid, COACH_APPLICATION_STATUS.APPROVED)}
+                          disabled={processingIds.includes(selectedApplication.ulid)}
                           className="flex-1"
                         >
-                          {processingIds.includes(selectedApplication.id) ? (
+                          {processingIds.includes(selectedApplication.ulid) ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           ) : (
                             <CheckCircle className="mr-2 h-4 w-4" />
@@ -534,12 +546,12 @@ export default function CoachApplicationsPage() {
                           Approve
                         </Button>
                         <Button
-                          onClick={() => handleReview(selectedApplication.id, COACH_APPLICATION_STATUS.REJECTED)}
-                          disabled={processingIds.includes(selectedApplication.id)}
+                          onClick={() => handleReview(selectedApplication.ulid, COACH_APPLICATION_STATUS.REJECTED)}
+                          disabled={processingIds.includes(selectedApplication.ulid)}
                           variant="destructive"
                           className="flex-1"
                         >
-                          {processingIds.includes(selectedApplication.id) ? (
+                          {processingIds.includes(selectedApplication.ulid) ? (
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                           ) : (
                             <XCircle className="mr-2 h-4 w-4" />
@@ -562,7 +574,7 @@ export default function CoachApplicationsPage() {
                             selectedApplication.status === COACH_APPLICATION_STATUS.REJECTED && "bg-red-100 text-red-800"
                           )}
                         >
-                          {selectedApplication.status.charAt(0).toUpperCase() + selectedApplication.status.slice(1)}
+                          {selectedApplication.status}
                         </Badge>
                       </div>
                       {selectedApplication.reviewDate && (
