@@ -1,17 +1,33 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { DataTable } from "@/components/ui/data-table"
-import { ColumnDef } from "@tanstack/react-table"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { useState } from "react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Button } from "@/components/ui/button"
 import {
   Tooltip,
   TooltipContent,
@@ -19,197 +35,180 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { MoreHorizontal, UserCog, Loader2 } from "lucide-react"
-import { updateUserStatus, fetchUsers } from "@/utils/actions/admin-actions"
-import { toast } from "react-hot-toast"
+import { updateUserStatus, fetchUsers, User } from "@/utils/actions/admin-actions"
+import { useToast } from "@/components/ui/use-toast"
 
-interface User {
-  id: number
-  name: string
-  email: string
-  role: "admin" | "coach" | "mentee"
-  status: "active" | "inactive" | "suspended"
-  createdAt: string
+interface UserManagementTableProps {
+  users: User[]
+  onRefresh: () => void
 }
 
-export function UserManagementTable() {
-  const [users, setUsers] = useState<User[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export function UserManagementTable({ users, onRefresh }: UserManagementTableProps) {
+  const [loading, setLoading] = useState<string | null>(null)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [showStatusDialog, setShowStatusDialog] = useState(false)
+  const [newStatus, setNewStatus] = useState<'active' | 'inactive' | 'suspended'>('active')
+  const { toast } = useToast()
 
-  const loadUsers = async () => {
+  const handleStatusUpdate = async () => {
+    if (!selectedUser) return
+
     try {
-      setIsLoading(true)
-      const { data, error } = await fetchUsers()
-      
-      if (error) {
-        throw error
+      setLoading(selectedUser.ulid)
+      const result = await updateUserStatus({
+        userUlid: selectedUser.ulid,
+        status: newStatus
+      })
+
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: result.error.message,
+          variant: "destructive"
+        })
+        return
       }
 
-      if (data) {
-        setUsers(data)
-      }
-    } catch (err) {
-      console.error("[USER_MANAGEMENT_ERROR]", err)
-      setError("Failed to load users")
-      toast.error("Failed to load users")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadUsers()
-  }, [])
-
-  const handleStatusUpdate = async (userId: number, newStatus: "active" | "inactive") => {
-    try {
-      const { success, error } = await updateUserStatus(userId, newStatus)
-      
-      if (success) {
-        toast.success(`User status updated to ${newStatus}`)
-        // Refresh the user list
-        await loadUsers()
-      } else {
-        toast.error(`Failed to update user status: ${error?.message}`)
-      }
+      toast({
+        title: "Success",
+        description: "User status updated successfully"
+      })
+      onRefresh()
     } catch (error) {
-      toast.error("An error occurred while updating user status")
+      toast({
+        title: "Error",
+        description: "Failed to update user status",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(null)
+      setSelectedUser(null)
+      setShowStatusDialog(false)
     }
   }
 
-  const columns: ColumnDef<User>[] = [
-    {
-      accessorKey: "name",
-      header: "Name",
-    },
-    {
-      accessorKey: "email",
-      header: "Email",
-    },
-    {
-      accessorKey: "role",
-      header: "Role",
-      cell: ({ row }) => {
-        const role = row.getValue("role") as string
-        return (
-          <Badge variant="outline" className="capitalize">
-            {role.toLowerCase()}
-          </Badge>
-        )
-      },
-    },
-    {
-      accessorKey: "status",
-      header: "Status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string
-        return (
-          <Badge
-            variant={
-              status === "active"
-                ? "default"
-                : status === "inactive"
-                ? "secondary"
-                : "destructive"
-            }
-            className="capitalize"
-          >
-            {status}
-          </Badge>
-        )
-      },
-    },
-    {
-      accessorKey: "createdAt",
-      header: "Joined",
-      cell: ({ row }) => {
-        return new Date(row.getValue("createdAt")).toLocaleDateString()
-      },
-    },
-    {
-      id: "actions",
-      cell: ({ row }) => {
-        const user = row.original
-        const [isLoading, setIsLoading] = useState(false)
-
-        const handleAction = async () => {
-          try {
-            setIsLoading(true)
-            const newStatus = user.status === "active" ? "inactive" : "active"
-            await handleStatusUpdate(user.id, newStatus)
-          } finally {
-            setIsLoading(false)
-          }
-        }
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading}>
-                <span className="sr-only">Open menu</span>
-                {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <MoreHorizontal className="h-4 w-4" />
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem onClick={handleAction} disabled={isLoading}>
-                {user.status === "active" ? "Deactivate" : "Activate"}
-              </DropdownMenuItem>
-              <DropdownMenuItem>View Details</DropdownMenuItem>
-              <DropdownMenuItem>Edit User</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
-      },
-    },
-  ]
-
-  if (error) {
-    return (
-      <div className="text-center py-4 text-red-500">
-        <p>{error}</p>
-      </div>
-    )
+  const openStatusDialog = (user: User, status: 'active' | 'inactive' | 'suspended') => {
+    setSelectedUser(user)
+    setNewStatus(status)
+    setShowStatusDialog(true)
   }
 
-  if (isLoading) {
-    return (
-      <div className="text-center py-4">
-        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-        <p className="text-muted-foreground mt-2">Loading users...</p>
+  return (
+    <>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead className="w-[80px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {users.map((user) => (
+              <TableRow key={user.ulid}>
+                <TableCell>
+                  {user.displayName || `${user.firstName || ''} ${user.lastName || ''}`}
+                </TableCell>
+                <TableCell>{user.email}</TableCell>
+                <TableCell>{user.systemRole}</TableCell>
+                <TableCell>
+                  <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
+                    user.status === 'active' 
+                      ? 'bg-green-50 text-green-700' 
+                      : user.status === 'inactive'
+                      ? 'bg-yellow-50 text-yellow-700'
+                      : 'bg-red-50 text-red-700'
+                  }`}>
+                    {user.status}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {user.isCoach && <span className="mr-2">Coach</span>}
+                  {user.isMentee && <span>Mentee</span>}
+                </TableCell>
+                <TableCell>
+                  <TooltipProvider>
+                    <DropdownMenu>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              className="h-8 w-8 p-0"
+                              disabled={loading === user.ulid}
+                            >
+                              {loading === user.ulid ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MoreHorizontal className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>User actions</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => openStatusDialog(user, 'active')}
+                          disabled={user.status === 'active'}
+                        >
+                          Set Active
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => openStatusDialog(user, 'inactive')}
+                          disabled={user.status === 'inactive'}
+                        >
+                          Set Inactive
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => openStatusDialog(user, 'suspended')}
+                          disabled={user.status === 'suspended'}
+                          className="text-red-600"
+                        >
+                          Suspend User
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TooltipProvider>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
-    )
-  }
 
-  return <DataTable 
-    columns={columns} 
-    data={users} 
-    searchKey="email" 
-    actions={
-      <div className="flex gap-2">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" disabled>Export</Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Coming soon</p>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" disabled>Filter</Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Coming soon</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
-    }
-  />
+      <AlertDialog open={showStatusDialog} onOpenChange={setShowStatusDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Update User Status</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to set this user's status to {newStatus}?
+              {newStatus === 'suspended' && (
+                <p className="mt-2 text-red-600">
+                  This will prevent the user from accessing the platform.
+                </p>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleStatusUpdate}
+              className={newStatus === 'suspended' ? 'bg-red-600 hover:bg-red-700' : undefined}
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
 } 

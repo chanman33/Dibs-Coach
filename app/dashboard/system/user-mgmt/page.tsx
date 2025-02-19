@@ -1,160 +1,136 @@
-import { auth } from "@clerk/nextjs/server"
-import { redirect } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+"use client"
+
+import { useEffect, useState } from "react"
+import { UserManagementTable } from "./_components/user-management-table"
+import { fetchUsers, User } from "@/utils/actions/admin-actions"
+import { useToast } from "@/components/ui/use-toast"
+import { Loader2 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { fetchUserAnalytics } from "@/utils/actions/admin-actions"
-import { UserManagementTable } from "./_components/user-management-table"
-import { AnalyticsDashboard } from "./_components/analytics-dashboard"
-import { ReportingDashboard } from "./_components/reporting-dashboard"
-import { 
-  Users, 
-  UserPlus, 
-  UserMinus, 
-  UserCog,
-  TrendingUp,
-  DollarSign,
-  Calendar,
-  AlertCircle 
-} from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
-// Types for our admin dashboard
-interface UserAnalytics {
-  totalUsers: number
-  activeUsers: number
-  newUsersThisMonth: number
-  usersByRole: {
-    mentee: number
-    coach: number
-    admin: number
-  }
-  revenueMetrics: {
-    totalRevenue: number
-    monthlyRevenue: number
-    averageSessionValue: number
-  }
-  sessionMetrics: {
-    totalSessions: number
-    completionRate: number
-    cancelationRate: number
-  }
-}
+export default function UserManagementPage() {
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState("")
+  const [role, setRole] = useState("all")
+  const [status, setStatus] = useState("all")
+  const { toast } = useToast()
 
-export default async function AdminUserManagement() {
-  const { userId } = await auth()
-  if (!userId) redirect("/sign-in")
+  const loadUsers = async () => {
+    try {
+      setLoading(true)
+      const result = await fetchUsers({
+        search,
+        role: role === 'all' ? undefined : role,
+        status: status === 'all' ? undefined : status
+      })
 
-  // Fetch analytics data
-  const { data: analytics, error } = await fetchUserAnalytics()
-  if (error) {
-    console.error("[USER_ANALYTICS_ERROR]", error)
-    // You might want to handle this error differently
-    return <div>Error loading analytics</div>
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: result.error.message,
+          variant: "destructive"
+        })
+        return
+      }
+
+      if (!result.data) {
+        toast({
+          title: "Error",
+          description: "No data received from server",
+          variant: "destructive"
+        })
+        return
+      }
+
+      setUsers(result.data.data)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load users",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
   }
-  
-  if (!analytics) {
-    return <div>No analytics data available</div>
-  }
+
+  useEffect(() => {
+    loadUsers()
+  }, [search, role, status])
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground">
-            Manage users and view platform analytics
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Add User
-          </Button>
-          <Button variant="outline">
-            <UserCog className="h-4 w-4 mr-2" />
-            Bulk Actions
-          </Button>
-        </div>
+    <div className="container space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
       </div>
 
-      {/* Analytics Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.totalUsers}</div>
-            <p className="text-xs text-muted-foreground">
-              {analytics.newUsersThisMonth} new this month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${analytics.revenueMetrics.totalRevenue.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              ${analytics.revenueMetrics.monthlyRevenue.toLocaleString()} this month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Sessions</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.sessionMetrics.totalSessions}</div>
-            <p className="text-xs text-muted-foreground">
-              {analytics.sessionMetrics.completionRate}% completion rate
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Issues</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.sessionMetrics.cancelationRate}%</div>
-            <p className="text-xs text-muted-foreground">
-              Cancellation rate
-            </p>
-          </CardContent>
-        </Card>
+      <div className="flex items-center gap-4">
+        <div className="flex-1">
+          <Input
+            placeholder="Search users..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="max-w-sm"
+          />
+        </div>
+        <Select value={role} onValueChange={setRole}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Roles</SelectItem>
+            <SelectItem value="SYSTEM_OWNER">System Owner</SelectItem>
+            <SelectItem value="SYSTEM_MODERATOR">System Moderator</SelectItem>
+            <SelectItem value="USER">User</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+            <SelectItem value="suspended">Suspended</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          variant="outline"
+          onClick={() => {
+            setSearch("")
+            setRole("all")
+            setStatus("all")
+          }}
+        >
+          Reset Filters
+        </Button>
       </div>
 
-      {/* Main Content Tabs */}
-      <Tabs defaultValue="users" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="users">Users</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="users" className="space-y-4">
-          <UserManagementTable />
-        </TabsContent>
-
-        <TabsContent value="analytics" className="space-y-4">
-          <AnalyticsDashboard analytics={analytics} />
-        </TabsContent>
-
-        <TabsContent value="reports" className="space-y-4">
-          <ReportingDashboard />
-        </TabsContent>
-      </Tabs>
+      {loading ? (
+        <div className="flex h-[400px] items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="mt-2 text-sm text-muted-foreground">Loading users...</p>
+          </div>
+        </div>
+      ) : users.length === 0 ? (
+        <div className="flex h-[400px] items-center justify-center">
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground">No users found</p>
+          </div>
+        </div>
+      ) : (
+        <UserManagementTable users={users} onRefresh={loadUsers} />
+      )}
     </div>
   )
 }

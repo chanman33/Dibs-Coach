@@ -126,6 +126,38 @@ export async function fetchSystemMetrics(): Promise<SystemMetricsResponse> {
   }
 }
 
+// Helper to ensure datetime is in ISO format
+const formatDateTime = (date: string | Date) => {
+  if (date instanceof Date) {
+    return date.toISOString()
+  }
+  // Try to parse the date and format it
+  try {
+    return new Date(date).toISOString()
+  } catch (e) {
+    console.error('[DATE_FORMAT_ERROR]', e)
+    return new Date().toISOString() // Fallback to current time
+  }
+}
+
+// Helper to format data for validation
+const formatDataForValidation = (data: any) => {
+  if (!data) return data
+
+  // Format dates in the data
+  if (data.createdAt) {
+    data.createdAt = formatDateTime(data.createdAt)
+  }
+  if (data.updatedAt) {
+    data.updatedAt = formatDateTime(data.updatedAt)
+  }
+  if (data.lastUpdated) {
+    data.lastUpdated = formatDateTime(data.lastUpdated)
+  }
+
+  return data
+}
+
 // Actions
 export const fetchDashboardData = withServerAction<DashboardData>(
   async (_, { userUlid, systemRole }) => {
@@ -155,17 +187,36 @@ export const fetchDashboardData = withServerAction<DashboardData>(
         throw healthError
       }
 
-      // Fetch metrics
+      // Fetch metrics from AdminMetrics
       const { data: metricsData, error: metricsError } = await supabase
-        .from('SystemMetrics')
+        .from('AdminMetrics')
         .select('*')
         .order('createdAt', { ascending: false })
         .limit(1)
         .single()
 
       if (metricsError) {
-        console.error('[DB_ERROR] SystemMetrics:', metricsError)
+        console.error('[DB_ERROR] AdminMetrics:', metricsError)
         throw metricsError
+      }
+
+      // Transform AdminMetrics to SystemMetrics format
+      const transformedMetrics = {
+        totalUsers: metricsData.totalUsers,
+        activeUsers: metricsData.activeUsers,
+        totalSessions: metricsData.totalSessions,
+        completedSessions: metricsData.completedSessions,
+        activeCoaches: metricsData.activeCoaches,
+        pendingCoaches: metricsData.pendingCoaches,
+        monthlyRevenue: metricsData.monthlyRevenue,
+        totalRevenue: metricsData.totalRevenue,
+        metrics: {
+          userGrowth: 0, // Calculate these based on historical data if needed
+          coachGrowth: 0,
+          revenueGrowth: 0,
+          sessionGrowth: 0
+        },
+        lastUpdated: formatDateTime(metricsData.updatedAt)
       }
 
       // Fetch recent activity
@@ -192,11 +243,15 @@ export const fetchDashboardData = withServerAction<DashboardData>(
         throw alertsError
       }
 
-      // Validate data
-      const validatedHealth = SystemHealthSchema.parse(healthData)
-      const validatedMetrics = SystemMetricsSchema.parse(metricsData)
-      const validatedActivity = z.array(SystemActivitySchema).parse(activityData)
-      const validatedAlerts = z.array(SystemAlertSchema).parse(alertsData)
+      // Format and validate data
+      const validatedHealth = SystemHealthSchema.parse(formatDataForValidation(healthData))
+      const validatedMetrics = SystemMetricsSchema.parse(transformedMetrics)
+      const validatedActivity = z.array(SystemActivitySchema).parse(
+        activityData?.map(activity => formatDataForValidation(activity)) || []
+      )
+      const validatedAlerts = z.array(SystemAlertSchema).parse(
+        alertsData?.map(alert => formatDataForValidation(alert)) || []
+      )
 
       const dashboardData: DashboardData = {
         systemHealth: validatedHealth,

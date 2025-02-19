@@ -33,6 +33,20 @@ const formatCurrency = (num: number) => new Intl.NumberFormat('en-US', {
   currency: 'USD'
 }).format(num)
 
+// Status mapping
+const getSystemStatus = (status: number): 'healthy' | 'degraded' | 'critical' => {
+  switch (status) {
+    case 1:
+      return 'healthy'
+    case 2:
+      return 'degraded'
+    case 3:
+      return 'critical'
+    default:
+      return 'critical'
+  }
+}
+
 export default function SystemDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -107,8 +121,9 @@ export default function SystemDashboard() {
   }
 
   const getAlertVariant = (severity: SystemAlert['severity']): 'default' | 'destructive' => {
-    switch (severity) {
+    switch (severity.toLowerCase()) {
       case 'error':
+      case 'critical':
         return 'destructive'
       default:
         return 'default'
@@ -117,9 +132,9 @@ export default function SystemDashboard() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="container space-y-6 p-6">
         <Skeleton className="h-[100px] w-full" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
             <Skeleton key={i} className="h-[120px] w-full" />
           ))}
@@ -131,30 +146,38 @@ export default function SystemDashboard() {
 
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>Error</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <div className="container p-6">
+        <Alert variant="destructive">
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      </div>
     )
   }
 
   if (!data) {
     return (
-      <Alert>
-        <AlertTitle>No Data</AlertTitle>
-        <AlertDescription>No dashboard data available</AlertDescription>
-      </Alert>
+      <div className="container p-6">
+        <Alert>
+          <AlertTitle>No Data</AlertTitle>
+          <AlertDescription>No dashboard data available</AlertDescription>
+        </Alert>
+      </div>
     )
   }
 
+  const systemStatus = getSystemStatus(data.systemHealth.status)
+
   return (
-    <div className="space-y-4">
+    <div className="container space-y-6 p-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">System Dashboard</h1>
+        <h1 className="text-3xl font-bold tracking-tight">System Dashboard</h1>
         <Button
           onClick={handleRefresh}
           disabled={refreshing}
           variant="outline"
+          size="sm"
         >
           {refreshing ? (
             <>
@@ -171,30 +194,33 @@ export default function SystemDashboard() {
       </div>
 
       {/* System Health */}
-      <Alert variant={data.systemHealth.status === 'healthy' ? 'default' : 'destructive'}>
-        <AlertTitle>System Status: {data.systemHealth.status}</AlertTitle>
+      <Alert variant={systemStatus === 'healthy' ? 'default' : 'destructive'} className="border-2">
+        <AlertTitle className="text-lg">System Status: {systemStatus}</AlertTitle>
         <AlertDescription>
-          <div className="mt-2 grid gap-2">
-            <div>Uptime: {formatNumber(data.systemHealth.uptime)}s</div>
-            <div>Response Time: {data.systemHealth.responseTime}ms</div>
-            <div>Error Rate: {data.systemHealth.errorRate}%</div>
-            {data.systemHealth.issues.length > 0 && (
-              <div className="mt-2">
-                <strong>Active Issues:</strong>
-                <ul className="list-disc list-inside mt-1">
-                  {data.systemHealth.issues.map((issue, i) => (
-                    <li key={i}>{issue}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-lg bg-background/50 p-3">
+              <p className="text-sm font-medium">Active Sessions</p>
+              <p className="mt-1 text-2xl font-bold">{data.systemHealth.activeSessions}</p>
+            </div>
+            <div className="rounded-lg bg-background/50 p-3">
+              <p className="text-sm font-medium">Pending Reviews</p>
+              <p className="mt-1 text-2xl font-bold">{data.systemHealth.pendingReviews}</p>
+            </div>
+            <div className="rounded-lg bg-background/50 p-3">
+              <p className="text-sm font-medium">Security Alerts</p>
+              <p className="mt-1 text-2xl font-bold">{data.systemHealth.securityAlerts}</p>
+            </div>
+            <div className="rounded-lg bg-background/50 p-3">
+              <p className="text-sm font-medium">Uptime</p>
+              <p className="mt-1 text-2xl font-bold">{formatNumber(data.systemHealth.uptime)}s</p>
+            </div>
           </div>
         </AlertDescription>
       </Alert>
 
       {/* Key Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -208,7 +234,7 @@ export default function SystemDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Active Coaches</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -222,7 +248,7 @@ export default function SystemDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -236,7 +262,7 @@ export default function SystemDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -252,23 +278,23 @@ export default function SystemDashboard() {
       </div>
 
       {/* Recent Activity */}
-      <Card>
+      <Card className="border-2">
         <CardHeader>
           <CardTitle>Recent Activity</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {data.recentActivity.map((activity) => (
-              <div key={activity.id} className="flex items-center space-x-4">
-                <Badge variant={getAlertVariant(activity.severity)}>
+              <div key={activity.ulid} className="flex items-center space-x-4 rounded-lg border p-4">
+                <Badge variant={getAlertVariant(activity.severity || 'info')}>
                   {activity.type}
                 </Badge>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{activity.action}</p>
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium leading-none">{activity.title}</p>
                   <p className="text-sm text-muted-foreground">{activity.description}</p>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {new Date(activity.timestamp).toLocaleString()}
+                  {new Date(activity.createdAt).toLocaleString()}
                 </div>
               </div>
             ))}
@@ -280,14 +306,14 @@ export default function SystemDashboard() {
       {data.systemAlerts.length > 0 && (
         <div className="space-y-4">
           {data.systemAlerts.map((alert) => (
-            <Alert key={alert.id} variant={getAlertVariant(alert.severity)}>
+            <Alert key={alert.ulid} variant={getAlertVariant(alert.severity)} className="border-2">
               <AlertTitle>{alert.title}</AlertTitle>
               <AlertDescription>
                 <div className="mt-2 space-y-2">
                   <p>{alert.message}</p>
                   <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                    <span>Category: {alert.category}</span>
-                    <span>Status: {alert.status}</span>
+                    <span>Type: {alert.type}</span>
+                    <span>Severity: {alert.severity}</span>
                     <span>Created: {new Date(alert.createdAt).toLocaleString()}</span>
                   </div>
                 </div>
@@ -298,43 +324,51 @@ export default function SystemDashboard() {
       )}
 
       {/* Quick Actions */}
-      <Card>
+      <Card className="border-2">
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Button
               variant="outline"
-              className="w-full"
+              className="h-20 w-full"
               onClick={() => router.push('/dashboard/system/user-management')}
             >
-              <Users className="mr-2 h-4 w-4" />
-              User Management
+              <div className="flex flex-col items-center space-y-2">
+                <Users className="h-5 w-5" />
+                <span>User Management</span>
+              </div>
             </Button>
             <Button
               variant="outline"
-              className="w-full"
+              className="h-20 w-full"
               onClick={() => router.push('/dashboard/system/permissions')}
             >
-              <Lock className="mr-2 h-4 w-4" />
-              Permissions
+              <div className="flex flex-col items-center space-y-2">
+                <Lock className="h-5 w-5" />
+                <span>Permissions</span>
+              </div>
             </Button>
             <Button
               variant="outline"
-              className="w-full"
+              className="h-20 w-full"
               onClick={() => router.push('/dashboard/system/monitoring')}
             >
-              <Activity className="mr-2 h-4 w-4" />
-              Monitoring
+              <div className="flex flex-col items-center space-y-2">
+                <Activity className="h-5 w-5" />
+                <span>Monitoring</span>
+              </div>
             </Button>
             <Button
               variant="outline"
-              className="w-full"
+              className="h-20 w-full"
               onClick={() => router.push('/dashboard/system/analytics')}
             >
-              <BarChart className="mr-2 h-4 w-4" />
-              Analytics
+              <div className="flex flex-col items-center space-y-2">
+                <BarChart className="h-5 w-5" />
+                <span>Analytics</span>
+              </div>
             </Button>
           </div>
         </CardContent>

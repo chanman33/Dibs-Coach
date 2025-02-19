@@ -21,37 +21,36 @@ export const SystemMetricsSchema = z.object({
 
 // System Health Schema
 export const SystemHealthSchema = z.object({
-  status: z.enum(['healthy', 'degraded', 'critical']),
+  ulid: z.string(),
+  status: z.number(), // 1 = healthy, 2 = degraded, 3 = critical
+  activeSessions: z.number(),
+  pendingReviews: z.number(),
+  securityAlerts: z.number(),
   uptime: z.number(),
-  responseTime: z.number(),
-  errorRate: z.number(),
-  cpuUsage: z.number(),
-  memoryUsage: z.number(),
-  lastChecked: z.string().datetime(),
-  issues: z.array(z.string())
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
 })
 
 // System Activity Schema
 export const SystemActivitySchema = z.object({
-  id: z.string(),
-  type: z.enum(['user', 'coach', 'session', 'payment', 'system']),
-  action: z.string(),
+  ulid: z.string(),
+  type: z.string(),
+  title: z.string(),
   description: z.string(),
-  severity: z.enum(['info', 'warning', 'error']),
-  timestamp: z.string().datetime(),
-  metadata: z.record(z.any()).optional()
+  severity: z.string().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime()
 })
 
 // System Alert Schema
 export const SystemAlertSchema = z.object({
-  id: z.string(),
+  ulid: z.string(),
+  type: z.string(),
   title: z.string(),
   message: z.string(),
-  severity: z.enum(['info', 'warning', 'error']),
-  status: z.enum(['active', 'resolved', 'dismissed']),
+  severity: z.string(),
   createdAt: z.string().datetime(),
-  resolvedAt: z.string().datetime().optional(),
-  category: z.enum(['performance', 'security', 'availability', 'other'])
+  updatedAt: z.string().datetime()
 })
 
 // User Analytics Schema
