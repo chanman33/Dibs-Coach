@@ -388,19 +388,57 @@ export const getSignedResumeUrl = withServerAction<string>(
 
       const supabase = await createAuthClient()
 
+      // Extract just the filename from the full path
+      const filename = resumePath.split('/').pop();
+      
+      if (!filename) {
+        console.error('[GET_RESUME_URL_ERROR]', {
+          error: 'Invalid resume path',
+          resumePath
+        });
+        return {
+          data: null,
+          error: {
+            code: 'INVALID_PATH',
+            message: 'Invalid resume file path'
+          }
+        };
+      }
+
       // Get signed URL that expires in 1 hour
       const { data, error } = await supabase
         .storage
         .from('resumes')
-        .createSignedUrl(resumePath, 3600) // 1 hour expiry
+        .createSignedUrl(filename, 3600) // 1 hour expiry
 
       if (error) {
-        console.error('[GET_RESUME_URL_ERROR]', error)
-        throw error
+        console.error('[GET_RESUME_URL_ERROR]', {
+          error,
+          resumePath,
+          filename
+        });
+        return {
+          data: null,
+          error: {
+            code: 'STORAGE_ERROR',
+            message: 'Failed to generate signed URL'
+          }
+        };
       }
 
       if (!data?.signedUrl) {
-        throw new Error('Failed to generate signed URL')
+        console.error('[GET_RESUME_URL_ERROR]', {
+          message: 'No signed URL generated',
+          resumePath,
+          filename
+        });
+        return {
+          data: null,
+          error: {
+            code: 'STORAGE_ERROR',
+            message: 'Failed to generate signed URL'
+          }
+        };
       }
 
       return {
