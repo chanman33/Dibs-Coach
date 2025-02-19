@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createAuthClient } from "@/utils/auth";
-import { ROLES } from "@/utils/roles/roles";
+import { SYSTEM_ROLES } from "@/utils/roles/roles";
 
 export async function GET() {
   try {
@@ -17,7 +17,7 @@ export async function GET() {
     // Get admin's ULID and check role
     const { data: adminCheck, error: adminCheckError } = await supabase
       .from("User")
-      .select("ulid, role")
+      .select("ulid, systemRole")
       .eq("userId", session.userId)
       .single();
 
@@ -26,8 +26,8 @@ export async function GET() {
       return new NextResponse("Error checking admin status", { status: 500 });
     }
 
-    if (!adminCheck || adminCheck.role !== ROLES.ADMIN) {
-      return new NextResponse("Forbidden: Admin access required", { status: 403 });
+    if (!adminCheck || adminCheck.systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
+      return new NextResponse("Forbidden: System owner access required", { status: 403 });
     }
 
     // Fetch all users with their roles
@@ -39,7 +39,7 @@ export async function GET() {
         email,
         firstName,
         lastName,
-        role,
+        systemRole,
         status,
         createdAt,
         updatedAt

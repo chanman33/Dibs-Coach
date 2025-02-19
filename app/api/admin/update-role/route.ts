@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createAuthClient } from "@/utils/auth";
 import { z } from "zod";
-import { ROLES } from "@/utils/roles/roles";
+import { SYSTEM_ROLES } from "@/utils/roles/roles";
 import { ulidSchema } from "@/utils/types/auth";
 
 // Input validation schema
 const updateRoleSchema = z.object({
   userUlid: ulidSchema,
-  role: z.enum([ROLES.MENTEE, ROLES.COACH, ROLES.ADMIN]),
+  role: z.enum([SYSTEM_ROLES.SYSTEM_OWNER]),
 });
 
 export async function POST(req: Request) {
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     // Get admin's ULID and check role
     const { data: adminCheck, error: adminCheckError } = await supabase
       .from("User")
-      .select("ulid, role")
+      .select("ulid, systemRole")
       .eq("userId", session.userId)
       .single();
 
@@ -34,8 +34,8 @@ export async function POST(req: Request) {
       return new NextResponse("Error checking admin status", { status: 500 });
     }
 
-    if (!adminCheck || adminCheck.role !== ROLES.ADMIN) {
-      return new NextResponse("Forbidden: Admin access required", { status: 403 });
+    if (!adminCheck || adminCheck.systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
+      return new NextResponse("Forbidden: System owner access required", { status: 403 });
     }
 
     // Parse and validate request body
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
     // Get user's current data before updating role
     const { data: user, error: userError } = await supabase
       .from("User")
-      .select("email, role, userId, ulid")
+      .select("email, systemRole, userId, ulid")
       .eq("ulid", validatedData.userUlid)
       .single();
 
@@ -75,12 +75,12 @@ export async function POST(req: Request) {
 
     // Validate admin role assignment
     if (
-      validatedData.role === ROLES.ADMIN &&
+      validatedData.role === SYSTEM_ROLES.SYSTEM_OWNER &&
       !user.email.endsWith("@wedibs.com") &&
       !user.email.endsWith("@dibs.coach")
     ) {
       return new NextResponse(
-        "Admin role can only be assigned to @wedibs.com or @dibs.coach email addresses",
+        "System owner role can only be assigned to @wedibs.com or @dibs.coach email addresses",
         { status: 400 }
       );
     }
@@ -97,7 +97,7 @@ export async function POST(req: Request) {
     const { error: updateError } = await supabase
       .from("User")
       .update({ 
-        role: validatedData.role,
+        systemRole: validatedData.role,
         updatedAt: new Date().toISOString()
       })
       .eq("ulid", validatedData.userUlid);
@@ -118,7 +118,7 @@ export async function POST(req: Request) {
       targetType: "user",
       targetUlid: validatedData.userUlid,
       details: {
-        oldRole: user.role,
+        oldRole: user.systemRole,
         newRole: validatedData.role,
         timestamp: new Date().toISOString(),
       },
@@ -136,7 +136,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ 
       success: true,
-      message: `Successfully updated user role from ${user.role} to ${validatedData.role}`
+      message: `Successfully updated user role from ${user.systemRole} to ${validatedData.role}`
     });
   } catch (error) {
     console.error("[UPDATE_ROLE_ERROR]", error);

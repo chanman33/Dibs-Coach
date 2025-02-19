@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
+import { SYSTEM_ROLES } from "@/utils/roles/roles";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +27,7 @@ type UserWithRole = {
   email: string;
   firstName: string | null;
   lastName: string | null;
-  role: string;
+  systemRole: string;
   status: string;
 };
 
@@ -45,7 +46,7 @@ async function updateUserRole(userId: number, newRole: string) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ userId, role: newRole }),
+      body: JSON.stringify({ targetUserId: userId, newRole }),
     });
 
     if (!response.ok) {
@@ -93,7 +94,7 @@ export default function PermissionsPage() {
       user.email.toLowerCase().includes(searchTerm) ||
       user.firstName?.toLowerCase().includes(searchTerm) ||
       user.lastName?.toLowerCase().includes(searchTerm) ||
-      user.role.toLowerCase().includes(searchTerm)
+      user.systemRole.toLowerCase().includes(searchTerm)
     );
   });
 
@@ -108,7 +109,7 @@ export default function PermissionsPage() {
       
       // Update local state
       setUsers(users.map(user => 
-        user.id === userId ? { ...user, role: newRole } : user
+        user.id === userId ? { ...user, systemRole: newRole } : user
       ));
       
       router.refresh();
@@ -134,27 +135,27 @@ export default function PermissionsPage() {
       header: "Last Name",
     },
     {
-      accessorKey: "role",
+      accessorKey: "systemRole",
       header: "Role",
       cell: ({ row }) => {
         const user = row.original;
         return (
           <Select
-            defaultValue={user.role}
+            defaultValue={user.systemRole}
             onValueChange={(newRole) => {
-              // Only allow admin role for @wedibs.com or @dibs.coach emails
+              // Only allow system owner role for @wedibs.com or @dibs.coach emails
               if (
-                newRole === "ADMIN" &&
+                newRole === SYSTEM_ROLES.SYSTEM_OWNER &&
                 !user.email.endsWith("@wedibs.com") &&
                 !user.email.endsWith("@dibs.coach")
               ) {
-                toast.error("Only @wedibs.com or @dibs.coach emails can be assigned admin role");
+                toast.error("Only @wedibs.com or @dibs.coach emails can be assigned system owner role");
                 return;
               }
 
               setPendingRoleChange({
                 userId: user.id,
-                currentRole: user.role,
+                currentRole: user.systemRole,
                 newRole,
                 email: user.email,
               });
@@ -164,10 +165,10 @@ export default function PermissionsPage() {
               <SelectValue placeholder="Select role" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="MENTEE">Mentee</SelectItem>
-              <SelectItem value="COACH">Coach</SelectItem>
+              <SelectItem value={SYSTEM_ROLES.USER}>User</SelectItem>
+              <SelectItem value={SYSTEM_ROLES.SYSTEM_MODERATOR}>System Moderator</SelectItem>
               {(user.email.endsWith("@wedibs.com") || user.email.endsWith("@dibs.coach")) && (
-                <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value={SYSTEM_ROLES.SYSTEM_OWNER}>System Owner</SelectItem>
               )}
             </SelectContent>
           </Select>
@@ -186,7 +187,7 @@ export default function PermissionsPage() {
         <CardHeader>
           <CardTitle>User Permissions</CardTitle>
           <CardDescription>
-            Manage user roles and permissions. Note: Admin role can only be assigned to @wedibs.com or
+            Manage user roles and permissions. Note: System Owner role can only be assigned to @wedibs.com or
             @dibs.coach email addresses.
           </CardDescription>
         </CardHeader>
