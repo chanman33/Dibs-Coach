@@ -8,15 +8,16 @@ import GoalsForm from "../../../../components/profile/GoalsForm"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { getCoachApplication } from "@/utils/actions/coach-application"
+import { updateRealtorProfile } from "@/utils/actions/realtor-profile"
 import { Badge } from "@/components/ui/badge"
 import { Loader2 } from "lucide-react"
 import type { ApplicationData } from "@/utils/types/coach-application"
 import type { GoalFormValues } from "@/utils/types/goals"
+import { toast } from "sonner"
 
 export default function AgentProfilePage() {
   const router = useRouter()
-  const [generalInfo, setGeneralInfo] = useState({})
-  const [goals, setGoals] = useState({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [application, setApplication] = useState<ApplicationData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -40,13 +41,33 @@ export default function AgentProfilePage() {
     fetchApplication()
   }, [])
 
-  const handleGeneralSubmit = (formData: any) => {
-    setGeneralInfo(formData)
-    console.log('general form submitted:', formData)
+  const handleGeneralSubmit = async (formData: any) => {
+    setIsSubmitting(true)
+    try {
+      const { error } = await updateRealtorProfile(formData)
+      
+      if (error) {
+        console.error('[SUBMIT_PROFILE_ERROR]', error)
+        if (error.code === 'VALIDATION_ERROR' && 'details' in error) {
+          const validationError = error as { details: { fieldErrors: Record<string, string[]> } }
+          toast.error(Object.values(validationError.details.fieldErrors).flat().join('\n'))
+        } else {
+          toast.error(error.message || 'Failed to update profile')
+        }
+        return
+      }
+
+      toast.success('Profile updated successfully')
+      router.refresh()
+    } catch (error) {
+      console.error('[SUBMIT_PROFILE_ERROR]', error)
+      toast.error('Failed to update profile')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleGoalsSubmit = async (formData: GoalFormValues): Promise<void> => {
-    setGoals(formData)
     console.log('goals form submitted:', formData)
   }
 
@@ -92,7 +113,10 @@ export default function AgentProfilePage() {
               <CardTitle>General Information</CardTitle>
             </CardHeader>
             <CardContent>
-              <GeneralForm onSubmit={handleGeneralSubmit} />
+              <GeneralForm 
+                onSubmit={handleGeneralSubmit} 
+                isSubmitting={isSubmitting}
+              />
             </CardContent>
           </Card>
         </TabsContent>

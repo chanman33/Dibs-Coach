@@ -28,11 +28,23 @@ enum UserStatus {
 }
 
 enum OrgType {
-  INDIVIDUAL    // Single agent/broker
-  BUSINESS      // Small to medium business
-  ENTERPRISE    // Large organization
-  FRANCHISE     // Franchise operation
-  NETWORK       // Network of affiliated businesses
+  INDIVIDUAL    // Single professional
+  TEAM         // Small team
+  BUSINESS     // Small to medium business
+  ENTERPRISE   // Large organization
+  FRANCHISE    // Franchise operation
+  NETWORK      // Network of affiliated businesses
+}
+
+// New enum for industry types
+enum OrgIndustry {
+  REAL_ESTATE_SALES     // Real estate brokerage and sales
+  MORTGAGE_LENDING      // Mortgage and lending services
+  PROPERTY_MANAGEMENT   // Property management services
+  REAL_ESTATE_INVESTMENT // Real estate investment
+  TITLE_ESCROW         // Title and escrow services
+  INSURANCE            // Real estate insurance
+  OTHER               // Other real estate related services
 }
 
 enum OrgStatus {
@@ -443,6 +455,75 @@ enum ViewType {
   Woods
 }
 
+// Add after the existing enums
+enum SocialMediaPlatform {
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  YOUTUBE
+  TWITTER
+  TIKTOK
+  PINTEREST
+  OTHER
+}
+
+// Add new enums for loan officer, investor, and property manager
+enum LoanType {
+  CONVENTIONAL
+  FHA
+  VA
+  USDA
+  JUMBO
+  REVERSE
+  CONSTRUCTION
+  COMMERCIAL
+  HELOC
+  OTHER
+}
+
+enum InvestmentStrategy {
+  FIX_AND_FLIP
+  BUY_AND_HOLD
+  WHOLESALE
+  COMMERCIAL
+  MULTIFAMILY
+  LAND_DEVELOPMENT
+  REIT
+  SYNDICATION
+  OTHER
+}
+
+enum PropertyManagerType {
+  RESIDENTIAL
+  COMMERCIAL
+  MIXED_USE
+  VACATION_RENTAL
+  HOA
+  STUDENT_HOUSING
+  SENIOR_LIVING
+  OTHER
+}
+
+// Add new enums for Title/Escrow and Insurance
+enum TitleEscrowType {
+  TITLE_AGENT
+  ESCROW_OFFICER
+  CLOSING_AGENT
+  TITLE_EXAMINER
+  UNDERWRITER
+  OTHER
+}
+
+enum InsuranceType {
+  PROPERTY_CASUALTY
+  TITLE_INSURANCE
+  ERRORS_OMISSIONS
+  LIABILITY
+  HOMEOWNERS
+  FLOOD
+  OTHER
+}
+
 // Models
 model User {
   ulid                   String   @id @db.Char(26)
@@ -450,6 +531,7 @@ model User {
   email                  String   @unique
   firstName              String?
   lastName               String?
+  phoneNumber            String?
   displayName            String?
   systemRole            UserRole  @default(USER)  // Changed from role to systemRole
   capabilities          UserCapability[] // Add capabilities field
@@ -460,22 +542,19 @@ model User {
   createdAt              DateTime @default(now()) @db.Timestamptz
   updatedAt              DateTime @updatedAt @db.Timestamptz
 
-  // RESO Member fields
-  memberKey             String?  @unique
-  memberStatus          String
-  designations          String[]
-  licenseNumber         String?  @unique
-  companyName           String?
-  phoneNumber           String?
-
   // Application-specific fields
   status               UserStatus @default(ACTIVE)
   profileImageUrl      String?
 
   // Profile Relations
   realtorProfile       RealtorProfile?
-  menteeProfile        MenteeProfile?
-  coachProfile         CoachProfile?
+  loanOfficerProfile   LoanOfficerProfile?
+  investorProfile      InvestorProfile?
+  propertyManagerProfile PropertyManagerProfile?
+  titleEscrowProfile    TitleEscrowProfile?
+  insuranceProfile     InsuranceProfile?
+  menteeProfile         MenteeProfile?
+  coachProfile          CoachProfile?
 
   // Existing integrations
   calendlyIntegration CalendlyIntegration?
@@ -528,6 +607,10 @@ model User {
   // Domain Expertise Relations
   domainExpertise        DomainExpertise[]
   domainVerifications    DomainVerification[]
+  professionalRecognitions ProfessionalRecognition[]
+
+  // New fields
+  marketingProfile       MarketingProfile?
 
   @@index([userId])
   @@index([email])
@@ -538,50 +621,6 @@ model User {
   @@map("User")
 }
 
-// Base profile for all realtors (both coaches and mentees)
-model RealtorProfile {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  bio                    String?
-  yearsExperience        Int?
-  
-  // Professional Information
-  propertyTypes          String[]
-  specializations        String[]
-  certifications         String[]
-  languages            String[]
-  
-  // Geographic Focus
-  geographicFocus        Json
-  primaryMarket          String?
-
-  // Marketing Information
-  slogan               String?
-  websiteUrl           String?
-  facebookUrl          String?
-  instagramUrl         String?
-  linkedinUrl          String?
-  youtubeUrl           String?
-  marketingAreas       String[]
-  testimonials         Json
-
-  // Relations
-  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  listings             Listing[]
-  professionalRecognitions ProfessionalRecognition[]
-
-  // MLS Integration fields
-  mlsId                String?  @unique
-  mlsName              String?
-  mlsStatus            String?  @default("ACTIVE")
-
-  createdAt            DateTime @default(now()) @db.Timestamptz
-  updatedAt            DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("RealtorProfile")
-}
-
 // Mentee-specific profile data
 model MenteeProfile {
   ulid               String   @id @db.Char(26)
@@ -589,10 +628,13 @@ model MenteeProfile {
   focusAreas         String[]
   experienceLevel    String?
   learningStyle      String?
-  goals              Json?
   sessionsCompleted  Int      @default(0)
   isActive           Boolean  @default(true)
   lastSessionDate    DateTime?
+
+  // Domain Expertise
+  activeDomains      String[] // Array of active domain types
+  domainExpertise      DomainExpertise[]
 
   // Relations
   user               User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
@@ -611,6 +653,10 @@ model CoachProfile {
   coachingSpecialties String[]
   yearsCoaching        Int?
   hourlyRate          Decimal? @db.Decimal(10, 2)
+
+  // Domain Expertise
+  activeDomains       String[] // Array of active domain types
+  domainExpertise       DomainExpertise[]
 
   // Calendly Integration
   calendlyUrl         String?
@@ -633,6 +679,467 @@ model CoachProfile {
 
   @@index([userUlid])
   @@map("CoachProfile")
+}
+
+// Organization and Team Management Models
+model Organization {
+  ulid                String   @id @db.Char(26)
+  name                String
+  description         String?
+  status             String    @default("ACTIVE")
+  type               OrgType   @default(INDIVIDUAL)
+  industry           OrgIndustry? // New field for industry type
+  level              OrgLevel  @default(LOCAL)
+  tier               OrgTier   @default(FREE)
+  parentUlid         String?   @db.Char(26)
+  metadata           Json?     @db.JsonB
+  
+  // Domain-specific fields
+  primaryDomain      DomainType?  // Primary business focus
+  licenseNumbers     Json?     @db.JsonB  // Store multiple licenses by state/type
+  serviceAreas       String[]  // Geographic service areas
+  specializations    String[]  // Domain-specific specializations
+  certifications     String[]  // Professional certifications
+  
+  // Business metrics
+  totalTransactions  Int?      // Total number of transactions
+  transactionVolume  Decimal?  @db.Decimal(12,2)  // Total transaction volume
+  activeAgents       Int?      // Number of active agents/officers
+  
+  // Existing relations
+  rolePermissions    RolePermission[]
+  members            OrganizationMember[]
+  subscriptions      Subscription[]
+  
+  // New relations for hierarchy
+  parent             Organization?  @relation("OrganizationHierarchy", fields: [parentUlid], references: [ulid])
+  children           Organization[] @relation("OrganizationHierarchy")
+  
+  // Add the regions relation
+  regions            Region[]
+  
+  // Existing timestamps
+  createdAt          DateTime     @default(now()) @db.Timestamptz
+  updatedAt          DateTime     @updatedAt @db.Timestamptz
+
+  // New fields
+  marketingProfile   MarketingProfile?
+
+  @@index([status])
+  @@index([type])
+  @@index([level])
+  @@index([parentUlid])
+  @@index([primaryDomain])
+  @@map("Organization")
+}
+
+// Optional: Add a Region model for better geographic organization
+model Region {
+  ulid              String   @id @db.Char(26)
+  organizationUlid  String   @db.Char(26)
+  name              String
+  type              String   // e.g., "STATE", "METRO_AREA", "COUNTRY"
+  parentUlid        String?  @db.Char(26)
+  metadata          Json?    @db.JsonB
+  
+  organization      Organization @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+  parent            Region?      @relation("RegionHierarchy", fields: [parentUlid], references: [ulid])
+  children          Region[]     @relation("RegionHierarchy")
+  
+  createdAt         DateTime     @default(now()) @db.Timestamptz
+  updatedAt         DateTime     @updatedAt @db.Timestamptz
+
+  @@index([organizationUlid])
+  @@index([parentUlid])
+  @@map("Region")
+}
+
+model OrganizationMember {
+  ulid              String        @id @db.Char(26)
+  organizationUlid  String        @db.Char(26)
+  userUlid         String        @db.Char(26)
+  role             OrgRole       @default(MEMBER)
+  scope            String?       @default("LOCAL")
+  status           String        @default("ACTIVE")
+  customPermissions Json?        @db.JsonB
+  metadata         Json?         @db.JsonB
+  
+  organization     Organization  @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+  user            User          @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  
+  createdAt       DateTime      @default(now()) @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @db.Timestamptz
+
+  @@unique([organizationUlid, userUlid])
+  @@index([organizationUlid])
+  @@index([userUlid])
+  @@index([role])
+  @@index([status])
+  @@map("OrganizationMember")
+}
+
+model RolePermission {
+  ulid              String        @id @db.Char(26)
+  organizationUlid  String        @db.Char(26)
+  role             OrgRole
+  permissions      Json          @db.JsonB
+  metadata         Json?         @db.JsonB
+  
+  organization     Organization  @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+  
+  createdAt       DateTime      @default(now()) @db.Timestamptz
+  updatedAt       DateTime      @updatedAt @db.Timestamptz
+
+  @@unique([organizationUlid, role])
+  @@index([organizationUlid])
+  @@index([role])
+  @@map("RolePermission")
+}
+
+// Add before the RealtorProfile model
+model MarketingProfile {
+  ulid              String   @id @db.Char(26)
+  userUlid          String?  @unique @db.Char(26)  // Make unique
+  organizationUlid  String?  @unique @db.Char(26)  // Make unique
+  
+  // Branding
+  slogan            String?
+  brandColors       Json?    @db.JsonB
+  logoUrl           String?
+  brandGuidelines   Json?    @db.JsonB  // Added for organizations
+  
+  // Web Presence
+  websiteUrl        String?
+  blogUrl           String?
+  
+  // Social Media Links (structured)
+  socialMediaLinks  Json     @db.JsonB
+  
+  // Marketing Areas & Focus
+  marketingAreas    String[]
+  targetAudience    String[]
+  geographicFocus   Json?    @db.JsonB
+  
+  // Content
+  testimonials      Json?    @db.JsonB
+  pressFeatures     Json?    @db.JsonB
+  marketingMaterials Json?   @db.JsonB
+  
+  // Organization-specific fields
+  brandAssets       Json?    @db.JsonB  // Store logos, images, templates
+  marketingTeam     Json?    @db.JsonB  // Team structure and contacts
+  campaignHistory   Json?    @db.JsonB  // Track marketing campaigns
+  
+  // Analytics Integration
+  googleAnalyticsId String?
+  facebookPixelId   String?
+  
+  // Relations
+  user              User?          @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  organization      Organization?  @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+  
+  // Timestamps
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  updatedAt         DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@index([organizationUlid])
+  @@map("MarketingProfile")
+}
+
+// Domain Expertise Models
+model DomainExpertise {
+  ulid              String   @id @db.Char(26)
+  userUlid          String   @db.Char(26)
+  type              String   // e.g., "REALTOR", "LOAN_OFFICER", "TITLE_ESCROW", "INSURANCE"
+  level             String   // e.g., "BEGINNER", "INTERMEDIATE", "EXPERT"
+  status            String   @default("PENDING")
+  yearsExperience   Int      @default(0)
+  description       String?
+  metadata          Json?    @db.JsonB
+  isActive          Boolean  @default(true)
+  
+  // Relations
+  user              User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  coachProfile      CoachProfile? @relation(fields: [coachProfileUlid], references: [ulid])
+  menteeProfile     MenteeProfile? @relation(fields: [menteeProfileUlid], references: [ulid])
+  verifications     DomainVerification[]
+  
+  // New fields for profile relations
+  coachProfileUlid   String?  @db.Char(26)
+  menteeProfileUlid  String?  @db.Char(26)
+  
+  createdAt         DateTime @default(now()) @db.Timestamptz
+  updatedAt         DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@index([type])
+  @@index([level])
+  @@index([status])
+  @@index([coachProfileUlid])
+  @@index([menteeProfileUlid])
+  @@map("DomainExpertise")
+}
+
+model DomainVerification {
+  ulid                  String   @id @db.Char(26)
+  domainExpertiseUlid   String   @db.Char(26)
+  userUlid             String   @db.Char(26)
+  type                 String   // e.g., "LICENSE", "CERTIFICATION"
+  status               String   @default("PENDING")
+  documentUrl          String?
+  verificationData     Json?           @db.JsonB
+  expiresAt            DateTime?       @db.Timestamptz
+  metadata             Json?           @db.JsonB
+  
+  // Relations
+  domainExpertise      DomainExpertise @relation(fields: [domainExpertiseUlid], references: [ulid], onDelete: Cascade)
+  user                 User            @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  
+  createdAt            DateTime        @default(now()) @db.Timestamptz
+  updatedAt            DateTime        @updatedAt @db.Timestamptz
+
+  @@index([domainExpertiseUlid])
+  @@index([userUlid])
+  @@index([type])
+  @@index([status])
+  @@map("DomainVerification")
+}
+
+// Base profile for all realtors (both coaches and mentees)
+model RealtorProfile {
+  ulid                   String   @id @db.Char(26)
+  userUlid               String   @unique @db.Char(26)
+  bio                    String?
+  yearsExperience        Int?
+  
+  // Professional Information
+  propertyTypes          String[]
+  specializations        String[]
+  certifications         String[]
+  languages             String[]
+  companyName           String?
+  
+  // Geographic Focus
+  geographicFocus        Json?
+  primaryMarket          String?
+
+  // Relations
+  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  listings             Listing[]
+  professionalRecognitions ProfessionalRecognition[]
+
+  // MLS Integration fields
+  mlsId                String?  @unique
+  mlsName              String?
+  mlsStatus            String?  @default("ACTIVE")
+
+  // RESO Member fields
+  memberKey             String?  @unique
+  memberStatus          String?
+  designations          String[]
+
+  createdAt            DateTime @default(now()) @db.Timestamptz
+  updatedAt            DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@map("RealtorProfile")
+}
+
+// Add after RealtorProfile model
+model LoanOfficerProfile {
+  ulid                   String   @id @db.Char(26)
+  userUlid               String   @unique @db.Char(26)
+  bio                    String?
+  yearsExperience        Int?
+  
+  // Professional Information
+  nmls                   String?  @unique  // National Mortgage Licensing System ID
+  lenderName             String?
+  branchLocation         String?
+  loanTypes              LoanType[]
+  specializations        String[]
+  certifications         String[]
+  languages             String[]
+  
+  // Performance Metrics
+  closedLoansCount       Int?
+  totalLoanVolume        Decimal? @db.Decimal(12,2)
+  averageLoanSize        Decimal? @db.Decimal(12,2)
+  
+  // Geographic Focus
+  geographicFocus        Json?    @db.JsonB
+  primaryMarket          String?
+  licensedStates         String[]
+
+  // Lending Parameters
+  minLoanAmount         Decimal? @db.Decimal(12,2)
+  maxLoanAmount         Decimal? @db.Decimal(12,2)
+  typicalTurnaroundDays Int?
+  
+  // Relations
+  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  professionalRecognitions ProfessionalRecognition[]
+
+  createdAt            DateTime @default(now()) @db.Timestamptz
+  updatedAt            DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@map("LoanOfficerProfile")
+}
+
+model InvestorProfile {
+  ulid                   String   @id @db.Char(26)
+  userUlid               String   @unique @db.Char(26)
+  bio                    String?
+  yearsExperience        Int?
+  
+  // Professional Information
+  companyName            String?
+  investmentStrategies   InvestmentStrategy[]
+  specializations        String[]
+  certifications         String[]
+  languages             String[]
+  
+  // Investment Criteria
+  minInvestmentAmount    Decimal? @db.Decimal(12,2)
+  maxInvestmentAmount    Decimal? @db.Decimal(12,2)
+  targetRoi              Decimal? @db.Decimal(5,2)  // Percentage
+  preferredPropertyTypes String[]
+  
+  // Portfolio Metrics
+  propertiesOwned        Int?
+  totalPortfolioValue    Decimal? @db.Decimal(12,2)
+  completedDeals         Int?
+  
+  // Geographic Focus
+  geographicFocus        Json?    @db.JsonB
+  primaryMarket          String?
+  targetMarkets          String[]
+  
+  // Relations
+  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  professionalRecognitions ProfessionalRecognition[]
+
+  createdAt            DateTime @default(now()) @db.Timestamptz
+  updatedAt            DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@map("InvestorProfile")
+}
+
+model PropertyManagerProfile {
+  ulid                   String   @id @db.Char(26)
+  userUlid               String   @unique @db.Char(26)
+  bio                    String?
+  yearsExperience        Int?
+  
+  // Professional Information
+  companyName            String?
+  licenseNumber          String?  @unique
+  managerTypes           PropertyManagerType[]
+  specializations        String[]
+  certifications         String[]
+  languages             String[]
+  
+  // Portfolio Metrics
+  propertiesManaged      Int?
+  totalUnits             Int?
+  squareFeetManaged      Decimal? @db.Decimal(12,2)
+  occupancyRate          Decimal? @db.Decimal(5,2)  // Percentage
+  
+  // Service Areas
+  geographicFocus        Json?    @db.JsonB
+  primaryMarket          String?
+  serviceZips            String[]
+  
+  // Management Details
+  minimumUnits           Int?
+  propertyTypes          String[]
+  services               String[]
+  managementSoftware     String?
+  
+  // Relations
+  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  professionalRecognitions ProfessionalRecognition[]
+
+  createdAt            DateTime @default(now()) @db.Timestamptz
+  updatedAt            DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@map("PropertyManagerProfile")
+}
+
+// Add TitleEscrowProfile model
+model TitleEscrowProfile {
+  ulid                   String   @id @db.Char(26)
+  userUlid               String   @unique @db.Char(26)
+  bio                    String?
+  yearsExperience        Int?
+  
+  // Professional Information
+  companyName            String?
+  licenseNumber          String?  @unique
+  titleEscrowTypes       TitleEscrowType[]
+  specializations        String[]
+  certifications         String[]
+  languages             String[]
+  
+  // Performance Metrics
+  closingsCompleted      Int?
+  averageClosingTime     Int?     // in days
+  totalTransactionVolume Decimal? @db.Decimal(12,2)
+  
+  // Geographic Focus
+  geographicFocus        Json?    @db.JsonB
+  primaryMarket          String?
+  licensedStates         String[]
+  
+  // Relations
+  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  professionalRecognitions ProfessionalRecognition[] @relation("TitleEscrowProfileRecognitions")
+
+  createdAt              DateTime @default(now()) @db.Timestamptz
+  updatedAt              DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@map("TitleEscrowProfile")
+}
+
+// Add InsuranceProfile model
+model InsuranceProfile {
+  ulid                   String   @id @db.Char(26)
+  userUlid               String   @unique @db.Char(26)
+  bio                    String?
+  yearsExperience        Int?
+  
+  // Professional Information
+  companyName            String?
+  licenseNumber          String?  @unique
+  insuranceTypes         InsuranceType[]
+  specializations        String[]
+  certifications         String[]
+  languages             String[]
+  
+  // Performance Metrics
+  policiesIssued         Int?
+  totalPremiumVolume     Decimal? @db.Decimal(12,2)
+  claimProcessingTime    Int?     // in days
+  
+  // Geographic Focus
+  geographicFocus        Json?    @db.JsonB
+  primaryMarket          String?
+  licensedStates         String[]
+  
+  // Relations
+  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  professionalRecognitions ProfessionalRecognition[] @relation("InsuranceProfileRecognitions")
+
+  createdAt              DateTime @default(now()) @db.Timestamptz
+  updatedAt              DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@map("InsuranceProfile")
 }
 
 model Session {
@@ -1105,21 +1612,44 @@ model Achievement {
 // Professional recognition (formerly stored in RealtorProfile.achievements)
 model ProfessionalRecognition {
   ulid                   String   @id @db.Char(26)
-  realtorProfileUlid     String   @db.Char(26)
-  title                  String
-  type                   RecognitionType
-  year                   Int
-  organization           String?
-  description            String?
-  
-  realtorProfile         RealtorProfile @relation(fields: [realtorProfileUlid], references: [ulid], onDelete: Cascade)
+  userUlid              String   @db.Char(26)
+  type                  RecognitionType
+  title                 String
+  issuer                String
+  issueDate             DateTime @db.Timestamptz
+  expiryDate            DateTime? @db.Timestamptz
+  description           String?
+  verificationUrl       String?
+  certificateUrl        String?
+  status                CertificationStatus @default(ACTIVE)
 
-  createdAt              DateTime  @default(now()) @db.Timestamptz
-  updatedAt              DateTime  @updatedAt @db.Timestamptz
-  archivedAt             DateTime? @db.Timestamptz
+  // Relations
+  user                  User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  realtorProfile        RealtorProfile?     @relation(fields: [realtorProfileUlid], references: [ulid])
+  loanOfficerProfile    LoanOfficerProfile? @relation(fields: [loanOfficerProfileUlid], references: [ulid])
+  investorProfile       InvestorProfile?    @relation(fields: [investorProfileUlid], references: [ulid])
+  propertyManagerProfile PropertyManagerProfile? @relation(fields: [propertyManagerProfileUlid], references: [ulid])
+  titleEscrowProfile    TitleEscrowProfile? @relation("TitleEscrowProfileRecognitions", fields: [titleEscrowProfileUlid], references: [ulid])
+  insuranceProfile      InsuranceProfile?   @relation("InsuranceProfileRecognitions", fields: [insuranceProfileUlid], references: [ulid])
 
+  // Foreign Keys
+  realtorProfileUlid        String? @db.Char(26)
+  loanOfficerProfileUlid    String? @db.Char(26)
+  investorProfileUlid       String? @db.Char(26)
+  propertyManagerProfileUlid String? @db.Char(26)
+  titleEscrowProfileUlid    String? @db.Char(26)
+  insuranceProfileUlid      String? @db.Char(26)
+
+  createdAt              DateTime @default(now()) @db.Timestamptz
+  updatedAt              DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
   @@index([realtorProfileUlid])
-  @@index([type])
+  @@index([loanOfficerProfileUlid])
+  @@index([investorProfileUlid])
+  @@index([propertyManagerProfileUlid])
+  @@index([titleEscrowProfileUlid])
+  @@index([insuranceProfileUlid])
   @@map("ProfessionalRecognition")
 }
 
@@ -1216,7 +1746,7 @@ model Transaction {
   type                   String // session_payment, bundle_payment, payout, refund
   status                 String // pending, completed, failed, refunded
   amount                 Float
-  currency               String   @default("usd")
+  currency               String
   stripePaymentIntentId  String?
   stripeTransferId       String?
   platformFee            Float?
@@ -1497,150 +2027,8 @@ model AIMessage {
   @@map("AIMessage")
 }
 
-// Organization and Team Management Models
-model Organization {
-  ulid                String   @id @db.Char(26)
-  name                String
-  description         String?
-  status             String    @default("ACTIVE")
-  type               OrgType   @default(INDIVIDUAL)
-  level              OrgLevel  @default(LOCAL)
-  tier               OrgTier   @default(FREE)
-  parentUlid         String?   @db.Char(26)
-  metadata           Json?     @db.JsonB
-  
-  // Existing relations
-  rolePermissions    RolePermission[]
-  members            OrganizationMember[]
-  subscriptions      Subscription[]
-  
-  // New relations for hierarchy
-  parent             Organization?  @relation("OrganizationHierarchy", fields: [parentUlid], references: [ulid])
-  children           Organization[] @relation("OrganizationHierarchy")
-  
-  // Add the regions relation
-  regions            Region[]
-  
-  // Existing timestamps
-  createdAt          DateTime     @default(now()) @db.Timestamptz
-  updatedAt          DateTime     @updatedAt @db.Timestamptz
 
-  @@index([status])
-  @@index([type])
-  @@index([level])
-  @@index([parentUlid])
-  @@map("Organization")
-}
 
-model OrganizationMember {
-  ulid              String        @id @db.Char(26)
-  organizationUlid  String        @db.Char(26)
-  userUlid         String        @db.Char(26)
-  role             OrgRole       @default(MEMBER)
-  scope            String?       @default("LOCAL")
-  status           String        @default("ACTIVE")
-  customPermissions Json?        @db.JsonB
-  metadata         Json?         @db.JsonB
-  
-  organization     Organization  @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
-  user            User          @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  
-  createdAt       DateTime      @default(now()) @db.Timestamptz
-  updatedAt       DateTime      @updatedAt @db.Timestamptz
 
-  @@unique([organizationUlid, userUlid])
-  @@index([organizationUlid])
-  @@index([userUlid])
-  @@index([role])
-  @@index([status])
-  @@map("OrganizationMember")
-}
 
-model RolePermission {
-  ulid              String        @id @db.Char(26)
-  organizationUlid  String        @db.Char(26)
-  role             OrgRole
-  permissions      Json          @db.JsonB
-  metadata         Json?         @db.JsonB
-  
-  organization     Organization  @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
-  
-  createdAt       DateTime      @default(now()) @db.Timestamptz
-  updatedAt       DateTime      @updatedAt @db.Timestamptz
 
-  @@unique([organizationUlid, role])
-  @@index([organizationUlid])
-  @@index([role])
-  @@map("RolePermission")
-}
-
-// Domain Expertise Models
-model DomainExpertise {
-  ulid              String   @id @db.Char(26)
-  userUlid         String   @db.Char(26)
-  type             String   // e.g., "REALTOR", "PROPERTY_MANAGER"
-  level            String   // e.g., "BEGINNER", "INTERMEDIATE", "EXPERT"
-  status           String   @default("PENDING")
-  yearsExperience  Int                 @default(0)
-  description      String?
-  metadata         Json?               @db.JsonB
-  
-  // Relations
-  user             User                @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  verifications    DomainVerification[]
-  
-  createdAt        DateTime            @default(now()) @db.Timestamptz
-  updatedAt        DateTime            @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@index([type])
-  @@index([level])
-  @@index([status])
-  @@map("DomainExpertise")
-}
-
-model DomainVerification {
-  ulid                  String   @id @db.Char(26)
-  domainExpertiseUlid   String   @db.Char(26)
-  userUlid             String   @db.Char(26)
-  type                 String   // e.g., "LICENSE", "CERTIFICATION"
-  status               String   @default("PENDING")
-  documentUrl          String?
-  verificationData     Json?           @db.JsonB
-  expiresAt            DateTime?       @db.Timestamptz
-  metadata             Json?           @db.JsonB
-  
-  // Relations
-  domainExpertise      DomainExpertise @relation(fields: [domainExpertiseUlid], references: [ulid], onDelete: Cascade)
-  user                 User            @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  
-  createdAt            DateTime        @default(now()) @db.Timestamptz
-  updatedAt            DateTime        @updatedAt @db.Timestamptz
-
-  @@index([domainExpertiseUlid])
-  @@index([userUlid])
-  @@index([type])
-  @@index([status])
-  @@map("DomainVerification")
-}
-
-// Optional: Add a Region model for better geographic organization
-model Region {
-  ulid              String   @id @db.Char(26)
-  organizationUlid  String   @db.Char(26)
-  name              String
-  type              String   // e.g., "STATE", "METRO_AREA", "COUNTRY"
-  parentUlid        String?  @db.Char(26)
-  metadata          Json?    @db.JsonB
-  
-  organization      Organization @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
-  parent            Region?      @relation("RegionHierarchy", fields: [parentUlid], references: [ulid])
-  children          Region[]     @relation("RegionHierarchy")
-  
-  createdAt         DateTime     @default(now()) @db.Timestamptz
-  updatedAt         DateTime     @updatedAt @db.Timestamptz
-
-  @@index([organizationUlid])
-  @@index([parentUlid])
-  @@map("Region")
-}

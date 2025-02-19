@@ -3,69 +3,73 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { z } from "zod"
 
-interface UserData {
-  firstName?: string | null
-  lastName?: string | null
-  displayName?: string | null
-  licenseNumber?: string
-  companyName?: string
-  yearsOfExperience?: string
-  bio?: string
-  primaryMarket?: string
+// Validation schema matching database types
+const generalFormSchema = z.object({
+  displayName: z.string().min(1, "Display name is required"),
+  yearsExperience: z.number().min(0, "Years of experience must be a positive number"),
+  primaryMarket: z.string().min(1, "Primary market is required"),
+  bio: z.string().optional().nullable(),
+})
+
+type GeneralFormData = z.infer<typeof generalFormSchema>
+
+interface GeneralFormProps {
+  onSubmit: (data: GeneralFormData) => void
+  initialData?: Partial<GeneralFormData>
+  isSubmitting?: boolean
 }
 
 export default function GeneralForm({ 
   onSubmit, 
   initialData,
   isSubmitting = false
-}: { 
-  onSubmit: (data: any) => void
-  initialData?: UserData
-  isSubmitting?: boolean
-}) {
-  const [formData, setFormData] = useState({
+}: GeneralFormProps) {
+  const [formData, setFormData] = useState<GeneralFormData>({
     displayName: "",
-    licenseNumber: "",
-    companyName: "",
-    yearsOfExperience: "",
-    bio: "",
+    yearsExperience: 0,
     primaryMarket: "",
+    bio: null,
   })
 
   useEffect(() => {
     if (initialData) {
-      // Set default display name if not already set
-      const defaultDisplayName = initialData.displayName || 
-        (initialData.firstName || initialData.lastName ? 
-          `${initialData.firstName || ''} ${initialData.lastName || ''}`.trim() : 
-          '')
-
-      setFormData({
-        displayName: defaultDisplayName,
-        licenseNumber: initialData.licenseNumber || "",
-        companyName: initialData.companyName || "",
-        yearsOfExperience: initialData.yearsOfExperience || "",
-        bio: initialData.bio || "",
-        primaryMarket: initialData.primaryMarket || "",
-      })
+      setFormData(prev => ({
+        ...prev,
+        ...initialData,
+        // Ensure yearsExperience is a number
+        yearsExperience: typeof initialData.yearsExperience === 'string' 
+          ? parseInt(initialData.yearsExperience, 10) 
+          : initialData.yearsExperience || 0,
+      }))
     }
   }, [initialData])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'yearsExperience' ? parseInt(value) || 0 : value,
+    }))
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Only include non-empty values in the submission
-    const submissionData = {
-      ...formData,
-      // Only include bio if it's not an empty string
-      bio: formData.bio.trim() || null
+    try {
+      // Validate form data
+      const validatedData = generalFormSchema.parse(formData)
+      onSubmit(validatedData)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error('[VALIDATION_ERROR]', {
+          error,
+          formData,
+          timestamp: new Date().toISOString()
+        })
+      }
+      // Handle validation errors here if needed
     }
-    onSubmit(submissionData)
   }
 
   return (
@@ -82,38 +86,17 @@ export default function GeneralForm({
           disabled={isSubmitting}
         />
         <p className="text-sm text-muted-foreground mt-1">
-          This is how your name will appear publicly on your profile. By default, we use your full name.
+          This is how your name will appear publicly on your profile.
         </p>
       </div>
+
       <div>
-        <Label htmlFor="licenseNumber">License Number</Label>
+        <Label htmlFor="yearsExperience">Years of Total Real Estate Experience</Label>
         <Input
-          id="licenseNumber"
-          name="licenseNumber"
-          value={formData.licenseNumber}
-          onChange={handleChange}
-          required
-          disabled={isSubmitting}
-        />
-      </div>
-      <div>
-        <Label htmlFor="companyName">Brokerage</Label>
-        <Input 
-          id="companyName" 
-          name="companyName" 
-          value={formData.companyName} 
-          onChange={handleChange} 
-          required 
-          disabled={isSubmitting}
-        />
-      </div>
-      <div>
-        <Label htmlFor="yearsOfExperience">Years of Total Real Estate Experience</Label>
-        <Input
-          id="yearsOfExperience"
-          name="yearsOfExperience"
+          id="yearsExperience"
+          name="yearsExperience"
           type="number"
-          value={formData.yearsOfExperience}
+          value={formData.yearsExperience}
           onChange={handleChange}
           required
           disabled={isSubmitting}
@@ -121,6 +104,7 @@ export default function GeneralForm({
           max="100"
         />
       </div>
+
       <div>
         <Label htmlFor="primaryMarket">Primary Market</Label>
         <Input
@@ -133,6 +117,7 @@ export default function GeneralForm({
           disabled={isSubmitting}
         />
       </div>
+
       <div>
         <Label htmlFor="bio">Professional Bio</Label>
         <Textarea 
@@ -145,6 +130,7 @@ export default function GeneralForm({
           rows={6}
         />
       </div>
+
       <Button type="submit" disabled={isSubmitting}>
         {isSubmitting ? "Saving..." : "Save General Information"}
       </Button>
