@@ -7,17 +7,27 @@ import { z } from "zod"
 
 // Validation schema matching database types
 const generalFormSchema = z.object({
+  // User fields
   displayName: z.string().min(1, "Display name is required"),
+  bio: z.string().optional().nullable(),
+  
+  // RealtorProfile fields
   yearsExperience: z.number().min(0, "Years of experience must be a positive number"),
   primaryMarket: z.string().min(1, "Primary market is required"),
-  bio: z.string().optional().nullable(),
 })
 
 type GeneralFormData = z.infer<typeof generalFormSchema>
 
 interface GeneralFormProps {
   onSubmit: (data: GeneralFormData) => void
-  initialData?: Partial<GeneralFormData>
+  initialData?: {
+    // User data
+    displayName?: string | null
+    bio?: string | null
+    // RealtorProfile data
+    yearsExperience?: number | null
+    primaryMarket?: string | null
+  }
   isSubmitting?: boolean
 }
 
@@ -28,20 +38,21 @@ export default function GeneralForm({
 }: GeneralFormProps) {
   const [formData, setFormData] = useState<GeneralFormData>({
     displayName: "",
+    bio: null,
     yearsExperience: 0,
     primaryMarket: "",
-    bio: null,
   })
 
   useEffect(() => {
     if (initialData) {
       setFormData(prev => ({
         ...prev,
-        ...initialData,
-        // Ensure yearsExperience is a number
+        displayName: initialData.displayName || "",
+        bio: initialData.bio || null,
         yearsExperience: typeof initialData.yearsExperience === 'string' 
           ? parseInt(initialData.yearsExperience, 10) 
           : initialData.yearsExperience || 0,
+        primaryMarket: initialData.primaryMarket || "",
       }))
     }
   }, [initialData])
@@ -91,7 +102,20 @@ export default function GeneralForm({
       </div>
 
       <div>
-        <Label htmlFor="yearsExperience">Years of Total Real Estate Experience</Label>
+        <Label htmlFor="bio">Professional Bio</Label>
+        <Textarea 
+          id="bio" 
+          name="bio" 
+          value={formData.bio || ''}
+          onChange={handleChange}
+          disabled={isSubmitting}
+          placeholder="Write a comprehensive description of your professional background and expertise. This will appear on your profile page."
+          rows={6}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="yearsExperience">Years of Experience</Label>
         <Input
           id="yearsExperience"
           name="yearsExperience"
@@ -115,19 +139,6 @@ export default function GeneralForm({
           placeholder="e.g. Greater Los Angeles Area"
           required
           disabled={isSubmitting}
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="bio">Professional Bio</Label>
-        <Textarea 
-          id="bio" 
-          name="bio" 
-          value={formData.bio || ''}
-          onChange={handleChange}
-          disabled={isSubmitting}
-          placeholder="Write a comprehensive description of your real estate career, expertise, and professional background. This will appear on your full profile page."
-          rows={6}
         />
       </div>
 

@@ -8,57 +8,114 @@ import GoalsForm from "../../../../components/profile/GoalsForm"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { getCoachApplication } from "@/utils/actions/coach-application"
-import { updateRealtorProfile } from "@/utils/actions/realtor-profile"
+import { fetchRealtorProfile, updateRealtorProfile } from "@/utils/actions/realtor-profile"
 import { Badge } from "@/components/ui/badge"
 import { Loader2 } from "lucide-react"
 import type { ApplicationData } from "@/utils/types/coach-application"
 import type { GoalFormValues } from "@/utils/types/goals"
 import { toast } from "sonner"
 
+interface ProfileData {
+  user: {
+    firstName: string | null
+    lastName: string | null
+    displayName: string | null
+    bio: string | null
+  }
+  realtorProfile: {
+    yearsExperience: number | null
+    primaryMarket: string | null
+  }
+}
+
 export default function AgentProfilePage() {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [application, setApplication] = useState<ApplicationData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [profileData, setProfileData] = useState<ProfileData | null>(null)
 
+  // Fetch both profile and application data in parallel
   useEffect(() => {
-    const fetchApplication = async () => {
+    const fetchData = async () => {
       try {
-        const { data, error } = await getCoachApplication({})
-        if (error) {
-          console.error('[FETCH_APPLICATION_ERROR]', error)
-          return
+        const [profileResponse, applicationResponse] = await Promise.all([
+          fetchRealtorProfile(),
+          getCoachApplication({})
+        ])
+
+        // Handle profile data
+        if (profileResponse.error) {
+          console.error('[FETCH_PROFILE_ERROR]', profileResponse.error)
+          toast.error('Failed to load profile data')
+        } else if (profileResponse.data) {
+          setProfileData({
+            user: {
+              firstName: profileResponse.data.user.firstName ?? null,
+              lastName: profileResponse.data.user.lastName ?? null,
+              displayName: profileResponse.data.user.displayName ?? null,
+              bio: profileResponse.data.user.bio ?? null
+            },
+            realtorProfile: {
+              yearsExperience: profileResponse.data.realtorProfile.yearsExperience ?? null,
+              primaryMarket: profileResponse.data.realtorProfile.primaryMarket ?? null
+            }
+          })
         }
-        if (data) {
-          setApplication(data as ApplicationData)
+
+        // Handle application data
+        if (applicationResponse.error) {
+          console.error('[FETCH_APPLICATION_ERROR]', applicationResponse.error)
+        } else if (applicationResponse.data) {
+          setApplication(applicationResponse.data as ApplicationData)
         }
       } catch (error) {
-        console.error('[FETCH_APPLICATION_ERROR]', error)
+        console.error('[FETCH_DATA_ERROR]', error)
+        toast.error('Failed to load some data')
       } finally {
         setIsLoading(false)
       }
     }
-    fetchApplication()
+
+    fetchData()
   }, [])
 
   const handleGeneralSubmit = async (formData: any) => {
     setIsSubmitting(true)
     try {
-      const { error } = await updateRealtorProfile(formData)
+      const { error } = await updateRealtorProfile({
+        user: {
+          displayName: formData.displayName,
+          bio: formData.bio
+        },
+        realtorProfile: {
+          yearsExperience: formData.yearsExperience,
+          primaryMarket: formData.primaryMarket
+        }
+      })
       
       if (error) {
         console.error('[SUBMIT_PROFILE_ERROR]', error)
-        if (error.code === 'VALIDATION_ERROR' && 'details' in error) {
-          const validationError = error as { details: { fieldErrors: Record<string, string[]> } }
-          toast.error(Object.values(validationError.details.fieldErrors).flat().join('\n'))
-        } else {
-          toast.error(error.message || 'Failed to update profile')
-        }
+        toast.error(error.message || 'Failed to update profile')
         return
       }
 
+      // Update local state to avoid refetch
+      setProfileData(prev => prev ? {
+        ...prev,
+        user: {
+          ...prev.user,
+          displayName: formData.displayName,
+          bio: formData.bio
+        },
+        realtorProfile: {
+          ...prev.realtorProfile,
+          yearsExperience: formData.yearsExperience,
+          primaryMarket: formData.primaryMarket
+        }
+      } : null)
+
       toast.success('Profile updated successfully')
-      router.refresh()
     } catch (error) {
       console.error('[SUBMIT_PROFILE_ERROR]', error)
       toast.error('Failed to update profile')
@@ -111,12 +168,33 @@ export default function AgentProfilePage() {
           <Card>
             <CardHeader>
               <CardTitle>General Information</CardTitle>
+              {isLoading ? (
+                <div className="mt-2 text-sm text-muted-foreground animate-pulse">
+                  Loading profile...
+                </div>
+              ) : profileData?.user && (
+                <div className="mt-2 text-sm text-muted-foreground">
+                  {profileData.user.firstName} {profileData.user.lastName}
+                </div>
+              )}
             </CardHeader>
             <CardContent>
-              <GeneralForm 
-                onSubmit={handleGeneralSubmit} 
-                isSubmitting={isSubmitting}
-              />
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <GeneralForm 
+                  onSubmit={handleGeneralSubmit} 
+                  isSubmitting={isSubmitting}
+                  initialData={{
+                    displayName: profileData?.user.displayName || "",
+                    bio: profileData?.user.bio || "",
+                    yearsExperience: profileData?.realtorProfile.yearsExperience || 0,
+                    primaryMarket: profileData?.realtorProfile.primaryMarket || "",
+                  }}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>

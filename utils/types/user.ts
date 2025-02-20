@@ -1,25 +1,38 @@
 import { z } from "zod";
 
+// System Role Enum
 export enum UserRole {
-  MENTEE = "MENTEE",
+  SYSTEM_OWNER = "SYSTEM_OWNER",
+  SYSTEM_MODERATOR = "SYSTEM_MODERATOR",
+  USER = "USER"
+}
+
+// User Capabilities Enum
+export enum UserCapability {
   COACH = "COACH",
-  ADMIN = "ADMIN"
+  MENTEE = "MENTEE"
 }
 
 export enum UserStatus {
-  active = "active",
-  inactive = "inactive",
-  suspended = "suspended"
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  SUSPENDED = "SUSPENDED"
 }
 
 export const userSchema = z.object({
-  id: z.number().describe("Internal database ID"),
+  ulid: z.string().length(26),
   userId: z.string().describe("Clerk user ID"),
   email: z.string().email(),
   firstName: z.string().nullable(),
   lastName: z.string().nullable(),
-  role: z.nativeEnum(UserRole).default(UserRole.MENTEE),
-  status: z.nativeEnum(UserStatus).default(UserStatus.active),
+  phoneNumber: z.string().nullable(),
+  displayName: z.string().nullable(),
+  bio: z.string().nullable(),
+  systemRole: z.nativeEnum(UserRole).default(UserRole.USER),
+  capabilities: z.array(z.nativeEnum(UserCapability)),
+  isCoach: z.boolean().default(false),
+  isMentee: z.boolean().default(false),
+  status: z.nativeEnum(UserStatus).default(UserStatus.ACTIVE),
   profileImageUrl: z.string().nullable(),
   stripeCustomerId: z.string().nullable(),
   stripeConnectAccountId: z.string().nullable(),
@@ -36,8 +49,12 @@ export const userCreateSchema = z.object({
     .min(1, { message: "Last name is required" })
     .regex(/^[a-zA-Z]+$/, { message: "Last name must only contain letters" }),
   userId: z.string().describe("Clerk user ID"),
-  role: z.nativeEnum(UserRole).default(UserRole.MENTEE),
+  systemRole: z.nativeEnum(UserRole).default(UserRole.USER),
+  capabilities: z.array(z.nativeEnum(UserCapability)).default([]),
   profileImageUrl: z.string().url().nullable(),
+  phoneNumber: z.string().nullable(),
+  displayName: z.string().nullable(),
+  bio: z.string().nullable(),
 });
 
 export const userUpdateSchema = z.object({
@@ -46,8 +63,10 @@ export const userUpdateSchema = z.object({
   lastName: z.string().regex(/^[a-zA-Z]+$/).optional(),
   profileImageUrl: z.string().url().optional(),
   phoneNumber: z.string().optional(),
-  companyName: z.string().optional(),
-  licenseNumber: z.string().optional(),
+  displayName: z.string().optional(),
+  bio: z.string().optional(),
+  status: z.nativeEnum(UserStatus).optional(),
+  capabilities: z.array(z.nativeEnum(UserCapability)).optional(),
 });
 
 // Type exports

@@ -533,7 +533,8 @@ model User {
   lastName               String?
   phoneNumber            String?
   displayName            String?
-  systemRole            UserRole  @default(USER)  // Changed from role to systemRole
+  bio                    String?  @db.Text  // Added bio field
+  systemRole            UserRole  @default(USER)
   capabilities          UserCapability[] // Add capabilities field
   isCoach               Boolean   @default(false)  // Quick access flag
   isMentee              Boolean   @default(false)  // Quick access flag
@@ -910,7 +911,6 @@ model DomainVerification {
 model RealtorProfile {
   ulid                   String   @id @db.Char(26)
   userUlid               String   @unique @db.Char(26)
-  bio                    String?
   yearsExperience        Int?
   
   // Professional Information
@@ -950,7 +950,6 @@ model RealtorProfile {
 model LoanOfficerProfile {
   ulid                   String   @id @db.Char(26)
   userUlid               String   @unique @db.Char(26)
-  bio                    String?
   yearsExperience        Int?
   
   // Professional Information
@@ -991,7 +990,6 @@ model LoanOfficerProfile {
 model InvestorProfile {
   ulid                   String   @id @db.Char(26)
   userUlid               String   @unique @db.Char(26)
-  bio                    String?
   yearsExperience        Int?
   
   // Professional Information
@@ -1031,7 +1029,6 @@ model InvestorProfile {
 model PropertyManagerProfile {
   ulid                   String   @id @db.Char(26)
   userUlid               String   @unique @db.Char(26)
-  bio                    String?
   yearsExperience        Int?
   
   // Professional Information
@@ -1074,7 +1071,6 @@ model PropertyManagerProfile {
 model TitleEscrowProfile {
   ulid                   String   @id @db.Char(26)
   userUlid               String   @unique @db.Char(26)
-  bio                    String?
   yearsExperience        Int?
   
   // Professional Information
@@ -1110,7 +1106,6 @@ model TitleEscrowProfile {
 model InsuranceProfile {
   ulid                   String   @id @db.Char(26)
   userUlid               String   @unique @db.Char(26)
-  bio                    String?
   yearsExperience        Int?
   
   // Professional Information
