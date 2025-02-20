@@ -57,7 +57,7 @@ const getStatusColor = (status: string) => {
 }
 
 // Helper to convert availability schedule to events
-const getAvailabilityEvents = (
+const convertAvailabilityScheduleToEvents = (
   schedule: CalendlyAvailabilitySchedule,
   startDate: Date,
   endDate: Date,
@@ -90,7 +90,7 @@ const getAvailabilityEvents = (
         if (slotEnd.isAfter(intervalEnd)) continue
 
         events.push({
-          id: `availability-${schedule.uri}-${slotStart.toISOString()}`,
+          id: `availability-${schedule.uri || 'default'}-${slotStart.toISOString()}`,
           title: 'Available for Coaching',
           start: slotStart.toDate(),
           end: slotEnd.toDate(),
@@ -98,6 +98,46 @@ const getAvailabilityEvents = (
           resource: schedule
         })
       }
+    })
+  }
+
+  return events
+}
+
+// Helper to convert weekly schedule to calendar events
+const convertWeeklyScheduleToEvents = (
+  startDate: Date,
+  endDate: Date,
+  weeklySchedule?: Partial<Record<WeekDay, TimeSlot[]>>,
+  timezone?: string
+): CalendarEvent[] => {
+  if (!weeklySchedule) return []
+
+  const events: CalendarEvent[] = []
+  const start = moment(startDate).startOf('week')
+  const end = moment(endDate).endOf('week')
+
+  // For each day in the range
+  for (let day = moment(start); day.isSameOrBefore(end); day.add(1, 'day')) {
+    const weekday = day.format('dddd').toUpperCase() as WeekDay
+    const daySchedule = weeklySchedule[weekday] || []
+
+    // For each time slot in the day's schedule
+    daySchedule.forEach((slot: TimeSlot) => {
+      const [fromHour, fromMinute] = slot.from.split(':').map(Number)
+      const [toHour, toMinute] = slot.to.split(':').map(Number)
+
+      const slotStart = moment(day).hour(fromHour).minute(fromMinute).second(0)
+      const slotEnd = moment(day).hour(toHour).minute(toMinute).second(0)
+
+      events.push({
+        id: `availability-${weekday}-${slot.from}-${slot.to}-${slotStart.toISOString()}`,
+        title: 'Available for Coaching',
+        start: slotStart.toDate(),
+        end: slotEnd.toDate(),
+        type: 'availability',
+        resource: { type: 'availability' as const, timezone: timezone || 'UTC' }
+      })
     })
   }
 
@@ -177,45 +217,21 @@ export function CoachingCalendar({
   }))
 
   // Get availability events for the current view's date range
-  const availabilityEvents = getAvailabilityEvents(
-    moment(date).startOf('month').toDate(),
-    moment(date).endOf('month').toDate()
-  )
-
-  // Convert weekly schedule to calendar events
-  const getAvailabilityEvents = (startDate: Date, endDate: Date) => {
-    if (!availabilityData?.data?.rules?.weeklySchedule) return []
-
-    const events: CalendarEvent[] = []
-    const start = moment(startDate).startOf('week')
-    const end = moment(endDate).endOf('week')
-
-    // For each day in the range
-    for (let day = moment(start); day.isSameOrBefore(end); day.add(1, 'day')) {
-      const weekday = day.format('dddd').toUpperCase() as WeekDay
-      const daySchedule = availabilityData.data.rules.weeklySchedule[weekday] || []
-
-      // For each time slot in the day's schedule
-      daySchedule.forEach((slot: TimeSlot) => {
-        const [fromHour, fromMinute] = slot.from.split(':').map(Number)
-        const [toHour, toMinute] = slot.to.split(':').map(Number)
-
-        const slotStart = moment(day).hour(fromHour).minute(fromMinute).second(0)
-        const slotEnd = moment(day).hour(toHour).minute(toMinute).second(0)
-
-        events.push({
-          id: `availability-${weekday}-${slot.from}-${slot.to}-${slotStart.toISOString()}`,
-          title: 'Available for Coaching',
-          start: slotStart.toDate(),
-          end: slotEnd.toDate(),
-          type: 'availability',
-          resource: { type: 'availability', timezone: availabilityData.data.timezone }
-        })
-      })
-    }
-
-    return events
-  }
+  const monthStart = moment(date).startOf('month').toDate()
+  const monthEnd = moment(date).endOf('month').toDate()
+  
+  const availabilityEvents = availabilitySchedules.length > 0
+    ? convertAvailabilityScheduleToEvents(
+        availabilitySchedules[0],
+        monthStart,
+        monthEnd
+      )
+    : convertWeeklyScheduleToEvents(
+        monthStart,
+        monthEnd,
+        availabilityData?.data?.rules?.weeklySchedule,
+        availabilityData?.data?.timezone
+      )
 
   // Filter out availability slots that overlap with busy times or sessions
   const filteredAvailabilityEvents = availabilityEvents.filter(availEvent => {
@@ -377,9 +393,9 @@ function CustomToolbar({
     day: 'Day'
   }
 
-  // Full wide screen layout (1300px and up)
+  // Full wide screen layout (1024px and up)
   const FullWideLayout = (
-    <div className="hidden [@media(min-width:1300px)]:grid [@media(min-width:1300px)]:grid-cols-3 [@media(min-width:1300px)]:items-center [@media(min-width:1300px)]:gap-4">
+    <div className="hidden lg:grid lg:grid-cols-3 lg:items-center lg:gap-4">
       {/* Left Section - Navigation */}
       <div className="flex items-center gap-2 justify-start">
         <Button
@@ -432,65 +448,64 @@ function CustomToolbar({
     </div>
   )
 
-  // Compact layout for screens below 1300px
+  // Compact layout for screens below 1024px
   const CompactLayout = (
-    <div className="[@media(min-width:1300px)]:hidden space-y-3">
-      {/* Title and View Selection */}
-      <div className="space-y-2">
-        <span className="rbc-toolbar-label text-lg font-semibold block text-center">
-          {label}
-        </span>
-        <div className="flex items-center justify-center gap-1 border-b pb-2">
+    <div className="lg:hidden space-y-3">
+      <span className="rbc-toolbar-label text-lg font-semibold block text-center">
+        {label}
+      </span>
+      
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => onNavigate('TODAY')}
+            variant="outline"
+            size="sm"
+            className="text-sm px-3"
+          >
+            Today
+          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              onClick={() => onNavigate('PREV')}
+              variant="outline"
+              size="sm"
+              className="px-2"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              onClick={() => onNavigate('NEXT')}
+              variant="outline"
+              size="sm"
+              className="px-2"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
           {Object.entries(viewNames).map(([viewKey, viewLabel]) => (
             <Button
               key={viewKey}
               onClick={() => onView(viewKey as View)}
               variant={view === viewKey ? "default" : "outline"}
               size="sm"
-              className="flex-1 text-sm px-2 max-w-[120px]"
+              className="text-sm px-3"
             >
               {viewLabel}
             </Button>
           ))}
         </div>
       </div>
-
-      {/* Navigation Controls */}
-      <div className="flex items-center justify-between px-1">
-        <Button
-          onClick={() => onNavigate('TODAY')}
-          variant="outline"
-          size="sm"
-          className="text-sm px-3"
-        >
-          Today
-        </Button>
-        <div className="flex items-center gap-1">
-          <Button
-            onClick={() => onNavigate('PREV')}
-            variant="outline"
-            size="sm"
-            className="px-2"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            onClick={() => onNavigate('NEXT')}
-            variant="outline"
-            size="sm"
-            className="px-2"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
     </div>
   )
 
   return (
-    <div className="rbc-toolbar w-full p-2 sm:p-3 [@media(min-width:1300px)]:p-4">
+    <div className="rbc-toolbar w-full p-2 sm:p-3 lg:p-4">
       {FullWideLayout}
       {CompactLayout}
     </div>
-  );
+  )
 } 

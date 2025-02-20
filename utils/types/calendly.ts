@@ -226,19 +226,22 @@ export interface CalendarEvent {
 }
 
 export interface ExtendedSession {
-  id: number
+  id?: number
+  ulid: string
   durationMinutes: number
   status: string
-  calendlyEventId: string
+  calendlyEventId?: string
   startTime: string
   endTime: string
-  createdAt: string
+  createdAt?: string
   userRole: 'coach' | 'mentee'
   otherParty: {
-    id: number
+    id?: number
+    ulid: string
     firstName: string | null
     lastName: string | null
     email: string | null
+    imageUrl: string | null
   }
 }
 

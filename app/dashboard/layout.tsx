@@ -1,16 +1,16 @@
 import { ReactNode } from "react"
-import { isAuthorized } from "@/utils/data/user/isAuthorized"
 import { redirect } from "next/navigation"
-import { currentUser } from "@clerk/nextjs/server"
+import { getAuthUser } from "@/utils/auth"
 import NotAuthorized from "@/components/not-authorized"
 import DashboardTopNav from "./_components/dashboard-top-nav"
 import config from '@/config';
 import { ensureUserExists } from "@/utils/auth"
+import { isAuthorized } from "@/utils/data/user/isAuthorized"
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
-  const user = await currentUser()
+  const user = await getAuthUser()
   
-  if (!user?.id) {
+  if (!user?.id && config.auth.enabled) {
     redirect('/sign-in')
   }
 
@@ -26,7 +26,6 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <div className="text-center space-y-4">
             <h2 className="text-2xl font-semibold">Setting up your account...</h2>
             <p className="text-muted-foreground">This may take a few moments.</p>
-            {/* Add a loading spinner component here */}
           </div>
         </div>
       )

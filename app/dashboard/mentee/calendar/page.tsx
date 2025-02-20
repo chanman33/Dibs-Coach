@@ -5,6 +5,8 @@ import { fetchUserSessions } from '@/utils/actions/sessions'
 import { MenteeCalendar } from '@/components/calendar/MenteeCalendar'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { generateMockSessions, mockConfig, MockDataScenario } from '@/utils/mock/calendar-data'
+import { ExtendedSession } from '@/utils/types/calendly'
 
 const NoSessionsPrompt = () => {
   return (
@@ -23,19 +25,36 @@ const NoSessionsPrompt = () => {
 }
 
 export default function MenteeCalendarPage() {
-  const { data: sessions, isLoading } = useQuery({
+  const { data: sessions, isLoading } = useQuery<ExtendedSession[]>({
     queryKey: ['mentee-sessions'],
     queryFn: async () => {
+      if (mockConfig.enabled) {
+        // Use mock data in development
+        return generateMockSessions(mockConfig.scenario)
+      }
+      
+      // Use real API in production
       const response = await fetchUserSessions(null)
-      return response?.data?.map(session => ({
-        ...session,
+      if (!response?.data) return []
+      
+      return response.data.map(session => ({
+        ulid: session.ulid,
         id: parseInt(session.ulid),
         calendlyEventId: '',
+        startTime: session.startTime,
+        endTime: session.endTime,
+        durationMinutes: session.durationMinutes,
+        status: session.status,
+        userRole: session.userRole,
         otherParty: {
-          ...session.otherParty,
-          id: parseInt(session.otherParty.ulid)
+          ulid: session.otherParty.ulid,
+          id: parseInt(session.otherParty.ulid),
+          firstName: session.otherParty.firstName,
+          lastName: session.otherParty.lastName,
+          email: session.otherParty.email,
+          imageUrl: session.otherParty.profileImageUrl
         }
-      })) || []
+      }))
     },
   })
 

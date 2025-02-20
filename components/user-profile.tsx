@@ -26,10 +26,21 @@ import {
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 
+const MOCK_USER = {
+    firstName: "Dev",
+    lastName: "User",
+    imageUrl: "",
+    fullName: "Dev User"
+};
+
 export function UserProfile() {
     const router = useRouter()
     const pathname = usePathname()
-    const { user, isLoaded } = useUser();
+    
+    // Only use Clerk's useUser if auth is enabled
+    const { user, isLoaded } = config.auth.enabled 
+        ? useUser()
+        : { user: MOCK_USER, isLoaded: true };
 
     if (!config?.auth?.enabled) {
         router.back()
@@ -83,12 +94,19 @@ export function UserProfile() {
                     </Link>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <SignOutButton>
-                    <DropdownMenuItem>
+                {config.auth.enabled ? (
+                    <SignOutButton>
+                        <DropdownMenuItem>
+                            <LogOut className="mr-2 h-4 w-4" />
+                            <span>Log out</span>
+                        </DropdownMenuItem>
+                    </SignOutButton>
+                ) : (
+                    <DropdownMenuItem onClick={() => router.push('/sign-in')}>
                         <LogOut className="mr-2 h-4 w-4" />
-                        <span>Log out</span>
+                        <span>Switch User</span>
                     </DropdownMenuItem>
-                </SignOutButton>
+                )}
             </DropdownMenuContent>
         </DropdownMenu>
     )

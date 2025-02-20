@@ -6,7 +6,13 @@ const config = {
     enabled: true,
   },
   roles: {
-    enabled: true,
+    enabled: false,
+  },
+  development: {
+    mockData: {
+      calendar: process.env.NEXT_PUBLIC_USE_MOCK_CALENDAR === 'true',
+      // Add other mock data toggles here as needed
+    }
   }
 };
 

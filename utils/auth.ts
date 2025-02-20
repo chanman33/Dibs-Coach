@@ -1,9 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies as getCookie } from 'next/headers'
-import { auth, currentUser } from "@clerk/nextjs/server"
+import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server"
 import { SYSTEM_ROLES, USER_CAPABILITIES } from './roles/roles'
 import { generateUlid } from './ulid'
 import { ReadonlyRequestCookies } from 'next/dist/server/web/spec-extension/adapters/request-cookies'
+import config from "@/config"
 
 // Create a reusable Supabase client for auth operations
 export function createAuthClient() {
@@ -40,9 +41,49 @@ export async function getUserUlidAndRole(userId: string) {
   return { userUlid: user.ulid, systemRole: user.systemRole }
 }
 
+// Mock user for development when auth is disabled
+const MOCK_USER = {
+  id: "mock_user_id",
+  firstName: "Dev",
+  lastName: "User",
+  imageUrl: "",
+  email: "dev@example.com",
+};
+
+export async function getAuthUser() {
+  if (!config.auth.enabled) {
+    return MOCK_USER;
+  }
+  
+  const user = await currentUser();
+  if (!user) {
+    return null;
+  }
+  
+  return user;
+}
+
+export async function getAuthUserId() {
+  if (!config.auth.enabled) {
+    return MOCK_USER.id;
+  }
+  
+  const { userId } = await clerkAuth();
+  return userId;
+}
+
 // Ensure user exists in database
 export async function ensureUserExists() {
-  const { userId } = await auth()
+  if (!config.auth.enabled) {
+    return {
+      id: 1,
+      userId: MOCK_USER.id,
+      systemRole: "USER",
+      capabilities: ["MENTEE"], // Default capability for development
+    };
+  }
+  
+  const { userId } = await clerkAuth()
   if (!userId) {
     throw new Error('Not authenticated')
   }

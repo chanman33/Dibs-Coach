@@ -118,7 +118,7 @@ function MenteeDashboard() {
               </CardDescription>
             </div>
             <Button asChild size="sm" className="ml-auto gap-1">
-              <Link href="/dashboard/sessions">
+              <Link href="/dashboard/mentee/calendar">
                 View All
                 <ArrowUpRight className="h-4 w-4" />
               </Link>

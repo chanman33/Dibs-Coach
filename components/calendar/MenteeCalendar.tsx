@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { ExtendedSession } from '@/utils/types/calendly'
+import Link from 'next/link'
 
 const localizer = momentLocalizer(moment)
 
@@ -15,6 +16,12 @@ interface MenteeCalendarProps {
   sessions: ExtendedSession[] | undefined
   isLoading?: boolean
   title?: string
+}
+
+interface LastCoachInfo {
+  firstName: string | null
+  lastName: string | null
+  ulid: string
 }
 
 // Helper to get badge color based on session status
@@ -33,6 +40,61 @@ const getStatusColor = (status: string) => {
   }
 }
 
+const NoSessionsPrompt = () => {
+  return (
+    <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 bg-muted/30 rounded-lg">
+      <h3 className="text-xl font-semibold">No Coaching Sessions Booked</h3>
+      <p className="text-muted-foreground max-w-md">
+        Ready to accelerate your real estate career? Book your first coaching session with one of our expert coaches.
+      </p>
+      <Link href="/dashboard/mentee/browse-coaches">
+        <Button size="lg" className="mt-2">
+          Find a Coach
+        </Button>
+      </Link>
+    </div>
+  )
+}
+
+const NoUpcomingSessionsPrompt = ({ lastCoach }: { lastCoach?: LastCoachInfo }) => {
+  if (!lastCoach || !lastCoach.firstName || !lastCoach.lastName) {
+    return (
+      <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-muted/30 rounded-lg mt-4">
+        <h3 className="text-lg font-semibold">No Upcoming Sessions</h3>
+        <p className="text-muted-foreground max-w-md">
+          Keep the momentum going! Book your next coaching session to stay on track with your goals.
+        </p>
+        <Link href="/dashboard/mentee/browse-coaches">
+          <Button>
+            Find a Coach
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-muted/30 rounded-lg mt-4">
+      <h3 className="text-lg font-semibold">No Upcoming Sessions</h3>
+      <p className="text-muted-foreground max-w-md">
+        Would you like to schedule another session with {lastCoach.firstName} {lastCoach.lastName}?
+      </p>
+      <div className="flex gap-3">
+        <Link href="/dashboard/mentee/browse-coaches">
+          <Button variant="outline">
+            Find New Coach
+          </Button>
+        </Link>
+        <Link href={`/dashboard/mentee/book/${lastCoach.ulid}`}>
+          <Button>
+            Book Follow-up
+          </Button>
+        </Link>
+      </div>
+    </div>
+  )
+}
+
 export function MenteeCalendar({
   sessions,
   isLoading,
@@ -40,6 +102,16 @@ export function MenteeCalendar({
 }: MenteeCalendarProps) {
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
+
+  // Separate sessions into past and upcoming
+  const now = new Date()
+  const pastSessions = sessions?.filter(session => new Date(session.endTime) < now) || []
+  const upcomingSessions = sessions?.filter(session => new Date(session.startTime) >= now) || []
+  
+  // Get the most recent coach if there are past sessions
+  const lastCoach = pastSessions.length > 0
+    ? pastSessions.sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())[0].otherParty
+    : undefined
 
   if (isLoading) {
     return (
@@ -64,7 +136,7 @@ export function MenteeCalendar({
 
   // Convert sessions to calendar events
   const events = sessions?.map(session => ({
-    id: session.id,
+    id: session.ulid,
     title: `Session with ${session.otherParty.firstName} ${session.otherParty.lastName}`,
     start: new Date(session.startTime),
     end: new Date(session.endTime),
@@ -107,6 +179,11 @@ export function MenteeCalendar({
               }}
             />
           </div>
+          
+          {/* Show CTA if no upcoming sessions */}
+          {sessions && sessions.length > 0 && upcomingSessions.length === 0 && (
+            <NoUpcomingSessionsPrompt lastCoach={lastCoach} />
+          )}
         </Card>
 
         <Card className="p-2 sm:p-4">
@@ -114,13 +191,11 @@ export function MenteeCalendar({
           <ScrollArea className="h-[calc(600px-2rem)]">
             <div className="space-y-4 pr-4">
               {sessions?.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-[500px] text-center text-muted-foreground">
-                  <p>Coaching Sessions will display here once booked</p>
-                </div>
+                <NoSessionsPrompt />
               ) : (
                 sessions?.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
                   .map(session => (
-                    <div key={session.id} className="p-3 border rounded-lg">
+                    <div key={session.ulid} className="p-3 border rounded-lg">
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <p className="font-medium">
@@ -164,26 +239,70 @@ function CustomToolbar({
     day: 'Day'
   }
 
-  return (
-    <div className="rbc-toolbar w-full p-2 sm:p-3 [@media(min-width:1300px)]:p-4">
-      <div className="space-y-3">
-        <span className="rbc-toolbar-label text-lg font-semibold block text-center">
-          {label}
-        </span>
-        <div className="flex items-center justify-center gap-1 border-b pb-2">
-          {Object.entries(viewNames).map(([viewKey, viewLabel]) => (
-            <Button
-              key={viewKey}
-              onClick={() => onView(viewKey as View)}
-              variant={view === viewKey ? "default" : "outline"}
-              size="sm"
-              className="flex-1 text-sm px-2 max-w-[120px]"
-            >
-              {viewLabel}
-            </Button>
-          ))}
+  // Full wide screen layout (1024px and up)
+  const FullWideLayout = (
+    <div className="hidden lg:grid lg:grid-cols-3 lg:items-center lg:gap-4">
+      {/* Left Section - Navigation */}
+      <div className="flex items-center gap-2 justify-start">
+        <Button
+          onClick={() => onNavigate('TODAY')}
+          variant="outline"
+          size="sm"
+          className="text-sm px-4"
+        >
+          Today
+        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            onClick={() => onNavigate('PREV')}
+            variant="outline"
+            size="sm"
+            className="px-3"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={() => onNavigate('NEXT')}
+            variant="outline"
+            size="sm"
+            className="px-3"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
-        <div className="flex items-center justify-between px-1">
+      </div>
+
+      {/* Center Section - Title */}
+      <span className="rbc-toolbar-label text-lg font-semibold text-center">
+        {label}
+      </span>
+
+      {/* Right Section - View Selection */}
+      <div className="flex items-center gap-1 justify-end">
+        {Object.entries(viewNames).map(([viewKey, viewLabel]) => (
+          <Button
+            key={viewKey}
+            onClick={() => onView(viewKey as View)}
+            variant={view === viewKey ? "default" : "outline"}
+            size="sm"
+            className="min-w-[70px] text-sm px-4"
+          >
+            {viewLabel}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+
+  // Compact layout for screens below 1024px
+  const CompactLayout = (
+    <div className="lg:hidden space-y-3">
+      <span className="rbc-toolbar-label text-lg font-semibold block text-center">
+        {label}
+      </span>
+      
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+        <div className="flex items-center gap-2">
           <Button
             onClick={() => onNavigate('TODAY')}
             variant="outline"
@@ -211,7 +330,28 @@ function CustomToolbar({
             </Button>
           </div>
         </div>
+
+        <div className="flex items-center gap-1">
+          {Object.entries(viewNames).map(([viewKey, viewLabel]) => (
+            <Button
+              key={viewKey}
+              onClick={() => onView(viewKey as View)}
+              variant={view === viewKey ? "default" : "outline"}
+              size="sm"
+              className="text-sm px-3"
+            >
+              {viewLabel}
+            </Button>
+          ))}
+        </div>
       </div>
+    </div>
+  )
+
+  return (
+    <div className="rbc-toolbar w-full p-2 sm:p-3 lg:p-4">
+      {FullWideLayout}
+      {CompactLayout}
     </div>
   )
 } 
