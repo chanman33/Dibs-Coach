@@ -188,36 +188,38 @@ export function MenteeCalendar({
 
         <Card className="p-2 sm:p-4">
           <h2 className="text-lg font-semibold mb-4">All Sessions</h2>
-          <ScrollArea className="h-[calc(600px-2rem)]">
-            <div className="space-y-4 pr-4">
-              {sessions?.length === 0 ? (
-                <NoSessionsPrompt />
-              ) : (
-                sessions?.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
-                  .map(session => (
-                    <div key={session.ulid} className="p-3 border rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <p className="font-medium">
-                            {session.otherParty.firstName} {session.otherParty.lastName}
-                          </p>
-                          <p className="text-sm text-gray-500">Your coach</p>
+          <div className="h-[calc(600px-4rem)] overflow-hidden">
+            <ScrollArea>
+              <div className="space-y-4 pr-4">
+                {sessions?.length === 0 ? (
+                  <NoSessionsPrompt />
+                ) : (
+                  sessions?.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+                    .map(session => (
+                      <div key={session.ulid} className="p-3 border rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="font-medium">
+                              {session.otherParty.firstName} {session.otherParty.lastName}
+                            </p>
+                            <p className="text-sm text-gray-500">Your coach</p>
+                          </div>
+                          <Badge className={getStatusColor(session.status)}>
+                            {session.status}
+                          </Badge>
                         </div>
-                        <Badge className={getStatusColor(session.status)}>
-                          {session.status}
-                        </Badge>
+                        <p className="text-sm text-gray-500">
+                          {moment(session.startTime).format('MMM D, YYYY h:mm A')} - {moment(session.endTime).format('h:mm A')}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Duration: {session.durationMinutes} minutes
+                        </p>
                       </div>
-                      <p className="text-sm text-gray-500">
-                        {moment(session.startTime).format('MMM D, YYYY h:mm A')} - {moment(session.endTime).format('h:mm A')}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Duration: {session.durationMinutes} minutes
-                      </p>
-                    </div>
-                  ))
-              )}
-            </div>
-          </ScrollArea>
+                    ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
         </Card>
       </div>
     </div>
