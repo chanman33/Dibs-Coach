@@ -183,6 +183,53 @@ function MenteeDashboard() {
     }
   }
 
+  const getFormatForGoalType = (type: string): "number" | "currency" | "percentage" | "time" => {
+    switch (type) {
+      // Currency format
+      case "sales_volume":
+      case "commission_income":
+      case "gci":
+      case "avg_sale_price":
+      case "session_revenue":
+        return "currency"
+      
+      // Percentage format
+      case "market_share":
+      case "client_retention":
+      case "mentee_satisfaction":
+      case "session_completion":
+        return "percentage"
+      
+      // Time format (hours)
+      case "response_time":
+      case "training_hours":
+      case "days_on_market":
+        return "time"
+      
+      // Number format (default)
+      default:
+        return "number"
+    }
+  }
+
+  const formatValue = (value: number, format: string) => {
+    switch (format) {
+      case "currency":
+        return new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(value)
+      case "percentage":
+        return `${value}%`
+      case "time":
+        return `${value} hrs`
+      default:
+        return value.toLocaleString()
+    }
+  }
+
   return (
     <div className='space-y-6 p-6'>
       {/* Quick Action Center */}
@@ -587,7 +634,7 @@ function MenteeDashboard() {
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Current Progress</span>
                         <span className="font-medium">
-                          {new Intl.NumberFormat().format(currentGoal.current)} / {new Intl.NumberFormat().format(currentGoal.target)}
+                          {formatValue(currentGoal.current, getFormatForGoalType(currentGoal.type))} / {formatValue(currentGoal.target, getFormatForGoalType(currentGoal.type))}
                         </span>
                       </div>
                       <div className="relative h-2.5 overflow-hidden rounded-full">
