@@ -365,7 +365,7 @@ function MenteeDashboard() {
                   className="w-full h-10 bg-green-500 hover:bg-green-600 text-white transition-colors"
                   asChild
                 >
-                  <Link href="/dashboard/mentee/calendar">
+                  <Link href="/dashboard">
                     View Training History
                   </Link>
                 </Button>
@@ -409,7 +409,7 @@ function MenteeDashboard() {
               className="w-full h-10 bg-blue-500 hover:bg-blue-600 text-white transition-colors"
               asChild
             >
-              <Link href="/pricing">
+              <Link href="/dashboard">
                 Upgrade Now
               </Link>
             </Button>
