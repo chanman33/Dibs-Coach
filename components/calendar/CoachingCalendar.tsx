@@ -18,6 +18,13 @@ import Link from 'next/link'
 import { fetchCoachAvailability as fetchCoachAvailabilityForCalendar } from '@/utils/actions/availability'
 import { useQuery } from '@tanstack/react-query'
 import { WeekDay, TimeSlot } from '@/utils/types/coaching'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { VirtualizedList } from '../ui/virtualized-list'
 
 const localizer = momentLocalizer(moment)
 
@@ -53,6 +60,16 @@ const getStatusColor = (status: string) => {
       return 'bg-yellow-500'
     default:
       return 'bg-gray-500'
+  }
+}
+
+// Helper to format status text
+const formatStatusText = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'no_show':
+      return 'No Show'
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
   }
 }
 
@@ -149,6 +166,83 @@ const doTimesOverlap = (start1: Date, end1: Date, start2: Date, end2: Date) => {
   return moment(start1).isBefore(end2) && moment(end1).isAfter(start2)
 }
 
+// Add new EventTooltip component
+const EventTooltip = ({ event }: { event: CalendarEvent }) => {
+  if (event.type === 'session') {
+    const session = event.resource as ExtendedSession
+    return (
+      <div className="p-2 max-w-xs">
+        <p className="font-medium">{event.title}</p>
+        <p className="text-sm text-muted-foreground">
+          {moment(event.start).format('MMM D, YYYY')}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {moment(event.start).format('h:mm A')} - {moment(event.end).format('h:mm A')}
+        </p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Duration: {session.durationMinutes} minutes
+        </p>
+        <Badge className={`mt-2 ${getStatusColor(session.status)}`}>
+          {formatStatusText(session.status)}
+        </Badge>
+      </div>
+    )
+  }
+
+  if (event.type === 'availability') {
+    return (
+      <div className="p-2 max-w-xs">
+        <p className="font-medium text-emerald-700">{event.title}</p>
+        <p className="text-sm text-muted-foreground">
+          {moment(event.start).format('MMM D, YYYY')}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {moment(event.start).format('h:mm A')} - {moment(event.end).format('h:mm A')}
+        </p>
+      </div>
+    )
+  }
+
+  if (event.type === 'busy') {
+    return (
+      <div className="p-2 max-w-xs">
+        <p className="font-medium text-blue-700">Busy</p>
+        <p className="text-sm text-muted-foreground">
+          {moment(event.start).format('MMM D, YYYY')}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {moment(event.start).format('h:mm A')} - {moment(event.end).format('h:mm A')}
+        </p>
+      </div>
+    )
+  }
+
+  return null
+}
+
+// Add new SessionCard component
+const SessionCard = ({ session, userRole }: { session: ExtendedSession; userRole: 'coach' | 'mentee' }) => {
+  return (
+    <div className="p-2 border rounded-lg">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <p className="font-medium">
+            {session.otherParty.firstName} {session.otherParty.lastName}
+          </p>
+          <Badge className={getStatusColor(session.status)}>
+            {formatStatusText(session.status)}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>{moment(session.startTime).format('MMM D, h:mm A')}</span>
+          <span>·</span>
+          <span>{session.durationMinutes}m</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function CoachingCalendar({
   sessions,
   busyTimes = [],
@@ -164,6 +258,8 @@ export function CoachingCalendar({
 }: CoachingCalendarProps) {
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
+  const [page, setPage] = useState(1)
+  const itemsPerPage = 10
 
   // Fetch coach's availability if coachDbId is provided
   const { data: availabilityData } = useQuery({
@@ -273,6 +369,33 @@ export function CoachingCalendar({
     }
   }
 
+  // Custom event component with tooltip
+  const EventComponent = ({ event }: { event: CalendarEvent }) => (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="w-full h-full cursor-default">
+            {event.title}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent sideOffset={5} className="animate-in fade-in-0 zoom-in-95">
+          <EventTooltip event={event} />
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+
+  // Sort and paginate sessions
+  const sortedSessions = sessions?.sort(
+    (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+  ) || []
+  
+  const totalPages = Math.ceil((sortedSessions.length || 0) / itemsPerPage)
+  const paginatedSessions = sortedSessions.slice(
+    (page - 1) * itemsPerPage,
+    page * itemsPerPage
+  )
+
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">{title}</h1>
@@ -295,6 +418,7 @@ export function CoachingCalendar({
               min={new Date(2020, 1, 1, 6, 30, 0)}
               max={new Date(2020, 1, 1, 20, 0, 0)}
               eventPropGetter={eventStyleGetter}
+              tooltipAccessor={null}
               selectable={userRole === 'mentee'}
               onSelectSlot={(slotInfo) => {
                 if (userRole === 'mentee') {
@@ -303,7 +427,8 @@ export function CoachingCalendar({
               }}
               className="responsive-calendar"
               components={{
-                toolbar: CustomToolbar
+                toolbar: CustomToolbar,
+                event: EventComponent
               }}
             />
           </div>
@@ -311,33 +436,42 @@ export function CoachingCalendar({
 
         <Card className="p-2 sm:p-4">
           <h2 className="text-lg font-semibold mb-4">All Sessions</h2>
-          <ScrollArea className="h-[calc(600px-2rem)]">
-            <div className="space-y-4 pr-4">
-              {sessions?.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
-                .map(session => (
-                  <div key={session.id} className="p-3 border rounded-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <div>
-                        <p className="font-medium">
-                          {session.otherParty.firstName} {session.otherParty.lastName}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {session.userRole === 'coach' ? 'You are coaching' : 'Your coach'}
-                        </p>
-                      </div>
-                      <Badge className={getStatusColor(session.status)}>
-                        {session.status}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-500">
-                      {moment(session.startTime).format('MMM D, YYYY h:mm A')} - {moment(session.endTime).format('h:mm A')}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Duration: {session.durationMinutes} minutes
-                    </p>
-                  </div>
-                ))}
-            </div>
+          <ScrollArea className="h-[calc(600px-4rem)]">
+            <VirtualizedList
+              items={paginatedSessions}
+              height={500}
+              itemHeight={80}
+              renderItem={(session) => (
+                <div key={session.id}>
+                  <SessionCard session={session} userRole={userRole} />
+                </div>
+              )}
+            />
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center gap-2 mt-4 pb-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            )}
           </ScrollArea>
         </Card>
       </div>
@@ -372,7 +506,6 @@ export function CoachingCalendar({
           )}
         </div>
       )}
-
     </div>
   )
 }

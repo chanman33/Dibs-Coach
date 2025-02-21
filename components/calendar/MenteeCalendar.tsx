@@ -9,6 +9,13 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { ExtendedSession } from '@/utils/types/calendly'
 import Link from 'next/link'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { VirtualizedList } from '../ui/virtualized-list'
 
 const localizer = momentLocalizer(moment)
 
@@ -37,6 +44,16 @@ const getStatusColor = (status: string) => {
       return 'bg-yellow-500'
     default:
       return 'bg-gray-500'
+  }
+}
+
+// Helper to format status text
+const formatStatusText = (status: string) => {
+  switch (status.toLowerCase()) {
+    case 'no_show':
+      return 'No Show'
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase()
   }
 }
 
@@ -95,6 +112,50 @@ const NoUpcomingSessionsPrompt = ({ lastCoach }: { lastCoach?: LastCoachInfo }) 
   )
 }
 
+// Add new EventTooltip component
+const EventTooltip = ({ event }: { event: any }) => {
+  const session = event.resource
+  if (!session) return null
+
+  return (
+    <div className="p-2 max-w-xs">
+      <p className="font-medium">{event.title}</p>
+      <p className="text-sm text-muted-foreground">
+        {moment(event.start).format('MMM D, YYYY')}
+      </p>
+      <p className="text-sm text-muted-foreground">
+        {moment(event.start).format('h:mm A')} - {moment(event.end).format('h:mm A')}
+      </p>
+      <p className="text-sm text-muted-foreground mt-1">
+        Duration: {session.durationMinutes} minutes
+      </p>
+    </div>
+  )
+}
+
+// Add new SessionCard component
+const SessionCard = ({ session }: { session: ExtendedSession }) => {
+  return (
+    <div className="p-2 border rounded-lg">
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <p className="font-medium">
+            {session.otherParty.firstName} {session.otherParty.lastName}
+          </p>
+          <Badge className={getStatusColor(session.status)}>
+            {formatStatusText(session.status)}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>{moment(session.startTime).format('MMM D, h:mm A')}</span>
+          <span>·</span>
+          <span>{session.durationMinutes}m</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function MenteeCalendar({
   sessions,
   isLoading,
@@ -102,6 +163,8 @@ export function MenteeCalendar({
 }: MenteeCalendarProps) {
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
+  const [page, setPage] = useState(1)
+  const itemsPerPage = 10
 
   // Separate sessions into past and upcoming
   const now = new Date()
@@ -151,6 +214,33 @@ export function MenteeCalendar({
     }
   })
 
+  // Custom event component with tooltip
+  const EventComponent = ({ event }: { event: any }) => (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="w-full h-full cursor-default">
+            {event.title}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent sideOffset={5} className="animate-in fade-in-0 zoom-in-95">
+          <EventTooltip event={event} />
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+
+  // Sort and paginate sessions
+  const sortedSessions = sessions?.sort(
+    (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+  ) || []
+  
+  const totalPages = Math.ceil((sortedSessions.length || 0) / itemsPerPage)
+  const paginatedSessions = sortedSessions.slice(
+    (page - 1) * itemsPerPage,
+    page * itemsPerPage
+  )
+
   return (
     <div className="p-6 space-y-6">
       <h1 className="text-2xl font-bold">{title}</h1>
@@ -173,14 +263,15 @@ export function MenteeCalendar({
               min={new Date(2020, 1, 1, 6, 30, 0)}
               max={new Date(2020, 1, 1, 20, 0, 0)}
               eventPropGetter={eventStyleGetter}
+              tooltipAccessor={null}
               className="responsive-calendar"
               components={{
-                toolbar: CustomToolbar
+                toolbar: CustomToolbar,
+                event: EventComponent
               }}
             />
           </div>
           
-          {/* Show CTA if no upcoming sessions */}
           {sessions && sessions.length > 0 && upcomingSessions.length === 0 && (
             <NoUpcomingSessionsPrompt lastCoach={lastCoach} />
           )}
@@ -190,34 +281,41 @@ export function MenteeCalendar({
           <h2 className="text-lg font-semibold mb-4">All Sessions</h2>
           <div className="h-[calc(600px-4rem)] overflow-hidden">
             <ScrollArea>
-              <div className="space-y-4 pr-4">
-                {sessions?.length === 0 ? (
-                  <NoSessionsPrompt />
-                ) : (
-                  sessions?.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
-                    .map(session => (
-                      <div key={session.ulid} className="p-3 border rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <div>
-                            <p className="font-medium">
-                              {session.otherParty.firstName} {session.otherParty.lastName}
-                            </p>
-                            <p className="text-sm text-gray-500">Your coach</p>
-                          </div>
-                          <Badge className={getStatusColor(session.status)}>
-                            {session.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-500">
-                          {moment(session.startTime).format('MMM D, YYYY h:mm A')} - {moment(session.endTime).format('h:mm A')}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Duration: {session.durationMinutes} minutes
-                        </p>
-                      </div>
-                    ))
+              <VirtualizedList
+                items={paginatedSessions}
+                height={500}
+                itemHeight={80}
+                renderItem={(session) => (
+                  <div key={session.ulid}>
+                    <SessionCard session={session} />
+                  </div>
                 )}
-              </div>
+              />
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-4 pb-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Page {page} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
             </ScrollArea>
           </div>
         </Card>
