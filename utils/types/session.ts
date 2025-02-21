@@ -1,13 +1,37 @@
 import { z } from "zod";
 import { Currency, SessionStatus, SessionType } from "@prisma/client";
 
+export { SessionStatus, SessionType }
+
+export interface User {
+  ulid: string
+  firstName: string | null
+  lastName: string | null
+  email: string | null
+  profileImageUrl: string | null
+}
+
+export interface TransformedSession {
+  ulid: string
+  durationMinutes: number
+  status: SessionStatus
+  startTime: string
+  endTime: string
+  createdAt: string
+  userRole: 'coach' | 'mentee'
+  otherParty: User
+  sessionType: SessionType | null
+  zoomMeetingUrl: string | null
+  paymentStatus: string | null
+}
+
 export const sessionSchema = z.object({
   id: z.number().describe("Internal database ID"),
   menteeDbId: z.number(),
   coachDbId: z.number(),
   startTime: z.date(),
   endTime: z.date(),
-  status: z.nativeEnum(SessionStatus).default("scheduled"),
+  status: z.nativeEnum(SessionStatus).default("SCHEDULED"),
   sessionNotes: z.string().nullable(),
   zoomMeetingId: z.string().nullable(),
   zoomMeetingUrl: z.string().nullable(),

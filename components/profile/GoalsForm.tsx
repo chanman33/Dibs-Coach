@@ -39,7 +39,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm, type SubmitHandler } from "react-hook-form"
 import * as z from "zod"
 import { Badge } from "@/components/ui/badge"
-import { PlusCircle, Pencil, X, Loader2 } from "lucide-react"
+import { PlusCircle, Pencil, X, Loader2, Target, Clock, TrendingUp, Trophy, Home, DollarSign, Users, Star, Globe, Award, BookOpen, Settings } from "lucide-react"
 import { createGoal, updateGoal, deleteGoal, fetchGoals } from "@/utils/actions/goals"
 import { toast } from "sonner"
 import { Goal, GoalFormValues, GOAL_TYPE, GOAL_STATUS, GOAL_FORMAT, type GoalType, type GoalStatus, type GoalFormat } from "@/utils/types/goals"
@@ -61,6 +61,68 @@ const goalSchema = z.object({
 interface GoalsFormProps {
   open: boolean;
   onClose: () => void;
+}
+
+const getGoalTypeIcon = (type: string) => {
+  switch (type) {
+    // Financial Goals
+    case 'sales_volume':
+    case 'commission_income':
+    case 'gci':
+    case 'session_revenue':
+      return <DollarSign className="h-4 w-4" />
+    case 'avg_sale_price':
+      return <TrendingUp className="h-4 w-4" />
+    
+    // Transaction Goals
+    case 'listings':
+    case 'buyer_transactions':
+    case 'closed_deals':
+      return <Home className="h-4 w-4" />
+    case 'days_on_market':
+      return <Clock className="h-4 w-4" />
+    
+    // Client Goals
+    case 'new_clients':
+    case 'referrals':
+    case 'client_retention':
+      return <Users className="h-4 w-4" />
+    case 'reviews':
+      return <Star className="h-4 w-4" />
+    
+    // Market Presence
+    case 'market_share':
+    case 'territory_expansion':
+      return <Globe className="h-4 w-4" />
+    case 'social_media':
+    case 'website_traffic':
+      return <TrendingUp className="h-4 w-4" />
+    
+    // Professional Development
+    case 'certifications':
+      return <Award className="h-4 w-4" />
+    case 'training_hours':
+      return <BookOpen className="h-4 w-4" />
+    case 'networking_events':
+      return <Users className="h-4 w-4" />
+    
+    // Coaching Goals
+    case 'coaching_sessions':
+    case 'group_sessions':
+    case 'active_mentees':
+    case 'mentee_satisfaction':
+    case 'response_time':
+    case 'session_completion':
+    case 'mentee_milestones':
+      return <Trophy className="h-4 w-4" />
+    
+    // Custom/Other
+    case 'custom':
+      return <Settings className="h-4 w-4" />
+    
+    default:
+      return <Target className="h-4 w-4" />
+  }
 }
 
 const GoalsForm = ({ open, onClose }: GoalsFormProps) => {
@@ -384,8 +446,11 @@ const GoalsForm = ({ open, onClose }: GoalsFormProps) => {
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <h4 className="font-semibold">{goal.title}</h4>
-                    <Badge variant="secondary" className="mt-1">
-                      {goal.type.charAt(0).toUpperCase() + goal.type.slice(1)}
+                    <Badge variant="secondary" className="mt-1 flex items-center gap-1.5">
+                      {getGoalTypeIcon(goal.type)}
+                      {goal.type.split('_').map(word => 
+                        word.charAt(0).toUpperCase() + word.slice(1)
+                      ).join(' ')}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">

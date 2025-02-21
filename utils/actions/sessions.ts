@@ -5,37 +5,45 @@ import { withServerAction } from '@/utils/middleware/withServerAction'
 import { ApiResponse } from '@/utils/types/api'
 import { z } from 'zod'
 import { ulidSchema } from '@/utils/types/auth'
-import { SessionStatus, SessionType } from '@prisma/client'
+import { SessionStatus, SessionType, TransformedSession, User } from '@/utils/types/session'
 
-// Types and Schemas
+// Database types
+interface DbSessionWithUsers {
+  ulid: string
+  menteeUlid: string
+  coachUlid: string
+  startTime: string
+  endTime: string
+  status: SessionStatus
+  sessionType: SessionType | null
+  zoomMeetingUrl: string | null
+  paymentStatus: string | null
+  createdAt: string
+  coach: User
+  mentee: User
+}
+
+interface DbSessionWithMentee {
+  ulid: string
+  menteeUlid: string
+  coachUlid: string
+  startTime: string
+  endTime: string
+  status: SessionStatus
+  sessionType: SessionType | null
+  zoomMeetingUrl: string | null
+  paymentStatus: string | null
+  createdAt: string
+  mentee: User
+}
+
+// Validation schemas
 const UserSchema = z.object({
   ulid: ulidSchema,
   firstName: z.string().nullable(),
   lastName: z.string().nullable(),
   email: z.string().nullable(),
   profileImageUrl: z.string().nullable()
-})
-
-const SessionSchema = z.object({
-  ulid: ulidSchema,
-  menteeUlid: ulidSchema,
-  coachUlid: ulidSchema,
-  startTime: z.string(),
-  endTime: z.string(),
-  status: z.nativeEnum(SessionStatus),
-  sessionType: z.nativeEnum(SessionType).nullable(),
-  sessionNotes: z.string().nullable(),
-  zoomMeetingId: z.string().nullable(),
-  zoomMeetingUrl: z.string().nullable(),
-  priceAmount: z.number().nullable(),
-  currency: z.string().nullable(),
-  platformFeeAmount: z.number().nullable(),
-  coachPayoutAmount: z.number().nullable(),
-  stripePaymentIntentId: z.string().nullable(),
-  paymentStatus: z.string().nullable(),
-  payoutStatus: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string()
 })
 
 const TransformedSessionSchema = z.object({
@@ -51,48 +59,6 @@ const TransformedSessionSchema = z.object({
   zoomMeetingUrl: z.string().nullable(),
   paymentStatus: z.string().nullable()
 })
-
-type User = z.infer<typeof UserSchema>
-type Session = z.infer<typeof SessionSchema>
-type TransformedSession = z.infer<typeof TransformedSessionSchema>
-
-// Database types
-interface DbUser {
-  ulid: string
-  firstName: string | null
-  lastName: string | null
-  email: string | null
-  profileImageUrl: string | null
-}
-
-interface DbSessionWithUsers {
-  ulid: string
-  menteeUlid: string
-  coachUlid: string
-  startTime: string
-  endTime: string
-  status: SessionStatus
-  sessionType: SessionType | null
-  zoomMeetingUrl: string | null
-  paymentStatus: string | null
-  createdAt: string
-  coach: DbUser
-  mentee: DbUser
-}
-
-interface DbSessionWithMentee {
-  ulid: string
-  menteeUlid: string
-  coachUlid: string
-  startTime: string
-  endTime: string
-  status: SessionStatus
-  sessionType: SessionType | null
-  zoomMeetingUrl: string | null
-  paymentStatus: string | null
-  createdAt: string
-  mentee: DbUser
-}
 
 // Actions
 export const fetchUserSessions = withServerAction<TransformedSession[]>(
@@ -182,9 +148,9 @@ export const fetchUserSessions = withServerAction<TransformedSession[]>(
 )
 
 export const fetchCoachSessions = withServerAction<TransformedSession[]>(
-  async (_, { userUlid, role }) => {
+  async (_, { userUlid, roleContext }) => {
     try {
-      if (role !== 'COACH') {
+      if (!roleContext.capabilities?.includes('COACH')) {
         return {
           data: null,
           error: {

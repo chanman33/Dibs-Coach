@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import GeneralForm from "../../../../components/profile/GeneralForm"
 import GoalsForm from "../../../../components/profile/GoalsForm"
 import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { getCoachApplication } from "@/utils/actions/coach-application"
 import { fetchRealtorProfile, updateRealtorProfile } from "@/utils/actions/realtor-profile"
 import { Badge } from "@/components/ui/badge"
@@ -30,6 +30,8 @@ interface ProfileData {
 
 export default function AgentProfilePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const defaultTab = searchParams.get('tab') || 'general'
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [application, setApplication] = useState<ApplicationData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -158,7 +160,7 @@ export default function AgentProfilePage() {
     <div className="container mx-auto py-6">
       <h1 className="text-3xl font-bold mb-6">Real Estate Agent Profile Settings</h1>
 
-      <Tabs defaultValue="general" className="space-y-4">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="goals">Goals</TabsTrigger>
