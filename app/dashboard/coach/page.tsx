@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Target, Clock, ArrowUpRight, TrendingUp, DollarSign, Star, MessageSquare, Zap, BookOpen, Award, CalendarRange, AlertOctagon, Video } from "lucide-react"
 import { withRole } from "@/components/wrapper/with-role"
-import { ROLES } from "@/utils/roles/roles"
+import { USER_CAPABILITIES } from "@/utils/roles/roles"
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -30,13 +30,13 @@ function CoachDashboard() {
             <Clock className="mr-2 h-4 w-4" />
             Schedule Session
           </Button>
-          <Button variant="outline" className="relative">
+          {/* <Button variant="outline" className="relative">
             <MessageSquare className="mr-2 h-4 w-4" />
             View Unread Messages
             <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
               3
             </span>
-          </Button>
+          </Button> */}
           <Button variant="outline">
             <DollarSign className="mr-2 h-4 w-4" />
             Request Early Payout
@@ -114,7 +114,7 @@ function CoachDashboard() {
           <CardHeader className="flex flex-row items-center">
             <div className="grid gap-2">
               <CardTitle>Upcoming Sessions</CardTitle>
-              <CardDescription>Your scheduled coaching sessions for the next 7 days</CardDescription>
+              <CardDescription>Scheduled coaching sessions for the next 7 days</CardDescription>
             </div>
             <Button asChild size="sm" className="ml-auto gap-1">
               <Link href="/dashboard/coach/sessions">
@@ -321,7 +321,7 @@ function CoachDashboard() {
       </div>
 
       {/* News & Updates Section */}
-      <Card className="w-full">
+      {/* <Card className="w-full">
         <CardHeader>
           <CardTitle>News & Updates</CardTitle>
         </CardHeader>
@@ -363,10 +363,10 @@ function CoachDashboard() {
             </Card>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Educational Resources */}
-      <Card className="w-full">
+      {/* <Card className="w-full">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Library & Resources</CardTitle>
           <Button variant="ghost" size="sm">
@@ -396,9 +396,9 @@ function CoachDashboard() {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   )
 }
-export default withRole(CoachDashboard, [ROLES.COACH])
+export default withRole(CoachDashboard, { requiredCapabilities: [USER_CAPABILITIES.COACH] })
 

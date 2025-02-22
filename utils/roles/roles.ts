@@ -300,4 +300,9 @@ export function isValidCapability(capability: string): capability is UserCapabil
 
 export function isValidPermission(permission: string): permission is Permission {
   return Object.values(PERMISSIONS).includes(permission as Permission);
-} 
+}
+
+export const ROLES = {
+  COACH: USER_CAPABILITIES.COACH,
+  MENTEE: USER_CAPABILITIES.MENTEE,
+} as const; 
