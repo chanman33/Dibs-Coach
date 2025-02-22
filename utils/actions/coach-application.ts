@@ -297,15 +297,15 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
 
 // Review coach application
 export const reviewCoachApplication = withServerAction<boolean>(
-  async ({ applicationId, status, notes }, { systemRole, userUlid }) => {
+  async ({ applicationUlid, status, notes }, { systemRole, userUlid }) => {
     try {
       // Validate admin role
-      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
+      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER && systemRole !== SYSTEM_ROLES.SYSTEM_MODERATOR) {
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
-            message: 'Only system owners can review coach applications'
+            message: 'Only system owners and moderators can review coach applications'
           }
         }
       }
@@ -318,12 +318,12 @@ export const reviewCoachApplication = withServerAction<boolean>(
         .update({
           status,
           notes,
-          reviewerDbId: userUlid,
+          reviewerUlid: userUlid,
           reviewDate: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         })
-        .eq('id', applicationId)
-        .select('applicantDbId')
+        .eq('ulid', applicationUlid)
+        .select('applicantUlid')
         .single()
 
       if (updateError) {
@@ -337,14 +337,15 @@ export const reviewCoachApplication = withServerAction<boolean>(
 
       // Update user role if approved
       if (status === COACH_APPLICATION_STATUS.APPROVED) {
-        // Add coach capability to user
+        // Update user with coach capability and isCoach flag
         const { error: userUpdateError } = await supabase
           .from('User')
           .update({ 
             capabilities: [USER_CAPABILITIES.COACH],
+            isCoach: true,
             updatedAt: new Date().toISOString()
           })
-          .eq('ulid', application.applicantDbId)
+          .eq('ulid', application.applicantUlid)
 
         if (userUpdateError) {
           console.error('[UPDATE_USER_ERROR]', userUpdateError)

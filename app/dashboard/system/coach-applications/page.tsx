@@ -68,6 +68,7 @@ export default function CoachApplicationsPage() {
   const [selectedApplication, setSelectedApplication] = useState<ApplicationData | null>(null);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
   const [selectedApplications, setSelectedApplications] = useState<string[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -127,6 +128,11 @@ export default function CoachApplicationsPage() {
     fetchApplications();
   }, [toast]);
 
+  const handleViewApplication = (application: ApplicationData) => {
+    setSelectedApplication(application);
+    setIsModalOpen(true);
+  };
+
   const handleReview = async (applicationUlid: string, status: CoachApplicationStatus) => {
     try {
       setProcessingIds(prev => [...prev, applicationUlid]);
@@ -157,6 +163,16 @@ export default function CoachApplicationsPage() {
       toast({
         title: 'Success',
         description: `Application ${status.toLowerCase()} successfully`
+      });
+
+      // Close the modal after successful review
+      setIsModalOpen(false);
+      setSelectedApplication(null);
+      // Clear review notes for this application
+      setReviewNotes(prev => {
+        const newNotes = { ...prev };
+        delete newNotes[applicationUlid];
+        return newNotes;
       });
     } catch (error) {
       console.error('[REVIEW_APPLICATION_ERROR]', error);
@@ -257,102 +273,6 @@ export default function CoachApplicationsPage() {
     }),
     {} as Record<keyof typeof COACH_APPLICATION_STATUS, number>
   );
-
-  const handleViewApplication = async (application: ApplicationData) => {
-    try {
-      console.log('[VIEW_APPLICATION_START]', {
-        applicationId: application.ulid,
-        hasApplicant: !!application.applicant,
-        applicantInfo: application.applicant ? {
-          firstName: application.applicant.firstName,
-          lastName: application.applicant.lastName,
-          email: application.applicant.email,
-          phoneNumber: application.applicant.phoneNumber
-        } : null,
-        hasResumeUrl: !!application.resumeUrl,
-        applicationDetails: {
-          experience: application.experience,
-          specialtiesCount: application.specialties.length,
-          hasLinkedIn: !!application.linkedIn,
-          hasPrimarySocialMedia: !!application.primarySocialMedia,
-          hasAdditionalInfo: !!application.additionalInfo
-        }
-      });
-
-      // Set the application data first
-      setSelectedApplication(application);
-      
-      // Then handle resume URL separately
-      if (application.resumeUrl) {
-        try {
-          console.log('[FETCH_RESUME_START]', {
-            applicationId: application.ulid,
-            resumeUrl: application.resumeUrl
-          });
-
-          const result = await getSignedResumeUrl(application.resumeUrl);
-          
-          if (result.data) {
-            console.log('[FETCH_RESUME_SUCCESS]', {
-              applicationId: application.ulid,
-              hasSignedUrl: !!result.data
-            });
-            setResumeUrl(result.data);
-          } else if (result.error) {
-            console.error('[FETCH_RESUME_ERROR]', {
-              applicationId: application.ulid,
-              error: result.error,
-              resumeUrl: application.resumeUrl,
-              errorCode: result.error.code,
-              errorMessage: result.error.message
-            });
-            // Show toast but don't block the dialog
-            toast({
-              title: 'Resume Unavailable',
-              description: 'The resume file could not be accessed at this time.',
-              variant: 'destructive'
-            });
-          }
-        } catch (error) {
-          console.error('[FETCH_RESUME_ERROR]', {
-            applicationId: application.ulid,
-            error: error instanceof Error ? {
-              message: error.message,
-              stack: error.stack
-            } : error,
-            resumeUrl: application.resumeUrl
-          });
-          // Show toast but don't block the dialog
-          toast({
-            title: 'Resume Unavailable',
-            description: 'There was an error accessing the resume file.',
-            variant: 'destructive'
-          });
-        }
-      } else {
-        // Reset resume URL if no resume attached
-        setResumeUrl(null);
-      }
-    } catch (error) {
-      console.error('[VIEW_APPLICATION_ERROR]', {
-        error: error instanceof Error ? {
-          message: error.message,
-          stack: error.stack
-        } : error,
-        applicationId: application.ulid
-      });
-      toast({
-        title: 'Error',
-        description: 'Failed to load application details',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  const handleCloseDialog = () => {
-    setSelectedApplication(null);
-    setResumeUrl(null);
-  };
 
   // Add logging to filtered applications
   useEffect(() => {
@@ -563,7 +483,7 @@ export default function CoachApplicationsPage() {
       </div>
 
       {/* Detailed View Dialog */}
-      <Dialog open={selectedApplication !== null} onOpenChange={() => handleCloseDialog()}>
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           {selectedApplication && (
             <>
