@@ -145,11 +145,11 @@ export default function PermissionsPage() {
             onValueChange={(newRole) => {
               // Only allow system owner role for @wedibs.com or @dibs.coach emails
               if (
-                newRole === SYSTEM_ROLES.SYSTEM_OWNER &&
+                (newRole === SYSTEM_ROLES.SYSTEM_OWNER || newRole === SYSTEM_ROLES.SYSTEM_MODERATOR) &&
                 !user.email.endsWith("@wedibs.com") &&
                 !user.email.endsWith("@dibs.coach")
               ) {
-                toast.error("Only @wedibs.com or @dibs.coach emails can be assigned system owner role");
+                toast.error("Only @wedibs.com or @dibs.coach emails can be assigned system owner or moderator roles");
                 return;
               }
 
@@ -166,9 +166,11 @@ export default function PermissionsPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={SYSTEM_ROLES.USER}>User</SelectItem>
-              <SelectItem value={SYSTEM_ROLES.SYSTEM_MODERATOR}>System Moderator</SelectItem>
               {(user.email.endsWith("@wedibs.com") || user.email.endsWith("@dibs.coach")) && (
-                <SelectItem value={SYSTEM_ROLES.SYSTEM_OWNER}>System Owner</SelectItem>
+                <>
+                  <SelectItem value={SYSTEM_ROLES.SYSTEM_MODERATOR}>System Moderator</SelectItem>
+                  <SelectItem value={SYSTEM_ROLES.SYSTEM_OWNER}>System Owner</SelectItem>
+                </>
               )}
             </SelectContent>
           </Select>
@@ -187,7 +189,7 @@ export default function PermissionsPage() {
         <CardHeader>
           <CardTitle>User Permissions</CardTitle>
           <CardDescription>
-            Manage user roles and permissions. Note: System Owner role can only be assigned to @wedibs.com or
+            Manage user roles and permissions. Note: System Owner and System Moderator roles can only be assigned to @wedibs.com or
             @dibs.coach email addresses.
           </CardDescription>
         </CardHeader>

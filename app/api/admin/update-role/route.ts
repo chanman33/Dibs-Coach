@@ -8,7 +8,7 @@ import { ulidSchema } from "@/utils/types/auth";
 // Input validation schema
 const updateRoleSchema = z.object({
   userUlid: ulidSchema,
-  role: z.enum([SYSTEM_ROLES.SYSTEM_OWNER]),
+  role: z.enum([SYSTEM_ROLES.SYSTEM_OWNER, SYSTEM_ROLES.SYSTEM_MODERATOR]),
 });
 
 export async function POST(req: Request) {
@@ -75,12 +75,12 @@ export async function POST(req: Request) {
 
     // Validate admin role assignment
     if (
-      validatedData.role === SYSTEM_ROLES.SYSTEM_OWNER &&
+      (validatedData.role === SYSTEM_ROLES.SYSTEM_OWNER || validatedData.role === SYSTEM_ROLES.SYSTEM_MODERATOR) &&
       !user.email.endsWith("@wedibs.com") &&
       !user.email.endsWith("@dibs.coach")
     ) {
       return new NextResponse(
-        "System owner role can only be assigned to @wedibs.com or @dibs.coach email addresses",
+        "System owner and moderator roles can only be assigned to @wedibs.com or @dibs.coach email addresses",
         { status: 400 }
       );
     }

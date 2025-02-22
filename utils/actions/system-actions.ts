@@ -29,12 +29,12 @@ const DEFAULT_SYSTEM_METRICS: SystemMetrics = {
   completedSessions: 0,
   activeCoaches: 0,
   pendingCoaches: 0,
-  monthlyRevenue: 0,
+  totalGMV: 0,
   totalRevenue: 0,
   metrics: {
     userGrowth: 0,
     coachGrowth: 0,
-    revenueGrowth: 0,
+    gmvGrowth: 0,
     sessionGrowth: 0,
   },
   lastUpdated: new Date().toISOString()
@@ -103,14 +103,14 @@ export async function fetchSystemMetrics(): Promise<SystemMetricsResponse> {
       activeUsers: activeUsersCount ?? 0,
       activeCoaches: activeCoachesCount ?? 0,
       pendingCoaches: pendingCoachesCount ?? 0,
-      monthlyRevenue,
+      totalGMV: monthlyRevenue,
       totalRevenue,
       totalSessions: totalSessionsCount ?? 0,
       completedSessions: completedSessionsCount ?? 0,
       metrics: {
         userGrowth: 0, // TODO: Calculate growth rates
         coachGrowth: 0,
-        revenueGrowth: 0,
+        gmvGrowth: 0,
         sessionGrowth: 0,
       },
       lastUpdated: new Date().toISOString()
@@ -244,8 +244,22 @@ export const fetchDashboardData = withServerAction<DashboardData>(
         .eq('status', 'COMPLETED')
         .gte('createdAt', monthStart.toISOString())
 
-      const totalRevenue = transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
-      const monthlyRevenue = monthlyTransactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
+      const totalGMV = transactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
+      const monthlyGMV = monthlyTransactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
+
+      // Calculate GMV growth rate
+      const previousMonthStart = new Date(monthStart)
+      previousMonthStart.setMonth(previousMonthStart.getMonth() - 1)
+      
+      const { data: previousMonthTransactions } = await supabase
+        .from('Transaction')
+        .select('amount')
+        .eq('status', 'COMPLETED')
+        .gte('createdAt', previousMonthStart.toISOString())
+        .lt('createdAt', monthStart.toISOString())
+
+      const previousMonthGMV = previousMonthTransactions?.reduce((sum, t) => sum + (t.amount || 0), 0) || 0
+      const gmvGrowth = previousMonthGMV === 0 ? 0 : ((monthlyGMV - previousMonthGMV) / previousMonthGMV) * 100
 
       // Get recent system activity
       const { data: recentActivity } = await supabase
@@ -296,27 +310,8 @@ export const fetchDashboardData = withServerAction<DashboardData>(
         updatedAt: new Date().toISOString()
       }
 
-      const metricsData = {
-        totalUsers: totalUsers || 0,
-        activeUsers: activeUsers || 0,
-        totalSessions: totalSessions || 0,
-        completedSessions: completedSessions || 0,
-        activeCoaches: activeCoaches || 0,
-        pendingCoaches: pendingCoaches || 0,
-        monthlyRevenue,
-        totalRevenue,
-        metrics: {
-          userGrowth: 0, // TODO: Calculate growth rates
-          coachGrowth: 0,
-          revenueGrowth: 0,
-          sessionGrowth: 0
-        },
-        lastUpdated: new Date().toISOString()
-      }
-
       // Format and validate data
       const validatedHealth = SystemHealthSchema.parse(formatDataForValidation(healthData))
-      const validatedMetrics = SystemMetricsSchema.parse(metricsData)
       const validatedActivity = z.array(SystemActivitySchema).parse(
         formattedActivity.map(activity => formatDataForValidation(activity))
       )
@@ -324,9 +319,27 @@ export const fetchDashboardData = withServerAction<DashboardData>(
         formattedAlerts.map(alert => formatDataForValidation(alert))
       )
 
+      const metricsData = {
+        totalUsers: totalUsers || 0,
+        activeUsers: activeUsers || 0,
+        totalSessions: totalSessions || 0,
+        completedSessions: completedSessions || 0,
+        activeCoaches: activeCoaches || 0,
+        pendingCoaches: pendingCoaches || 0,
+        totalGMV,
+        totalRevenue: totalGMV, // For backward compatibility
+        metrics: {
+          userGrowth: 0, // TODO: Calculate growth rates
+          coachGrowth: 0,
+          gmvGrowth,
+          sessionGrowth: 0
+        },
+        lastUpdated: new Date().toISOString()
+      }
+
       const dashboardData: DashboardData = {
         systemHealth: validatedHealth,
-        metrics: validatedMetrics,
+        metrics: SystemMetricsSchema.parse(metricsData),
         recentActivity: validatedActivity,
         systemAlerts: validatedAlerts
       }

@@ -29,12 +29,12 @@ const DEFAULT_SYSTEM_METRICS: SystemMetrics = {
   completedSessions: 0,
   activeCoaches: 0,
   pendingCoaches: 0,
-  monthlyRevenue: 0,
+  totalGMV: 0,
   totalRevenue: 0,
   metrics: {
     userGrowth: 0,
     coachGrowth: 0,
-    revenueGrowth: 0,
+    gmvGrowth: 0,
     sessionGrowth: 0,
   },
   lastUpdated: new Date().toISOString()
@@ -235,12 +235,12 @@ export const fetchDashboardData = withServerAction<DashboardData>(
         completedSessions: completedSessions || 0,
         activeCoaches: activeCoaches || 0,
         pendingCoaches: pendingCoaches || 0,
-        monthlyRevenue,
+        totalGMV: 0, // TODO: Calculate GMV
         totalRevenue,
         metrics: {
           userGrowth: 0, // TODO: Calculate growth rates
           coachGrowth: 0,
-          revenueGrowth: 0,
+          gmvGrowth: 0,
           sessionGrowth: 0
         },
         lastUpdated: new Date().toISOString()

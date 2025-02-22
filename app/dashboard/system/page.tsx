@@ -250,14 +250,14 @@ export default function SystemDashboard() {
 
         <Card className="border-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Total GMV</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(data.metrics.monthlyRevenue)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(data.metrics.totalGMV)}</div>
             <p className="text-xs text-muted-foreground">
-              {data.metrics.metrics.revenueGrowth >= 0 ? '+' : ''}
-              {data.metrics.metrics.revenueGrowth}% from last month
+              {data.metrics.metrics.gmvGrowth >= 0 ? '+' : ''}
+              {data.metrics.metrics.gmvGrowth}% from last month
             </p>
           </CardContent>
         </Card>

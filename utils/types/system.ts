@@ -8,12 +8,12 @@ export const SystemMetricsSchema = z.object({
   completedSessions: z.number(),
   activeCoaches: z.number(),
   pendingCoaches: z.number(),
-  monthlyRevenue: z.number(),
+  totalGMV: z.number(),
   totalRevenue: z.number(),
   metrics: z.object({
     userGrowth: z.number(),
     coachGrowth: z.number(),
-    revenueGrowth: z.number(),
+    gmvGrowth: z.number(),
     sessionGrowth: z.number()
   }),
   lastUpdated: z.string().datetime()
