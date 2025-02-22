@@ -14,7 +14,7 @@
     "seed-admin": "tsx prisma/seed-admin.ts",
     "db:push": "yarn prisma db push",
     "db:studio": "yarn prisma studio",
-    "update-types": "npx supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" > types/supabase.ts"
+    "update-types": "dotenv -e .env -- cross-env-shell supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" > types/supabase.ts"
   },
   "prisma": {
     "seed": "yarn tsx prisma/seed.ts"
@@ -122,7 +122,9 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "autoprefixer": "latest",
+    "cross-env": "^7.0.3",
     "dotenv": "^16.4.7",
+    "dotenv-cli": "^8.0.0",
     "eslint": "latest",
     "eslint-config-next": "latest",
     "jest": "^29.7.0",
