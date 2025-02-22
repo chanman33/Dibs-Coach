@@ -124,4 +124,17 @@ export const DAYS_OF_WEEK = [
   'FRIDAY',
   'SATURDAY',
   'SUNDAY',
-] as const; 
+] as const;
+
+export interface PublicCoach {
+  ulid: string
+  firstName: string | null
+  lastName: string | null
+  displayName: string | null
+  bio: string | null
+  profileImageUrl: string | null
+  coachingSpecialties: string[]
+  hourlyRate: number | null
+  averageRating: number | null
+  totalSessions: number
+} 

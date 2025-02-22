@@ -7,7 +7,16 @@ import SideBySide from "@/components/homepage/side-by-side";
 import PageWrapper from "@/components/wrapper/page-wrapper";
 import config from "@/config";
 import { FAQ } from "@/components/homepage/faq";
+import type { Metadata } from 'next'
 
+export const metadata: Metadata = {
+  title: 'Dibs - Transform Your Real Estate Career with Expert Coaching',
+  description: 'Elevate your real estate career with personalized coaching from industry experts. Get matched with top real estate coaches, access tailored guidance, and achieve your property goals faster.',
+  openGraph: {
+    title: 'Dibs - Transform Your Real Estate Career with Expert Coaching',
+    description: 'Elevate your real estate career with personalized coaching from industry experts. Get matched with top real estate coaches, access tailored guidance, and achieve your property goals faster.',
+  },
+}
 
 export default function Home() {
   return (

@@ -1,13 +1,15 @@
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/utils/cn';
 
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  className?: string;
 }
 
-export function Pagination({ currentPage, totalPages, onPageChange }: PaginationProps) {
+export function Pagination({ currentPage, totalPages, onPageChange, className }: PaginationProps) {
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1);
   
   // Show max 5 page numbers, with current page in the middle when possible
@@ -23,7 +25,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
   const visiblePages = getVisiblePages();
 
   return (
-    <div className="flex items-center gap-2">
+    <div className={cn("flex items-center gap-2", className)}>
       <Button
         variant="outline"
         size="icon"

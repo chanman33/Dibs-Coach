@@ -5,8 +5,8 @@ export default function Footer() {
     const currentYear = new Date().getFullYear();
 
     return (
-        <footer className="border-t dark:bg-black py-6">
-            <div className="mx-auto max-w-screen-xl px-4 sm:px-6 lg:px-8">
+        <footer className="border-t dark:bg-black py-6 mt-auto">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
                 <div className="flex flex-col items-center justify-center space-y-4">
                     {/* Legal Links */}
                     <ul className="flex flex-wrap justify-center gap-6 text-sm">
@@ -31,7 +31,7 @@ export default function Footer() {
                     </ul>
 
                     {/* Copyright */}
-                    <p className="text-sm text-center">
+                    <p className="text-sm text-center text-muted-foreground">
                         &copy; {currentYear} Dibs Technology, Inc. All rights reserved.
                     </p>
                 </div>
