@@ -56,9 +56,9 @@ export function MenteeSidebar() {
             <NavLink href="/dashboard/mentee/calendar" icon={CalendarDays}>
               Calendar
             </NavLink>
-            <NavLink href="/dashboard/mentee/messages" icon={MessageSquare}>
+            {/* <NavLink href="/dashboard/mentee/messages" icon={MessageSquare}>
               Messages
-            </NavLink>
+            </NavLink> */}
 
 
             {/* Coaching */}

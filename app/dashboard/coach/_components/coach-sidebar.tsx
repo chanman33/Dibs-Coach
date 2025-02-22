@@ -57,10 +57,9 @@ export function CoachSidebar() {
             <NavLink href="/dashboard/coach/calendar" icon={CalendarDays}>
               Calendar
             </NavLink>
-            <NavLink href="/dashboard/coach/messages" icon={MessageSquare}>
-
+            {/* <NavLink href="/dashboard/coach/messages" icon={MessageSquare}>
               Messages
-            </NavLink>
+            </NavLink> */}
 
             {/* Coach Tools */}
             <Separator className="my-3" />
