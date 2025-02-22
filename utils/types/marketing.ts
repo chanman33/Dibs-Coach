@@ -35,7 +35,7 @@ export const marketingInfoSchema = z.object({
     (val) => !val || val === "" || val.includes("youtube.com") || val.includes("youtu.be"),
     "Please enter a valid YouTube URL"
   ),
-  marketingAreas: z.string().optional(),
+  marketingAreas: z.array(z.string()).default([]),
   testimonials: z.array(testimonialSchema)
     .transform(testimonials => 
       testimonials.filter(t => t.author.trim() !== "" || t.content.trim() !== "")

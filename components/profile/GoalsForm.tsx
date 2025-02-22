@@ -61,6 +61,7 @@ const goalSchema = z.object({
 interface GoalsFormProps {
   open: boolean;
   onClose: () => void;
+  onSubmit: (data: GoalFormValues) => Promise<void>;
 }
 
 const getGoalTypeIcon = (type: string) => {
@@ -125,7 +126,7 @@ const getGoalTypeIcon = (type: string) => {
   }
 }
 
-const GoalsForm = ({ open, onClose }: GoalsFormProps) => {
+const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
   const [goals, setGoals] = useState<Goal[]>([])
   const [showForm, setShowForm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -200,25 +201,16 @@ const GoalsForm = ({ open, onClose }: GoalsFormProps) => {
         status: data.status,
       };
 
-      const result = currentEditingGoal 
-        ? await updateGoal({ 
-            goalUlid: currentEditingGoal.ulid,
-            ...baseGoalData 
-          })
-        : await createGoal(baseGoalData);
-      
-      if (result.error) {
-        console.error('[SUBMIT_GOAL_ERROR]', result.error);
-        if (result.error.code === 'VALIDATION_ERROR') {
-          const validationError = result.error as ValidationError;
-          setFormErrors(validationError.details.fieldErrors);
-          toast.error(Object.values(validationError.details.fieldErrors).flat().join('\n'));
-        } else {
-          toast.error(result.error.message);
-        }
-        return;
+      if (currentEditingGoal) {
+        const result = await updateGoal({ 
+          goalUlid: currentEditingGoal.ulid,
+          ...baseGoalData 
+        });
+        if (result.error) throw result.error;
+      } else {
+        await onSubmit(baseGoalData);
       }
-
+      
       toast.success(`Goal ${currentEditingGoal ? 'updated' : 'created'} successfully!`);
       await loadGoals();
       handleCloseForm();

@@ -9,10 +9,9 @@ import { z } from "zod"
 const generalFormSchema = z.object({
   // User fields
   displayName: z.string().min(1, "Display name is required"),
-  bio: z.string().optional().nullable(),
+  bio: z.string().nullable(),
   
   // RealtorProfile fields
-  yearsExperience: z.number().min(0, "Years of experience must be a positive number"),
   primaryMarket: z.string().min(1, "Primary market is required"),
 })
 
@@ -25,7 +24,6 @@ interface GeneralFormProps {
     displayName?: string | null
     bio?: string | null
     // RealtorProfile data
-    yearsExperience?: number | null
     primaryMarket?: string | null
   }
   isSubmitting?: boolean
@@ -39,7 +37,6 @@ export default function GeneralForm({
   const [formData, setFormData] = useState<GeneralFormData>({
     displayName: "",
     bio: null,
-    yearsExperience: 0,
     primaryMarket: "",
   })
 
@@ -49,9 +46,6 @@ export default function GeneralForm({
         ...prev,
         displayName: initialData.displayName || "",
         bio: initialData.bio || null,
-        yearsExperience: typeof initialData.yearsExperience === 'string' 
-          ? parseInt(initialData.yearsExperience, 10) 
-          : initialData.yearsExperience || 0,
         primaryMarket: initialData.primaryMarket || "",
       }))
     }
@@ -61,7 +55,7 @@ export default function GeneralForm({
     const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'yearsExperience' ? parseInt(value) || 0 : value,
+      [name]: value,
     }))
   }
 
@@ -111,21 +105,6 @@ export default function GeneralForm({
           disabled={isSubmitting}
           placeholder="Write a comprehensive description of your professional background and expertise. This will appear on your profile page."
           rows={6}
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="yearsExperience">Years of Experience</Label>
-        <Input
-          id="yearsExperience"
-          name="yearsExperience"
-          type="number"
-          value={formData.yearsExperience}
-          onChange={handleChange}
-          required
-          disabled={isSubmitting}
-          min="0"
-          max="100"
         />
       </div>
 

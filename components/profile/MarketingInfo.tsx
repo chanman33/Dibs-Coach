@@ -7,7 +7,17 @@ import { updateMarketingInfo, removeTestimonial } from "@/utils/actions/marketin
 import { toast } from "sonner"
 import type { MarketingInfo as MarketingInfoType } from "@/utils/types/marketing"
 
-export default function MarketingInformation({ initialData }: { initialData?: MarketingInfoType }) {
+interface MarketingInformationProps {
+  initialData?: MarketingInfoType;
+  onSubmit?: (data: MarketingInfoType) => Promise<void>;
+  isSubmitting?: boolean;
+}
+
+export default function MarketingInformation({ 
+  initialData,
+  onSubmit: externalSubmit,
+  isSubmitting = false 
+}: MarketingInformationProps) {
   const [formData, setFormData] = useState<MarketingInfoType>({
     slogan: initialData?.slogan ?? "",
     websiteUrl: initialData?.websiteUrl ?? "",
@@ -15,7 +25,7 @@ export default function MarketingInformation({ initialData }: { initialData?: Ma
     instagramUrl: initialData?.instagramUrl ?? "",
     linkedinUrl: initialData?.linkedinUrl ?? "",
     youtubeUrl: initialData?.youtubeUrl ?? "",
-    marketingAreas: initialData?.marketingAreas ?? "",
+    marketingAreas: initialData?.marketingAreas ?? [],
     testimonials: initialData?.testimonials?.length ? initialData.testimonials : [{ author: "", content: "" }],
   })
   const [isRemoving, setIsRemoving] = useState(false)
@@ -52,17 +62,18 @@ export default function MarketingInformation({ initialData }: { initialData?: Ma
       
       // Only call the server action if there's more than one testimonial
       if (formData.testimonials.length > 1) {
-        const result = await removeTestimonial(index)
+        const result = await removeTestimonial({ index })
         
         if (result.error) {
-          toast.error(result.error)
+          toast.error(result.error.message)
           return
         }
 
         if (result.data) {
+          const updatedTestimonials = formData.testimonials.filter((_, i) => i !== index)
           setFormData(prev => ({
             ...prev,
-            testimonials: result.data
+            testimonials: updatedTestimonials
           }))
           toast.success("Testimonial removed successfully")
         }
@@ -92,14 +103,16 @@ export default function MarketingInformation({ initialData }: { initialData?: Ma
         dataToSubmit.testimonials = [{ author: "", content: "" }]
       }
 
-      const result = await updateMarketingInfo(dataToSubmit)
-      
-      if (result.error) {
-        toast.error(result.error)
-        return
+      if (externalSubmit) {
+        await externalSubmit(dataToSubmit)
+      } else {
+        const result = await updateMarketingInfo(dataToSubmit)
+        if (result.error) {
+          toast.error(result.error.message)
+          return
+        }
+        toast.success("Marketing information updated successfully")
       }
-      
-      toast.success("Marketing information updated successfully")
     } catch (error) {
       toast.error("Failed to update marketing information")
       console.error("[FORM_ERROR]", error)
@@ -173,8 +186,11 @@ export default function MarketingInformation({ initialData }: { initialData?: Ma
         <Input
           id="marketingAreas"
           name="marketingAreas"
-          value={formData.marketingAreas}
-          onChange={handleChange}
+          value={Array.isArray(formData.marketingAreas) ? formData.marketingAreas.join(", ") : ""}
+          onChange={(e) => {
+            const areas = e.target.value.split(",").map(area => area.trim()).filter(Boolean);
+            setFormData({ ...formData, marketingAreas: areas });
+          }}
           placeholder="e.g. Downtown, Suburbs, Beachfront"
         />
       </div>

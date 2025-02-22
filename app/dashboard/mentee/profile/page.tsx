@@ -98,7 +98,7 @@ export default function AgentProfilePage() {
       
       if (error) {
         console.error('[SUBMIT_PROFILE_ERROR]', error)
-        toast.error(error.message || 'Failed to update profile')
+        toast.error(error || 'Failed to update profile')
         return
       }
 

@@ -3,12 +3,13 @@
 import { createAuthClient } from "@/utils/auth"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { User, UserUpdate } from "@/utils/types/user"
+import type { ApiResponse } from "@/utils/types/api"
 
 // Empty params type for actions that don't need parameters
 type EmptyParams = Record<string, never>
 
 export const fetchBasicUserData = withServerAction<{ firstName: string | null; lastName: string | null; bio: string | null }, EmptyParams>(
-  async (params, { userUlid }) => {
+  async (_, { userUlid }) => {
     try {
       const supabase = await createAuthClient()
 
@@ -24,7 +25,8 @@ export const fetchBasicUserData = withServerAction<{ firstName: string | null; l
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Failed to fetch user data'
+            message: 'Failed to fetch user data',
+            details: error
           }
         }
       }
@@ -39,8 +41,8 @@ export const fetchBasicUserData = withServerAction<{ firstName: string | null; l
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
-          details: error instanceof Error ? { message: error.message } : undefined
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
+          details: error
         }
       }
     }
@@ -48,7 +50,7 @@ export const fetchBasicUserData = withServerAction<{ firstName: string | null; l
 )
 
 export const fetchUserProfile = withServerAction<User, EmptyParams>(
-  async (params, { userUlid }) => {
+  async (_, { userUlid }) => {
     try {
       const supabase = await createAuthClient()
 
@@ -83,7 +85,8 @@ export const fetchUserProfile = withServerAction<User, EmptyParams>(
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Failed to fetch user profile'
+            message: 'Failed to fetch user profile',
+            details: error
           }
         }
       }
@@ -98,8 +101,8 @@ export const fetchUserProfile = withServerAction<User, EmptyParams>(
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
-          details: error instanceof Error ? { message: error.message } : undefined
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
+          details: error
         }
       }
     }
@@ -124,7 +127,8 @@ export const updateUserProfile = withServerAction<User, UserUpdate>(
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Failed to update user profile'
+            message: 'Failed to update user profile',
+            details: error
           }
         }
       }
@@ -139,8 +143,8 @@ export const updateUserProfile = withServerAction<User, UserUpdate>(
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
-          details: error instanceof Error ? { message: error.message } : undefined
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
+          details: error
         }
       }
     }

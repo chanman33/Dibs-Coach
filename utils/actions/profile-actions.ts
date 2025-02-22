@@ -6,13 +6,12 @@ import { revalidatePath } from "next/cache"
 import type { MarketingInfo } from "@/utils/types/marketing"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ServerActionContext } from "@/utils/middleware/withServerAction"
+import type { ApiResponse } from "@/utils/types/api"
 
 export interface GeneralFormData {
   displayName: string
-  licenseNumber: string
-  brokerage: string
-  yearsOfExperience: string
-  bio: string
+  bio: string | null
+  yearsExperience: number
   primaryMarket: string
 }
 
@@ -29,15 +28,18 @@ export interface CoachProfileFormData {
 }
 
 interface ProfessionalRecognition {
-  id: number;
+  ulid: string;
   title: string;
   type: "AWARD" | "ACHIEVEMENT";
-  year: number;
-  organization: string | null;
-  description: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-  archivedAt?: string | null;
+  issuer: string;
+  issueDate: string;
+  expiryDate?: string | null;
+  description?: string | null;
+  verificationUrl?: string | null;
+  certificateUrl?: string | null;
+  status: "ACTIVE" | "INACTIVE" | "EXPIRED";
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const fetchUserProfile = withServerAction<GeneralFormData, void>(
@@ -45,15 +47,33 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
     try {
       const supabase = await createAuthClient()
 
-      // Get user profile data
+      // Get user data first
+      const { data: userData, error: userError } = await supabase
+        .from("User")
+        .select(`
+          displayName,
+          bio
+        `)
+        .eq("ulid", userUlid)
+        .single()
+
+      if (userError) {
+        console.error("[USER_FETCH_ERROR]", { userUlid, error: userError })
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch user data',
+            details: userError
+          }
+        }
+      }
+
+      // Get realtor profile data
       const { data: profileData, error: profileError } = await supabase
         .from("RealtorProfile")
         .select(`
-          displayName,
-          licenseNumber,
-          brokerage,
-          yearsOfExperience,
-          bio,
+          yearsExperience,
           primaryMarket
         `)
         .eq("userUlid", userUlid)
@@ -65,13 +85,19 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Failed to fetch user profile'
+            message: 'Failed to fetch user profile',
+            details: profileError
           }
         }
       }
 
       return {
-        data: profileData,
+        data: {
+          displayName: userData.displayName || "",
+          bio: userData.bio,
+          yearsExperience: profileData.yearsExperience || 0,
+          primaryMarket: profileData.primaryMarket || ""
+        },
         error: null
       }
     } catch (error) {
@@ -80,34 +106,50 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'Failed to fetch user profile',
-          details: error instanceof Error ? { message: error.message } : undefined
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
+          details: error
         }
       }
     }
   }
 )
 
-export const updateGeneralProfile = withServerAction<{ user: any, profile: any }, GeneralFormData>(
+export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormData>(
   async (data, { userUlid }) => {
     try {
       const supabase = await createAuthClient()
 
-      // Update realtor profile
-      const { data: profile, error: profileError } = await supabase
-        .from("RealtorProfile")
+      // Update user data first
+      const { error: userError } = await supabase
+        .from("User")
         .update({
           displayName: data.displayName,
-          licenseNumber: data.licenseNumber,
-          brokerage: data.brokerage,
-          yearsOfExperience: data.yearsOfExperience,
           bio: data.bio,
+          updatedAt: new Date().toISOString()
+        })
+        .eq("ulid", userUlid)
+
+      if (userError) {
+        console.error("[USER_UPDATE_ERROR]", { userUlid, error: userError })
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to update user data',
+            details: userError
+          }
+        }
+      }
+
+      // Update realtor profile
+      const { error: profileError } = await supabase
+        .from("RealtorProfile")
+        .update({
+          yearsExperience: data.yearsExperience,
           primaryMarket: data.primaryMarket,
           updatedAt: new Date().toISOString()
         })
         .eq("userUlid", userUlid)
-        .select()
-        .single()
 
       if (profileError) {
         console.error("[PROFILE_UPDATE_ERROR]", { userUlid, error: profileError })
@@ -115,15 +157,18 @@ export const updateGeneralProfile = withServerAction<{ user: any, profile: any }
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Failed to update profile'
+            message: 'Failed to update realtor profile',
+            details: profileError
           }
         }
       }
 
       return {
         data: {
-          user: null, // We don't update user data anymore
-          profile
+          displayName: data.displayName,
+          bio: data.bio,
+          yearsExperience: data.yearsExperience,
+          primaryMarket: data.primaryMarket
         },
         error: null
       }
@@ -133,313 +178,111 @@ export const updateGeneralProfile = withServerAction<{ user: any, profile: any }
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'Failed to update profile',
-          details: error instanceof Error ? { message: error.message } : undefined
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
+          details: error
         }
       }
     }
   }
 )
 
-export async function updateCoachProfile(formData: any) {
-  try {
-    console.log('[DEBUG] Starting updateCoachProfile with formData:', formData)
-    const { userId } = await auth()
-    if (!userId) {
-      throw new Error('Unauthorized')
-    }
-    
-    const supabase = await createAuthClient()
-    
-    // Get the user's database ID and realtor profile ID
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select(`
-        id,
-        realtorProfile:RealtorProfile!inner(id)
-      `)
-      .eq('userId', userId)
-      .single()
-
-    if (userError) {
-      console.error('[DEBUG] Error fetching user:', userError)
-      throw userError
-    }
-
-    console.log('[DEBUG] Found user:', userData)
-
-    const realtorProfileId = userData.realtorProfile[0].id;
-
-    // Prepare coach profile data
-    const coachProfileData = {
-      userDbId: userData.id,
-      coachingSpecialties: formData.specialties || [],
-      yearsCoaching: formData.yearsCoaching,
-      hourlyRate: formData.hourlyRate,
-      calendlyUrl: formData.calendlyUrl,
-      eventTypeUrl: formData.eventTypeUrl,
-      defaultDuration: formData.defaultDuration,
-      minimumDuration: formData.minimumDuration,
-      maximumDuration: formData.maximumDuration,
-      allowCustomDuration: formData.allowCustomDuration,
-      updatedAt: new Date().toISOString(),
-    }
-
-    // Prepare realtor profile data
-    const realtorProfileData = {
-      userDbId: userData.id,
-      languages: Array.isArray(formData.languages) ? formData.languages : [],
-      bio: formData.marketExpertise === '' ? undefined : formData.marketExpertise,
-      certifications: Array.isArray(formData.certifications) ? formData.certifications : [],
-      propertyTypes: [],
-      specializations: [],
-      marketingAreas: [],
-      testimonials: [],
-      geographicFocus: {
-        cities: [],
-        neighborhoods: [],
-        counties: []
-      },
-      updatedAt: new Date().toISOString(),
-    }
-
-    // Update CoachProfile
-    const { error: coachError } = await supabase
-      .from('CoachProfile')
-      .upsert(coachProfileData, {
-        onConflict: 'userDbId'
-      })
-      .select()
-
-    if (coachError) {
-      console.error('[DEBUG] Error updating coach profile:', coachError)
-      throw coachError
-    }
-
-    // Update RealtorProfile
-    const { error: realtorError } = await supabase
-      .from('RealtorProfile')
-      .upsert(realtorProfileData, {
-        onConflict: 'userDbId'
-      })
-      .select()
-
-    if (realtorError) {
-      console.error('[DEBUG] Error updating realtor profile:', realtorError)
-      throw realtorError
-    }
-
-    // Handle Professional Recognitions
-    if (formData.professionalRecognitions && Array.isArray(formData.professionalRecognitions)) {
-      // Handle archived recognition if specified
-      if (formData.archivedRecognitionId) {
-        const { error: archiveError } = await supabase
-          .from('ProfessionalRecognition')
-          .update({ 
-            archivedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          })
-          .eq('id', formData.archivedRecognitionId)
-          .eq('realtorProfileId', realtorProfileId)
-
-        if (archiveError) {
-          console.error('[DEBUG] Error archiving recognition:', archiveError)
-          throw archiveError
-        }
-        
-        // Return early as we're just archiving
-        return { success: true }
-      }
-
-      // First, get all existing recognitions (including archived) to check IDs
-      const { data: existingRecognitions, error: fetchError } = await supabase
-        .from('ProfessionalRecognition')
-        .select('*')  // Select all fields to get complete records
-        .eq('realtorProfileId', realtorProfileId);
-
-      if (fetchError) {
-        console.error('[DEBUG] Error fetching existing recognitions:', fetchError);
-        throw fetchError;
-      }
-
-      // Create a map of existing records
-      const existingRecordsMap = new Map(
-        existingRecognitions?.map(r => [r.id, r]) || []
-      );
-
-      // Separate records that need to be updated vs inserted
-      const recognitionsToUpdate: ProfessionalRecognition[] = [];
-      const recognitionsToInsert: Omit<ProfessionalRecognition, 'id'>[] = [];
-
-      formData.professionalRecognitions.forEach((recognition: ProfessionalRecognition) => {
-        const baseData = {
-          realtorProfileId,
-          title: recognition.title,
-          type: recognition.type,
-          year: recognition.year,
-          organization: recognition.organization || null,
-          description: recognition.description || null,
-          updatedAt: new Date().toISOString()
-        };
-
-        const existingRecord = recognition.id ? existingRecordsMap.get(recognition.id) : null;
-
-        // If record exists and is not archived, update it
-        if (existingRecord && !existingRecord.archivedAt) {
-          recognitionsToUpdate.push({
-            ...baseData,
-            id: recognition.id,
-            createdAt: existingRecord.createdAt // Use the original createdAt
-          });
-        } else {
-          // Create new record
-          recognitionsToInsert.push({
-            ...baseData,
-            createdAt: new Date().toISOString()
-          });
-        }
-      });
-
-      console.log('[DEBUG] Records to update:', recognitionsToUpdate);
-      console.log('[DEBUG] Records to insert:', recognitionsToInsert);
-
-      // Update existing records
-      if (recognitionsToUpdate.length > 0) {
-        const { error: updateError } = await supabase
-          .from('ProfessionalRecognition')
-          .upsert(recognitionsToUpdate, {
-            onConflict: 'id',
-            ignoreDuplicates: false
-          });
-
-        if (updateError) {
-          console.error('[DEBUG] Error updating recognitions:', updateError);
-          throw updateError;
-        }
-      }
-
-      // Insert new records
-      if (recognitionsToInsert.length > 0) {
-        const { error: insertError } = await supabase
-          .from('ProfessionalRecognition')
-          .insert(recognitionsToInsert);
-
-        if (insertError) {
-          console.error('[DEBUG] Error inserting new recognitions:', insertError);
-          throw insertError;
-        }
-      }
-    }
-
-    // Revalidate the profile page
-    revalidatePath('/dashboard/coach/profile')
-    return { success: true }
-  } catch (error) {
-    console.error('[COACH_PROFILE_UPDATE_ERROR]', error)
-    throw error
-  }
-}
-
-// Function to fetch coach profile data
-export async function fetchCoachProfile() {
-  try {
-    console.log('[DEBUG] Starting fetchCoachProfile...');
-    const { userId } = await auth()
-    if (!userId) {
-      console.error('[DEBUG] No userId found in auth');
-      throw new Error('Unauthorized')
-    }
-
-    console.log('[DEBUG] Fetching profiles for userId:', userId);
-    const supabase = await createAuthClient()
-
-    // Fetch user with both coach and realtor profiles
-    const { data, error } = await supabase
-      .from('User')
-      .select(`
-        *,
-        coachProfile:CoachProfile (*),
-        realtorProfile:RealtorProfile (
-          *,
-          professionalRecognitions:ProfessionalRecognition (
-            id,
-            title,
-            type,
-            year,
-            organization,
-            description,
-            createdAt,
-            updatedAt,
-            archivedAt
-          )
-        )
-      `)
-      .eq('userId', userId)
-      .single()
-
-    if (error) {
-      console.error('[DEBUG] Error fetching profiles:', error);
-      throw error;
-    }
-
-    console.log('[DEBUG] Raw profile data:', data);
-    
-    // Handle array responses
-    const coachProfile = Array.isArray(data.coachProfile) ? data.coachProfile[0] : data.coachProfile;
-    const realtorProfile = Array.isArray(data.realtorProfile) ? data.realtorProfile[0] : data.realtorProfile;
-
-    // Filter out archived recognitions in JavaScript
-    const activeRecognitions = realtorProfile?.professionalRecognitions?.filter(
-      (recognition: any) => !recognition.archivedAt
-    ) || [];
-
-    console.log('[DEBUG] Active recognitions:', activeRecognitions);
-
-    // Combine both profiles into a single response
-    const responseData = {
-      // Coach profile fields
-      specialties: coachProfile?.coachingSpecialties || [],
-      yearsCoaching: coachProfile?.yearsCoaching || 0,
-      hourlyRate: Number(coachProfile?.hourlyRate) || 0,
-      defaultDuration: coachProfile?.defaultDuration || 60,
-      minimumDuration: coachProfile?.minimumDuration || 30,
-      maximumDuration: coachProfile?.maximumDuration || 120,
-      allowCustomDuration: coachProfile?.allowCustomDuration || false,
-      calendlyUrl: coachProfile?.calendlyUrl || "",
-      eventTypeUrl: coachProfile?.eventTypeUrl || "",
+export const fetchCoachProfile = withServerAction<any, void>(
+  async (_, { userUlid }) => {
+    try {
+      const supabase = await createAuthClient()
       
-      // Realtor profile fields
-      languages: Array.isArray(realtorProfile?.languages) ? realtorProfile.languages : [],
-      certifications: Array.isArray(realtorProfile?.certifications) ? realtorProfile.certifications : [],
-      marketExpertise: realtorProfile?.bio || "",
-      professionalRecognitions: activeRecognitions.map((recognition: any) => ({
-        id: recognition.id,
-        title: recognition.title,
-        type: recognition.type,
-        year: recognition.year,
-        organization: recognition.organization || null,
-        description: recognition.description || null,
-        createdAt: recognition.createdAt,
-        updatedAt: recognition.updatedAt,
-        archivedAt: recognition.archivedAt
-      })),
+      const { data: coachProfile, error: coachError } = await supabase
+        .from("CoachProfile")
+        .select(`
+          specialties,
+          yearsCoaching,
+          hourlyRate,
+          defaultDuration,
+          minimumDuration,
+          maximumDuration,
+          allowCustomDuration,
+          calendlyUrl,
+          eventTypeUrl,
+          professionalRecognitions
+        `)
+        .eq("userUlid", userUlid)
+        .single()
 
-      // Include raw profiles for debugging
-      _rawCoachProfile: coachProfile,
-      _rawRealtorProfile: realtorProfile
-    };
+      if (coachError) {
+        console.error("[COACH_PROFILE_ERROR]", { userUlid, error: coachError })
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch coach profile',
+            details: coachError
+          }
+        }
+      }
 
-    console.log('[DEBUG] Formatted response data:', responseData);
-
-    return {
-      success: true,
-      data: responseData
+      return {
+        data: {
+          ...coachProfile,
+          _rawRealtorProfile: []
+        },
+        error: null
+      }
+    } catch (error) {
+      console.error("[COACH_PROFILE_ERROR]", error)
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
+          details: error
+        }
+      }
     }
-  } catch (error) {
-    console.error('[FETCH_COACH_PROFILE_ERROR]', error)
-    return { success: false, error }
   }
-}
+)
+
+export const updateCoachProfile = withServerAction<{ success: boolean }, any>(
+  async (formData, { userUlid }) => {
+    try {
+      const supabase = await createAuthClient()
+      
+      const { error: updateError } = await supabase
+        .from("CoachProfile")
+        .update({
+          ...formData,
+          updatedAt: new Date().toISOString()
+        })
+        .eq("userUlid", userUlid)
+
+      if (updateError) {
+        console.error("[COACH_PROFILE_UPDATE_ERROR]", { userUlid, error: updateError })
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to update coach profile',
+            details: updateError
+          }
+        }
+      }
+
+      return {
+        data: { success: true },
+        error: null
+      }
+    } catch (error) {
+      console.error("[COACH_PROFILE_UPDATE_ERROR]", error)
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
+          details: error
+        }
+      }
+    }
+  }
+)
 
 /**
  * Fetches marketing information for the current user's realtor profile

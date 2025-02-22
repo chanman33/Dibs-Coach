@@ -361,7 +361,7 @@ export type ListingStatus = z.infer<typeof ListingStatusEnum>;
 export type FurnishedStatus = z.infer<typeof FurnishedStatusEnum>;
 export type ListingBase = z.infer<typeof listingBaseSchema>;
 export type CreateListing = z.infer<typeof createListingSchema>;
-export type UpdateListing = z.infer<typeof updateListingSchema>;
+export type UpdateListing = { listingUlid: string } & z.infer<typeof updateListingSchema>;
 
 // ==========================================
 // Form Field Configuration

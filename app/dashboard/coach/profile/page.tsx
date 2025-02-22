@@ -4,346 +4,426 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
-import GeneralForm from "../../../../components/profile/GeneralForm"
-import ListingsForm from "../../../../components/profile/ListingsForm"
-import MarketingInformation from "../../../../components/profile/MarketingInfo"
-import GoalsForm from "../../../../components/profile/GoalsForm"
-import { CoachProfileForm } from "../../../../components/profile/CoachProfileForm"
+import GeneralForm from "@/components/profile/GeneralForm"
+import ListingsForm from "@/components/profile/ListingsForm"
+import MarketingInformation from "@/components/profile/MarketingInfo"
+import GoalsForm from "@/components/profile/GoalsForm"
+import { CoachProfileForm } from "@/components/profile/CoachProfileForm"
 import { 
-  updateGeneralProfile, 
-  fetchUserProfile, 
-  fetchCoachProfile, 
+  fetchUserProfile,
+} from "@/utils/actions/user"
+import type { DbUser } from "@/utils/supabase/types"
+import { 
+  fetchCoachProfile,
   updateCoachProfile,
-  fetchMarketingInfo,
-  type GeneralFormData,
   type CoachProfileFormData 
-} from "@/utils/actions/profile-actions"
-import { updateMarketingInfo } from "@/utils/actions/marketing-actions"
-import type { CoachProfile } from "@/utils/types/coach"
-import type { RealtorProfile } from "@/utils/types/realtor"
-import type { Goals } from "@/utils/types/goals"
+} from "@/utils/actions/coach-actions"
 import { 
-  type CreateListing, 
-  type UpdateListing, 
-  type ListingWithRealtor
-} from "@/utils/types/listing"
-import { ListingStatusEnum } from "@/utils/types/listing"
+  updateMarketingInfo,
+} from "@/utils/actions/marketing-actions"
+import type { RealtorProfile } from "@/utils/types/realtor"
 import { 
   createListing,
   updateListing,
   fetchListings,
-  fetchListing
 } from "@/utils/actions/listing"
+import type { DbListing } from "@/utils/supabase/types"
+import { 
+  createGoal,
+} from "@/utils/actions/goals"
+import type { GoalFormValues } from "@/utils/types/goals"
+import { toast } from "sonner"
+import { ListingWithRealtor, ListingStatus, type CreateListing, ListingStatusEnum, type UpdateListing } from '@/utils/types/listing'
 import type { MarketingInfo } from "@/utils/types/marketing"
-import { GoalFormValues } from "@/components/profile/GoalsForm"
-import type { ApiResponse } from "@/utils/types/api"
-
-interface GeneralInfo {
-  displayName?: string;
-  licenseNumber?: string;
-  companyName?: string;
-  yearsOfExperience?: string;
-  bio?: string;
-  primaryMarket?: string;
-}
 
 interface ListingsState {
-  activeListings: ListingWithRealtor[]
-  successfulTransactions: ListingWithRealtor[]
+  activeListings: ListingWithRealtor[];
+  successfulTransactions: ListingWithRealtor[];
 }
-
-interface ListingsFormProps {
-  onSubmit: (data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void>;
-  onUpdate?: (listingUlid: string, data: UpdateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void>;
-  className?: string;
-  activeListings?: ListingWithRealtor[];
-  successfulTransactions?: ListingWithRealtor[];
-  isSubmitting?: boolean;
-}
-
-type FormData = GeneralFormData | CoachProfileFormData | MarketingInfo | GoalFormValues;
 
 interface GoalsFormProps {
-  onSubmit: (data: Goals) => Promise<void>;
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (data: GoalFormValues) => Promise<void>;
 }
 
 export default function CoachProfilePage() {
-  const [generalInfo, setGeneralInfo] = useState<GeneralInfo>({})
-  const [coachingInfo, setCoachingInfo] = useState<Partial<CoachProfile & RealtorProfile>>({})
+  const [generalInfo, setGeneralInfo] = useState<DbUser | null>(null)
+  const [coachingInfo, setCoachingInfo] = useState<CoachProfileFormData | null>(null)
   const [listings, setListings] = useState<ListingsState>({
     activeListings: [],
-    successfulTransactions: []
+    successfulTransactions: [],
   })
   const [marketing, setMarketing] = useState<MarketingInfo | null>(null)
-  const [goals, setGoals] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const { toast } = useToast()
 
-  useEffect(() => {
-    async function loadProfile() {
-      try {
-        console.log('[DEBUG] Starting to load profile data...');
-        setIsLoading(true)
-        const [generalResult, coachResult, marketingResult] = await Promise.all([
-          fetchUserProfile(),
-          fetchCoachProfile(),
-          fetchMarketingInfo()
-        ]);
-
-        console.log('[DEBUG] General profile result:', JSON.stringify(generalResult, null, 2));
-        console.log('[DEBUG] Coach profile result:', JSON.stringify(coachResult, null, 2));
-        console.log('[DEBUG] Marketing result:', JSON.stringify(marketingResult, null, 2));
-
-        if (generalResult.data) {
-          console.log('[DEBUG] Setting general info:', JSON.stringify(generalResult.data, null, 2));
-          setGeneralInfo(generalResult.data);
-        }
-
-        if (coachResult.data) {
-          console.log('[DEBUG] Setting coach profile:', JSON.stringify(coachResult.data, null, 2));
-          setCoachingInfo(coachResult.data);
-        }
-
-        if (marketingResult.data) {
-          console.log('[DEBUG] Setting marketing info:', JSON.stringify(marketingResult.data, null, 2));
-          setMarketing(marketingResult.data);
-        }
-
-        const hasError = generalResult.error || coachResult.error || marketingResult.error;
-        if (hasError) {
-          console.error('[DEBUG] Failed to load profile data:', { generalResult, coachResult, marketingResult });
-          toast({
-            title: "Error",
-            description: "Failed to load profile data. Please try again.",
-            variant: "destructive",
-          });
-        }
-
-        // Load listings data
-        try {
-          const result = await fetchListings({
-            limit: 100,
-            offset: 0,
-            sortBy: 'createdAt',
-            sortOrder: 'desc'
-          });
-          
-          if (result.error) {
-            throw new Error(result.error.message);
-          }
-
-          if (result.data) {
-            // Split listings into active and successful transactions
-            const activeListings = (result.data.listings as ListingWithRealtor[]).filter(listing => 
-              listing.status !== ListingStatusEnum.enum.SOLD && 
-              listing.status !== ListingStatusEnum.enum.WITHDRAWN && 
-              listing.status !== ListingStatusEnum.enum.EXPIRED
-            ).map(listing => ({
-              ...listing,
-              realtorProfile: {
-                ...listing.realtorProfile,
-                certifications: [],
-                languages: [],
-                createdAt: listing.createdAt,
-                updatedAt: listing.updatedAt
-              }
-            }));
-            const successfulTransactions = (result.data.listings as ListingWithRealtor[]).filter(listing => 
-              listing.status === ListingStatusEnum.enum.SOLD
-            ).map(listing => ({
-              ...listing,
-              realtorProfile: {
-                ...listing.realtorProfile,
-                certifications: [],
-                languages: [],
-                createdAt: listing.createdAt,
-                updatedAt: listing.updatedAt
-              }
-            }));
-            
-            setListings({
-              activeListings,
-              successfulTransactions
-            });
-          }
-        } catch (error) {
-          console.error('[LISTINGS_LOAD_ERROR]', error);
-          toast({
-            title: "Error",
-            description: "Failed to load listings. Please refresh the page.",
-            variant: "destructive",
-          });
-        }
-
-      } catch (error) {
-        console.error('[DEBUG] Error loading profile:', error);
-        toast({
-          title: "Error",
-          description: "An unexpected error occurred. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-        console.log('[DEBUG] Profile loading complete. States:', {
-          generalInfo: JSON.stringify(generalInfo, null, 2),
-          coachingInfo: JSON.stringify(coachingInfo, null, 2),
-          marketing: JSON.stringify(marketing, null, 2),
-          isLoading
-        });
-      }
-    }
-
-    loadProfile();
-  }, [toast]);
-
-  const handleProfileSubmit = async (data: GeneralFormData) => {
+  const loadProfile = async () => {
+    setIsLoading(true)
     try {
-      setIsSubmitting(true);
-      const result = await updateGeneralProfile(data);
-      if (result.error) {
-        throw new Error(result.error.message || 'Failed to update profile');
+      // Load user profile
+      const userResult = await fetchUserProfile({})
+      if (userResult.error) {
+        throw new Error(userResult.error.message)
       }
-      if (result.data) {
-        setGeneralInfo(data);
-        toast({
-          title: "Success",
-          description: "Profile updated successfully",
-        });
+
+      // Load coach profile
+      const coachResult = await fetchCoachProfile()
+      if (coachResult.error) {
+        throw new Error(coachResult.error.message)
+      }
+
+      // Load listings if available
+      if (coachResult.data?._rawRealtorProfile?.ulid) {
+        const listingsResult = await fetchListings({
+          limit: 100,
+          offset: 0,
+          sortBy: "createdAt",
+          sortOrder: "desc"
+        })
+        if (listingsResult.data) {
+          const activeListings = listingsResult.data.listings
+            .filter((listing: any) => {
+              const status = listing.status?.toUpperCase()
+              return status === 'ACTIVE' || status === 'PENDING'
+            })
+            .map((listing: any) => {
+              const baseFields = {
+                realtorProfile: coachResult.data!._rawRealtorProfile,
+                realtorProfileUlid: coachResult.data!._rawRealtorProfile!.ulid,
+                userUlid: userResult.data!.ulid,
+                appliances: listing.appliances?.map(String) || null,
+                status: listing.status?.toUpperCase() === 'ACTIVE' ? 'ACTIVE' :
+                       listing.status?.toUpperCase() === 'PENDING' ? 'PENDING' :
+                       listing.status?.toUpperCase() === 'CLOSED' ? 'SOLD' :
+                       listing.status?.toUpperCase() === 'WITHDRAWN' ? 'WITHDRAWN' :
+                       listing.status?.toUpperCase() === 'EXPIRED' ? 'EXPIRED' : 'DRAFT',
+                closeDate: listing.closeDate ? new Date(listing.closeDate).toISOString() : null,
+                listingKey: listing.listingKey || '',
+                mlsSource: listing.mlsSource || null,
+                source: listing.source || 'MANUAL'
+              }
+              return { ...listing, ...baseFields }
+            }) || []
+
+          const successfulTransactions = listingsResult.data.listings
+            .filter((listing: any) => {
+              const status = listing.status?.toUpperCase()
+              return status === 'CLOSED' || status === 'SOLD'
+            })
+            .map((listing: any) => {
+              const baseFields = {
+                realtorProfile: coachResult.data!._rawRealtorProfile,
+                realtorProfileUlid: coachResult.data!._rawRealtorProfile!.ulid,
+                userUlid: userResult.data!.ulid,
+                appliances: listing.appliances?.map(String) || null,
+                status: 'SOLD',
+                closeDate: listing.closeDate ? new Date(listing.closeDate).toISOString() : null,
+                listingKey: listing.listingKey || '',
+                mlsSource: listing.mlsSource || null,
+                source: listing.source || 'MANUAL'
+              }
+              return { ...listing, ...baseFields }
+            }) || []
+
+          setListings({
+            activeListings,
+            successfulTransactions,
+          })
+        }
+      }
+
+      if (userResult.data) {
+        setGeneralInfo({
+          bio: userResult.data.bio ?? null,
+          capabilities: userResult.data.capabilities ?? null,
+          createdAt: new Date(userResult.data.createdAt).toISOString(),
+          displayName: userResult.data.displayName ?? null,
+          email: userResult.data.email,
+          firstName: userResult.data.firstName ?? null,
+          isCoach: userResult.data.isCoach,
+          isMentee: userResult.data.isMentee,
+          lastName: userResult.data.lastName ?? null,
+          phoneNumber: userResult.data.phoneNumber ?? null,
+          profileImageUrl: userResult.data.profileImageUrl ?? null,
+          status: userResult.data.status,
+          stripeConnectAccountId: userResult.data.stripeConnectAccountId ?? null,
+          stripeCustomerId: userResult.data.stripeCustomerId ?? null,
+          systemRole: userResult.data.systemRole,
+          ulid: userResult.data.ulid,
+          updatedAt: new Date(userResult.data.updatedAt).toISOString(),
+          userId: userResult.data.userId
+        })
+      }
+      if (coachResult.data) {
+        setCoachingInfo({
+          specialties: coachResult.data.specialties || [],
+          yearsCoaching: coachResult.data.yearsCoaching || 0,
+          hourlyRate: coachResult.data.hourlyRate || 0,
+          defaultDuration: coachResult.data.defaultDuration || 60,
+          minimumDuration: coachResult.data.minimumDuration || 30,
+          maximumDuration: coachResult.data.maximumDuration || 120,
+          allowCustomDuration: coachResult.data.allowCustomDuration || false,
+          calendlyUrl: coachResult.data.calendlyUrl || "",
+          eventTypeUrl: coachResult.data.eventTypeUrl || ""
+        })
+      }
+
+      if (coachResult.data?._rawRealtorProfile?.marketingInfo) {
+        const marketingInfo: MarketingInfo = {
+          testimonials: coachResult.data._rawRealtorProfile.marketingInfo.testimonials?.map((t: { author: string; content: string }) => ({
+            author: t.author ?? '',
+            content: t.content ?? ''
+          })) ?? [],
+          slogan: coachResult.data._rawRealtorProfile.marketingInfo.slogan ?? undefined,
+          websiteUrl: coachResult.data._rawRealtorProfile.marketingInfo.websiteUrl ?? undefined,
+          facebookUrl: coachResult.data._rawRealtorProfile.marketingInfo.facebookUrl ?? undefined,
+          instagramUrl: coachResult.data._rawRealtorProfile.marketingInfo.instagramUrl ?? undefined,
+          linkedinUrl: coachResult.data._rawRealtorProfile.marketingInfo.linkedinUrl ?? undefined,
+          youtubeUrl: coachResult.data._rawRealtorProfile.marketingInfo.youtubeUrl ?? undefined,
+          marketingAreas: coachResult.data._rawRealtorProfile.marketingAreas || []
+        }
+
+        const profile = coachResult.data._rawRealtorProfile;
+        const activeListings = (profile.listings || [])
+          .filter((l: { status: string }) => l.status === 'ACTIVE' || l.status === 'PENDING')
+          .map((listing: any) => {
+            const { ulid, realtorProfileUlid, ...rest } = listing;
+            return {
+              ulid,
+              realtorProfileUlid,
+              listingUlid: ulid,
+              ...rest,
+              realtorProfile: {
+                ulid: profile.ulid,
+                userDbId: profile.userDbId,
+                bio: profile.bio,
+                yearsExperience: profile.yearsExperience,
+                certifications: profile.certifications,
+                languages: profile.languages,
+                createdAt: profile.createdAt,
+                updatedAt: profile.updatedAt
+              }
+            };
+          });
+
+        const successfulTransactions = (profile.listings || [])
+          .filter((l: { status: string }) => l.status === 'CLOSED' || l.status === 'SOLD')
+          .map((listing: any) => {
+            const { ulid, realtorProfileUlid, ...rest } = listing;
+            return {
+              ulid,
+              realtorProfileUlid,
+              listingUlid: ulid,
+              ...rest,
+              realtorProfile: {
+                ulid: profile.ulid,
+                userDbId: profile.userDbId,
+                bio: profile.bio,
+                yearsExperience: profile.yearsExperience,
+                certifications: profile.certifications,
+                languages: profile.languages,
+                createdAt: profile.createdAt,
+                updatedAt: profile.updatedAt
+              }
+            };
+          });
+
+        setMarketing(marketingInfo)
+        setListings({ activeListings, successfulTransactions })
       }
     } catch (error) {
-      console.error('[DEBUG] Error updating profile:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update profile. Please try again.",
-        variant: "destructive",
-      });
+      console.error('[LOAD_PROFILE_ERROR]', error)
+      toast.error('Failed to load profile data')
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false)
     }
-  };
+  }
 
-  const handleSubmit = async (formData: FormData, formType: string): Promise<void> => {
+  useEffect(() => {
+    loadProfile()
+  }, [])
+
+  const handleSubmit = async (formData: any, formType: string): Promise<void> => {
     try {
-      setIsSubmitting(true);
+      setIsSubmitting(true)
       
       switch (formType) {
         case "general": {
-          const generalData = formData as GeneralFormData;
-          const result = await updateGeneralProfile(generalData);
+          const result = await fetchUserProfile({})
           if (result.error) {
-            throw new Error(result.error.message || 'Failed to update profile');
+            throw new Error(result.error.message)
           }
-          if (result.data) {
-            setGeneralInfo(generalData);
-            toast({
-              title: "Success",
-              description: "Profile updated successfully",
-            });
-          }
-          break;
+          setGeneralInfo({
+            bio: result.data?.bio ?? null,
+            capabilities: result.data?.capabilities ?? null,
+            createdAt: new Date(result.data?.createdAt || new Date()).toISOString(),
+            displayName: result.data?.displayName ?? null,
+            email: result.data?.email ?? '',
+            firstName: result.data?.firstName ?? null,
+            isCoach: result.data?.isCoach ?? false,
+            isMentee: result.data?.isMentee ?? false,
+            lastName: result.data?.lastName ?? null,
+            phoneNumber: result.data?.phoneNumber ?? null,
+            profileImageUrl: result.data?.profileImageUrl ?? null,
+            status: result.data?.status ?? 'ACTIVE',
+            stripeConnectAccountId: result.data?.stripeConnectAccountId ?? null,
+            stripeCustomerId: result.data?.stripeCustomerId ?? null,
+            systemRole: result.data?.systemRole ?? 'USER',
+            ulid: result.data?.ulid ?? '',
+            updatedAt: new Date(result.data?.updatedAt || new Date()).toISOString(),
+            userId: result.data?.userId ?? ''
+          })
+          toast.success('Profile updated successfully')
+          break
         }
         
         case "coach": {
-          const coachData = formData as CoachProfileFormData;
-          await updateCoachProfile(coachData);
-          setCoachingInfo(coachData);
-          toast({
-            title: "Success",
-            description: "Coach profile updated successfully",
-          });
-          break;
+          const result = await updateCoachProfile(formData as CoachProfileFormData)
+          if (result.error) {
+            throw new Error(result.error.message)
+          }
+          setCoachingInfo(formData as CoachProfileFormData)
+          toast.success('Coach profile updated successfully')
+          break
         }
         
         case "marketing": {
-          const marketingData = formData as MarketingInfo;
-          const result = await updateMarketingInfo(marketingData);
+          const { testimonials, ...rest } = formData as any;
+          const marketingData = {
+            ...rest,
+            testimonials: (testimonials || []).map((t: { author: string; content: string }) => ({
+              author: t.author || '',
+              content: t.content || ''
+            })),
+            slogan: rest.slogan === null ? undefined : rest.slogan,
+            websiteUrl: rest.websiteUrl === null ? undefined : rest.websiteUrl,
+            facebookUrl: rest.facebookUrl === null ? undefined : rest.facebookUrl,
+            instagramUrl: rest.instagramUrl === null ? undefined : rest.instagramUrl,
+            linkedinUrl: rest.linkedinUrl === null ? undefined : rest.linkedinUrl,
+            youtubeUrl: rest.youtubeUrl === null ? undefined : rest.youtubeUrl,
+            updatedAt: new Date().toISOString()
+          }
+          const result = await updateMarketingInfo(marketingData)
           if (result.error) {
-            throw new Error(result.error.message || 'Failed to update marketing info');
+            throw new Error(result.error.message)
           }
-          if (result.data) {
-            setMarketing(marketingData);
-            toast({
-              title: "Success",
-              description: "Marketing information updated successfully",
-            });
-          }
-          break;
+          setMarketing(marketingData)
+          toast.success('Marketing information updated successfully')
+          break
         }
         
         case "goals": {
-          const goalsData = formData as GoalFormValues;
-          await handleSubmit(goalsData, "goals");
-          toast({
-            title: "Success",
-            description: "Goals updated successfully",
-          });
-          break;
+          const result = await createGoal(formData as GoalFormValues)
+          if (result.error) {
+            throw new Error(result.error.message)
+          }
+          toast.success('Goal created successfully')
+          break
+        }
+        case "listing": {
+          const { listingUlid, ...listingData } = formData;
+          const mappedStatus = (listingData.status?.toUpperCase() === 'ACTIVE' ? 'ACTIVE' :
+                              listingData.status?.toUpperCase() === 'PENDING' ? 'PENDING' :
+                              listingData.status?.toUpperCase() === 'SOLD' ? 'SOLD' :
+                              listingData.status?.toUpperCase() === 'WITHDRAWN' ? 'WITHDRAWN' :
+                              listingData.status?.toUpperCase() === 'EXPIRED' ? 'EXPIRED' : 'DRAFT') as ListingStatus;
+          
+          const updateData: UpdateListing = {
+            listingUlid,
+            status: mappedStatus,
+            closeDate: listingData.closeDate ? new Date(listingData.closeDate).toISOString() : null,
+            listPrice: listingData.listPrice,
+            streetNumber: listingData.streetNumber,
+            streetName: listingData.streetName,
+            city: listingData.city,
+            stateOrProvince: listingData.stateOrProvince,
+            postalCode: listingData.postalCode,
+            propertyType: listingData.propertyType,
+            propertySubType: listingData.propertySubType,
+            listingKey: listingData.listingKey,
+            mlsSource: listingData.mlsSource,
+            mlsId: listingData.mlsId,
+            closePrice: listingData.closePrice
+          }
+          
+          const result = await updateListing(updateData)
+          if (result.error) {
+            throw new Error(result.error.message)
+          }
+          setListings(prevListings => ({
+            ...prevListings,
+            activeListings: prevListings.activeListings.map((l: ListingWithRealtor) => 
+              l.ulid === listingUlid ? { ...l, ...updateData } as ListingWithRealtor : l
+            )
+          }))
+          toast.success('Listing updated successfully')
+          break
         }
       }
     } catch (error) {
-      console.error('[DEBUG] Error updating profile:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update profile. Please try again.",
-        variant: "destructive",
-      });
+      console.error('[SUBMIT_ERROR]', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to update profile')
     } finally {
-      setIsSubmitting(false);
+      setIsSubmitting(false)
     }
-  };
-
-  const handleUpdate = async (ulid: string, data: UpdateListing): Promise<{ data?: ListingWithRealtor | null; error?: string | null } | void> => {
-    try {
-      const result = await updateListing({
-        listingUlid: ulid,
-        ...data
-      })
-      
-      if (result.error) {
-        toast({
-          title: "Error",
-          description: result.error.toString(),
-          variant: "destructive",
-        })
-        return { error: result.error.toString() }
-      }
-
-      toast({
-        title: "Success",
-        description: "Listing updated successfully",
-      })
-
-      return { data: result.data as ListingWithRealtor }
-    } catch (error) {
-      console.error("[HANDLE_UPDATE_ERROR]", error)
-      toast({
-        title: "Error",
-        description: "Failed to update listing",
-        variant: "destructive",
-      })
-      return { error: "Failed to update listing" }
-    }
-  };
-
-  if (isLoading) {
-    return <div>Loading...</div>;
   }
 
-  console.log('[DEBUG] Rendering profile page with states:', {
-    generalInfo: JSON.stringify(generalInfo, null, 2),
-    coachingInfo: JSON.stringify(coachingInfo, null, 2),
-    marketing: JSON.stringify(marketing, null, 2),
-    isLoading
-  });
+  const handleListingUpdate = async (listingUlid: string, data: CreateListing) => {
+    try {
+      // First create the update data without listingUlid
+      const updateData: UpdateListing = {
+        listingUlid,
+        status: data.status?.toUpperCase() as ListingStatus,
+        closeDate: data.closeDate ? new Date(data.closeDate).toISOString() : null,
+        listPrice: data.listPrice,
+        streetNumber: data.streetNumber,
+        streetName: data.streetName,
+        city: data.city,
+        stateOrProvince: data.stateOrProvince,
+        postalCode: data.postalCode,
+        propertyType: data.propertyType,
+        propertySubType: data.propertySubType,
+        listingKey: data.listingKey,
+        mlsSource: data.mlsSource,
+        mlsId: data.mlsId,
+        closePrice: data.closePrice
+      }
+      
+      // Then update listing
+      const result = await updateListing(updateData)
+      if (result.error) {
+        throw new Error(result.error.message)
+      }
+      toast.success('Listing updated successfully')
+      await loadProfile() // Reload listings
+    } catch (error) {
+      console.error('[UPDATE_LISTING_ERROR]', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to update listing')
+    }
+  }
+
+  const handleGoalSubmit = async (data: GoalFormValues) => {
+    try {
+      const result = await createGoal(data)
+      if (result.error) {
+        throw new Error(result.error.message)
+      }
+      toast.success('Goal created successfully')
+    } catch (error) {
+      console.error('[CREATE_GOAL_ERROR]', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to create goal')
+    }
+  }
+
+  if (isLoading) {
+    return <div>Loading...</div>
+  }
 
   return (
     <div className="container mx-auto py-10">
       <div className="space-y-6">
-        <Tabs defaultValue="general" className="space-y-4" onValueChange={(value) => {
-          console.log('[DEBUG] Tab changed to:', value);
-          console.log('[DEBUG] Current coaching info:', JSON.stringify(coachingInfo, null, 2));
-        }}>
+        <Tabs defaultValue="general" className="space-y-4">
           <TabsList>
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="coaching">Coaching</TabsTrigger>
@@ -359,7 +439,7 @@ export default function CoachProfilePage() {
               </CardHeader>
               <CardContent>
                 <GeneralForm
-                  initialData={generalInfo}
+                  initialData={generalInfo || undefined}
                   onSubmit={(data) => handleSubmit(data, "general")}
                   isSubmitting={isSubmitting}
                 />
@@ -375,23 +455,8 @@ export default function CoachProfilePage() {
               <CardContent>
                 <CoachProfileForm
                   initialData={{
-                    coachProfile: {
-                      specialties: coachingInfo?.specialties || [],
-                      yearsCoaching: coachingInfo?.yearsCoaching || 0,
-                      hourlyRate: coachingInfo?.hourlyRate || 0,
-                      defaultDuration: coachingInfo?.defaultDuration || 60,
-                      minimumDuration: coachingInfo?.minimumDuration || 30,
-                      maximumDuration: coachingInfo?.maximumDuration || 120,
-                      allowCustomDuration: coachingInfo?.allowCustomDuration || false,
-                      calendlyUrl: coachingInfo?.calendlyUrl || "",
-                      eventTypeUrl: coachingInfo?.eventTypeUrl || "",
-                    },
-                    realtorProfile: {
-                      languages: coachingInfo?.languages || [],
-                      bio: coachingInfo?.bio || "",
-                      certifications: coachingInfo?.certifications || [],
-                      professionalRecognitions: coachingInfo?.professionalRecognitions || []
-                    }
+                    coachProfile: coachingInfo || undefined,
+                    realtorProfile: marketing || undefined
                   }}
                   onSubmit={(data) => handleSubmit(data, "coach")}
                   isSubmitting={isSubmitting}
@@ -402,31 +467,20 @@ export default function CoachProfilePage() {
 
           <TabsContent value="listings">
             <ListingsForm
-              onSubmit={async (data: CreateListing) => {
+              onSubmit={async (data) => {
                 try {
-                  const result = await createListing(data);
+                  const result = await createListing(data)
                   if (result.error) {
-                    toast({
-                      title: "Error",
-                      description: result.error.message,
-                      variant: "destructive",
-                    });
-                  } else {
-                    toast({
-                      title: "Success",
-                      description: "Listing created successfully",
-                    });
+                    throw new Error(result.error.message)
                   }
+                  toast.success('Listing created successfully')
+                  await loadProfile() // Reload listings
                 } catch (error) {
-                  console.error('[LISTING_CREATE_ERROR]', error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to create listing",
-                    variant: "destructive",
-                  });
+                  console.error('[CREATE_LISTING_ERROR]', error)
+                  toast.error(error instanceof Error ? error.message : 'Failed to create listing')
                 }
               }}
-              onUpdate={handleUpdate}
+              onUpdate={handleListingUpdate}
               className="w-full"
               activeListings={listings.activeListings}
               successfulTransactions={listings.successfulTransactions}
@@ -440,7 +494,11 @@ export default function CoachProfilePage() {
                 <CardTitle>Marketing Information</CardTitle>
               </CardHeader>
               <CardContent>
-                <MarketingInformation initialData={marketing || undefined} />
+                <MarketingInformation
+                  initialData={marketing || undefined}
+                  onSubmit={(data) => handleSubmit(data, "marketing")}
+                  isSubmitting={isSubmitting}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -452,9 +510,9 @@ export default function CoachProfilePage() {
               </CardHeader>
               <CardContent>
                 <GoalsForm
-                  onSubmit={async (data: GoalFormValues) => {
-                    await handleSubmit(data, "goals");
-                  }}
+                  open={true}
+                  onClose={() => {}}
+                  onSubmit={handleGoalSubmit}
                 />
               </CardContent>
             </Card>
