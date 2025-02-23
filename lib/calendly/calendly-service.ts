@@ -15,6 +15,7 @@ import type {
 import { CalendlySessionType } from '@/utils/types/calendly'
 import { formatEventDateTime, formatEventType } from './calendly-utils'
 import { env } from '@/lib/env'
+import { generateUlid } from '@/utils/ulid'
 
 interface TokenResponse {
   access_token: string
@@ -25,8 +26,8 @@ interface TokenResponse {
 export class CalendlyService {
   private baseUrl = 'https://api.calendly.com/v2'
   private supabase: SupabaseClient = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
+    env.SUPABASE_URL,
+    env.SUPABASE_SERVICE_KEY,
     {
       cookies: {
         get(name: string) {
@@ -35,26 +36,29 @@ export class CalendlyService {
       },
     }
   )
-  private userId: string | null = null
+  private userUlid: string | null = null
   private readonly clientId: string
   private readonly clientSecret: string
 
-  constructor() {
+  constructor(userUlid?: string) {
     this.clientId = env.CALENDLY_CLIENT_ID
     this.clientSecret = env.CALENDLY_CLIENT_SECRET
+    if (userUlid) {
+      this.userUlid = userUlid
+    }
   }
 
-  async init() {
-    const { userId } = await auth()
-    if (!userId) {
-      throw new Error('Not authenticated')
+  async init(userUlid?: string) {
+    if (userUlid) {
+      this.userUlid = userUlid
+    } else if (!this.userUlid) {
+      throw new Error('User ULID is required for initialization')
     }
-    this.userId = userId
 
     const cookieStore = await cookies()
     this.supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
+      env.SUPABASE_URL,
+      env.SUPABASE_SERVICE_KEY,
       {
         cookies: {
           get(name: string) {
@@ -66,26 +70,15 @@ export class CalendlyService {
   }
 
   private async getTokens() {
-    if (!this.userId) {
+    if (!this.userUlid) {
       throw new Error('Service not initialized')
     }
 
-    // First get the user's database ID
-    const { data: user, error: userError } = await this.supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', this.userId)
-      .single()
-
-    if (userError || !user?.ulid) {
-      throw new Error('User not found')
-    }
-
-    // Then get the Calendly integration using the user's database ID
+    // Get the Calendly integration using the user's ULID
     const { data: integration, error: integrationError } = await this.supabase
       .from('CalendlyIntegration')
       .select('accessToken, refreshToken, expiresAt')
-      .eq('userUlid', user.ulid)
+      .eq('userUlid', this.userUlid)
       .single()
 
     if (integrationError || !integration?.accessToken) {
@@ -103,17 +96,6 @@ export class CalendlyService {
     const tokens = await this.getTokens()
     const now = new Date()
     const expiresAt = tokens.expiresAt ? new Date(tokens.expiresAt) : null
-    
-    // Get the user's database ID
-    const { data: user } = await this.supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', this.userId)
-      .single()
-
-    if (!user?.ulid) {
-      throw new Error('User not found')
-    }
 
     // Refresh if token is expired or will expire in the next 5 minutes
     if (!expiresAt || expiresAt.getTime() - now.getTime() <= 5 * 60 * 1000) {
@@ -141,7 +123,7 @@ export class CalendlyService {
 
         const data = await response.json()
         
-        // Update tokens in database using the user's database ID
+        // Update tokens in database using the user's ULID
         const { error: updateError } = await this.supabase
           .from('CalendlyIntegration')
           .update({
@@ -150,7 +132,7 @@ export class CalendlyService {
             expiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
             updatedAt: new Date().toISOString()
           })
-          .eq('userUlid', user.ulid)
+          .eq('userUlid', this.userUlid)
 
         if (updateError) {
           console.error('[CALENDLY_DB_ERROR] Failed to update tokens:', updateError)
@@ -166,12 +148,12 @@ export class CalendlyService {
           const { error: deleteError } = await this.supabase
             .from('CalendlyIntegration')
             .delete()
-            .eq('userUlid', user.ulid)
+            .eq('userUlid', this.userUlid)
 
           if (deleteError) {
             console.error('[CALENDLY_CLEANUP_ERROR] Failed to delete invalid integration:', deleteError)
           } else {
-            console.log('[CALENDLY_CLEANUP] Removed invalid integration for userUlid:', user.ulid)
+            console.log('[CALENDLY_CLEANUP] Removed invalid integration for userUlid:', this.userUlid)
           }
         } catch (cleanupError) {
           console.error('[CALENDLY_CLEANUP_ERROR]', cleanupError)
@@ -203,26 +185,17 @@ export class CalendlyService {
         // If unauthorized and haven't retried yet, force token refresh and retry once
         if (response.status === 401 && retryCount === 0) {
           console.log('[CALENDLY_API] Unauthorized, forcing token refresh and retrying...')
-          // Force token refresh by passing an expired date
-          const tokens = await this.getTokens()
-          const { data: user } = await this.supabase
-            .from('User')
-            .select('ulid')
-            .eq('userId', this.userId)
-            .single()
+          // Force token refresh by setting expired date
+          await this.supabase
+            .from('CalendlyIntegration')
+            .update({
+              expiresAt: new Date(0).toISOString(),
+              updatedAt: new Date().toISOString()
+            })
+            .eq('userUlid', this.userUlid)
 
-          if (user?.ulid) {
-            await this.supabase
-              .from('CalendlyIntegration')
-              .update({
-                expiresAt: new Date(0).toISOString(),
-                updatedAt: new Date().toISOString()
-              })
-              .eq('userUlid', user.ulid)
-
-            // Retry the request
-            return this.fetchCalendly<T>(endpoint, options, retryCount + 1)
-          }
+          // Retry the request
+          return this.fetchCalendly<T>(endpoint, options, retryCount + 1)
         }
 
         throw new Error(`Calendly API error: ${errorData.message || response.statusText}`)
@@ -239,14 +212,8 @@ export class CalendlyService {
     try {
       await this.init()
       
-      // Get user's database ID first
-      const { data: user } = await this.supabase
-        .from('User')
-        .select('ulid')
-        .eq('userId', this.userId)
-        .single()
-
-      if (!user?.ulid) {
+      // We already have the userUlid from initialization
+      if (!this.userUlid) {
         return { connected: false }
       }
 
@@ -294,7 +261,7 @@ export class CalendlyService {
 
   async getEventTypes(accessToken?: string, count?: number, pageToken?: string): Promise<CalendlyEventType[]> {
     // If not initialized and no access token provided, throw error
-    if (!this.userId && !accessToken) {
+    if (!this.userUlid && !accessToken) {
       throw new Error('Service not initialized')
     }
 
@@ -371,6 +338,7 @@ export class CalendlyService {
     await this.supabase
       .from('CalendlyWebhookEvent')
       .insert({
+        ulid: generateUlid(),
         eventType: event.event,
         payload: event.payload,
         processed: false,
@@ -389,51 +357,39 @@ export class CalendlyService {
   }
 
   async disconnectCalendly(): Promise<void> {
-    if (!this.userId) {
+    if (!this.userUlid) {
       throw new Error('Service not initialized')
     }
 
     try {
-      // Get user's database ID and tokens
-      const { data: user, error: userError } = await this.supabase
+      // Get user's integration data
+      const { data: integration, error: integrationError } = await this.supabase
         .from('CalendlyIntegration')
         .select('accessToken, refreshToken')
-        .eq('userUlid', (
-          await this.supabase
-            .from('User')
-            .select('ulid')
-            .eq('userId', this.userId)
-            .single()
-        ).data?.ulid)
+        .eq('userUlid', this.userUlid)
         .single()
 
-      if (userError || !user) {
+      if (integrationError || !integration) {
         throw new Error('Failed to fetch user integration data')
       }
 
       // Revoke both tokens
       await Promise.all([
-        revokeCalendlyToken(user.accessToken),
-        revokeCalendlyToken(user.refreshToken)
+        revokeCalendlyToken(integration.accessToken),
+        revokeCalendlyToken(integration.refreshToken)
       ])
 
       // Delete the integration record
       const { error: deleteError } = await this.supabase
         .from('CalendlyIntegration')
         .delete()
-        .eq('userUlid', (
-          await this.supabase
-            .from('User')
-            .select('ulid')
-            .eq('userId', this.userId)
-            .single()
-        ).data?.ulid)
+        .eq('userUlid', this.userUlid)
 
       if (deleteError) {
         throw new Error('Failed to delete integration record')
       }
 
-      console.log('[CALENDLY_DISCONNECT] Successfully disconnected Calendly for user:', this.userId)
+      console.log('[CALENDLY_DISCONNECT] Successfully disconnected Calendly for user:', this.userUlid)
     } catch (error) {
       console.error('[CALENDLY_DISCONNECT_ERROR]', error)
       throw error
@@ -494,14 +450,14 @@ export class CalendlyService {
   }
 
   private async getUserUlid(): Promise<string> {
-    if (!this.userId) {
+    if (!this.userUlid) {
       throw new Error('Service not initialized')
     }
 
     const { data: user, error } = await this.supabase
       .from('User')
       .select('ulid')
-      .eq('userId', this.userId)
+      .eq('userId', this.userUlid)
       .single()
 
     if (error || !user?.ulid) {
@@ -555,7 +511,7 @@ export class CalendlyService {
     timezone: string
     questions?: Record<string, string>
   }) {
-    if (!this.userId) {
+    if (!this.userUlid) {
       throw new Error('Service not initialized')
     }
 
@@ -688,8 +644,8 @@ export async function getValidCalendlyToken(userUlid: string): Promise<string> {
   try {
     const cookieStore = await cookies()
     const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
+      env.SUPABASE_URL,
+      env.SUPABASE_SERVICE_KEY,
       {
         cookies: {
           get(name: string) {
@@ -738,8 +694,8 @@ export async function refreshCalendlyToken(userUlid: string) {
     // Initialize Supabase client
     const cookieStore = await cookies()
     const supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
+      env.SUPABASE_URL,
+      env.SUPABASE_SERVICE_KEY,
       {
         cookies: {
           get(name: string) {
@@ -815,8 +771,8 @@ export async function refreshCalendlyToken(userUlid: string) {
     try {
       const cookieStore = await cookies()
       const supabase = createServerClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_KEY!,
+        env.SUPABASE_URL,
+        env.SUPABASE_SERVICE_KEY,
         {
           cookies: {
             get(name: string) {

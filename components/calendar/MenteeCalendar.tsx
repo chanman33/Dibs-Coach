@@ -2,6 +2,10 @@ import { useState } from 'react'
 import { Calendar, momentLocalizer, View, ToolbarProps } from 'react-big-calendar'
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
+
+// Custom calendar styles for better responsiveness
+import './calendar.css'
+
 import { Loader2, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -76,7 +80,7 @@ const NoSessionsPrompt = () => {
 const NoUpcomingSessionsPrompt = ({ lastCoach }: { lastCoach?: LastCoachInfo }) => {
   if (!lastCoach || !lastCoach.firstName || !lastCoach.lastName) {
     return (
-      <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-muted/30 rounded-lg mt-4">
+      <div className="flex flex-col items-center justify-center text-center space-y-3">
         <h3 className="text-lg font-semibold">No Upcoming Sessions</h3>
         <p className="text-muted-foreground max-w-md">
           Keep the momentum going! Book your next coaching session to stay on track with your goals.
@@ -91,7 +95,7 @@ const NoUpcomingSessionsPrompt = ({ lastCoach }: { lastCoach?: LastCoachInfo }) 
   }
 
   return (
-    <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 bg-muted/30 rounded-lg mt-4">
+    <div className="flex flex-col items-center justify-center text-center space-y-3">
       <h3 className="text-lg font-semibold">No Upcoming Sessions</h3>
       <p className="text-muted-foreground max-w-md">
         Would you like to schedule another session with {lastCoach.firstName} {lastCoach.lastName}?
@@ -178,18 +182,18 @@ export function MenteeCalendar({
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <h1 className="text-2xl font-bold">{title}</h1>
-        <div className="grid grid-cols-[1fr,300px] gap-4">
-          <Card className="p-4">
-            <div className="h-[600px] flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
+        <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4">
+          <Card className="p-2 sm:p-4">
+            <div className="h-[500px] sm:h-[600px] flex items-center justify-center">
+              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin" />
             </div>
           </Card>
-          <Card className="p-4">
-            <h2 className="text-lg font-semibold mb-4">All Sessions</h2>
-            <div className="h-[600px] flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin" />
+          <Card className="p-2 sm:p-4">
+            <h2 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">All Sessions</h2>
+            <div className="h-[calc(500px-3rem)] sm:h-[calc(600px-4rem)] flex items-center justify-center">
+              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin" />
             </div>
           </Card>
         </div>
@@ -242,44 +246,55 @@ export function MenteeCalendar({
   )
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">{title}</h1>
+    <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
+      <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr,300px] gap-4">
-        <Card className="p-2 sm:p-4">
-          <div className="h-[600px] overflow-x-auto">
-            <Calendar
-              localizer={localizer}
-              events={events}
-              startAccessor="start"
-              endAccessor="end"
-              view={view}
-              date={date}
-              onView={(newView) => setView(newView)}
-              onNavigate={(newDate) => setDate(newDate)}
-              views={['month', 'week', 'day']}
-              step={30}
-              timeslots={1}
-              min={new Date(2020, 1, 1, 6, 30, 0)}
-              max={new Date(2020, 1, 1, 20, 0, 0)}
-              eventPropGetter={eventStyleGetter}
-              tooltipAccessor={null}
-              className="responsive-calendar"
-              components={{
-                toolbar: CustomToolbar,
-                event: EventComponent
-              }}
-            />
-          </div>
-          
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4">
+        <div className="space-y-4 min-w-0">
+          <Card className="p-2 sm:p-4 overflow-hidden">
+            <div className="h-[500px] sm:h-[600px] w-full overflow-hidden">
+              <div className="rbc-calendar-container w-full h-full">
+                <Calendar
+                  localizer={localizer}
+                  events={events}
+                  startAccessor="start"
+                  endAccessor="end"
+                  view={view}
+                  date={date}
+                  onView={setView}
+                  onNavigate={setDate}
+                  views={['month', 'week', 'day']}
+                  step={30}
+                  timeslots={1}
+                  min={new Date(2020, 1, 1, 6, 30, 0)}
+                  max={new Date(2020, 1, 1, 20, 0, 0)}
+                  eventPropGetter={eventStyleGetter}
+                  tooltipAccessor={null}
+                  components={{
+                    event: EventComponent,
+                    toolbar: CustomToolbar
+                  }}
+                  className="max-w-full overflow-hidden"
+                  style={{
+                    height: '100%',
+                    width: '100%',
+                    minWidth: 0
+                  }}
+                />
+              </div>
+            </div>
+          </Card>
+
           {sessions && sessions.length > 0 && upcomingSessions.length === 0 && (
-            <NoUpcomingSessionsPrompt lastCoach={lastCoach} />
+            <Card className="p-4 sm:p-6">
+              <NoUpcomingSessionsPrompt lastCoach={lastCoach} />
+            </Card>
           )}
-        </Card>
+        </div>
 
         <Card className="p-2 sm:p-4">
-          <h2 className="text-lg font-semibold mb-4">All Sessions</h2>
-          <div className="h-[calc(600px-4rem)] overflow-hidden">
+          <h2 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">All Sessions</h2>
+          <div className="h-[calc(500px-3rem)] sm:h-[calc(600px-4rem)] overflow-hidden">
             <ScrollArea>
               <VirtualizedList
                 items={paginatedSessions}

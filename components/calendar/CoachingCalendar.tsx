@@ -243,6 +243,39 @@ const SessionCard = ({ session, userRole }: { session: ExtendedSession; userRole
   )
 }
 
+// Add this component after the existing SessionCard component
+const NoSessionsPrompt = ({ userRole }: { userRole: 'coach' | 'mentee' }) => {
+  if (userRole === 'coach') {
+    return (
+      <div className="flex flex-col items-center justify-center text-center space-y-3 py-6">
+        <h3 className="text-base font-semibold text-muted-foreground">No Sessions Found</h3>
+        <p className="text-sm text-muted-foreground max-w-[250px]">
+          Booked sessions will display here. Make sure your Calendly is connected and coaching availability is up to date.
+        </p>
+        <Link href="/dashboard/coach/availability">
+          <Button variant="outline" size="sm" className="mt-2">
+            Manage Availability
+          </Button>
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col items-center justify-center text-center space-y-3 py-6">
+      <h3 className="text-base font-semibold text-muted-foreground">No Sessions Found</h3>
+      <p className="text-sm text-muted-foreground max-w-[250px]">
+        Your booked coaching sessions will appear here once you schedule them.
+      </p>
+      <Link href="/dashboard/mentee/browse-coaches">
+        <Button variant="outline" size="sm" className="mt-2">
+          Find a Coach
+        </Button>
+      </Link>
+    </div>
+  )
+}
+
 export function CoachingCalendar({
   sessions,
   busyTimes = [],
@@ -273,18 +306,18 @@ export function CoachingCalendar({
 
   if (isLoading) {
     return (
-      <div className="p-6 space-y-6">
-        <h1 className="text-2xl font-bold">{title}</h1>
-        <div className="grid grid-cols-[1fr,300px] gap-4">
-          <Card className="p-4">
-            <div className="h-[600px] flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
+        <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4">
+          <Card className="p-2 sm:p-4">
+            <div className="h-[500px] sm:h-[600px] flex items-center justify-center">
+              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin" />
             </div>
           </Card>
-          <Card className="p-4">
-            <h2 className="text-lg font-semibold mb-4">All Sessions</h2>
-            <div className="h-[600px] flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin" />
+          <Card className="p-2 sm:p-4">
+            <h2 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">All Sessions</h2>
+            <div className="h-[calc(500px-3rem)] sm:h-[calc(600px-4rem)] flex items-center justify-center">
+              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin" />
             </div>
           </Card>
         </div>
@@ -397,87 +430,104 @@ export function CoachingCalendar({
   )
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold">{title}</h1>
+    <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
+      <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr,300px] gap-4">
-        <Card className="p-2 sm:p-4">
-          <div className="h-[600px] overflow-x-auto">
-            <Calendar
-              localizer={localizer}
-              events={allEvents}
-              startAccessor="start"
-              endAccessor="end"
-              view={view}
-              date={date}
-              onView={(newView) => setView(newView)}
-              onNavigate={(newDate) => setDate(newDate)}
-              views={['month', 'week', 'day']}
-              step={30}
-              timeslots={1}
-              min={new Date(2020, 1, 1, 6, 30, 0)}
-              max={new Date(2020, 1, 1, 20, 0, 0)}
-              eventPropGetter={eventStyleGetter}
-              tooltipAccessor={null}
-              selectable={userRole === 'mentee'}
-              onSelectSlot={(slotInfo) => {
-                if (userRole === 'mentee') {
-                  console.log('Selected slot:', slotInfo)
-                }
-              }}
-              className="responsive-calendar"
-              components={{
-                toolbar: CustomToolbar,
-                event: EventComponent
-              }}
-            />
-          </div>
-        </Card>
-
-        <Card className="p-2 sm:p-4">
-          <h2 className="text-lg font-semibold mb-4">All Sessions</h2>
-          <ScrollArea className="h-[calc(600px-4rem)]">
-            <VirtualizedList
-              items={paginatedSessions}
-              height={500}
-              itemHeight={80}
-              renderItem={(session) => (
-                <div key={session.id}>
-                  <SessionCard session={session} userRole={userRole} />
-                </div>
-              )}
-            />
-            
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center gap-2 mt-4 pb-4">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                >
-                  Previous
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Page {page} of {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                >
-                  Next
-                </Button>
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4">
+        <div className="space-y-4 min-w-0">
+          <Card className="p-2 sm:p-4 overflow-hidden">
+            <div className="h-[500px] sm:h-[600px] w-full overflow-hidden">
+              <div className="rbc-calendar-container w-full h-full">
+                <Calendar
+                  localizer={localizer}
+                  events={allEvents}
+                  startAccessor="start"
+                  endAccessor="end"
+                  view={view}
+                  date={date}
+                  onView={setView}
+                  onNavigate={setDate}
+                  views={['month', 'week', 'day']}
+                  step={30}
+                  timeslots={1}
+                  min={new Date(2020, 1, 1, 6, 30, 0)}
+                  max={new Date(2020, 1, 1, 20, 0, 0)}
+                  eventPropGetter={eventStyleGetter}
+                  tooltipAccessor={null}
+                  selectable={userRole === 'mentee'}
+                  onSelectSlot={(slotInfo) => {
+                    if (userRole === 'mentee') {
+                      console.log('Selected slot:', slotInfo)
+                    }
+                  }}
+                  components={{
+                    toolbar: CustomToolbar,
+                    event: EventComponent
+                  }}
+                  className="max-w-full overflow-hidden"
+                  style={{
+                    height: '100%',
+                    width: '100%',
+                    minWidth: 0
+                  }}
+                />
               </div>
-            )}
-          </ScrollArea>
+            </div>
+          </Card>
+        </div>
+
+        <Card className="p-2 sm:p-4">
+          <h2 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">All Sessions</h2>
+          <div className="h-[calc(500px-3rem)] sm:h-[calc(600px-4rem)] overflow-hidden">
+            <ScrollArea>
+              {paginatedSessions.length > 0 ? (
+                <>
+                  <VirtualizedList
+                    items={paginatedSessions}
+                    height={500}
+                    itemHeight={80}
+                    renderItem={(session) => (
+                      <div key={session.id}>
+                        <SessionCard session={session} userRole={userRole} />
+                      </div>
+                    )}
+                  />
+                  
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="flex justify-center items-center gap-2 mt-4 pb-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        Page {page} of {totalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <NoSessionsPrompt userRole={userRole} />
+              )}
+            </ScrollArea>
+          </div>
         </Card>
       </div>
 
       {(showCalendlyButton || userRole === 'coach') && (
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex flex-wrap gap-2">
           {showCalendlyButton && (
             <Button
               onClick={(e) => {

@@ -1,4 +1,5 @@
 import { format } from 'date-fns'
+import { env } from '@/lib/env'
 
 interface CreateOneOffEventTypeParams {
   name: string
@@ -18,11 +19,15 @@ export async function createOneOffEventType({
   timezone
 }: CreateOneOffEventTypeParams) {
   try {
+    if (!env.CALENDLY_WEBHOOK_SIGNING_KEY) {
+      throw new Error('Calendly webhook signing key not configured')
+    }
+
     const response = await fetch('https://api.calendly.com/one_off_event_types', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.CALENDLY_API_KEY}`
+        Authorization: `Bearer ${env.CALENDLY_WEBHOOK_SIGNING_KEY}`
       },
       body: JSON.stringify({
         name,
@@ -66,11 +71,15 @@ export async function createSingleUseSchedulingLink({
   eventTypeId
 }: CreateSchedulingLinkParams) {
   try {
+    if (!env.CALENDLY_WEBHOOK_SIGNING_KEY) {
+      throw new Error('Calendly webhook signing key not configured')
+    }
+
     const response = await fetch('https://api.calendly.com/scheduling_links', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.CALENDLY_API_KEY}`
+        Authorization: `Bearer ${env.CALENDLY_WEBHOOK_SIGNING_KEY}`
       },
       body: JSON.stringify({
         max_event_count: 1,

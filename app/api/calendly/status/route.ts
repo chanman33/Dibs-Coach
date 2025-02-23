@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { CalendlyService } from '@/lib/calendly/calendly-service'
-import { ApiResponse, CalendlyStatus } from '@/utils/types/calendly'
+import { CalendlyStatus } from '@/utils/types/calendly'
 import { withApiAuth } from '@/utils/middleware/withApiAuth'
 import { createAuthClient } from '@/utils/auth'
+import { ApiResponse } from '@/utils/types/api'
 
 export const GET = withApiAuth<CalendlyStatus>(async (req, { userUlid }) => {
   try {
@@ -22,8 +23,8 @@ export const GET = withApiAuth<CalendlyStatus>(async (req, { userUlid }) => {
       })
     }
 
-    // Initialize Calendly service
-    const calendly = new CalendlyService()
+    // Initialize Calendly service with ULID
+    const calendly = new CalendlyService(userUlid)
     await calendly.init()
 
     // Get full status from Calendly service
@@ -41,14 +42,9 @@ export const GET = withApiAuth<CalendlyStatus>(async (req, { userUlid }) => {
 
   } catch (error) {
     console.error('[CALENDLY_STATUS_ERROR]', error)
-    const apiError = {
-      code: 'STATUS_ERROR',
-      message: 'Failed to check Calendly status',
-      details: error instanceof Error ? { message: error.message } : undefined
-    }
     return NextResponse.json<ApiResponse<CalendlyStatus>>({ 
       data: null, 
-      error: apiError 
+      error: error instanceof Error ? error.message : 'Failed to check Calendly status'
     }, { status: 500 })
   }
 }) 
