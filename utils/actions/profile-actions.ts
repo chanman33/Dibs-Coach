@@ -358,7 +358,7 @@ export async function fetchUserDbId() {
     const supabase = await createAuthClient()
     const { data: user, error } = await supabase
       .from('User')
-      .select('id')
+      .select('ulid')
       .eq('userId', userId)
       .single()
 
@@ -367,7 +367,7 @@ export async function fetchUserDbId() {
       throw error
     }
 
-    return user?.id || null
+    return user?.ulid || null
   } catch (error) {
     console.error('[FETCH_USER_ID_ERROR]', error)
     throw error

@@ -24,19 +24,40 @@ export function useCalendlyConnection() {
         try {
             setIsLoading(true)
             const response = await fetch('/api/calendly/status')
+            
+            // First check if response is ok
             if (!response.ok) {
-                const errorData = await response.json()
-                if (errorData.error?.code === 'USER_NOT_FOUND') {
-                    toast.error('Please complete onboarding before connecting Calendly')
-                    return
+                // Try to parse error as JSON, but handle case where it's not JSON
+                const errorText = await response.text()
+                let errorData
+                try {
+                    errorData = JSON.parse(errorText)
+                    if (errorData.error?.code === 'USER_NOT_FOUND') {
+                        toast.error('Please complete onboarding before connecting Calendly')
+                        return
+                    }
+                } catch (parseError) {
+                    // If not JSON, use the raw text
+                    console.error('[CALENDLY_STATUS_ERROR] Non-JSON response:', errorText)
+                    throw new Error('Server error occurred')
                 }
                 throw new Error('Failed to fetch Calendly status')
             }
-            const { data } = await response.json()
-            setStatus(data)
+
+            // Try to parse successful response as JSON
+            const responseText = await response.text()
+            let data
+            try {
+                data = JSON.parse(responseText)
+                setStatus(data.data)
+            } catch (parseError) {
+                console.error('[CALENDLY_STATUS_ERROR] Invalid JSON response:', responseText)
+                throw new Error('Invalid response format')
+            }
         } catch (error) {
             console.error('[CALENDLY_STATUS_ERROR]', error)
             toast.error('Failed to check Calendly connection status')
+            setStatus(null)
         } finally {
             setIsLoading(false)
         }

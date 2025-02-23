@@ -27,7 +27,7 @@ export class CalendlyAuthManager {
     // Get user's database ID
     const { data: user, error: userError } = await supabase
       .from('User')
-      .select('id')
+      .select('ulid')
       .eq('userId', userId)
       .single()
 
@@ -39,7 +39,7 @@ export class CalendlyAuthManager {
     const { data: integration, error: integrationError } = await supabase
       .from('CalendlyIntegration')
       .select('accessToken, refreshToken')
-      .eq('userDbId', user.id)
+      .eq('userUlid', user.ulid)
       .single()
 
     if (integrationError || !integration) {
@@ -94,7 +94,7 @@ export class CalendlyAuthManager {
 
     const { data: user, error: userError } = await supabase
       .from('User')
-      .select('id')
+      .select('ulid')
       .eq('userId', userId)
       .single()
 
@@ -110,7 +110,7 @@ export class CalendlyAuthManager {
         refreshToken: data.refresh_token,
         updatedAt: new Date().toISOString()
       })
-      .eq('userDbId', user.id)
+      .eq('userUlid', user.ulid)
 
     if (updateError) {
       throw new Error('Failed to update tokens')

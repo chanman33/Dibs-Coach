@@ -73,11 +73,11 @@ export class CalendlyService {
     // First get the user's database ID
     const { data: user, error: userError } = await this.supabase
       .from('User')
-      .select('id')
+      .select('ulid')
       .eq('userId', this.userId)
       .single()
 
-    if (userError || !user?.id) {
+    if (userError || !user?.ulid) {
       throw new Error('User not found')
     }
 
@@ -85,7 +85,7 @@ export class CalendlyService {
     const { data: integration, error: integrationError } = await this.supabase
       .from('CalendlyIntegration')
       .select('accessToken, refreshToken, expiresAt')
-      .eq('userDbId', user.id)
+      .eq('userUlid', user.ulid)
       .single()
 
     if (integrationError || !integration?.accessToken) {
@@ -107,11 +107,11 @@ export class CalendlyService {
     // Get the user's database ID
     const { data: user } = await this.supabase
       .from('User')
-      .select('id')
+      .select('ulid')
       .eq('userId', this.userId)
       .single()
 
-    if (!user?.id) {
+    if (!user?.ulid) {
       throw new Error('User not found')
     }
 
@@ -150,7 +150,7 @@ export class CalendlyService {
             expiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
             updatedAt: new Date().toISOString()
           })
-          .eq('userDbId', user.id)
+          .eq('userUlid', user.ulid)
 
         if (updateError) {
           console.error('[CALENDLY_DB_ERROR] Failed to update tokens:', updateError)
@@ -166,12 +166,12 @@ export class CalendlyService {
           const { error: deleteError } = await this.supabase
             .from('CalendlyIntegration')
             .delete()
-            .eq('userDbId', user.id)
+            .eq('userUlid', user.ulid)
 
           if (deleteError) {
             console.error('[CALENDLY_CLEANUP_ERROR] Failed to delete invalid integration:', deleteError)
           } else {
-            console.log('[CALENDLY_CLEANUP] Removed invalid integration for userDbId:', user.id)
+            console.log('[CALENDLY_CLEANUP] Removed invalid integration for userUlid:', user.ulid)
           }
         } catch (cleanupError) {
           console.error('[CALENDLY_CLEANUP_ERROR]', cleanupError)
@@ -207,18 +207,18 @@ export class CalendlyService {
           const tokens = await this.getTokens()
           const { data: user } = await this.supabase
             .from('User')
-            .select('id')
+            .select('ulid')
             .eq('userId', this.userId)
             .single()
 
-          if (user?.id) {
+          if (user?.ulid) {
             await this.supabase
               .from('CalendlyIntegration')
               .update({
                 expiresAt: new Date(0).toISOString(),
                 updatedAt: new Date().toISOString()
               })
-              .eq('userDbId', user.id)
+              .eq('userUlid', user.ulid)
 
             // Retry the request
             return this.fetchCalendly<T>(endpoint, options, retryCount + 1)
@@ -242,11 +242,11 @@ export class CalendlyService {
       // Get user's database ID first
       const { data: user } = await this.supabase
         .from('User')
-        .select('id')
+        .select('ulid')
         .eq('userId', this.userId)
         .single()
 
-      if (!user?.id) {
+      if (!user?.ulid) {
         return { connected: false }
       }
 
@@ -317,7 +317,7 @@ export class CalendlyService {
     }
 
     // Otherwise use fetchCalendly with pagination
-    const userDbId = await this.getUserDbId()
+    const userUlid = await this.getUserUlid()
     const response = await this.fetchCalendly('/event_types', {
       headers: {
         'Content-Type': 'application/json',
@@ -331,7 +331,7 @@ export class CalendlyService {
     })
 
     const eventTypes = response.collection.map(async (eventType: CalendlyEventType) => {
-      return this.applyEventTypeMapping(eventType, userDbId)
+      return this.applyEventTypeMapping(eventType, userUlid)
     })
 
     return Promise.all(eventTypes)
@@ -398,13 +398,13 @@ export class CalendlyService {
       const { data: user, error: userError } = await this.supabase
         .from('CalendlyIntegration')
         .select('accessToken, refreshToken')
-        .eq('userDbId', (
+        .eq('userUlid', (
           await this.supabase
             .from('User')
-            .select('id')
+            .select('ulid')
             .eq('userId', this.userId)
             .single()
-        ).data?.id)
+        ).data?.ulid)
         .single()
 
       if (userError || !user) {
@@ -421,13 +421,13 @@ export class CalendlyService {
       const { error: deleteError } = await this.supabase
         .from('CalendlyIntegration')
         .delete()
-        .eq('userDbId', (
+        .eq('userUlid', (
           await this.supabase
             .from('User')
-            .select('id')
+            .select('ulid')
             .eq('userId', this.userId)
             .single()
-        ).data?.id)
+        ).data?.ulid)
 
       if (deleteError) {
         throw new Error('Failed to delete integration record')
@@ -493,37 +493,37 @@ export class CalendlyService {
     }))
   }
 
-  private async getUserDbId(): Promise<number> {
+  private async getUserUlid(): Promise<string> {
     if (!this.userId) {
       throw new Error('Service not initialized')
     }
 
     const { data: user, error } = await this.supabase
       .from('User')
-      .select('id')
+      .select('ulid')
       .eq('userId', this.userId)
       .single()
 
-    if (error || !user?.id) {
+    if (error || !user?.ulid) {
       throw new Error('User not found')
     }
 
-    return user.id
+    return user.ulid
   }
 
-  private async getEventTypeMapping(userDbId: number, eventTypeUri: string) {
+  private async getEventTypeMapping(userUlid: string, eventTypeUri: string) {
     const { data: mapping } = await this.supabase
       .from('CalendlyEventTypeMapping')
       .select('*')
-      .eq('userDbId', userDbId)
+      .eq('userUlid', userUlid)
       .eq('eventTypeUri', eventTypeUri)
       .single()
 
     return mapping
   }
 
-  private async applyEventTypeMapping(eventType: CalendlyEventType, userDbId: number) {
-    const mapping = await this.getEventTypeMapping(userDbId, eventType.uri)
+  private async applyEventTypeMapping(eventType: CalendlyEventType, userUlid: string) {
+    const mapping = await this.getEventTypeMapping(userUlid, eventType.uri)
     if (mapping) {
       return {
         ...eventType,
@@ -559,8 +559,8 @@ export class CalendlyService {
       throw new Error('Service not initialized')
     }
 
-    const userDbId = await this.getUserDbId()
-    const mapping = await this.getEventTypeMapping(userDbId, data.eventTypeUri)
+    const userUlid = await this.getUserUlid()
+    const mapping = await this.getEventTypeMapping(userUlid, data.eventTypeUri)
 
     // Apply buffer time if mapping exists
     if (mapping) {
@@ -684,7 +684,7 @@ async function introspectToken(token: string): Promise<TokenIntrospectionRespons
   }
 }
 
-export async function getValidCalendlyToken(userDbId: number): Promise<string> {
+export async function getValidCalendlyToken(userUlid: string): Promise<string> {
   try {
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -709,7 +709,7 @@ export async function getValidCalendlyToken(userDbId: number): Promise<string> {
     const { data: integration, error: fetchError } = await supabase
       .from('CalendlyIntegration')
       .select('accessToken, expiresAt')
-      .eq('userDbId', userDbId)
+      .eq('userUlid', userUlid)
       .single()
 
     if (fetchError || !integration) {
@@ -723,7 +723,7 @@ export async function getValidCalendlyToken(userDbId: number): Promise<string> {
 
     if (expiresAt <= fiveMinutesFromNow) {
       console.log('[CALENDLY_TOKEN] Access token expiring soon, refreshing...')
-      return refreshCalendlyToken(userDbId)
+      return refreshCalendlyToken(userUlid)
     }
 
     return integration.accessToken
@@ -733,7 +733,7 @@ export async function getValidCalendlyToken(userDbId: number): Promise<string> {
   }
 }
 
-export async function refreshCalendlyToken(userDbId: number) {
+export async function refreshCalendlyToken(userUlid: string) {
   try {
     // Initialize Supabase client
     const cookieStore = await cookies()
@@ -759,7 +759,7 @@ export async function refreshCalendlyToken(userDbId: number) {
     const { data: integration, error: fetchError } = await supabase
       .from('CalendlyIntegration')
       .select('refreshToken')
-      .eq('userDbId', userDbId)
+      .eq('userUlid', userUlid)
       .single()
 
     if (fetchError || !integration) {
@@ -800,7 +800,7 @@ export async function refreshCalendlyToken(userDbId: number) {
         expiresAt: new Date(Date.now() + (expires_in * 1000)).toISOString(),
         updatedAt: new Date().toISOString()
       })
-      .eq('userDbId', userDbId)
+      .eq('userUlid', userUlid)
 
     if (updateError) {
       console.error('[CALENDLY_DB_ERROR] Failed to update tokens:', updateError)
@@ -836,9 +836,9 @@ export async function refreshCalendlyToken(userDbId: number) {
       await supabase
         .from('CalendlyIntegration')
         .delete()
-        .eq('userDbId', userDbId)
+        .eq('userUlid', userUlid)
 
-      console.log('[CALENDLY_CLEANUP] Removed invalid integration for userDbId:', userDbId)
+      console.log('[CALENDLY_CLEANUP] Removed invalid integration for userUlid:', userUlid)
     } catch (cleanupError) {
       console.error('[CALENDLY_CLEANUP_ERROR]', cleanupError)
     }

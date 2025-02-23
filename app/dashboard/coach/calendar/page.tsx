@@ -10,6 +10,8 @@ import { Loader2, RefreshCw } from 'lucide-react'
 import { startOfWeek, endOfWeek, addMonths } from 'date-fns'
 import { toast } from 'sonner'
 import { useUser } from '@clerk/nextjs'
+import { TransformedSession, SessionType } from '@/utils/types/session'
+import { ExtendedSession } from '@/utils/types/calendly'
 
 export default function CoachCalendarPage() {
   const { user } = useUser()
@@ -44,9 +46,8 @@ export default function CoachCalendarPage() {
   const { data: sessions, isLoading: isLoadingSessions } = useQuery({
     queryKey: ['coach-sessions'],
     queryFn: async () => {
-      const data = await fetchCoachSessions()
-      if (!data) return []
-      return data
+      const response = await fetchCoachSessions({})
+      return response.data || []
     },
   })
 
@@ -95,19 +96,36 @@ export default function CoachCalendarPage() {
 
   const isPageLoading = isLoadingBusyTimes || isLoadingSessions || isLoadingDbId
 
+  const transformedSessions = sessions?.map(s => ({
+    ulid: s.ulid,
+    durationMinutes: s.durationMinutes,
+    status: s.status.toString(),
+    startTime: s.startTime,
+    endTime: s.endTime,
+    createdAt: s.createdAt,
+    userRole: 'coach' as const,
+    otherParty: {
+      ulid: s.otherParty.ulid,
+      firstName: s.otherParty.firstName,
+      lastName: s.otherParty.lastName,
+      email: s.otherParty.email,
+      imageUrl: s.otherParty.profileImageUrl
+    },
+    calendlyEventId: s.sessionType === SessionType.PEER_TO_PEER ? s.ulid : undefined
+  })) || []
+
   return (
     <div className="p-6 space-y-6">
       <CoachingCalendar
-        sessions={sessions?.filter(s => s.calendlyEventId !== null)}
+        sessions={transformedSessions}
         isLoading={isPageLoading}
-        title="My Coaching Schedule"
+        title="My Coaching Calendar"
         busyTimes={busyTimes}
         onRefreshCalendly={handleCalendlyAction}
         isCalendlyConnected={status?.connected}
         isCalendlyLoading={isCalendlyLoading || isLoadingBusyTimes}
         showCalendlyButton={true}
         userRole="coach"
-        coachDbId={coachDbId || undefined}
       />
     </div>
   )
