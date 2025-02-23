@@ -50,20 +50,36 @@ function to24Hour(time12h: string): string {
 
 interface AvailabilityManagerProps {
   onSave: (schedule: Record<WeekDay, TimeSlot[]>) => Promise<{ success: boolean } | void>
-  initialSchedule?: Record<WeekDay, TimeSlot[]>
+  initialSchedule?: {
+    schedule: Record<WeekDay, TimeSlot[]>
+    timezone: string
+  }
 }
 
 export function AvailabilityManager({ onSave, initialSchedule }: AvailabilityManagerProps) {
   const [schedule, setSchedule] = useState<Record<WeekDay, TimeSlot[]>>(() => {
-    if (initialSchedule) return initialSchedule
-    
-    // Initialize with empty arrays for each day
-    return DAYS_OF_WEEK.reduce((acc, day) => {
+    // Create a base schedule with empty arrays for all days
+    const baseSchedule = DAYS_OF_WEEK.reduce((acc, day) => {
       acc[day] = []
       return acc
     }, {} as Record<WeekDay, TimeSlot[]>)
+
+    // If we have an initial schedule with valid data, merge it with the base schedule
+    if (initialSchedule?.schedule) {
+      return {
+        ...baseSchedule,
+        ...Object.entries(initialSchedule.schedule).reduce((acc, [day, slots]) => {
+          if (DAYS_OF_WEEK.includes(day as WeekDay)) {
+            acc[day as WeekDay] = Array.isArray(slots) ? slots : []
+          }
+          return acc
+        }, {} as Record<WeekDay, TimeSlot[]>)
+      }
+    }
+
+    return baseSchedule
   })
-  const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const [timezone, setTimezone] = useState(initialSchedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [isLoading, setIsLoading] = useState(false)
 
   const addTimeSlot = (day: WeekDay) => {

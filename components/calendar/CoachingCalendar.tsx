@@ -358,7 +358,7 @@ export function CoachingCalendar({
     : convertWeeklyScheduleToEvents(
         monthStart,
         monthEnd,
-        availabilityData?.data?.rules?.weeklySchedule,
+        availabilityData?.data?.schedule,
         availabilityData?.data?.timezone
       )
 

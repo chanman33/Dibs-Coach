@@ -25,6 +25,11 @@ interface AvailabilitySchedule {
   updatedAt: string
 }
 
+interface AvailabilityResponse {
+  schedule: Record<WeekDay, TimeSlot[]>
+  timezone: string
+}
+
 interface BookedSession {
   ulid: string
   startTime: string
@@ -41,9 +46,10 @@ const SaveAvailabilitySchema = z.object({
 })
 
 // Fetch coach availability schedule
-export const fetchCoachAvailability = withServerAction<AvailabilitySchedule | null>(
+export const fetchCoachAvailability = withServerAction<AvailabilityResponse | null>(
   async (_, { userUlid, roleContext }) => {
     try {
+      // Verify coach role
       if (!roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {
         return {
           data: null,
@@ -59,13 +65,17 @@ export const fetchCoachAvailability = withServerAction<AvailabilitySchedule | nu
       // Get availability schedule
       const { data: scheduleData, error: scheduleError } = await supabase
         .from('CoachingAvailabilitySchedule')
-        .select('*')
+        .select('ulid, userUlid, name, timezone, rules, isDefault, active, createdAt, updatedAt')
         .eq('userUlid', userUlid)
         .eq('isDefault', true)
         .maybeSingle()
 
       if (scheduleError) {
-        console.error('[FETCH_AVAILABILITY_ERROR]', { userUlid, error: scheduleError })
+        console.error('[FETCH_AVAILABILITY_ERROR]', { 
+          userUlid, 
+          error: scheduleError,
+          timestamp: new Date().toISOString()
+        })
         return {
           data: null,
           error: {
@@ -75,12 +85,39 @@ export const fetchCoachAvailability = withServerAction<AvailabilitySchedule | nu
         }
       }
 
+      // If no schedule exists, return null
+      if (!scheduleData) {
+        return {
+          data: null,
+          error: null
+        }
+      }
+
+      // Transform the data into the expected format
+      const weeklySchedule = scheduleData.rules?.weeklySchedule || {}
+      
+      // Ensure all days have an array, even if empty
+      const transformedSchedule = Object.keys(WeekDay).reduce((acc, day) => {
+        acc[day as WeekDay] = Array.isArray(weeklySchedule[day as WeekDay]) 
+          ? weeklySchedule[day as WeekDay] 
+          : []
+        return acc
+      }, {} as Record<WeekDay, TimeSlot[]>)
+
       return {
-        data: scheduleData,
+        data: {
+          schedule: transformedSchedule,
+          timezone: scheduleData.timezone
+        },
         error: null
       }
     } catch (error) {
-      console.error('[FETCH_AVAILABILITY_ERROR]', error)
+      console.error('[FETCH_AVAILABILITY_ERROR]', {
+        error,
+        userUlid,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      })
       return {
         data: null,
         error: {
@@ -97,6 +134,7 @@ export const fetchCoachAvailability = withServerAction<AvailabilitySchedule | nu
 export const saveCoachAvailability = withServerAction<{ success: true }, z.infer<typeof SaveAvailabilitySchema>>(
   async (params, { userUlid, roleContext }) => {
     try {
+      // Verify coach role
       if (!roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {
         return {
           data: null,
@@ -121,7 +159,11 @@ export const saveCoachAvailability = withServerAction<{ success: true }, z.infer
         .single()
 
       if (scheduleError && scheduleError.code !== 'PGRST116') {
-        console.error('[SAVE_AVAILABILITY_ERROR] Schedule check failed:', { userUlid, error: scheduleError })
+        console.error('[SAVE_AVAILABILITY_ERROR]', { 
+          userUlid, 
+          error: scheduleError,
+          timestamp: new Date().toISOString()
+        })
         return {
           data: null,
           error: {
@@ -161,7 +203,11 @@ export const saveCoachAvailability = withServerAction<{ success: true }, z.infer
       const { error: saveError } = await operation
 
       if (saveError) {
-        console.error('[SAVE_AVAILABILITY_ERROR] Save operation failed:', { userUlid, error: saveError })
+        console.error('[SAVE_AVAILABILITY_ERROR]', {
+          userUlid,
+          error: saveError,
+          timestamp: new Date().toISOString()
+        })
         return {
           data: null,
           error: {
@@ -176,7 +222,12 @@ export const saveCoachAvailability = withServerAction<{ success: true }, z.infer
         error: null
       }
     } catch (error) {
-      console.error('[SAVE_AVAILABILITY_ERROR]', error)
+      console.error('[SAVE_AVAILABILITY_ERROR]', {
+        error,
+        userUlid,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      })
       if (error instanceof z.ZodError) {
         return {
           data: null,
