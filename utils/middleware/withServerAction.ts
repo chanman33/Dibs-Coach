@@ -15,7 +15,7 @@ import {
   isValidOrgRole,
   isValidOrgLevel
 } from "@/utils/roles/roles"
-import { ApiResponse } from "@/utils/types"
+import { ApiResponse, ApiError } from "@/utils/types/api"
 import { generateUlid } from '@/utils/ulid'
 
 export interface ServerActionContext {

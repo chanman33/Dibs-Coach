@@ -2,15 +2,19 @@
 
 import { createAuthClient } from '@/utils/auth'
 import { withServerAction } from '@/utils/middleware/withServerAction'
-import { ApiResponse } from '@/utils/types/api'
-import { 
-  WeekDay, 
-  TimeSlot,
-  CoachingScheduleSchema,
-  AvailabilityRules
-} from '@/utils/types/coaching'
+import { ApiResponse, ApiError } from '@/utils/types/api'
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { z } from 'zod'
+import { generateUlid } from '@/utils/ulid'
+import { 
+  AvailabilityResponse,
+  SaveAvailabilityParams,
+  SaveAvailabilityParamsSchema,
+  DAYS_OF_WEEK,
+  WeekDay,
+  TimeSlot,
+  WeeklySchedule
+} from '@/utils/types/availability'
 
 // Response types
 interface AvailabilitySchedule {
@@ -18,16 +22,14 @@ interface AvailabilitySchedule {
   userUlid: string
   name: string
   timezone: string
-  rules: AvailabilityRules
+  rules: {
+    weeklySchedule: WeeklySchedule
+    breaks: any[]
+  }
   isDefault: boolean
   active: boolean
   createdAt: string
   updatedAt: string
-}
-
-interface AvailabilityResponse {
-  schedule: Record<WeekDay, TimeSlot[]>
-  timezone: string
 }
 
 interface BookedSession {
@@ -40,11 +42,6 @@ interface BookedSession {
   createdAt: string
 }
 
-// Validation schemas
-const SaveAvailabilitySchema = z.object({
-  schedule: z.record(WeekDay, z.array(TimeSlot))
-})
-
 // Fetch coach availability schedule
 export const fetchCoachAvailability = withServerAction<AvailabilityResponse | null>(
   async (_, { userUlid, roleContext }) => {
@@ -56,7 +53,7 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
           error: {
             code: 'FORBIDDEN',
             message: 'Only coaches can access availability schedules'
-          }
+          } as ApiError
         }
       }
 
@@ -81,7 +78,7 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
           error: {
             code: 'DATABASE_ERROR',
             message: 'Failed to fetch availability schedule'
-          }
+          } as ApiError
         }
       }
 
@@ -97,9 +94,9 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
       const weeklySchedule = scheduleData.rules?.weeklySchedule || {}
       
       // Ensure all days have an array, even if empty
-      const transformedSchedule = Object.keys(WeekDay).reduce((acc, day) => {
-        acc[day as WeekDay] = Array.isArray(weeklySchedule[day as WeekDay]) 
-          ? weeklySchedule[day as WeekDay] 
+      const transformedSchedule = DAYS_OF_WEEK.reduce((acc, day) => {
+        acc[day] = Array.isArray(weeklySchedule[day]) 
+          ? weeklySchedule[day] 
           : []
         return acc
       }, {} as Record<WeekDay, TimeSlot[]>)
@@ -124,30 +121,59 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
           code: 'INTERNAL_ERROR',
           message: 'An unexpected error occurred',
           details: error instanceof Error ? { message: error.message } : undefined
-        }
+        } as ApiError
       }
     }
   }
 )
 
 // Save coach availability schedule
-export const saveCoachAvailability = withServerAction<{ success: true }, z.infer<typeof SaveAvailabilitySchema>>(
+export const saveCoachAvailability = withServerAction<{ success: true }, z.infer<typeof SaveAvailabilityParamsSchema>>(
   async (params, { userUlid, roleContext }) => {
     try {
       // Verify coach role
       if (!roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {
+        console.error('[SAVE_AVAILABILITY_ERROR]', {
+          error: 'Unauthorized',
+          userUlid,
+          capabilities: roleContext.capabilities,
+          timestamp: new Date().toISOString()
+        })
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
             message: 'Only coaches can update availability schedules'
-          }
+          } as ApiError
         }
       }
 
+      // Log incoming params for debugging
+      console.log('[SAVE_AVAILABILITY_PARAMS]', {
+        params,
+        userUlid,
+        timestamp: new Date().toISOString()
+      })
+
       // Validate parameters
-      const validatedData = SaveAvailabilitySchema.parse(params)
-      
+      const validatedData = SaveAvailabilityParamsSchema.safeParse(params)
+      if (!validatedData.success) {
+        console.error('[SAVE_AVAILABILITY_VALIDATION_ERROR]', {
+          error: validatedData.error,
+          params,
+          userUlid,
+          timestamp: new Date().toISOString()
+        })
+        return {
+          data: null,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid schedule data',
+            details: validatedData.error.flatten()
+          } as ApiError
+        }
+      }
+
       const supabase = await createAuthClient()
 
       // Check for existing schedule
@@ -169,23 +195,33 @@ export const saveCoachAvailability = withServerAction<{ success: true }, z.infer
           error: {
             code: 'DATABASE_ERROR',
             message: 'Failed to check existing schedule'
-          }
+          } as ApiError
         }
       }
 
+      const timestamp = new Date().toISOString()
+
       // Prepare schedule data
       const scheduleData = {
+        ulid: existingSchedule?.ulid || generateUlid(),
         userUlid,
         name: 'Default Schedule',
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         isDefault: true,
         active: true,
         rules: {
-          weeklySchedule: validatedData.schedule,
+          weeklySchedule: validatedData.data.schedule,
           breaks: []
         },
-        updatedAt: new Date().toISOString()
+        updatedAt: timestamp
       }
+
+      // Log the data being saved
+      console.log('[SAVE_AVAILABILITY_DATA]', {
+        scheduleData,
+        isUpdate: !!existingSchedule,
+        timestamp
+      })
 
       // Update or create schedule
       const operation = existingSchedule
@@ -197,7 +233,7 @@ export const saveCoachAvailability = withServerAction<{ success: true }, z.infer
             .from('CoachingAvailabilitySchedule')
             .insert({
               ...scheduleData,
-              createdAt: new Date().toISOString()
+              createdAt: timestamp
             })
 
       const { error: saveError } = await operation
@@ -206,14 +242,15 @@ export const saveCoachAvailability = withServerAction<{ success: true }, z.infer
         console.error('[SAVE_AVAILABILITY_ERROR]', {
           userUlid,
           error: saveError,
+          scheduleData,
           timestamp: new Date().toISOString()
         })
         return {
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Failed to save availability schedule'
-          }
+            message: `Failed to ${existingSchedule ? 'update' : 'create'} availability schedule: ${saveError.message}`
+          } as ApiError
         }
       }
 
@@ -228,23 +265,13 @@ export const saveCoachAvailability = withServerAction<{ success: true }, z.infer
         stack: error instanceof Error ? error.stack : undefined,
         timestamp: new Date().toISOString()
       })
-      if (error instanceof z.ZodError) {
-        return {
-          data: null,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid schedule data',
-            details: error.flatten()
-          }
-        }
-      }
       return {
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
-          details: error instanceof Error ? { message: error.message } : undefined
-        }
+          message: error instanceof Error ? error.message : 'An unexpected error occurred',
+          details: error instanceof Error ? { stack: error.stack } : undefined
+        } as ApiError
       }
     }
   }
