@@ -5,11 +5,22 @@ import { useAuth } from '@clerk/nextjs'
 import { redirect } from 'next/navigation'
 import { CoachAnalyticsDashboard } from '../_components/CoachAnalyticsDashboard'
 import { Loader2 } from 'lucide-react'
+import { ApiResponse } from '@/utils/types/api'
+
+interface CoachUserResponse {
+  ulid: string
+  systemRole: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  profileImageUrl: string | null
+  capabilities: string[]
+}
 
 export default function CoachAnalyticsPage() {
   const { userId } = useAuth()
   const [isLoading, setIsLoading] = useState(true)
-  const [userDbId, setUserDbId] = useState<number | null>(null)
+  const [userUlid, setUserUlid] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -32,16 +43,15 @@ export default function CoachAnalyticsPage() {
           return
         }
 
-        const user = await response.json()
+        const { data, error } = (await response.json()) as ApiResponse<CoachUserResponse>
 
-        if (!user || !['COACH'].includes(user.role)) {
-          console.log('Redirecting because:', !user ? 'user not found' : `role ${user.role} not allowed`)
+        if (error || !data) {
+          console.error('Error fetching user data:', error)
           redirect('/dashboard')
           return
         }
 
-
-        setUserDbId(user.id)
+        setUserUlid(data.ulid)
       } catch (error) {
         console.error('Error fetching user data:', error)
         redirect('/dashboard')
@@ -61,13 +71,13 @@ export default function CoachAnalyticsPage() {
     )
   }
 
-  if (!userDbId) {
+  if (!userUlid) {
     return null
   }
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
-      <CoachAnalyticsDashboard userDbId={userDbId} />
+      <CoachAnalyticsDashboard userDbId={userUlid} />
     </div>
   )
 } 

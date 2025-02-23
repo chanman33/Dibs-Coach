@@ -41,6 +41,7 @@ const AIAgentChat = ({
   const [isLoading, setIsLoading] = useState(false);
   const [currentThread, setCurrentThread] = useState<string | null>(null);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
+  const [savedUserMessage, setSavedUserMessage] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -51,13 +52,14 @@ const AIAgentChat = ({
       content: input.trim()
     };
 
-    setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
     setStreamingMessage('');
 
     try {
-      // If no current thread, create one
+      let threadUlid: string;
+      
+      // Create new thread if none exists
       if (!currentThread) {
         const result = await createAIThread({
           userUlid: userUlid,
@@ -66,11 +68,27 @@ const AIAgentChat = ({
           initialMessage: userMessage.content
         });
 
-        if (!result.success) {
-          throw new Error(result.error);
+        if (!result.success || !result.threadUlid) {
+          throw new Error(result.error || "Failed to create thread");
         }
 
-        setCurrentThread(result.threadUlid);
+        threadUlid = result.threadUlid;
+        setCurrentThread(threadUlid);
+        
+        // Since createAIThread already saves the initial message, update our local state
+        const messages = await getAIChatMessages(threadUlid);
+        if (messages.success) {
+          setMessages(messages.data as AIMessage[]);
+        }
+      } else {
+        threadUlid = currentThread;
+        // Add message to UI immediately for better UX
+        setMessages(prev => [...prev, userMessage]);
+        // Save the user message
+        await saveAIChatMessages({
+          threadUlid,
+          messages: [userMessage]
+        });
       }
 
       // Get streaming response from API
@@ -84,7 +102,9 @@ const AIAgentChat = ({
           userUlid,
           category: threadCategory,
           message: userMessage.content,
-          threadUlid: currentThread
+          threadUlid,
+          // Skip message saving in the API since we handle it here
+          skipMessageSaving: true
         }),
       });
 
@@ -112,27 +132,26 @@ const AIAgentChat = ({
             if (line.startsWith('data: ')) {
               const data = line.slice(5);
               if (data.trim() === '[DONE]') {
-                // Stream completed, save both messages
-                await saveAIChatMessages({
-                  threadUlid: currentThread!,
-                  messages: [
-                    userMessage,
-                    {
-                      role: 'assistant',
-                      content: streamedContent
-                    }
-                  ]
-                });
-                
-                setMessages(prev => [...prev, {
-                  role: 'assistant',
-                  content: streamedContent
-                }]);
+                if (streamedContent.trim()) {
+                  // Stream completed, save assistant message
+                  const assistantMessage: AIMessage = {
+                    role: 'assistant',
+                    content: streamedContent
+                  };
+                  
+                  // Save the assistant message
+                  await saveAIChatMessages({
+                    threadUlid,
+                    messages: [assistantMessage]
+                  });
+                  
+                  setMessages(prev => [...prev, assistantMessage]);
+                }
                 break;
               }
               
               try {
-                if (data.trim()) { // Only parse if there's actual content
+                if (data.trim()) {
                   const parsed = JSON.parse(data);
                   if (parsed.content) {
                     streamedContent += parsed.content;
@@ -141,7 +160,6 @@ const AIAgentChat = ({
                 }
               } catch (e) {
                 console.error('Error parsing streaming data:', e);
-                // Continue processing other chunks even if one fails
                 continue;
               }
             }
@@ -180,6 +198,13 @@ const AIAgentChat = ({
     }
   };
 
+  const handleNewThread = () => {
+    setCurrentThread(null);
+    setMessages([]);
+    setInput('');
+    setStreamingMessage('');
+  };
+
   return (
     <div className={cn("flex h-[600px] w-full", className)}>
       <ChatSidebar
@@ -187,6 +212,7 @@ const AIAgentChat = ({
         userUlid={userUlid}
         currentThreadUlid={currentThread}
         onThreadSelect={handleThreadSelect}
+        onNewThread={handleNewThread}
       />
       
       <Card className="flex-1 flex flex-col overflow-hidden">

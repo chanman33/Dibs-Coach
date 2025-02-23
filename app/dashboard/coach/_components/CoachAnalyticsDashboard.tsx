@@ -19,34 +19,13 @@ import { format } from 'date-fns';
 import { TransactionHistory } from '@/components/payments/TransactionHistory';
 import { useTransactions } from '@/utils/hooks/useTransactions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { fetchCoachAnalytics, type CoachAnalytics } from '@/utils/actions/analytics';
 
-type Payment = {
-  id: number;
-  amount: number;
-  status: string;
-  createdAt: string;
-  sessionType?: string;
-}
-
-type AnalyticsData = {
-  totalSessions: number;
-  recentSessions: number;
-  totalEarnings: number;
-  recentEarningsTotal: number;
-  uniqueMenteeCount: number;
-  recentPayments: Payment[];
-  pendingPayments: Payment[];
-  pendingBalance: number;  // Booked but not completed
-  availableBalance: number;  // Completed but not paid out
-  nextPayoutAmount: number;  // Amount for next weekly payout
-  nextPayoutDate: string;  // Date of next payout
-}
-
-export function CoachAnalyticsDashboard({ userDbId }: { userDbId: number }) {
+export function CoachAnalyticsDashboard({ userDbId }: { userDbId: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRequestingPayout, setIsRequestingPayout] = useState(false);
   const { toast } = useToast();
-  const [analytics, setAnalytics] = useState<AnalyticsData>({
+  const [analytics, setAnalytics] = useState<CoachAnalytics>({
     totalSessions: 0,
     recentSessions: 0,
     totalEarnings: 0,
@@ -61,31 +40,30 @@ export function CoachAnalyticsDashboard({ userDbId }: { userDbId: number }) {
   });
   const { transactions, isLoading: isLoadingTransactions } = useTransactions();
 
-  const fetchAnalytics = async () => {
-    try {
-      const response = await fetch(`${window.location.origin}/api/user/coach/analytics?userDbId=${userDbId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch analytics data');
-      }
-
-      const data = await response.json();
-      setAnalytics(data);
-    } catch (error) {
-      console.error('[ANALYTICS_FETCH_ERROR]', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchAnalytics();
-  }, [userDbId]);
+    const loadAnalytics = async () => {
+      try {
+        const result = await fetchCoachAnalytics({});
+        if (result.error) {
+          throw new Error(result.error.message);
+        }
+        if (result.data) {
+          setAnalytics(result.data);
+        }
+      } catch (error) {
+        console.error('[ANALYTICS_FETCH_ERROR]', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch analytics data. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadAnalytics();
+  }, [toast]);
 
   const handleEarlyPayout = async () => {
     if (analytics.availableBalance <= 0) {
@@ -119,8 +97,11 @@ export function CoachAnalyticsDashboard({ userDbId }: { userDbId: number }) {
         description: "Your early payout request has been submitted. Funds will be sent within 1-2 business days.",
       });
 
-      // Refresh analytics to update balances
-      fetchAnalytics();
+      // Refresh analytics
+      const result = await fetchCoachAnalytics({});
+      if (result.data) {
+        setAnalytics(result.data);
+      }
     } catch (error) {
       console.error('[PAYOUT_REQUEST_ERROR]', error);
       toast({

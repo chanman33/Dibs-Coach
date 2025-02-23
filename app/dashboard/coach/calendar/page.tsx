@@ -96,7 +96,7 @@ export default function CoachCalendarPage() {
 
   const isPageLoading = isLoadingBusyTimes || isLoadingSessions || isLoadingDbId
 
-  const transformedSessions = sessions?.map(s => ({
+  const transformedSessions = (sessions || []).map(s => ({
     ulid: s.ulid,
     durationMinutes: s.durationMinutes,
     status: s.status.toString(),
@@ -112,7 +112,7 @@ export default function CoachCalendarPage() {
       imageUrl: s.otherParty.profileImageUrl
     },
     calendlyEventId: s.sessionType === SessionType.PEER_TO_PEER ? s.ulid : undefined
-  })) || []
+  }))
 
   return (
     <div className="p-6 space-y-6">

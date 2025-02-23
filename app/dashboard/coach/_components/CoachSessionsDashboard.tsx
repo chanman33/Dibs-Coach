@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchCoachSessions } from '@/utils/actions/sessions'
+import { TransformedSession } from '@/utils/types/session'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -12,25 +13,6 @@ import { Badge } from "@/components/ui/badge"
 import { Calendar, Clock, Search, Filter, Users, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import { format } from 'date-fns'
 import { Skeleton } from "@/components/ui/skeleton"
-
-interface User {
-  id: number
-  firstName: string | null
-  lastName: string | null
-  email: string | null
-}
-
-interface Session {
-  id: number
-  durationMinutes: number
-  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show'
-  calendlyEventId: string
-  startTime: string
-  endTime: string
-  createdAt: string
-  userRole: 'coach' | 'mentee'
-  otherParty: User
-}
 
 interface Analytics {
   total: number
@@ -62,16 +44,15 @@ export function CoachSessionsDashboard() {
   const [selectedTab, setSelectedTab] = useState('upcoming')
 
   // Fetch sessions data
-  const { data: sessions = [], isLoading } = useQuery({
+  const { data: response, isLoading } = useQuery({
     queryKey: ['coach-sessions'],
-    queryFn: async () => {
-      const data = await fetchCoachSessions() as Session[]
-      return data || []
-    },
+    queryFn: fetchCoachSessions,
   })
 
+  const sessions = response?.data || []
+
   // Filter and sort sessions
-  const filteredSessions = sessions.filter((session: Session) => {
+  const filteredSessions = sessions.filter((session: TransformedSession) => {
     const matchesSearch = searchQuery === '' || 
       (session.otherParty.firstName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       (session.otherParty.lastName?.toLowerCase() || '').includes(searchQuery.toLowerCase())
@@ -82,14 +63,14 @@ export function CoachSessionsDashboard() {
     const matchesTab = selectedTab === 'upcoming' ? isUpcoming : !isUpcoming
 
     return matchesSearch && matchesFilter && matchesTab
-  }).sort((a: Session, b: Session) => {
+  }).sort((a: TransformedSession, b: TransformedSession) => {
     return selectedTab === 'upcoming' 
       ? new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
       : new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
   })
 
   // Calculate analytics
-  const analytics: Analytics = sessions.reduce((acc: Analytics, session: Session) => {
+  const analytics: Analytics = sessions.reduce((acc: Analytics, session: TransformedSession) => {
     acc.total++
     acc[session.status.toLowerCase() as keyof Analytics]++
     return acc
@@ -255,9 +236,9 @@ export function CoachSessionsDashboard() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="upcoming" className="space-y-4">
-              {filteredSessions.map((session: Session) => (
+              {filteredSessions.map((session: TransformedSession) => (
                 <div 
-                  key={session.id}
+                  key={session.ulid}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-all hover:shadow-sm group"
                 >
                   <div className="flex items-center space-x-4">
@@ -302,9 +283,9 @@ export function CoachSessionsDashboard() {
               )}
             </TabsContent>
             <TabsContent value="past" className="space-y-4">
-              {filteredSessions.map((session: Session) => (
+              {filteredSessions.map((session: TransformedSession) => (
                 <div 
-                  key={session.id}
+                  key={session.ulid}
                   className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-all hover:shadow-sm group"
                 >
                   <div className="flex items-center space-x-4">

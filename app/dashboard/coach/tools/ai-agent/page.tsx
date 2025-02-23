@@ -1,7 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import AIAgent from "@/components/ai-agent/AI-Agent";
-import { getUserDbIdAndRole } from "@/utils/auth";
+import { ensureUserExists } from "@/utils/auth";
 import { redirect } from "next/navigation";
+import { USER_CAPABILITIES } from "@/utils/roles/roles";
+import type { Database } from "@/types/supabase";
+
+type DbUser = Database['public']['Tables']['User']['Row'];
 
 export default async function CoachAIAgentPage() {
   const { userId } = await auth();
@@ -10,9 +14,9 @@ export default async function CoachAIAgentPage() {
     redirect("/sign-in");
   }
 
-  const { userDbId, role } = await getUserDbIdAndRole(userId);
+  const user = await ensureUserExists() as DbUser;
   
-  if (role !== "COACH") {
+  if (!user?.capabilities?.includes(USER_CAPABILITIES.COACH)) {
     redirect("/dashboard");
   }
 
@@ -21,7 +25,7 @@ export default async function CoachAIAgentPage() {
       <h1 className="mb-8 text-3xl font-bold">Real Estate GPT</h1>
       <AIAgent 
         userId={userId} 
-        userDbId={userDbId}
+        userUlid={user.ulid}
         threadCategory="GENERAL"
       />
     </div>

@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { getAIChatThreads } from "@/utils/actions/ai-chat-actions";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ChatThread {
   ulid: string;
@@ -23,6 +24,7 @@ interface ChatSidebarProps {
   userUlid: string;
   currentThreadUlid: string | null;
   onThreadSelect: (threadUlid: string) => void;
+  onNewThread: () => void;
 }
 
 export default function ChatSidebar({
@@ -30,6 +32,7 @@ export default function ChatSidebar({
   userUlid,
   currentThreadUlid,
   onThreadSelect,
+  onNewThread,
 }: ChatSidebarProps) {
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,8 +68,17 @@ export default function ChatSidebar({
 
   return (
     <Card className="w-80 flex flex-col">
-      <div className="p-4 border-b">
+      <div className="p-4 border-b flex justify-between items-center">
         <h2 className="font-semibold">Chat History</h2>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={onNewThread}
+          className="h-8 px-2"
+        >
+          <Plus className="h-4 w-4" />
+          <span className="ml-2">New Thread</span>
+        </Button>
       </div>
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-2">
