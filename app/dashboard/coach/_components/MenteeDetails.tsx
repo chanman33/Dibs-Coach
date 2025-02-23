@@ -11,95 +11,66 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Textarea } from "@/components/ui/textarea"
 import { ChevronDown, ChevronUp, Maximize2, Pencil, Trash2 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { Badge } from "@/components/ui/badge"
+import { Calendar, MessageSquare, Activity, Building2, Award, Globe2, Languages } from "lucide-react"
+import { toast } from 'sonner'
+import { Mentee, Note, Session } from '@/utils/types/mentee'
+import { fetchMenteeDetails, addNote as addNoteAction } from '@/utils/actions/mentee-actions'
 
 interface MenteeDetailsProps {
-  menteeId: number
-}
-
-interface MenteeData {
-  id: number
-  firstName: string | null
-  lastName: string | null
-  email: string
-  profileImageUrl: string | null
-  realtorProfile: {
-    id: number
-    companyName: string | null
-    licenseNumber: string | null
-    phoneNumber: string | null
-  } | null
-  goals: { id: number; content: string; status: string }[]
-  sessions: { 
-    id: number
-    durationMinutes: number
-    status: string
-    createdAt: string
-    notes: {
-      id: number
-      content: string
-      createdAt: string
-    }[]
-  }[]
-  notes: { 
-    id: number
-    content: string
-    createdAt: string
-    updatedAt: string
-  }[]
-}
-
-interface SelectedNote {
-  id: number
-  content: string
-  createdAt: string
-  sessionId?: number
+  menteeId: string
 }
 
 export function MenteeDetails({ menteeId }: MenteeDetailsProps) {
-  const [menteeData, setMenteeData] = useState<MenteeData | null>(null)
+  const [mentee, setMentee] = useState<Mentee | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [newNote, setNewNote] = useState('')
-  const [expandedNotes, setExpandedNotes] = useState<Record<number, boolean>>({})
-  const [selectedNote, setSelectedNote] = useState<SelectedNote | null>(null)
+  const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({})
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [editedContent, setEditedContent] = useState('')
   const [showDeleteAlert, setShowDeleteAlert] = useState(false)
 
   useEffect(() => {
-    const fetchMenteeData = async () => {
+    const loadMenteeDetails = async () => {
       try {
-        const response = await fetch(`/api/mentees/${menteeId}`)
-        const data = await response.json()
-        console.log('Fetched mentee data:', data)
-        setMenteeData(data)
+        setIsLoading(true)
+        const result = await fetchMenteeDetails(menteeId)
+        if (result.error) throw new Error(result.error.message)
+        setMentee(result.data)
       } catch (error) {
-        console.error('Error fetching mentee data:', error)
-        setMenteeData(null)
+        console.error('[MENTEE_DETAILS_ERROR]', error)
+        toast.error('Failed to load mentee details')
+      } finally {
+        setIsLoading(false)
       }
     }
-    fetchMenteeData()
+
+    loadMenteeDetails()
   }, [menteeId])
 
-  const addNote = async () => {
-    if (newNote.trim() && menteeData) {
+  const handleAddNote = async () => {
+    if (newNote.trim() && mentee) {
       try {
-        const response = await fetch(`/api/mentees/${menteeId}/notes`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ content: newNote }),
+        const result = await addNoteAction({
+          menteeUlid: mentee.ulid,
+          content: newNote.trim()
         })
-        
-        if (!response.ok) throw new Error('Failed to add note')
-        
-        const newNoteData = await response.json()
-        setMenteeData(prev => prev ? {
-          ...prev,
-          notes: [...prev.notes, newNoteData]
-        } : null)
-        setNewNote('')
+
+        if (result.error) throw new Error(result.error.message)
+
+        if (result.data) {
+          const newNote = result.data as Note
+          setMentee(prev => prev ? {
+            ...prev,
+            notes: [...prev.notes, newNote]
+          } : null)
+          setNewNote('')
+          toast.success('Note added successfully')
+        }
       } catch (error) {
-        console.error('Error adding note:', error)
+        console.error('[ADD_NOTE_ERROR]', error)
+        toast.error('Failed to add note')
       }
     }
   }
@@ -108,7 +79,7 @@ export function MenteeDetails({ menteeId }: MenteeDetailsProps) {
     if (!selectedNote || !editedContent.trim()) return
 
     try {
-      const response = await fetch(`/api/mentees/${menteeId}/notes/${selectedNote.id}`, {
+      const response = await fetch(`/api/mentees/${mentee?.ulid}/notes/${selectedNote.ulid}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -121,20 +92,20 @@ export function MenteeDetails({ menteeId }: MenteeDetailsProps) {
       const updatedNote = await response.json()
 
       // Update the note in the UI
-      setMenteeData(prev => {
+      setMentee(prev => {
         if (!prev) return null
 
         // Update in sessions if it's a session note
         const updatedSessions = prev.sessions.map(session => ({
           ...session,
           notes: session.notes.map(note => 
-            note.id === selectedNote.id ? { ...note, content: updatedNote.content } : note
+            note.ulid === selectedNote.ulid ? { ...note, content: updatedNote.content } : note
           )
         }))
 
         // Update in general notes if it's there
         const updatedNotes = prev.notes.map(note =>
-          note.id === selectedNote.id ? { ...note, content: updatedNote.content } : note
+          note.ulid === selectedNote.ulid ? { ...note, content: updatedNote.content } : note
         )
 
         return {
@@ -156,34 +127,33 @@ export function MenteeDetails({ menteeId }: MenteeDetailsProps) {
     }
   }
 
-  const handleNoteClick = (note: { id: number; content: string; createdAt: string }, sessionId?: number) => {
-    setSelectedNote({ id: note.id, content: note.content, createdAt: note.createdAt, sessionId })
-    setEditedContent(note.content)
-    setIsEditing(false)
+  const handleNoteClick = (note: Note, sessionId: string) => {
+    // TODO: Implement note editing/viewing modal
+    console.log('Note clicked:', note, 'Session:', sessionId)
   }
 
   const deleteNote = async () => {
     if (!selectedNote) return
 
     try {
-      const response = await fetch(`/api/mentees/${menteeId}/notes/${selectedNote.id}`, {
+      const response = await fetch(`/api/mentees/${mentee?.ulid}/notes/${selectedNote.ulid}`, {
         method: 'DELETE',
       })
 
       if (!response.ok) throw new Error('Failed to delete note')
 
       // Update the UI by removing the deleted note
-      setMenteeData(prev => {
+      setMentee(prev => {
         if (!prev) return null
 
         // Remove from sessions if it's a session note
         const updatedSessions = prev.sessions.map(session => ({
           ...session,
-          notes: session.notes.filter(note => note.id !== selectedNote.id)
+          notes: session.notes.filter(note => note.ulid !== selectedNote.ulid)
         }))
 
         // Remove from general notes if it's there
-        const updatedNotes = prev.notes.filter(note => note.id !== selectedNote.id)
+        const updatedNotes = prev.notes.filter(note => note.ulid !== selectedNote.ulid)
 
         return {
           ...prev,
@@ -200,167 +170,351 @@ export function MenteeDetails({ menteeId }: MenteeDetailsProps) {
     }
   }
 
-  if (!menteeData) return <div>Loading...</div>
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[600px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (!mentee) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[600px] text-center">
+        <Activity className="h-12 w-12 text-gray-400 mb-4" />
+        <p className="text-gray-600">
+          No mentee details available
+        </p>
+      </div>
+    )
+  }
 
   return (
-    <div className='pt-8 space-y-4'>
-      <div className='flex items-center gap-4'>
-        <Avatar className='h-20 w-20'>
-          <AvatarImage src={menteeData.profileImageUrl || undefined} alt={`${menteeData.firstName} ${menteeData.lastName}`} />
-          <AvatarFallback>{menteeData.firstName?.[0]}</AvatarFallback>
-        </Avatar>
-        <div>
-          <h2 className='text-2xl font-bold'>{`${menteeData.firstName || ''} ${menteeData.lastName || ''}`}</h2>
-          <p className='text-muted-foreground'>{menteeData.email}</p>
-          {menteeData.realtorProfile && (
-            <div className='text-sm text-muted-foreground'>
-              {menteeData.realtorProfile.companyName && <div>Company: {menteeData.realtorProfile.companyName}</div>}
-              {menteeData.realtorProfile.licenseNumber && <div>License: {menteeData.realtorProfile.licenseNumber}</div>}
-              {menteeData.realtorProfile.phoneNumber && <div>Phone: {menteeData.realtorProfile.phoneNumber}</div>}
-            </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-start gap-4">
+        <img
+          src={mentee.profileImageUrl || "https://api.dicebear.com/7.x/avataaars/svg?seed=default"}
+          alt={`${mentee.firstName} ${mentee.lastName}`}
+          className="w-24 h-24 rounded-full"
+        />
+        <div className="flex-1">
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-2xl font-bold">
+              {mentee.firstName} {mentee.lastName}
+            </h2>
+            <Badge variant={mentee.status === 'ACTIVE' ? 'default' : 'secondary'}>
+              {mentee.status}
+            </Badge>
+          </div>
+          <p className="text-muted-foreground">{mentee.email}</p>
+          {mentee.domainProfile?.type && (
+            <Badge variant="outline" className="mt-2">
+              {mentee.domainProfile.type}
+            </Badge>
           )}
         </div>
       </div>
-      <Tabs defaultValue="goals">
-        <TabsList>
-          <TabsTrigger value="goals">Goals</TabsTrigger>
+
+      {/* Tabs */}
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
         </TabsList>
-        <TabsContent value="goals">
+
+        <TabsContent value="profile" className="space-y-4">
+          {/* Professional Profile */}
           <Card>
             <CardHeader>
-              <CardTitle>Goals</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Professional Profile
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              {menteeData.goals && menteeData.goals.length > 0 ? (
-                menteeData.goals.map(goal => (
-                  <div key={goal.id} className='mb-2'>
-                    <div className='font-medium'>{goal.content}</div>
-                    <div className='text-sm text-muted-foreground'>Status: {goal.status}</div>
+            <CardContent className="space-y-4">
+              {mentee.domainProfile && (
+                <>
+                  <div>
+                    <p className="font-medium">Company</p>
+                    <p className="text-muted-foreground">{mentee.domainProfile.companyName || 'Not specified'}</p>
                   </div>
-                ))
-              ) : (
-                <p>No goals set yet.</p>
+                  <div>
+                    <p className="font-medium">License Number</p>
+                    <p className="text-muted-foreground">{mentee.domainProfile.licenseNumber || 'Not specified'}</p>
+                  </div>
+                  {mentee.domainProfile.type === 'REALTOR' && (
+                    <>
+                      <div>
+                        <p className="font-medium">Phone Number</p>
+                        <p className="text-muted-foreground">{mentee.domainProfile.phoneNumber || 'Not specified'}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">Years of Experience</p>
+                        <p className="text-muted-foreground">{mentee.domainProfile.yearsExperience || 'Not specified'}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">Property Types</p>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {mentee.domainProfile.propertyTypes.length > 0 ? (
+                            mentee.domainProfile.propertyTypes.map((type) => (
+                              <Badge key={type} variant="secondary">{type}</Badge>
+                            ))
+                          ) : (
+                            <p className="text-muted-foreground">None specified</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {/* Add similar sections for other domain types */}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Mentee Profile */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Award className="h-5 w-5" />
+                Mentee Profile
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {mentee.menteeProfile && (
+                <>
+                  <div>
+                    <p className="font-medium">Focus Areas</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {mentee.menteeProfile.focusAreas.length > 0 ? (
+                        mentee.menteeProfile.focusAreas.map((area) => (
+                          <Badge key={area} variant="secondary">{area}</Badge>
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground">None specified</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-medium">Experience Level</p>
+                    <p className="text-muted-foreground">{mentee.menteeProfile.experienceLevel || 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium">Learning Style</p>
+                    <p className="text-muted-foreground">{mentee.menteeProfile.learningStyle || 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium">Sessions Completed</p>
+                    <p className="text-muted-foreground">{mentee.menteeProfile.sessionsCompleted}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium">Last Session</p>
+                    <p className="text-muted-foreground">
+                      {mentee.menteeProfile.lastSessionDate 
+                        ? new Date(mentee.menteeProfile.lastSessionDate).toLocaleDateString()
+                        : 'No sessions yet'
+                      }
+                    </p>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Additional Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Globe2 className="h-5 w-5" />
+                Additional Information
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {mentee.domainProfile && (
+                <>
+                  <div>
+                    <p className="font-medium">Specializations</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {mentee.domainProfile.specializations.length > 0 ? (
+                        mentee.domainProfile.specializations.map((spec) => (
+                          <Badge key={spec} variant="secondary">{spec}</Badge>
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground">None specified</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-medium">Certifications</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {mentee.domainProfile.certifications.length > 0 ? (
+                        mentee.domainProfile.certifications.map((cert) => (
+                          <Badge key={cert} variant="secondary">{cert}</Badge>
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground">None specified</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-medium">Languages</p>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {mentee.domainProfile.languages.length > 0 ? (
+                        mentee.domainProfile.languages.map((lang) => (
+                          <Badge key={lang} variant="secondary">{lang}</Badge>
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground">None specified</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="font-medium">Primary Market</p>
+                    <p className="text-muted-foreground">{mentee.domainProfile.primaryMarket || 'Not specified'}</p>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="sessions">
           <Card>
             <CardHeader>
-              <CardTitle>Session History</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Coaching Sessions
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              {menteeData.sessions && menteeData.sessions.length > 0 ? (
-                menteeData.sessions.map(session => (
-                  <div key={session.id} className='mb-4 p-4 border rounded-lg'>
-                    <div className='font-medium flex justify-between items-center'>
-                      <div>
-                        {new Date(session.createdAt).toLocaleDateString()}
-                        <span className='ml-1 text-sm text-muted-foreground'>
-                          {new Date(session.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
-                        </span>
-                        <span className='ml-2 text-muted-foreground'>
-                          ({session.durationMinutes} minutes)
-                        </span>
+              {mentee.sessions.length > 0 ? (
+                <div className="space-y-4">
+                  {mentee.sessions.map((session) => (
+                    <div key={session.ulid} className="p-4 border rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <div>
+                          <p className="font-medium">
+                            {new Date(session.startTime).toLocaleDateString()}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(session.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - 
+                            {new Date(session.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <Badge variant={
+                          session.status === 'COMPLETED' ? 'default' :
+                          session.status === 'SCHEDULED' ? 'secondary' :
+                          'destructive'
+                        }>
+                          {session.status}
+                        </Badge>
                       </div>
-                      <span className={clsx(
-                        'px-2 py-1 rounded-full text-sm',
-                        {
-                          'bg-green-100 text-green-800': session.status === 'completed',
-                          'bg-yellow-100 text-yellow-800': session.status === 'scheduled',
-                          'bg-red-100 text-red-800': session.status === 'cancelled' || session.status === 'no_show'
-                        }
-                      )}>
-                        {session.status}
-                      </span>
-                    </div>
-                    {session.notes && session.notes.length > 0 && (
-                      <div className='mt-2 space-y-2'>
-                        {session.notes.map(note => {
-                          const isExpanded = expandedNotes[note.id]
-                          const noteContent = note.content
-                          const isLongNote = noteContent.length > 150
+                      {session.notes.length > 0 && (
+                        <div className="mt-2 space-y-2 pl-4 border-l-2">
+                          {session.notes.map((note) => {
+                            const isExpanded = expandedNotes[note.ulid]
+                            const isLongNote = note.content.length > 150
 
-                          return (
-                            <div key={note.id} className='pl-4 border-l-2 border-gray-200 py-2'>
-                              <div className='flex items-start justify-between gap-2'>
-                                <div className='flex-1'>
-                                  <div className='text-sm text-muted-foreground mb-1'>
-                                    {new Date(note.createdAt).toLocaleTimeString([], { 
-                                      hour: '2-digit', 
-                                      minute: '2-digit', 
-                                      hour12: true 
-                                    })}
-                                  </div>
-                                  <div className='text-sm'>
-                                    {isLongNote && !isExpanded ? (
-                                      `${noteContent.slice(0, 150)}...`
-                                    ) : (
-                                      noteContent
-                                    )}
-                                  </div>
+                            return (
+                              <div key={note.ulid} className="relative">
+                                <div className="text-sm text-muted-foreground mb-1">
+                                  {new Date(note.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                 </div>
-                                <div className='flex gap-1'>
-                                  {isLongNote && (
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm"
-                                      onClick={() => setExpandedNotes(prev => ({
-                                        ...prev,
-                                        [note.id]: !prev[note.id]
-                                      }))}
-                                    >
-                                      {isExpanded ? <ChevronUp className='h-4 w-4' /> : <ChevronDown className='h-4 w-4' />}
-                                    </Button>
+                                <div className="text-sm pr-8">
+                                  {isLongNote && !isExpanded ? (
+                                    `${note.content.slice(0, 150)}...`
+                                  ) : (
+                                    note.content
                                   )}
+                                </div>
+                                {isLongNote && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => handleNoteClick(note, session.id)}
+                                    className="absolute right-0 top-0"
+                                    onClick={() => setExpandedNotes(prev => ({
+                                      ...prev,
+                                      [note.ulid]: !prev[note.ulid]
+                                    }))}
                                   >
-                                    <Maximize2 className='h-4 w-4' />
+                                    {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                   </Button>
-                                </div>
+                                )}
                               </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <p>No sessions recorded yet.</p>
+                <p className="text-muted-foreground">No sessions found</p>
               )}
             </CardContent>
           </Card>
         </TabsContent>
+
         <TabsContent value="notes">
           <Card>
             <CardHeader>
-              <CardTitle>Notes</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Notes
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex space-x-2 mb-4">
-                <Input
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Add a new note..."
-                />
-                <Button onClick={addNote}>Add</Button>
-              </div>
-              {menteeData.notes && menteeData.notes.length > 0 ? (
-                menteeData.notes.map(note => (
-                  <div key={note.id} className='mb-2'>
-                    <div className='font-medium'>{new Date(note.createdAt).toLocaleDateString()}</div>
-                    <div className='text-sm'>{note.content}</div>
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                  <Textarea
+                    placeholder="Add a note..."
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                  />
+                  <Button onClick={handleAddNote}>Add</Button>
+                </div>
+                {mentee.notes.length > 0 ? (
+                  <div className="space-y-4">
+                    {mentee.notes.map((note) => {
+                      const isExpanded = expandedNotes[note.ulid]
+                      const isLongNote = note.content.length > 150
+
+                      return (
+                        <div key={note.ulid} className="p-4 border rounded-lg">
+                          <div className="flex justify-between items-center mb-2">
+                            <p className="text-sm text-muted-foreground">
+                              {new Date(note.createdAt).toLocaleDateString()}
+                            </p>
+                            {isLongNote && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setExpandedNotes(prev => ({
+                                  ...prev,
+                                  [note.ulid]: !prev[note.ulid]
+                                }))}
+                              >
+                                {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                              </Button>
+                            )}
+                          </div>
+                          <p className="text-sm">
+                            {isLongNote && !isExpanded ? (
+                              `${note.content.slice(0, 150)}...`
+                            ) : (
+                              note.content
+                            )}
+                          </p>
+                        </div>
+                      )
+                    })}
                   </div>
-                ))
-              ) : (
-                <p>No notes added yet.</p>
-              )}
+                ) : (
+                  <p className="text-muted-foreground">No notes found</p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

@@ -9,112 +9,71 @@ import { Button } from "@/components/ui/button"
 import { PlusCircle, Users, Calendar, MessageSquare, Activity } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-
-interface RealtorProfile {
-  id: number
-  companyName: string | null
-  licenseNumber: string | null
-  phoneNumber: string | null
-}
-
-interface Mentee {
-  id: number
-  firstName: string | null
-  lastName: string | null
-  email: string
-  profileImageUrl: string | null
-  realtorProfile: RealtorProfile | null
-  status: 'active' | 'inactive'
-  lastSessionDate: string | null
-  totalSessions: number
-  nextSession: {
-    date: string
-    type: string
-  } | null
-  goals: string[]
-  notes: {
-    id: number
-    content: string
-    createdAt: string
-  }[]
-}
+import { fetchMentees } from '@/utils/actions/mentee-actions'
+import { toast } from 'sonner'
+import { Mentee, Note, Session, MenteeProfile, BaseProfile, RealtorProfile, LoanOfficerProfile, InvestorProfile, PropertyManagerProfile, TitleEscrowProfile, InsuranceProfile } from '@/utils/types/mentee'
 
 // Mock data for empty state visualization
 const mockMentees: Mentee[] = [
   {
-    id: 1,
+    ulid: "1",
     firstName: "Sarah",
     lastName: "Johnson",
     email: "sarah.j@example.com",
     profileImageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=sarah",
-    status: 'active',
-    lastSessionDate: "2024-02-08",
-    totalSessions: 12,
-    nextSession: {
-      date: "2024-02-15T10:00:00",
-      type: "Weekly Check-in"
-    },
-    goals: [
-      "Close 5 deals in Q1 2024",
-      "Build social media presence",
-      "Get certified in luxury real estate"
-    ],
-    notes: [
-      {
-        id: 1,
-        content: "Excellent progress on social media strategy",
-        createdAt: "2024-02-08T15:30:00"
-      }
-    ],
-    realtorProfile: {
-      id: 1,
+    status: 'ACTIVE',
+    menteeProfile: null,
+    domainProfile: {
+      ulid: "1",
       companyName: "Luxury Homes Inc",
       licenseNumber: "RE123456",
-      phoneNumber: "(555) 123-4567"
-    }
+      specializations: [],
+      certifications: [],
+      languages: [],
+      geographicFocus: null,
+      primaryMarket: null,
+      type: 'REALTOR',
+      phoneNumber: "(555) 123-4567",
+      yearsExperience: null,
+      propertyTypes: []
+    },
+    notes: [],
+    sessions: []
   }
 ]
 
 export function CoachCRMDashboard() {
   const [searchTerm, setSearchTerm] = useState('')
   const [mentees, setMentees] = useState<Mentee[]>([])
-  const [selectedMenteeId, setSelectedMenteeId] = useState<number | null>(null)
+  const [selectedMenteeId, setSelectedMenteeId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const fetchMentees = async () => {
+    const loadMentees = async () => {
       try {
-        const response = await fetch('/api/mentees')
-        const result = await response.json()
+        setIsLoading(true)
+        const result = await fetchMentees({})
         
-        setMentees(result.data)
+        if (result.error) {
+          throw new Error(result.error.message)
+        }
+        
+        setMentees(result.data || [])
       } catch (error) {
         console.error('[CRM_ERROR] Failed to fetch mentees:', error)
-        setError('Failed to load mentees data')
+        toast.error('Failed to load mentees data')
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchMentees()
+    loadMentees()
   }, [])
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[500px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[500px] text-red-500">
-        <p className="text-lg font-semibold mb-2">Error: {error}</p>
-        <Button variant="outline" onClick={() => window.location.reload()}>
-          Try Again
-        </Button>
       </div>
     )
   }
