@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchCoachSessions } from '@/utils/actions/sessions'
 import { fetchUserDbId } from '@/utils/actions/profile-actions'
-import { CoachingCalendar } from '@/components/calendar/CoachingCalendar'
+import { CoachingCalendar } from '@/components/coaching/CoachingCalendar'
 import { useEffect, useState } from 'react'
 import { useCalendlyConnection } from '@/utils/hooks/useCalendly'
 import { Loader2, RefreshCw } from 'lucide-react'
@@ -126,6 +126,7 @@ export default function CoachCalendarPage() {
         isCalendlyLoading={isCalendlyLoading || isLoadingBusyTimes}
         showCalendlyButton={true}
         userRole="coach"
+        coachDbId={coachDbId || undefined}
       />
     </div>
   )

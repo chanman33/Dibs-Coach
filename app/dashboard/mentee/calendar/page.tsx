@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { fetchUserSessions } from '@/utils/actions/sessions'
-import { MenteeCalendar } from '@/components/calendar/MenteeCalendar'
+import { MenteeCalendar } from '@/components/mentee/MenteeCalendar'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { generateMockSessions, mockConfig, MockDataScenario } from '@/utils/mock/calendar-data'

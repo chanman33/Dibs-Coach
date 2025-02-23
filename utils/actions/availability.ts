@@ -43,16 +43,20 @@ interface BookedSession {
 }
 
 // Fetch coach availability schedule
-export const fetchCoachAvailability = withServerAction<AvailabilityResponse | null>(
-  async (_, { userUlid, roleContext }) => {
+export const fetchCoachAvailability = withServerAction<AvailabilityResponse | null, { coachDbId?: number }>(
+  async (params, { userUlid, roleContext }) => {
     try {
-      // Verify coach role
-      if (!roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {
+      // If coachDbId is provided, use it to fetch that coach's availability
+      // Otherwise, use the current user's ID (for coaches viewing their own schedule)
+      const targetUserUlid = params.coachDbId ? params.coachDbId.toString() : userUlid
+
+      // Only allow coaches to view their own schedule, or anyone to view a coach's schedule
+      if (!params.coachDbId && !roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
-            message: 'Only coaches can access availability schedules'
+            message: 'Only coaches can access their own availability schedules'
           } as ApiError
         }
       }
@@ -63,13 +67,13 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
       const { data: scheduleData, error: scheduleError } = await supabase
         .from('CoachingAvailabilitySchedule')
         .select('ulid, userUlid, name, timezone, rules, isDefault, active, createdAt, updatedAt')
-        .eq('userUlid', userUlid)
+        .eq('userUlid', targetUserUlid)
         .eq('isDefault', true)
         .maybeSingle()
 
       if (scheduleError) {
         console.error('[FETCH_AVAILABILITY_ERROR]', { 
-          userUlid, 
+          userUlid: targetUserUlid, 
           error: scheduleError,
           timestamp: new Date().toISOString()
         })

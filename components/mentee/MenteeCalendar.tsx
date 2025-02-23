@@ -2,10 +2,7 @@ import { useState } from 'react'
 import { Calendar, momentLocalizer, View, ToolbarProps } from 'react-big-calendar'
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
-
-// Custom calendar styles for better responsiveness
-import './calendar.css'
-
+import '@/styles/calendar.css'
 import { Loader2, ChevronLeft, ChevronRight } from "lucide-react"
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -61,57 +58,34 @@ const formatStatusText = (status: string) => {
   }
 }
 
-const NoSessionsPrompt = () => {
+// Add NoUpcomingSessionsPrompt component
+const NoUpcomingSessionsPrompt = ({ lastCoach }: { lastCoach?: { 
+  ulid: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  imageUrl: string | null;
+  id?: number;
+} }) => {
+  if (!lastCoach?.firstName) return null;
+
   return (
-    <div className="flex flex-col items-center justify-center p-8 text-center space-y-4 bg-muted/30 rounded-lg">
-      <h3 className="text-xl font-semibold">No Coaching Sessions Booked</h3>
-      <p className="text-muted-foreground max-w-md">
-        Ready to accelerate your real estate career? Book your first coaching session with one of our expert coaches.
+    <div className="flex flex-col items-center justify-center text-center space-y-3 py-6">
+      <h3 className="text-base font-semibold text-muted-foreground">No Upcoming Sessions</h3>
+      <p className="text-sm text-muted-foreground max-w-[250px]">
+        {lastCoach ? (
+          <>
+            Ready for another coaching session with {lastCoach.firstName}? Book your next session now.
+          </>
+        ) : (
+          'Ready to accelerate your real estate career? Book your first coaching session with one of our expert coaches.'
+        )}
       </p>
-      <Link href="/dashboard/mentee/browse-coaches">
-        <Button size="lg" className="mt-2">
-          Find a Coach
+      <Link href={lastCoach ? `/dashboard/mentee/coaches/${lastCoach.ulid}` : "/dashboard/mentee/browse-coaches"}>
+        <Button variant="outline" size="sm" className="mt-2">
+          {lastCoach ? 'Book Another Session' : 'Find a Coach'}
         </Button>
       </Link>
-    </div>
-  )
-}
-
-const NoUpcomingSessionsPrompt = ({ lastCoach }: { lastCoach?: LastCoachInfo }) => {
-  if (!lastCoach || !lastCoach.firstName || !lastCoach.lastName) {
-    return (
-      <div className="flex flex-col items-center justify-center text-center space-y-3">
-        <h3 className="text-lg font-semibold">No Upcoming Sessions</h3>
-        <p className="text-muted-foreground max-w-md">
-          Keep the momentum going! Book your next coaching session to stay on track with your goals.
-        </p>
-        <Link href="/dashboard/mentee/browse-coaches">
-          <Button>
-            Find a Coach
-          </Button>
-        </Link>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col items-center justify-center text-center space-y-3">
-      <h3 className="text-lg font-semibold">No Upcoming Sessions</h3>
-      <p className="text-muted-foreground max-w-md">
-        Would you like to schedule another session with {lastCoach.firstName} {lastCoach.lastName}?
-      </p>
-      <div className="flex gap-3">
-        <Link href="/dashboard/mentee/browse-coaches">
-          <Button variant="outline">
-            Find New Coach
-          </Button>
-        </Link>
-        <Link href={`/dashboard/mentee/book/${lastCoach.ulid}`}>
-          <Button>
-            Book Follow-up
-          </Button>
-        </Link>
-      </div>
     </div>
   )
 }
@@ -156,6 +130,136 @@ const SessionCard = ({ session }: { session: ExtendedSession }) => {
           <span>{session.durationMinutes}m</span>
         </div>
       </div>
+    </div>
+  )
+}
+
+// CustomToolbar component
+const CustomToolbar = ({
+  onNavigate,
+  onView,
+  view,
+  label
+}: ToolbarProps<any, object>) => {
+  const viewNames = {
+    month: 'Month',
+    week: 'Week',
+    day: 'Day'
+  }
+
+  // Full wide screen layout (1024px and up)
+  const FullWideLayout = (
+    <div className="hidden lg:grid lg:grid-cols-3 lg:items-center lg:gap-4">
+      {/* Left Section - Navigation */}
+      <div className="flex items-center gap-2 justify-start">
+        <Button
+          onClick={() => onNavigate('TODAY')}
+          variant="outline"
+          size="sm"
+          className="text-sm px-4"
+        >
+          Today
+        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            onClick={() => onNavigate('PREV')}
+            variant="outline"
+            size="sm"
+            className="px-3"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            onClick={() => onNavigate('NEXT')}
+            variant="outline"
+            size="sm"
+            className="px-3"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Center Section - Title */}
+      <span className="rbc-toolbar-label text-lg font-semibold text-center">
+        {label}
+      </span>
+
+      {/* Right Section - View Selection */}
+      <div className="flex items-center gap-1 justify-end">
+        {Object.entries(viewNames).map(([viewKey, viewLabel]) => (
+          <Button
+            key={viewKey}
+            onClick={() => onView(viewKey as View)}
+            variant={view === viewKey ? "default" : "outline"}
+            size="sm"
+            className="min-w-[70px] text-sm px-4"
+          >
+            {viewLabel}
+          </Button>
+        ))}
+      </div>
+    </div>
+  )
+
+  // Compact layout for screens below 1024px
+  const CompactLayout = (
+    <div className="lg:hidden space-y-3">
+      <span className="rbc-toolbar-label text-lg font-semibold block text-center">
+        {label}
+      </span>
+      
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => onNavigate('TODAY')}
+            variant="outline"
+            size="sm"
+            className="text-sm px-3"
+          >
+            Today
+          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              onClick={() => onNavigate('PREV')}
+              variant="outline"
+              size="sm"
+              className="px-2"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              onClick={() => onNavigate('NEXT')}
+              variant="outline"
+              size="sm"
+              className="px-2"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {Object.entries(viewNames).map(([viewKey, viewLabel]) => (
+            <Button
+              key={viewKey}
+              onClick={() => onView(viewKey as View)}
+              variant={view === viewKey ? "default" : "outline"}
+              size="sm"
+              className="text-sm px-3"
+            >
+              {viewLabel}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="rbc-toolbar w-full p-2 sm:p-3 lg:p-4">
+      {FullWideLayout}
+      {CompactLayout}
     </div>
   )
 }
@@ -335,138 +439,6 @@ export function MenteeCalendar({
           </div>
         </Card>
       </div>
-    </div>
-  )
-}
-
-// CustomToolbar component
-interface CustomToolbarProps extends ToolbarProps<any, object> { }
-
-function CustomToolbar({
-  onNavigate,
-  onView,
-  view,
-  label
-}: CustomToolbarProps) {
-  const viewNames = {
-    month: 'Month',
-    week: 'Week',
-    day: 'Day'
-  }
-
-  // Full wide screen layout (1024px and up)
-  const FullWideLayout = (
-    <div className="hidden lg:grid lg:grid-cols-3 lg:items-center lg:gap-4">
-      {/* Left Section - Navigation */}
-      <div className="flex items-center gap-2 justify-start">
-        <Button
-          onClick={() => onNavigate('TODAY')}
-          variant="outline"
-          size="sm"
-          className="text-sm px-4"
-        >
-          Today
-        </Button>
-        <div className="flex items-center gap-1">
-          <Button
-            onClick={() => onNavigate('PREV')}
-            variant="outline"
-            size="sm"
-            className="px-3"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            onClick={() => onNavigate('NEXT')}
-            variant="outline"
-            size="sm"
-            className="px-3"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Center Section - Title */}
-      <span className="rbc-toolbar-label text-lg font-semibold text-center">
-        {label}
-      </span>
-
-      {/* Right Section - View Selection */}
-      <div className="flex items-center gap-1 justify-end">
-        {Object.entries(viewNames).map(([viewKey, viewLabel]) => (
-          <Button
-            key={viewKey}
-            onClick={() => onView(viewKey as View)}
-            variant={view === viewKey ? "default" : "outline"}
-            size="sm"
-            className="min-w-[70px] text-sm px-4"
-          >
-            {viewLabel}
-          </Button>
-        ))}
-      </div>
-    </div>
-  )
-
-  // Compact layout for screens below 1024px
-  const CompactLayout = (
-    <div className="lg:hidden space-y-3">
-      <span className="rbc-toolbar-label text-lg font-semibold block text-center">
-        {label}
-      </span>
-      
-      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-4">
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => onNavigate('TODAY')}
-            variant="outline"
-            size="sm"
-            className="text-sm px-3"
-          >
-            Today
-          </Button>
-          <div className="flex items-center gap-1">
-            <Button
-              onClick={() => onNavigate('PREV')}
-              variant="outline"
-              size="sm"
-              className="px-2"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              onClick={() => onNavigate('NEXT')}
-              variant="outline"
-              size="sm"
-              className="px-2"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1">
-          {Object.entries(viewNames).map(([viewKey, viewLabel]) => (
-            <Button
-              key={viewKey}
-              onClick={() => onView(viewKey as View)}
-              variant={view === viewKey ? "default" : "outline"}
-              size="sm"
-              className="text-sm px-3"
-            >
-              {viewLabel}
-            </Button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-
-  return (
-    <div className="rbc-toolbar w-full p-2 sm:p-3 lg:p-4">
-      {FullWideLayout}
-      {CompactLayout}
     </div>
   )
 } 
