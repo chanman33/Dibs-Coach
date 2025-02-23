@@ -18,6 +18,7 @@ import {
   Building2,
   Calculator,
   Bot,
+  GraduationCap,
 } from "lucide-react"
 
 export function CoachSidebar() {
@@ -60,6 +61,16 @@ export function CoachSidebar() {
             {/* <NavLink href="/dashboard/coach/messages" icon={MessageSquare}>
               Messages
             </NavLink> */}
+
+            {/* Coaching */}
+            <NavLink href="/dashboard/coach/browse-coaches" icon={GraduationCap}>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">Browse Coaches</span>
+                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
+                  Grow
+                </span>
+              </div>
+            </NavLink>
 
             {/* Coach Tools */}
             <Separator className="my-3" />
