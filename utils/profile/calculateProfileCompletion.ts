@@ -82,7 +82,7 @@ const PROFILE_FIELDS: ProfileField[] = [
 ];
 
 // Minimum percentage required for profile to be published
-export const PUBLICATION_THRESHOLD = 80;
+export const PUBLICATION_THRESHOLD = 70;
 
 /**
  * Calculate the profile completion percentage based on fields
@@ -95,6 +95,7 @@ export function calculateProfileCompletion(profile: CoachProfileData): {
   let totalWeight = 0;
   let completedWeight = 0;
   const missingFields: string[] = [];
+  const missingRequiredFields: string[] = [];
 
   // Calculate total weight and completed weight
   PROFILE_FIELDS.forEach((field) => {
@@ -105,16 +106,19 @@ export function calculateProfileCompletion(profile: CoachProfileData): {
     
     if (isComplete) {
       completedWeight += field.weight;
-    } else if (field.required) {
+    } else {
       missingFields.push(field.name);
+      if (field.required) {
+        missingRequiredFields.push(field.name);
+      }
     }
   });
 
   // Calculate percentage
   const percentage = Math.round((completedWeight / totalWeight) * 100);
   
-  // Determine if the profile can be published
-  const canPublish = percentage >= PUBLICATION_THRESHOLD && missingFields.length === 0;
+  // Determine if the profile can be published - now just based on percentage
+  const canPublish = percentage >= PUBLICATION_THRESHOLD;
 
   return {
     percentage,
@@ -153,9 +157,9 @@ export function getMissingFieldsMessage(missingFields: string[]): string {
   const formattedFields = missingFields.map(getFieldDisplayName);
   
   if (formattedFields.length === 1) {
-    return `${formattedFields[0]} is required for profile publication.`;
+    return `${formattedFields[0]} would improve your profile completion.`;
   }
   
   const lastField = formattedFields.pop();
-  return `${formattedFields.join(', ')} and ${lastField} are required for profile publication.`;
+  return `Adding ${formattedFields.join(', ')} and ${lastField} would improve your profile completion.`;
 } 

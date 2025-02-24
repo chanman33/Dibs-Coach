@@ -353,16 +353,16 @@ export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse,
           eventTypeUrl: coachProfile?.eventTypeUrl || null,
         };
         
-        const { canPublish } = calculateProfileCompletion(profileData);
+        const { canPublish, percentage } = calculateProfileCompletion(profileData);
         
         if (!canPublish) {
           return {
             data: null,
             error: {
               code: 'VALIDATION_ERROR',
-              message: 'Profile does not meet requirements for publication',
+              message: `Your profile is only ${percentage}% complete. It needs to be at least ${PUBLICATION_THRESHOLD}% complete to publish.`,
               details: { 
-                completionPercentage: coachProfile?.completionPercentage || 0,
+                completionPercentage: percentage || 0,
                 requiredThreshold: PUBLICATION_THRESHOLD
               }
             }
@@ -399,13 +399,13 @@ export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse,
         error: null
       }
     } catch (error) {
-      console.error('[PROFILE_STATUS_UPDATE_ERROR]', error)
+      console.error('[DEBUG] Error in updateProfileStatus:', error)
       return {
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
-          details: error instanceof Error ? { message: error.message } : undefined
+          message: 'Failed to update profile status',
+          details: { error }
         }
       }
     }

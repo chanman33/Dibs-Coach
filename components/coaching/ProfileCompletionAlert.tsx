@@ -44,7 +44,7 @@ export function ProfileCompletionAlert({
       }
       
       if (data?.success) {
-        toast.success(`Profile status updated to ${status}`)
+        toast.success(`Profile status updated to ${status === PROFILE_STATUS.PUBLISHED ? 'published' : status.toLowerCase()}`)
       }
     } catch (err) {
       toast.error('Failed to update profile status')
@@ -158,11 +158,11 @@ export function ProfileCompletionAlert({
           <Button 
             variant="default" 
             size="sm" 
-            onClick={() => handleStatusUpdate(PROFILE_STATUS.REVIEW)}
+            onClick={() => handleStatusUpdate(PROFILE_STATUS.PUBLISHED)}
             disabled={isUpdating || !canPublish}
           >
             <CheckCircle className="mr-2 h-4 w-4" />
-            Submit for Review
+            Publish Profile
           </Button>
         )}
       </div>
