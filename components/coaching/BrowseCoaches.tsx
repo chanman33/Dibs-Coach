@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { Coach } from '@/components/dashboard/Coach'
-import { SearchAndFilter } from '@/app/dashboard/coach/browse-coaches/_components/SearchAndFilter'
+import { SearchAndFilter } from '@/components/coaching/SearchAndFilter'
 import { CoachProfileModal } from '@/components/dashboard/CoachProfileModal'
 import { useBrowseCoaches } from '@/utils/hooks/useBrowseCoaches'
 import { BrowseCoachData, SessionConfig } from '@/utils/types/browse-coaches'
