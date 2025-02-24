@@ -1,5 +1,4 @@
 import { AccordionComponent } from "@/components/homepage/accordion-component";
-import BlogSample from "@/components/homepage/blog-samples";
 import HeroSection from "@/components/homepage/hero-section";
 import MarketingCards from "@/components/homepage/marketing-cards";
 import Pricing from "@/components/homepage/pricing";
@@ -7,6 +6,7 @@ import SideBySide from "@/components/homepage/side-by-side";
 import PageWrapper from "@/components/wrapper/page-wrapper";
 import config from "@/config";
 import { FAQ } from "@/components/homepage/faq";
+import CoachCarousel from "@/components/homepage/coach-carousel";
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
@@ -31,7 +31,7 @@ export default function Home() {
         <MarketingCards />
       </div>
       <div className="max-w-[1200px] p-8 mt-[2rem] lg:mt-[6rem] lg:mb-[5rem]">
-        <BlogSample />
+        <CoachCarousel />
       </div>
       {(config.auth.enabled && config.payments.enabled) && <div>
         <Pricing />

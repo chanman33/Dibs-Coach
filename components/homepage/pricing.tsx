@@ -249,26 +249,6 @@ export default function Pricing() {
       priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
       priceIdYearly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
       actionLabel: "Start Your Journey",
-    },
-    {
-      title: "Growth Pro",
-      monthlyPrice: 599,
-      yearlyPrice: 6469,
-      description: "For agents ready to scale their business to the next level",
-      features: [
-        "4 coaching sessions per month ($119/session)",
-        "Advanced AI listing generator",
-        "Advanced AI email assistant",
-        "AI voicemail bot",
-        "AI social media machine",
-        "Marketing strategy development",
-        "Priority email & chat support",
-        "Weekly group mastermind calls",
-        "Personalized growth plan"
-      ],
-      actionLabel: "Accelerate Growth",
-      priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
-      priceIdYearly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
       popular: true,
     },
     {
