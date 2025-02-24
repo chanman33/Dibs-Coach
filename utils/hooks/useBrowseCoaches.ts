@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowseCoachData } from '../types/browse-coaches';
 import { fetchCoaches } from '@/utils/actions/browse-coaches';
+import { logCoachDataQuality } from '@/utils/logging/coach-logger';
 
 interface PostgrestError {
   code?: string;
@@ -34,133 +35,140 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
   const [filteredBookedCoaches, setFilteredBookedCoaches] = useState<BrowseCoachData[]>([]);
   const [filteredRecommendedCoaches, setFilteredRecommendedCoaches] = useState<BrowseCoachData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSpecialty, setSelectedSpecialty] = useState('all');
+  const [selectedSpecialty, setSelectedSpecialty] = useState('');
+  const [allSpecialties, setAllSpecialties] = useState<string[]>([]);
 
   useEffect(() => {
     const getCoaches = async () => {
+      console.log('[CLIENT_BROWSE_COACHES_START]', { 
+        role,
+        timestamp: new Date().toISOString()
+      });
+      
       try {
         setError(null);
+        console.log('[CLIENT_BROWSE_COACHES_FETCH_START]');
         const { data: coachesData, error: fetchError } = await fetchCoaches(null);
+        console.log('[CLIENT_BROWSE_COACHES_FETCH_COMPLETE]', {
+          success: !fetchError,
+          dataReceived: !!coachesData,
+          coachCount: coachesData?.length || 0,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Log the raw data to help debug
+        if (coachesData && coachesData.length > 0) {
+          console.log('[CLIENT_BROWSE_COACHES_FIRST_COACH]', {
+            coach: coachesData[0],
+            timestamp: new Date().toISOString()
+          });
+        }
         
         if (fetchError) {
-          // Check if it's a PGRST200 error (no results)
-          const pgError = fetchError as PostgrestError;
-          if (pgError.code === 'PGRST200') {
-            // This is not really an error, just no coaches yet
-            setBookedCoaches([]);
-            setRecommendedCoaches([]);
-            setFilteredBookedCoaches([]);
-            setFilteredRecommendedCoaches([]);
-            return;
-          }
-          
-          console.error('[FETCH_COACHES_ERROR]', fetchError);
+          console.error('[CLIENT_BROWSE_COACHES_ERROR]', {
+            error: fetchError,
+            code: fetchError.code,
+            message: fetchError.message,
+            details: fetchError.details,
+            timestamp: new Date().toISOString()
+          });
           setError('Unable to fetch coaches. Please try again later.');
           return;
         }
 
         if (!coachesData || !Array.isArray(coachesData)) {
+          console.error('[CLIENT_BROWSE_COACHES_INVALID_DATA]', {
+            dataType: typeof coachesData,
+            isArray: Array.isArray(coachesData),
+            timestamp: new Date().toISOString()
+          });
           setError('Invalid data received from server');
           return;
         }
+        
+        if (coachesData.length === 0) {
+          console.log('[CLIENT_BROWSE_COACHES_NO_COACHES]', {
+            timestamp: new Date().toISOString()
+          });
+          setBookedCoaches([]);
+          setRecommendedCoaches([]);
+          setFilteredBookedCoaches([]);
+          setFilteredRecommendedCoaches([]);
+          setAllSpecialties([]);
+          return;
+        }
 
-        const formattedCoaches: BrowseCoachData[] = coachesData.map(coach => ({
-          ulid: coach.ulid,
-          userId: coach.userId,
-          firstName: coach.firstName,
-          lastName: coach.lastName,
-          profileImageUrl: coach.profileImageUrl,
-          bio: coach.bio,
-          coachingSpecialties: coach.coachingSpecialties || [],
-          hourlyRate: coach.hourlyRate,
-          yearsCoaching: coach.yearsCoaching,
-          totalSessions: coach.totalSessions,
-          averageRating: coach.averageRating,
-          defaultDuration: coach.defaultDuration,
-          minimumDuration: coach.minimumDuration,
-          maximumDuration: coach.maximumDuration,
-          allowCustomDuration: coach.allowCustomDuration,
-          isActive: coach.isActive,
-          calendlyUrl: coach.calendlyUrl,
-          eventTypeUrl: coach.eventTypeUrl
-        }));
+        console.log('[CLIENT_BROWSE_COACHES_TRANSFORM_START]', {
+          coachCount: coachesData.length,
+          timestamp: new Date().toISOString()
+        });
 
-        // Filter out any coaches with invalid/incomplete data
-        const validCoaches = formattedCoaches.filter(coach => 
+        // The data is already transformed by the server action
+        const validCoaches = coachesData.filter(coach => 
           coach.firstName && coach.lastName && coach.isActive
         );
 
-        // Sort coaches by those with complete profiles first and calculate recommendation scores
-        const sortedCoaches = validCoaches.sort((a, b) => {
-          // Calculate profile completeness score (40%)
-          const getCompletenessScore = (coach: BrowseCoachData) => {
-            let score = 0;
-            if (coach.bio) score += 0.1;
-            if (coach.coachingSpecialties?.length) score += 0.1;
-            if (coach.hourlyRate) score += 0.1;
-            if (coach.profileImageUrl) score += 0.1;
-            return score;
-          };
-
-          // Calculate experience score (30%)
-          const getExperienceScore = (coach: BrowseCoachData) => {
-            let score = 0;
-            // Years of coaching (up to 10 years = max score)
-            score += Math.min((coach.yearsCoaching || 0) / 10, 1) * 0.15;
-            // Total sessions (up to 100 sessions = max score)
-            score += Math.min((coach.totalSessions || 0) / 100, 1) * 0.15;
-            return score;
-          };
-
-          // Calculate rating score (30%)
-          const getRatingScore = (coach: BrowseCoachData) => {
-            return ((coach.averageRating || 0) / 5) * 0.3;
-          };
-
-          const aScore = getCompletenessScore(a) + getExperienceScore(a) + getRatingScore(a);
-          const bScore = getCompletenessScore(b) + getExperienceScore(b) + getRatingScore(b);
-          
-          return bScore - aScore; // Higher score first
+        console.log('[CLIENT_BROWSE_COACHES_VALID_COACHES]', {
+          total: coachesData.length,
+          valid: validCoaches.length,
+          invalid: coachesData.length - validCoaches.length,
+          timestamp: new Date().toISOString()
         });
 
-        // Get booked coaches (this would normally come from a separate query)
-        const userBookedCoaches = sortedCoaches.slice(0, 2);
+        // Sort coaches by those with complete profiles first and calculate recommendation scores
+        console.log('[CLIENT_BROWSE_COACHES_SORTING_START]', {
+          timestamp: new Date().toISOString()
+        });
+
+        // Extract all unique specialties
+        const specialties = new Set<string>();
+        validCoaches.forEach(coach => {
+          if (coach.coachingSpecialties && Array.isArray(coach.coachingSpecialties)) {
+            coach.coachingSpecialties.forEach(specialty => {
+              if (specialty) specialties.add(specialty);
+            });
+          }
+        });
         
-        // Get recommended coaches based on comprehensive scoring
-        const recommendedCoaches = sortedCoaches
-          .filter(coach => !userBookedCoaches.some(booked => booked.ulid === coach.ulid))
-          .sort((a, b) => {
-            // Calculate recommendation score based on:
-            // - Profile completeness (40%)
-            // - Experience and sessions (30%)
-            // - Rating (30%)
-            const getScore = (coach: BrowseCoachData) => {
-              const completenessScore = (
-                (coach.bio ? 0.1 : 0) +
-                (coach.coachingSpecialties?.length ? 0.1 : 0) +
-                (coach.hourlyRate ? 0.1 : 0) +
-                (coach.profileImageUrl ? 0.1 : 0)
-              );
+        setAllSpecialties(Array.from(specialties).sort());
 
-              const experienceScore = (
-                Math.min((coach.yearsCoaching || 0) / 10, 1) * 0.15 +
-                Math.min((coach.totalSessions || 0) / 100, 1) * 0.15
-              );
+        // For now, just split into booked and recommended
+        // In a real app, we'd use actual booking data and recommendation algorithms
+        const booked: BrowseCoachData[] = [];
+        const recommended = [...validCoaches];
+        
+        // Sort recommended coaches by rating and completeness
+        recommended.sort((a, b) => {
+          // First by rating (if available)
+          if (a.averageRating && b.averageRating) {
+            return b.averageRating - a.averageRating;
+          } else if (a.averageRating) {
+            return -1; // a has rating, b doesn't
+          } else if (b.averageRating) {
+            return 1; // b has rating, a doesn't
+          }
+          
+          // Then by total sessions
+          return (b.totalSessions || 0) - (a.totalSessions || 0);
+        });
 
-              const ratingScore = ((coach.averageRating || 0) / 5) * 0.3;
+        console.log('[CLIENT_BROWSE_COACHES_SORTING_COMPLETE]', {
+          bookedCount: booked.length,
+          recommendedCount: recommended.length,
+          timestamp: new Date().toISOString()
+        });
 
-              return completenessScore + experienceScore + ratingScore;
-            };
-
-            return getScore(b) - getScore(a); // Higher score first
-          });
-
-        setBookedCoaches(userBookedCoaches);
-        setRecommendedCoaches(recommendedCoaches);
-        setFilteredBookedCoaches(userBookedCoaches);
-        setFilteredRecommendedCoaches(recommendedCoaches);
+        setBookedCoaches(booked);
+        setRecommendedCoaches(recommended);
+        setFilteredBookedCoaches(booked);
+        setFilteredRecommendedCoaches(recommended);
       } catch (error) {
-        console.error('[FETCH_COACHES_ERROR]', error);
+        console.error('[CLIENT_BROWSE_COACHES_UNEXPECTED_ERROR]', {
+          error,
+          message: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+          timestamp: new Date().toISOString()
+        });
         setError('An unexpected error occurred. Please try again later.');
       } finally {
         setIsLoading(false);
@@ -168,40 +176,51 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
     };
 
     getCoaches();
-  }, []);
+  }, [role]);
 
-  const filterCoaches = (term: string, specialty: string) => {
-    const filterFunction = (coach: BrowseCoachData) => {
-      const fullName = `${coach.firstName} ${coach.lastName}`.toLowerCase();
-      const searchMatch = fullName.includes(term.toLowerCase()) ||
-        (coach.bio || '').toLowerCase().includes(term.toLowerCase());
-      
-      return searchMatch && (
-        specialty === 'all' || 
-        coach.coachingSpecialties?.includes(specialty)
-      );
+  // Filter coaches based on search term and specialty
+  useEffect(() => {
+    console.log('[CLIENT_BROWSE_COACHES_FILTERING]', {
+      searchTerm,
+      selectedSpecialty,
+      timestamp: new Date().toISOString()
+    });
+    
+    const filterCoaches = (coaches: BrowseCoachData[]) => {
+      return coaches.filter(coach => {
+        // Filter by search term
+        const nameMatch = searchTerm 
+          ? `${coach.firstName} ${coach.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
+          : true;
+        
+        // Filter by specialty
+        const specialtyMatch = selectedSpecialty
+          ? coach.coachingSpecialties?.includes(selectedSpecialty)
+          : true;
+        
+        return nameMatch && specialtyMatch;
+      });
     };
-
-    setFilteredBookedCoaches(bookedCoaches.filter(filterFunction));
-    setFilteredRecommendedCoaches(recommendedCoaches.filter(filterFunction));
-  };
+    
+    setFilteredBookedCoaches(filterCoaches(bookedCoaches));
+    setFilteredRecommendedCoaches(filterCoaches(recommendedCoaches));
+  }, [searchTerm, selectedSpecialty, bookedCoaches, recommendedCoaches]);
 
   const handleSearch = (term: string) => {
+    console.log('[CLIENT_BROWSE_COACHES_SEARCH]', {
+      term,
+      timestamp: new Date().toISOString()
+    });
     setSearchTerm(term);
-    filterCoaches(term, selectedSpecialty);
   };
 
   const handleFilter = (specialty: string) => {
+    console.log('[CLIENT_BROWSE_COACHES_FILTER]', {
+      specialty,
+      timestamp: new Date().toISOString()
+    });
     setSelectedSpecialty(specialty);
-    filterCoaches(searchTerm, specialty);
   };
-
-  const allSpecialties = Array.from(
-    new Set(
-      [...bookedCoaches, ...recommendedCoaches]
-        .flatMap(coach => coach.coachingSpecialties || [])
-    )
-  );
 
   return {
     isLoading,
@@ -214,6 +233,6 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
     selectedSpecialty,
     handleSearch,
     handleFilter,
-    allSpecialties,
+    allSpecialties
   };
 } 

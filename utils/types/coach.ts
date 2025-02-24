@@ -128,6 +128,7 @@ export const DAYS_OF_WEEK = [
 
 export interface PublicCoach {
   ulid: string
+  userUlid: string
   firstName: string | null
   lastName: string | null
   displayName: string | null
