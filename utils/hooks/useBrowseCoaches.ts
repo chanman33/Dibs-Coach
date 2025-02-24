@@ -65,37 +65,100 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
         }
 
         const formattedCoaches: BrowseCoachData[] = coachesData.map(coach => ({
-          id: coach.id,
+          ulid: coach.ulid,
+          userId: coach.userId,
           firstName: coach.firstName,
           lastName: coach.lastName,
-          email: coach.email,
           profileImageUrl: coach.profileImageUrl,
           bio: coach.bio,
-          specialties: coach.specialties,
+          coachingSpecialties: coach.coachingSpecialties || [],
           hourlyRate: coach.hourlyRate,
-          rating: coach.rating,
+          yearsCoaching: coach.yearsCoaching,
           totalSessions: coach.totalSessions,
-          isAvailable: coach.isAvailable
+          averageRating: coach.averageRating,
+          defaultDuration: coach.defaultDuration,
+          minimumDuration: coach.minimumDuration,
+          maximumDuration: coach.maximumDuration,
+          allowCustomDuration: coach.allowCustomDuration,
+          isActive: coach.isActive,
+          calendlyUrl: coach.calendlyUrl,
+          eventTypeUrl: coach.eventTypeUrl
         }));
 
         // Filter out any coaches with invalid/incomplete data
         const validCoaches = formattedCoaches.filter(coach => 
-          coach.firstName && coach.lastName && coach.email
+          coach.firstName && coach.lastName && coach.isActive
         );
 
-        // Sort coaches by those with complete profiles first
+        // Sort coaches by those with complete profiles first and calculate recommendation scores
         const sortedCoaches = validCoaches.sort((a, b) => {
-          const aComplete = !!(a.bio && a.specialties?.length && a.hourlyRate);
-          const bComplete = !!(b.bio && b.specialties?.length && b.hourlyRate);
-          if (aComplete && !bComplete) return -1;
-          if (!aComplete && bComplete) return 1;
-          return 0;
+          // Calculate profile completeness score (40%)
+          const getCompletenessScore = (coach: BrowseCoachData) => {
+            let score = 0;
+            if (coach.bio) score += 0.1;
+            if (coach.coachingSpecialties?.length) score += 0.1;
+            if (coach.hourlyRate) score += 0.1;
+            if (coach.profileImageUrl) score += 0.1;
+            return score;
+          };
+
+          // Calculate experience score (30%)
+          const getExperienceScore = (coach: BrowseCoachData) => {
+            let score = 0;
+            // Years of coaching (up to 10 years = max score)
+            score += Math.min((coach.yearsCoaching || 0) / 10, 1) * 0.15;
+            // Total sessions (up to 100 sessions = max score)
+            score += Math.min((coach.totalSessions || 0) / 100, 1) * 0.15;
+            return score;
+          };
+
+          // Calculate rating score (30%)
+          const getRatingScore = (coach: BrowseCoachData) => {
+            return ((coach.averageRating || 0) / 5) * 0.3;
+          };
+
+          const aScore = getCompletenessScore(a) + getExperienceScore(a) + getRatingScore(a);
+          const bScore = getCompletenessScore(b) + getExperienceScore(b) + getRatingScore(b);
+          
+          return bScore - aScore; // Higher score first
         });
 
-        setBookedCoaches(sortedCoaches.slice(0, 2));
-        setRecommendedCoaches(sortedCoaches.slice(2));
-        setFilteredBookedCoaches(sortedCoaches.slice(0, 2));
-        setFilteredRecommendedCoaches(sortedCoaches.slice(2));
+        // Get booked coaches (this would normally come from a separate query)
+        const userBookedCoaches = sortedCoaches.slice(0, 2);
+        
+        // Get recommended coaches based on comprehensive scoring
+        const recommendedCoaches = sortedCoaches
+          .filter(coach => !userBookedCoaches.some(booked => booked.ulid === coach.ulid))
+          .sort((a, b) => {
+            // Calculate recommendation score based on:
+            // - Profile completeness (40%)
+            // - Experience and sessions (30%)
+            // - Rating (30%)
+            const getScore = (coach: BrowseCoachData) => {
+              const completenessScore = (
+                (coach.bio ? 0.1 : 0) +
+                (coach.coachingSpecialties?.length ? 0.1 : 0) +
+                (coach.hourlyRate ? 0.1 : 0) +
+                (coach.profileImageUrl ? 0.1 : 0)
+              );
+
+              const experienceScore = (
+                Math.min((coach.yearsCoaching || 0) / 10, 1) * 0.15 +
+                Math.min((coach.totalSessions || 0) / 100, 1) * 0.15
+              );
+
+              const ratingScore = ((coach.averageRating || 0) / 5) * 0.3;
+
+              return completenessScore + experienceScore + ratingScore;
+            };
+
+            return getScore(b) - getScore(a); // Higher score first
+          });
+
+        setBookedCoaches(userBookedCoaches);
+        setRecommendedCoaches(recommendedCoaches);
+        setFilteredBookedCoaches(userBookedCoaches);
+        setFilteredRecommendedCoaches(recommendedCoaches);
       } catch (error) {
         console.error('[FETCH_COACHES_ERROR]', error);
         setError('An unexpected error occurred. Please try again later.');
@@ -110,8 +173,13 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
   const filterCoaches = (term: string, specialty: string) => {
     const filterFunction = (coach: BrowseCoachData) => {
       const fullName = `${coach.firstName} ${coach.lastName}`.toLowerCase();
-      return fullName.includes(term.toLowerCase()) &&
-        (specialty === 'all' || coach.specialties?.includes(specialty));
+      const searchMatch = fullName.includes(term.toLowerCase()) ||
+        (coach.bio || '').toLowerCase().includes(term.toLowerCase());
+      
+      return searchMatch && (
+        specialty === 'all' || 
+        coach.coachingSpecialties?.includes(specialty)
+      );
     };
 
     setFilteredBookedCoaches(bookedCoaches.filter(filterFunction));
@@ -131,7 +199,7 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
   const allSpecialties = Array.from(
     new Set(
       [...bookedCoaches, ...recommendedCoaches]
-        .flatMap(coach => coach.specialties || [])
+        .flatMap(coach => coach.coachingSpecialties || [])
     )
   );
 

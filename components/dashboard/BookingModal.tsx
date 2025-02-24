@@ -27,7 +27,7 @@ interface BookingModalProps {
   isOpen: boolean
   onClose: () => void
   coachName: string
-  coachId: number
+  coachId: string
   calendlyUrl: string | null
   eventTypeUrl: string | null
   sessionConfig: SessionConfig
@@ -139,7 +139,7 @@ export function BookingModal({
       </DialogHeader>
 
       <DateTimeSelector
-        coachId={coachId.toString()}
+        coachId={coachId}
         duration={selectedDuration!}
         onSelect={handleSlotSelect}
       />

@@ -26,7 +26,7 @@ interface SessionConfig {
 }
 
 interface Coach {
-  id: number
+  id: string
   userId: string
   name: string
   specialty: string

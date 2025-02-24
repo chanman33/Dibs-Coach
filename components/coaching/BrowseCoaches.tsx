@@ -3,14 +3,14 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { Coach } from '@/components/dashboard/Coach'
-import { SearchAndFilter } from '@/components/coaching/SearchAndFilter'
+import { SearchAndFilter } from '@/components/coaching/shared/SearchAndFilter'
 import { CoachProfileModal } from '@/components/dashboard/CoachProfileModal'
 import { useBrowseCoaches } from '@/utils/hooks/useBrowseCoaches'
 import { BrowseCoachData, SessionConfig } from '@/utils/types/browse-coaches'
 import { useState } from 'react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
-import { Categories } from '@/app/coaches/components/Categories'
+import { Categories } from '@/components/coaching/shared/Categories'
 
 
 export interface BrowseCoachProps {
@@ -25,10 +25,15 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
     filteredBookedCoaches,
     filteredRecommendedCoaches,
     handleSearch,
-    handleFilter,
+    handleFilter: handleFilterSingle,
     allSpecialties,
   } = useBrowseCoaches({ role: role as 'COACH' | 'MENTEE' });
 
+  const handleFilter = (filters: string[]) => {
+    if (filters.length > 0) {
+      handleFilterSingle(filters[0]);
+    }
+  };
 
   const [selectedCoach, setSelectedCoach] = useState<BrowseCoachData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -52,18 +57,18 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 gap-6">
       {coaches.map(coach => (
         <Coach
-          key={coach.id}
-          id={coach.id}
-          userId={coach.id.toString()}
+          key={coach.ulid}
+          id={coach.ulid}
+          userId={coach.userId}
           name={`${coach.firstName} ${coach.lastName}`}
           imageUrl={coach.profileImageUrl}
-          specialty={coach.specialties?.[0] || 'General Coach'}
+          specialty={coach.coachingSpecialties?.[0] || 'General Coach'}
           bio={coach.bio}
           experience={null}
           certifications={[]}
           availability="Available"
           sessionLength="60 minutes"
-          specialties={coach.specialties || []}
+          specialties={coach.coachingSpecialties || []}
           calendlyUrl={null}
           eventTypeUrl={null}
           isBooked={isBooked}
@@ -133,8 +138,6 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
               <SearchAndFilter
                 onSearch={handleSearch}
                 onFilter={handleFilter}
-                onPriceRangeChange={handlePriceRangeChange}
-                onSortChange={handleSortChange}
                 specialties={allSpecialties}
                 vertical={true}
               />
@@ -157,7 +160,7 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
               ) : filteredRecommendedCoaches.length > 0 ? (
                 <div className="w-full">
                   {renderCoaches(filteredRecommendedCoaches.filter(coach => 
-                    !filteredBookedCoaches.some(booked => booked.id === coach.id)
+                    !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid)
                   ))}
                 </div>
               ) : (
@@ -181,7 +184,7 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
             </div>
           ) : filteredRecommendedCoaches.length > 0 ? (
             renderCoaches(filteredRecommendedCoaches.filter(coach => 
-              !filteredBookedCoaches.some(booked => booked.id === coach.id)
+              !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid)
             ))
           ) : (
             <p className="text-center text-muted-foreground py-12">
@@ -198,17 +201,17 @@ export function BrowseCoaches({ role }: BrowseCoachProps) {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           coach={{
-            id: selectedCoach.id,
-            userId: selectedCoach.id.toString(),
+            id: selectedCoach.ulid,
+            userId: selectedCoach.userId,
             name: `${selectedCoach.firstName} ${selectedCoach.lastName}`,
             imageUrl: selectedCoach.profileImageUrl,
-            specialty: selectedCoach.specialties?.[0] || 'General Coach',
+            specialty: selectedCoach.coachingSpecialties?.[0] || 'General Coach',
             bio: selectedCoach.bio,
             experience: null,
             certifications: [],
             availability: "Available",
             sessionLength: "60 minutes",
-            specialties: selectedCoach.specialties || [],
+            specialties: selectedCoach.coachingSpecialties || [],
             calendlyUrl: null,
             eventTypeUrl: null,
             sessionConfig: getSessionConfig(selectedCoach)

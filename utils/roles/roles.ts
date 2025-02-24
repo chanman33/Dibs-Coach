@@ -3,6 +3,8 @@ export const SYSTEM_ROLES = {
   SYSTEM_OWNER: 'SYSTEM_OWNER',
   SYSTEM_MODERATOR: 'SYSTEM_MODERATOR',
   USER: 'USER',
+  COACH: 'COACH',
+  MENTEE: 'MENTEE'
 } as const;
 
 export type SystemRole = keyof typeof SYSTEM_ROLES;
@@ -37,10 +39,10 @@ export type OrgRole = typeof ORG_ROLES[keyof typeof ORG_ROLES];
 // User capabilities (from Prisma schema)
 export const USER_CAPABILITIES = {
   COACH: 'COACH',
-  MENTEE: 'MENTEE',
+  MENTEE: 'MENTEE'
 } as const;
 
-export type UserCapability = typeof USER_CAPABILITIES[keyof typeof USER_CAPABILITIES];
+export type UserCapability = keyof typeof USER_CAPABILITIES;
 
 // Organization levels (from Prisma schema)
 export const ORG_LEVELS = {

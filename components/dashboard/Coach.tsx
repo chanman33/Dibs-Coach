@@ -30,7 +30,7 @@ const getImageUrl = (url: string | null, isMockUser: boolean) => {
 }
 
 interface CoachProps {
-  id: number
+  id: string
   userId: string
   name: string
   specialty: string

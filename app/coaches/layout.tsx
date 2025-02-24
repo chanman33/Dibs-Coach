@@ -6,7 +6,7 @@ import { Analytics } from "@vercel/analytics/react"
 import { GeistSans } from 'geist/font/sans'
 import type { Metadata } from 'next'
 import '@/app/globals.css'
-import { CoachesFooter } from './components/CoachesFooter'
+import { CoachesFooter } from '../../components/coaching/public/CoachesFooter'
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://dibs.coach"),

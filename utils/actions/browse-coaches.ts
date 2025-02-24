@@ -6,12 +6,25 @@ import { withServerAction } from '@/utils/middleware/withServerAction'
 
 interface DbCoach {
   ulid: string
+  userId: string
   firstName: string
   lastName: string
-  email: string
   profileImageUrl: string | null
+  bio: string | null
   CoachProfile: {
+    ulid: string
+    coachingSpecialties: string[]
     hourlyRate: number | null
+    yearsCoaching: number | null
+    totalSessions: number
+    averageRating: number | null
+    defaultDuration: number
+    minimumDuration: number
+    maximumDuration: number
+    allowCustomDuration: boolean
+    isActive: boolean
+    calendlyUrl: string | null
+    eventTypeUrl: string | null
   } | null
 }
 
@@ -24,17 +37,31 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
         .from('User')
         .select(`
           ulid,
+          userId,
           firstName,
           lastName,
-          email,
           profileImageUrl,
+          bio,
           CoachProfile (
-            hourlyRate
+            ulid,
+            coachingSpecialties,
+            hourlyRate,
+            yearsCoaching,
+            totalSessions,
+            averageRating,
+            defaultDuration,
+            minimumDuration,
+            maximumDuration,
+            allowCustomDuration,
+            isActive,
+            calendlyUrl,
+            eventTypeUrl
           )
         `)
         .eq('isCoach', true)
         .eq('status', 'ACTIVE')
         .not('CoachProfile', 'is', null)
+        .order('createdAt', { ascending: false })
 
       if (error) {
         console.error('[BROWSE_COACHES_ERROR]', { userUlid, error })
@@ -51,19 +78,28 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
         return { data: [], error: null }
       }
 
-      const transformedCoaches: BrowseCoachData[] = (coaches as unknown as DbCoach[]).map((coach) => ({
-        id: parseInt(coach.ulid),
-        firstName: coach.firstName,
-        lastName: coach.lastName,
-        email: coach.email,
-        profileImageUrl: coach.profileImageUrl,
-        bio: null,
-        specialties: [], // Default empty array since specialties field doesn't exist yet
-        hourlyRate: coach.CoachProfile?.hourlyRate || 0,
-        rating: null,
-        totalSessions: 0,
-        isAvailable: true // Default to true since isAvailable field doesn't exist yet
-      }))
+      const transformedCoaches: BrowseCoachData[] = (coaches as unknown as DbCoach[])
+        .filter(coach => coach.CoachProfile)
+        .map((coach) => ({
+          ulid: coach.ulid,
+          userId: coach.userId,
+          firstName: coach.firstName,
+          lastName: coach.lastName,
+          profileImageUrl: coach.profileImageUrl,
+          bio: coach.bio,
+          coachingSpecialties: coach.CoachProfile?.coachingSpecialties || [],
+          hourlyRate: coach.CoachProfile?.hourlyRate || null,
+          yearsCoaching: coach.CoachProfile?.yearsCoaching || null,
+          totalSessions: coach.CoachProfile?.totalSessions || 0,
+          averageRating: coach.CoachProfile?.averageRating || null,
+          defaultDuration: coach.CoachProfile?.defaultDuration || 60,
+          minimumDuration: coach.CoachProfile?.minimumDuration || 30,
+          maximumDuration: coach.CoachProfile?.maximumDuration || 90,
+          allowCustomDuration: coach.CoachProfile?.allowCustomDuration || false,
+          isActive: coach.CoachProfile?.isActive || false,
+          calendlyUrl: coach.CoachProfile?.calendlyUrl || null,
+          eventTypeUrl: coach.CoachProfile?.eventTypeUrl || null
+        }));
 
       return { 
         data: transformedCoaches, 
