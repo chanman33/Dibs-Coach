@@ -129,9 +129,12 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
           allowCustomDuration,
           isActive,
           calendlyUrl,
-          eventTypeUrl
+          eventTypeUrl,
+          profileStatus
         `)
-        .in('userUlid', coachUsers.map(u => u.ulid));
+        .in('userUlid', coachUsers.map(u => u.ulid))
+        .eq('profileStatus', 'PUBLISHED')
+        .eq('isActive', true);
         
       console.log('[BROWSE_COACHES_COACH_PROFILES]', {
         count: coachProfilesData?.length || 0,
@@ -248,6 +251,12 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
 
       console.log('[BROWSE_COACHES_TRANSFORM_COMPLETE]', { 
         transformedCount: transformedCoaches.length,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log('[BROWSE_COACHES_PUBLISHED_PROFILES]', {
+        publishedCount: coachProfilesData?.length || 0,
+        unpublishedCoachUsers: coachUsers.length - (coachProfilesData?.length || 0),
         timestamp: new Date().toISOString()
       });
 

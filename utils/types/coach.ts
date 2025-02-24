@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+// Define Profile Status enum
+export const PROFILE_STATUS = {
+  DRAFT: 'DRAFT',
+  REVIEW: 'REVIEW',
+  PUBLISHED: 'PUBLISHED'
+} as const;
+
+export type ProfileStatus = typeof PROFILE_STATUS[keyof typeof PROFILE_STATUS];
+
 export const CoachProfileSchema = z.object({
   id: z.number().optional(),
   bio: z.string().min(1, "Bio is required").max(1000, "Bio must be less than 1000 characters"),
@@ -22,12 +31,17 @@ export const CoachProfileSchema = z.object({
   testimonials: z.record(z.string(), z.any()),
   calendlyLink: z.string().url().optional(),
   zoomLink: z.string().url().optional(),
+  // Add new fields
+  profileStatus: z.enum(Object.values(PROFILE_STATUS) as [string, ...string[]]).default(PROFILE_STATUS.DRAFT),
+  completionPercentage: z.number().min(0).max(100).default(0),
 });
 
 export type CoachProfile = z.infer<typeof CoachProfileSchema> & {
   id: number;
   totalSessions: number;
   averageRating: number | null;
+  profileStatus: ProfileStatus;
+  completionPercentage: number;
 };
 
 export const UpdateCoachProfileSchema = CoachProfileSchema.partial().extend({

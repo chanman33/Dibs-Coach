@@ -21,6 +21,7 @@ import {
 } from '@/utils/types/system'
 import { revalidatePath } from 'next/cache'
 import { SYSTEM_ROLES } from '@/utils/roles/roles'
+import { ProfileStatus } from '@/utils/types/coach'
 
 const DEFAULT_SYSTEM_METRICS: SystemMetrics = {
   totalUsers: 0,
@@ -588,4 +589,102 @@ export const refreshDashboardData = withServerAction<void>(
       }
     }
   }
-) 
+)
+
+// Update coach profile status (for admin use)
+export const updateCoachProfileStatus = withServerAction<{ success: boolean }, { coachUlid: string, status: ProfileStatus }>(
+  async (data, { userUlid }) => {
+    try {
+      // First check if the user is an admin
+      const supabase = await createAuthClient();
+      
+      const { data: userData, error: userError } = await supabase
+        .from('User')
+        .select('role')
+        .eq('ulid', userUlid)
+        .single();
+      
+      if (userError) {
+        console.error('[ADMIN_UPDATE_COACH_STATUS_ERROR] User fetch error', userError);
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Error fetching user',
+            details: { error: userError }
+          }
+        };
+      }
+      
+      // Check if user is admin
+      const isAdmin = userData.role === 'SYSTEM_OWNER' || userData.role === 'SYSTEM_MODERATOR';
+      
+      if (!isAdmin) {
+        console.error('[ADMIN_UPDATE_COACH_STATUS_ERROR] Unauthorized access', { userUlid });
+        return {
+          data: null,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'You do not have permission to perform this action',
+          }
+        };
+      }
+      
+      // Update the coach profile status
+      const { error: updateError } = await supabase
+        .from('CoachProfile')
+        .update({
+          profileStatus: data.status,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('ulid', data.coachUlid);
+      
+      if (updateError) {
+        console.error('[ADMIN_UPDATE_COACH_STATUS_ERROR] Update error', updateError);
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Error updating coach profile status',
+            details: { error: updateError }
+          }
+        };
+      }
+      
+      // Log the status change for audit
+      await supabase
+        .from('AdminAuditLog')
+        .insert({
+          userUlid,
+          action: 'UPDATE_COACH_PROFILE_STATUS',
+          resourceType: 'CoachProfile',
+          resourceId: data.coachUlid,
+          details: { 
+            status: data.status,
+            timestamp: new Date().toISOString()
+          },
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      
+      // Revalidate relevant paths
+      revalidatePath('/admin/coaches');
+      revalidatePath(`/admin/coaches/${data.coachUlid}`);
+      
+      return {
+        data: { success: true },
+        error: null
+      };
+    } catch (error) {
+      console.error('[ADMIN_UPDATE_COACH_STATUS_ERROR]', error);
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      };
+    }
+  }
+); 

@@ -97,9 +97,11 @@ export function usePublicCoaches() {
             hourlyRate,
             isActive,
             averageRating,
-            totalSessions
+            totalSessions,
+            profileStatus
           `)
           .eq('isActive', true)
+          .eq('profileStatus', 'PUBLISHED')
           .in('userUlid', coachUsers.map(u => u.ulid));
           
         if (profilesError) {
@@ -110,8 +112,10 @@ export function usePublicCoaches() {
           throw profilesError;
         }
         
-        console.log('[PUBLIC_COACHES_PROFILES_QUERY_COMPLETE]', {
-          count: coachProfiles?.length || 0,
+        console.log('[PUBLIC_COACHES_PUBLISHED_PROFILES]', {
+          totalCoaches: coachUsers.length,
+          publishedCount: coachProfiles?.length || 0,
+          unpublishedCount: coachUsers.length - (coachProfiles?.length || 0),
           timestamp: new Date().toISOString()
         });
         

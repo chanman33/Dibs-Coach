@@ -524,6 +524,13 @@ enum InsuranceType {
   OTHER
 }
 
+// Profile status enum
+enum ProfileStatus {
+  DRAFT     // Profile is incomplete or being edited
+  REVIEW    // Profile is complete and awaiting review
+  PUBLISHED // Profile is approved and publicly visible
+}
+
 // Models
 model User {
   ulid                   String   @id @db.Char(26)
@@ -649,36 +656,41 @@ model MenteeProfile {
 
 // Coach-specific profile data
 model CoachProfile {
-  ulid                String   @id @db.Char(26)
-  userUlid            String   @unique @db.Char(26)
+  ulid                String       @id @db.Char(26)
+  userUlid            String       @unique @db.Char(26)
   coachingSpecialties String[]
   yearsCoaching        Int?
-  hourlyRate          Decimal? @db.Decimal(10, 2)
+  hourlyRate          Decimal?     @db.Decimal(10, 2)
 
   // Domain Expertise
-  activeDomains       String[] // Array of active domain types
-  domainExpertise       DomainExpertise[]
+  activeDomains       String[]     // Array of active domain types
+  domainExpertise     DomainExpertise[]
 
   // Calendly Integration
   calendlyUrl         String?
   eventTypeUrl        String?
 
   // Session Configuration
-  isActive            Boolean  @default(true)
-  defaultDuration     Int      @default(60)
-  allowCustomDuration Boolean  @default(false)
-  minimumDuration     Int      @default(30)
-  maximumDuration     Int      @default(120)
-  totalSessions       Int      @default(0)
-  averageRating       Decimal? @db.Decimal(3, 2)
+  isActive            Boolean      @default(true)
+  defaultDuration     Int          @default(60)
+  allowCustomDuration Boolean      @default(false)
+  minimumDuration     Int          @default(30)
+  maximumDuration     Int          @default(120)
+  totalSessions       Int          @default(0)
+  averageRating       Decimal?     @db.Decimal(3, 2)
+  
+  // Profile Visibility
+  profileStatus       ProfileStatus @default(DRAFT)
+  completionPercentage Int          @default(0)
 
   // Relations
-  user               User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  user               User          @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
 
-  createdAt          DateTime @default(now()) @db.Timestamptz
-  updatedAt          DateTime @updatedAt @db.Timestamptz
+  createdAt          DateTime      @default(now()) @db.Timestamptz
+  updatedAt          DateTime      @updatedAt @db.Timestamptz
 
   @@index([userUlid])
+  @@index([profileStatus])
   @@map("CoachProfile")
 }
 

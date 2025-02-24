@@ -4,6 +4,8 @@ import { createAuthClient } from "../auth"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { revalidatePath } from "next/cache"
+import { PROFILE_STATUS, ProfileStatus } from "@/utils/types/coach"
+import { calculateProfileCompletion, PUBLICATION_THRESHOLD } from "@/utils/profile/calculateProfileCompletion"
 
 export interface CoachProfileFormData {
   specialties: string[];
@@ -48,6 +50,10 @@ interface CoachProfileResponse {
   professionalRecognitions: ProfessionalRecognition[];
   _rawCoachProfile: any;
   _rawRealtorProfile: any;
+  profileStatus: ProfileStatus;
+  completionPercentage: number;
+  canPublish: boolean;
+  missingFields: string[];
 }
 
 export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
@@ -60,6 +66,10 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       const { data, error } = await supabase
         .from('User')
         .select(`
+          firstName,
+          lastName,
+          bio,
+          profileImageUrl,
           coachProfile:CoachProfile (*),
           realtorProfile:RealtorProfile (
             *,
@@ -101,6 +111,22 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         (recognition: any) => recognition.status === 'ACTIVE'
       ) || [];
 
+      const { firstName, lastName, bio, profileImageUrl } = data;
+      
+      const profileData = {
+        firstName,
+        lastName,
+        bio,
+        profileImageUrl,
+        coachingSpecialties: coachProfile?.specialties || [],
+        hourlyRate: coachProfile?.hourlyRate || null,
+        yearsCoaching: coachProfile?.yearsCoaching || null,
+        calendlyUrl: coachProfile?.calendlyUrl || null,
+        eventTypeUrl: coachProfile?.eventTypeUrl || null,
+      };
+      
+      const { percentage, missingFields, canPublish } = calculateProfileCompletion(profileData);
+
       const responseData: CoachProfileResponse = {
         specialties: coachProfile?.specialties || [],
         yearsCoaching: coachProfile?.yearsCoaching || 0,
@@ -116,7 +142,11 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         marketExpertise: realtorProfile?.bio || "",
         professionalRecognitions: activeRecognitions,
         _rawCoachProfile: coachProfile,
-        _rawRealtorProfile: realtorProfile
+        _rawRealtorProfile: realtorProfile,
+        profileStatus: (coachProfile?.profileStatus as ProfileStatus) || PROFILE_STATUS.DRAFT,
+        completionPercentage: percentage,
+        canPublish,
+        missingFields,
       };
 
       return {
@@ -139,6 +169,10 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
 
 interface UpdateCoachProfileResponse {
   success: boolean;
+  completionPercentage: number;
+  profileStatus: ProfileStatus;
+  canPublish: boolean;
+  missingFields: string[];
 }
 
 export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, CoachProfileFormData>(
@@ -149,6 +183,10 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
       const { data: userData, error: userError } = await supabase
         .from('User')
         .select(`
+          firstName,
+          lastName,
+          bio,
+          profileImageUrl,
           realtorProfile:RealtorProfile!inner(ulid)
         `)
         .eq('ulid', userUlid)
@@ -168,6 +206,35 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
 
       const realtorProfileUlid = userData.realtorProfile[0].ulid;
 
+      const profileData = {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        bio: userData.bio,
+        profileImageUrl: userData.profileImageUrl,
+        coachingSpecialties: formData.specialties,
+        hourlyRate: formData.hourlyRate,
+        yearsCoaching: formData.yearsCoaching,
+        calendlyUrl: formData.calendlyUrl,
+        eventTypeUrl: formData.eventTypeUrl,
+      };
+      
+      const { percentage, missingFields, canPublish } = calculateProfileCompletion(profileData);
+      
+      let profileStatus: ProfileStatus = PROFILE_STATUS.DRAFT;
+      if (canPublish) {
+        profileStatus = PROFILE_STATUS.REVIEW;
+      }
+
+      const { data: existingProfile, error: existingProfileError } = await supabase
+        .from('CoachProfile')
+        .select('profileStatus')
+        .eq('userUlid', userUlid)
+        .maybeSingle();
+        
+        if (existingProfile?.profileStatus === PROFILE_STATUS.PUBLISHED) {
+          profileStatus = PROFILE_STATUS.PUBLISHED;
+        }
+
       const coachProfileData = {
         userUlid,
         specialties: formData.specialties,
@@ -179,6 +246,8 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         minimumDuration: formData.minimumDuration,
         maximumDuration: formData.maximumDuration,
         allowCustomDuration: formData.allowCustomDuration,
+        profileStatus,
+        completionPercentage: percentage,
         updatedAt: new Date().toISOString(),
       }
 
@@ -203,11 +272,134 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
 
       revalidatePath('/dashboard/coach/profile')
       return { 
-        data: { success: true },
+        data: { 
+          success: true,
+          completionPercentage: percentage,
+          profileStatus,
+          canPublish,
+          missingFields
+        },
         error: null
       }
     } catch (error) {
       console.error('[COACH_PROFILE_UPDATE_ERROR]', error)
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      }
+    }
+  }
+)
+
+interface UpdateProfileStatusResponse {
+  success: boolean;
+  profileStatus: ProfileStatus;
+}
+
+export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse, { status: ProfileStatus }>(
+  async (data, { userUlid }) => {
+    try {
+      const supabase = await createAuthClient()
+      
+      if (data.status === PROFILE_STATUS.PUBLISHED) {
+        const { data: userData, error: userError } = await supabase
+          .from('User')
+          .select(`
+            firstName,
+            lastName,
+            bio,
+            profileImageUrl,
+            coachProfile:CoachProfile (
+              specialties,
+              yearsCoaching,
+              hourlyRate,
+              calendlyUrl,
+              eventTypeUrl,
+              completionPercentage
+            )
+          `)
+          .eq('ulid', userUlid)
+          .single()
+
+        if (userError) {
+          console.error('[DEBUG] Error fetching user for status update:', userError)
+          return {
+            data: null,
+            error: {
+              code: 'DATABASE_ERROR',
+              message: 'Failed to fetch user data',
+              details: { error: userError }
+            }
+          }
+        }
+
+        const coachProfile = Array.isArray(userData.coachProfile) 
+          ? userData.coachProfile[0] 
+          : userData.coachProfile;
+
+        const profileData = {
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          bio: userData.bio,
+          profileImageUrl: userData.profileImageUrl,
+          coachingSpecialties: coachProfile?.specialties || [],
+          hourlyRate: coachProfile?.hourlyRate || null,
+          yearsCoaching: coachProfile?.yearsCoaching || null,
+          calendlyUrl: coachProfile?.calendlyUrl || null,
+          eventTypeUrl: coachProfile?.eventTypeUrl || null,
+        };
+        
+        const { canPublish } = calculateProfileCompletion(profileData);
+        
+        if (!canPublish) {
+          return {
+            data: null,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Profile does not meet requirements for publication',
+              details: { 
+                completionPercentage: coachProfile?.completionPercentage || 0,
+                requiredThreshold: PUBLICATION_THRESHOLD
+              }
+            }
+          }
+        }
+      }
+
+      const { error: updateError } = await supabase
+        .from('CoachProfile')
+        .update({
+          profileStatus: data.status,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('userUlid', userUlid)
+
+      if (updateError) {
+        console.error('[DEBUG] Error updating profile status:', updateError)
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to update profile status',
+            details: { error: updateError }
+          }
+        }
+      }
+
+      revalidatePath('/dashboard/coach/profile')
+      return { 
+        data: { 
+          success: true,
+          profileStatus: data.status
+        },
+        error: null
+      }
+    } catch (error) {
+      console.error('[PROFILE_STATUS_UPDATE_ERROR]', error)
       return {
         data: null,
         error: {
