@@ -325,6 +325,76 @@ types:
         - "type InsertUser = DbTables['User']['Insert']"
         - "type UpdateUser = DbTables['User']['Update']"
 
+# User Roles and Capabilities
+roles:
+  definition:
+    system_roles:
+      location: "utils/roles/roles.ts"
+      values:
+        - "SYSTEM_OWNER: highest level admin access"
+        - "SYSTEM_MODERATOR: system-wide moderation"
+        - "USER: standard user"
+        - "COACH: coach user (deprecated, use capabilities instead)"
+        - "MENTEE: mentee user (deprecated, use capabilities instead)"
+    
+    user_capabilities:
+      location: "utils/roles/roles.ts, utils/types/user.ts"
+      primary_capabilities:
+        - "COACH: can act as a coach"
+        - "MENTEE: can act as a mentee"
+      domain_capabilities:
+        description: "Domain-specific capabilities for coach profiles"
+        examples:
+          - "REALTOR: real estate agent specialization"
+          - "INVESTOR: investment specialization"
+          - "MORTGAGE: mortgage specialization"
+  
+  storage:
+    dual_approach:
+      explanation: "The system uses both boolean flags and capabilities array for core roles"
+      boolean_flags:
+        - "isCoach: corresponds to COACH capability"
+        - "isMentee: corresponds to MENTEE capability"
+      capabilities_array:
+        - "String array storing all user capabilities"
+        - "Must include both core and domain capabilities"
+        - "Boolean flags must be kept in sync with array contents"
+      sync_utility:
+        location: "utils/permissions.ts"
+        function: "updateUserCapabilities()"
+        description: "Ensures boolean flags are updated based on array contents"
+  
+  best_practices:
+    capability_checks:
+      - "Use hasCapability() from utils/permissions.ts"
+      - "Check boolean flags only for quick access path optimization"
+      - "Always use utility functions rather than direct database queries"
+      - "System-level admins (SYSTEM_OWNER, SYSTEM_MODERATOR) bypass capability checks"
+    
+    updating_capabilities:
+      - "Always use addUserCapability() or removeUserCapability() from utils/permissions.ts"
+      - "Never update capabilities array and boolean flags separately"
+      - "Include systemRole checks for admin operations"
+      - "For batch operations, use updateUserCapabilities() with complete array"
+    
+    constants:
+      - "Use CAPABILITIES constants from utils/permissions.ts"
+      - "Avoid string literals for capability names to prevent typos"
+      - "Import UserCapability type for type safety"
+    
+  implementation:
+    coach_users:
+      - "Check if user is a coach with hasCapability(userId, CAPABILITIES.COACH)"
+      - "Add coach capability with addUserCapability(userId, CAPABILITIES.COACH)"
+      - "Remove coach capability with removeUserCapability(userId, CAPABILITIES.COACH)"
+      - "For domain specialties, use addUserCapability(userId, 'REALTOR')"
+    
+    admin_users:
+      - "Use systemRole for system-wide admin access, not capabilities"
+      - "systemRole is single-value, while capabilities is an array"
+      - "System admins implicitly have access to all capabilities"
+      - "Update systemRole separately from capabilities"
+
 # Error Handling
 errors:
   logging:

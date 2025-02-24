@@ -9,6 +9,9 @@ import { ulidSchema } from '@/utils/types/auth'
 import { COACH_APPLICATION_STATUS, CoachApplicationStatus } from '@/utils/types/coach'
 import { generateUlid } from '@/utils/ulid'
 import type { ApplicationData } from '@/utils/types/coach-application'
+import { revalidatePath } from "next/cache";
+import { addUserCapability } from "@/utils/permissions";
+import type { ServerActionContext } from "@/utils/middleware/withServerAction";
 
 // Validation schemas
 const CoachApplicationSchema = z.object({
@@ -191,9 +194,9 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
         return {
           data: null,
           error: {
-            code: 'APPLICATION_ERROR',
-            message: 'Failed to submit application'
-          }
+            code: "INTERNAL_ERROR",
+            message: "Failed to submit application",
+          },
         };
       }
 
@@ -203,23 +206,12 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
       };
     } catch (error) {
       console.error('[COACH_APPLICATION_ERROR]', error);
-      if (error instanceof z.ZodError) {
-        return {
-          data: null,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid application data',
-            details: error.flatten()
-          }
-        };
-      }
       return {
         data: null,
         error: {
-          code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
-          details: error instanceof Error ? { message: error.message } : undefined
-        }
+          code: "INTERNAL_ERROR",
+          message: "Failed to submit application",
+        },
       };
     }
   }
@@ -337,19 +329,11 @@ export const reviewCoachApplication = withServerAction<boolean>(
 
       // Update user role if approved
       if (status === COACH_APPLICATION_STATUS.APPROVED) {
-        // Update user with coach capability and isCoach flag
-        const { error: userUpdateError } = await supabase
-          .from('User')
-          .update({ 
-            capabilities: [USER_CAPABILITIES.COACH],
-            isCoach: true,
-            updatedAt: new Date().toISOString()
-          })
-          .eq('ulid', application.applicantUlid)
-
-        if (userUpdateError) {
-          console.error('[UPDATE_USER_ERROR]', userUpdateError)
-          throw userUpdateError
+        // Use our new utility to add coach capability and update flags
+        const success = await addUserCapability(application.applicantUlid, USER_CAPABILITIES.COACH);
+        
+        if (!success) {
+          throw new Error('Failed to update user capabilities');
         }
       }
 
@@ -373,18 +357,38 @@ export const reviewCoachApplication = withServerAction<boolean>(
 )
 
 // Get signed URL for resume file
-export const getSignedResumeUrl = withServerAction<string>(
-  async (resumePath: string, { systemRole }) => {
+export const getResumePresignedUrl = withServerAction<string>(
+  async (resumePath: string, { systemRole }: ServerActionContext) => {
     try {
-      // Only system owners can access resume files
-      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER) {
+      if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER && systemRole !== SYSTEM_ROLES.SYSTEM_MODERATOR) {
         return {
           data: null,
           error: {
-            code: 'FORBIDDEN',
-            message: 'Only system owners can access resume files'
-          }
-        }
+            code: "FORBIDDEN",
+            message: "You don't have permission to access this resource",
+          },
+        };
+      }
+
+      if (!resumePath) {
+        return {
+          data: null,
+          error: {
+            code: "MISSING_PARAMETERS",
+            message: "Resume path is required",
+          },
+        };
+      }
+
+      // Validate the path is a resume file in the correct bucket/folder
+      if (!resumePath.startsWith('resumes/') || !resumePath.endsWith('.pdf')) {
+        return {
+          data: null,
+          error: {
+            code: "MISSING_PARAMETERS",
+            message: "Invalid resume path",
+          },
+        };
       }
 
       const supabase = await createAuthClient()
@@ -400,7 +404,7 @@ export const getSignedResumeUrl = withServerAction<string>(
         return {
           data: null,
           error: {
-            code: 'INVALID_PATH',
+            code: "MISSING_PARAMETERS",
             message: 'Invalid resume file path'
           }
         };
@@ -421,7 +425,7 @@ export const getSignedResumeUrl = withServerAction<string>(
         return {
           data: null,
           error: {
-            code: 'STORAGE_ERROR',
+            code: "DATABASE_ERROR",
             message: 'Failed to generate signed URL'
           }
         };
@@ -436,7 +440,7 @@ export const getSignedResumeUrl = withServerAction<string>(
         return {
           data: null,
           error: {
-            code: 'STORAGE_ERROR',
+            code: "DATABASE_ERROR",
             message: 'Failed to generate signed URL'
           }
         };
@@ -447,19 +451,17 @@ export const getSignedResumeUrl = withServerAction<string>(
         error: null
       }
     } catch (error) {
-      console.error('[GET_RESUME_URL_ERROR]', error)
+      console.error("[GET_RESUME_URL_ERROR]", { error, resumePath });
       return {
         data: null,
         error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to get resume URL',
-          details: error instanceof Error ? { message: error.message } : undefined
-        }
-      }
+          code: "INTERNAL_ERROR",
+          message: "Failed to generate resume URL",
+        },
+      };
     }
-  },
-  { requiredSystemRole: SYSTEM_ROLES.SYSTEM_OWNER }
-)
+  }
+);
 
 // Get all coach applications for system review
 export const getAllCoachApplications = withServerAction<ApplicationData[]>(
