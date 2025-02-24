@@ -56,6 +56,9 @@ export function SystemSidebar() {
             <NavLink href="/dashboard/system/coach-applications" icon={ClipboardCheck}>
               Coach Applications
             </NavLink>
+            <NavLink href="/dashboard/system/coach-mgmt" icon={Users}>
+              Coach Management
+            </NavLink>
             <NavLink href="/dashboard/system/permissions" icon={Shield}>
               Roles & Permissions
             </NavLink>

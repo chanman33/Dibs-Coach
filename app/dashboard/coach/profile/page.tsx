@@ -47,9 +47,17 @@ interface GoalsFormProps {
   onSubmit: (data: GoalFormValues) => Promise<void>;
 }
 
+// Define an extended type for the coach profile state that includes the additional properties
+interface CoachProfileState extends CoachProfileFormData {
+  profileStatus?: string;
+  completionPercentage?: number;
+  missingFields?: string[];
+  canPublish?: boolean;
+}
+
 export default function CoachProfilePage() {
   const [generalInfo, setGeneralInfo] = useState<DbUser | null>(null)
-  const [coachingInfo, setCoachingInfo] = useState<CoachProfileFormData | null>(null)
+  const [coachingInfo, setCoachingInfo] = useState<CoachProfileState | null>(null)
   const [listings, setListings] = useState<ListingsState>({
     activeListings: [],
     successfulTransactions: [],
@@ -165,7 +173,11 @@ export default function CoachProfilePage() {
           maximumDuration: coachResult.data.maximumDuration || 120,
           allowCustomDuration: coachResult.data.allowCustomDuration || false,
           calendlyUrl: coachResult.data.calendlyUrl || "",
-          eventTypeUrl: coachResult.data.eventTypeUrl || ""
+          eventTypeUrl: coachResult.data.eventTypeUrl || "",
+          profileStatus: coachResult.data.profileStatus || "DRAFT",
+          completionPercentage: coachResult.data.completionPercentage || 0,
+          missingFields: coachResult.data.missingFields || [],
+          canPublish: coachResult.data.canPublish || false
         })
       }
 
@@ -279,11 +291,33 @@ export default function CoachProfilePage() {
         }
         
         case "coach": {
-          const result = await updateCoachProfile(formData as CoachProfileFormData)
+          // Convert from our new form structure to the CoachProfileFormData format expected by the server action
+          const adaptedFormData: CoachProfileFormData = {
+            specialties: formData.specialties || [],
+            yearsCoaching: formData.yearsCoaching || 0,
+            hourlyRate: formData.hourlyRate || 0,
+            defaultDuration: formData.defaultDuration || 60,
+            minimumDuration: formData.minimumDuration || 30,
+            maximumDuration: formData.maximumDuration || 120,
+            allowCustomDuration: formData.allowCustomDuration || false,
+            calendlyUrl: formData.calendlyUrl || "",
+            eventTypeUrl: formData.eventTypeUrl || ""
+          }
+          
+          const result = await updateCoachProfile(adaptedFormData)
           if (result.error) {
             throw new Error(result.error.message)
           }
-          setCoachingInfo(formData as CoachProfileFormData)
+          
+          // Update the local state with both the form values and the returned server data
+          setCoachingInfo({
+            ...adaptedFormData,
+            profileStatus: result.data?.profileStatus || coachingInfo?.profileStatus || "DRAFT",
+            completionPercentage: result.data?.completionPercentage || 0,
+            missingFields: result.data?.missingFields || [],
+            canPublish: result.data?.canPublish || false
+          })
+          
           toast.success('Coach profile updated successfully')
           break
         }
@@ -455,11 +489,33 @@ export default function CoachProfilePage() {
               <CardContent>
                 <CoachProfileForm
                   initialData={{
-                    coachProfile: coachingInfo || undefined,
-                    realtorProfile: marketing || undefined
+                    specialties: coachingInfo?.specialties || [],
+                    yearsCoaching: coachingInfo?.yearsCoaching || 0,
+                    hourlyRate: coachingInfo?.hourlyRate || 0,
+                    domainSpecialties: [],
+                    calendlyUrl: coachingInfo?.calendlyUrl || "",
+                    eventTypeUrl: coachingInfo?.eventTypeUrl || "",
+                    defaultDuration: coachingInfo?.defaultDuration || 60,
+                    minimumDuration: coachingInfo?.minimumDuration || 30,
+                    maximumDuration: coachingInfo?.maximumDuration || 120,
+                    allowCustomDuration: coachingInfo?.allowCustomDuration || false,
+                    certifications: [],
+                    languages: [],
+                    marketExpertise: "",
+                    professionalRecognitions: []
                   }}
                   onSubmit={(data) => handleSubmit(data, "coach")}
                   isSubmitting={isSubmitting}
+                  profileStatus={coachingInfo?.profileStatus as any}
+                  completionPercentage={coachingInfo?.completionPercentage || 0}
+                  missingFields={coachingInfo?.missingFields || []}
+                  canPublish={coachingInfo?.canPublish || false}
+                  userInfo={{
+                    firstName: generalInfo?.firstName || '',
+                    lastName: generalInfo?.lastName || '',
+                    bio: generalInfo?.bio || '',
+                    profileImageUrl: generalInfo?.profileImageUrl || ''
+                  }}
                 />
               </CardContent>
             </Card>

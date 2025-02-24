@@ -624,6 +624,7 @@ export type Database = {
           averageRating: number | null
           calendlyUrl: string | null
           coachingSpecialties: string[] | null
+          completionPercentage: number
           createdAt: string
           defaultDuration: number
           eventTypeUrl: string | null
@@ -631,6 +632,7 @@ export type Database = {
           isActive: boolean
           maximumDuration: number
           minimumDuration: number
+          profileStatus: Database["public"]["Enums"]["ProfileStatus"]
           totalSessions: number
           ulid: string
           updatedAt: string
@@ -643,6 +645,7 @@ export type Database = {
           averageRating?: number | null
           calendlyUrl?: string | null
           coachingSpecialties?: string[] | null
+          completionPercentage?: number
           createdAt?: string
           defaultDuration?: number
           eventTypeUrl?: string | null
@@ -650,6 +653,7 @@ export type Database = {
           isActive?: boolean
           maximumDuration?: number
           minimumDuration?: number
+          profileStatus?: Database["public"]["Enums"]["ProfileStatus"]
           totalSessions?: number
           ulid: string
           updatedAt: string
@@ -662,6 +666,7 @@ export type Database = {
           averageRating?: number | null
           calendlyUrl?: string | null
           coachingSpecialties?: string[] | null
+          completionPercentage?: number
           createdAt?: string
           defaultDuration?: number
           eventTypeUrl?: string | null
@@ -669,6 +674,7 @@ export type Database = {
           isActive?: boolean
           maximumDuration?: number
           minimumDuration?: number
+          profileStatus?: Database["public"]["Enums"]["ProfileStatus"]
           totalSessions?: number
           ulid?: string
           updatedAt?: string
@@ -3619,6 +3625,7 @@ export type Database = {
       PaymentStatus: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED"
       PayoutStatus: "PENDING" | "PROCESSED" | "FAILED"
       PlanType: "INDIVIDUAL" | "TEAM" | "ENTERPRISE"
+      ProfileStatus: "DRAFT" | "REVIEW" | "PUBLISHED"
       PropertyCondition:
         | "Excellent"
         | "Good"

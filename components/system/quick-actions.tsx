@@ -28,6 +28,12 @@ export function QuickActions() {
       description: 'Review and process coach applications'
     },
     {
+      label: 'Coach Management',
+      href: '/dashboard/system/coach-mgmt',
+      icon: Users,
+      description: 'Manage coach profiles and visibility'
+    },
+    {
       label: 'System Reports',
       href: '/dashboard/system/analytics/reports',
       icon: FileText,
