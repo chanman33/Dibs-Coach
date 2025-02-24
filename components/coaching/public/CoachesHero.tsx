@@ -1,11 +1,12 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 export function CoachesHero() {
   return (
-    <div className="relative isolate overflow-hidden bg-gradient-to-b from-primary/20 pt-14">
-      <div className="mx-auto max-w-7xl px-6 py-24 sm:py-32 lg:px-8">
+    <div className="relative isolate overflow-hidden bg-gradient-to-b from-primary/20 -mt-16">
+      <div className="mx-auto max-w-7xl px-6 pt-40 pb-16 sm:pt-40 sm:pb-24 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
           <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
             Find Your Perfect Coach
@@ -15,12 +16,16 @@ export function CoachesHero() {
             Our coaches provide personalized guidance to accelerate your success.
           </p>
           <div className="mt-10 flex items-center justify-center gap-x-6">
-            <Button size="lg">
-              Browse Coaches
-            </Button>
-            <Button variant="outline" size="lg">
-              Learn More
-            </Button>
+            <Link href="/sign-up">
+              <Button size="lg">
+                Get Started Free
+              </Button>
+            </Link>
+            <Link href="/how-it-works">
+              <Button variant="outline" size="lg">
+                How It Works
+              </Button>
+            </Link>
           </div>
         </div>
       </div>

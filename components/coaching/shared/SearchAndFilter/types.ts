@@ -3,20 +3,28 @@ export interface FilterOption {
   value: string;
 }
 
-export interface SearchFilters {
-  query: string;
-  specialties: string[];
-  priceRange?: [number, number];
-  sortBy?: string;
+export interface CoachFilters {
+  domain?: string[];
+  priceRange?: {
+    min: number;
+    max: number;
+  };
+  rating?: number;
 }
 
-export interface SearchAndFilterProps {
-  onSearch?: (query: string) => void;
-  onFilter?: (filters: string[]) => void;
-  specialties?: string[];
-  vertical?: boolean;
-  variant?: 'public' | 'private';
+export interface SearchBarProps {
+  onSearch: (query: string) => void;
+  placeholder?: string;
+  initialQuery?: string;
+  className?: string;
 }
 
-export type FilterChangeHandler = (filters: SearchFilters) => void;
+export interface FilterSidebarProps {
+  onFiltersChange: (filters: CoachFilters) => void;
+  initialFilters?: CoachFilters;
+  className?: string;
+  domains?: FilterOption[];
+}
+
+export type FilterChangeHandler = (filters: CoachFilters) => void;
 export type SearchChangeHandler = (query: string) => void; 

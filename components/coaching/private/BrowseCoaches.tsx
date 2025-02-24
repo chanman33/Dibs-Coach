@@ -1,7 +1,7 @@
 'use client'
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { SearchAndFilter } from '../shared/SearchAndFilter'
+import { FilterSidebar, SearchBar } from '@/components/coaching/shared/SearchAndFilter'
 import { PrivateCoachCard } from '../shared/CoachCard/PrivateCard'
 import { Categories } from '../shared/Categories'
 import { useState } from 'react'
@@ -93,6 +93,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+      {/* Your Coaches Section */}
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
           <h2 className="text-2xl font-bold tracking-tight">Your Coaches</h2>
@@ -114,19 +115,40 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
         </CardContent>
       </Card>
 
+      {/* Global Search Bar */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-2">
+          <h2 className="text-lg font-semibold">Search Coaches</h2>
+        </CardHeader>
+        <CardContent className="pt-4">
+          <SearchBar
+            onSearch={handleSearch}
+            placeholder="Search coaches by name, specialty, or expertise..."
+            className="w-full"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Sidebar with Filters and Categories */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="shadow-sm">
             <CardHeader className="pb-2">
-              <h2 className="text-lg font-semibold">Search & Filters</h2>
+              <h2 className="text-lg font-semibold">Filters</h2>
             </CardHeader>
             <CardContent className="pt-4">
-              <SearchAndFilter
-                onSearch={handleSearch}
-                onFilter={(filters: string[]) => handleFilter(filters[0] || 'all')}
-                specialties={allSpecialties}
-                vertical={true}
-                variant="private"
+              <FilterSidebar
+                onFiltersChange={filters => {
+                  if (filters.domain?.length) {
+                    handleFilter(filters.domain[0]);
+                  }
+                  // TODO: Implement other filter handlers
+                }}
+                domains={allSpecialties.map(specialty => ({
+                  label: specialty,
+                  value: specialty
+                }))}
               />
             </CardContent>
           </Card>
@@ -134,6 +156,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
           <Categories onCategoryClick={(category) => handleFilter(category)} />
         </div>
         
+        {/* Main Content Area */}
         <div className="lg:col-span-3">
           <Card className="shadow-sm h-full">
             <CardHeader className="pb-2">
@@ -166,6 +189,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
         </div>
       </div>
 
+      {/* Recommended Coaches Section */}
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
           <h2 className="text-2xl font-bold tracking-tight">Recommended Coaches</h2>

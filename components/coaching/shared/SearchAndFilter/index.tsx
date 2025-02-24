@@ -64,4 +64,8 @@ export function SearchAndFilter({
       )}
     </div>
   )
-} 
+}
+
+export * from './SearchBar';
+export * from './FilterSidebar';
+export * from './types'; 
