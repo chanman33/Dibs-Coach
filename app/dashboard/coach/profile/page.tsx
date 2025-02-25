@@ -45,7 +45,11 @@ function ProfilePageContent() {
     updateGoalsData,
     updateSelectedSpecialties,
     saveSpecialties,
-    debugServerAction
+    debugServerAction,
+    commercialData,
+    privateCreditData,
+    updateCommercialData,
+    updatePrivateCreditData
   } = useProfileContext();
 
   // Handle specialty changes from the coach form
@@ -384,6 +388,134 @@ function ProfilePageContent() {
     }
   };
 
+  // Safely load the Commercial Profile Form
+  const getCommercialFormContent = () => {
+    if (!selectedSpecialties.includes("COMMERCIAL")) return null;
+    
+    try {
+      // First check if the module exists
+      let CommercialModule;
+      try {
+        CommercialModule = require("@/components/profile/industry/commercial/CommercialForm");
+      } catch (importError) {
+        console.error("[COMMERCIAL_IMPORT_ERROR]", importError);
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Commercial Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Commercial profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      // Check if the module has the expected component
+      const CommercialForm = CommercialModule.CommercialForm || CommercialModule.default;
+      
+      if (!CommercialForm) {
+        console.error("[COMMERCIAL_FORM_ERROR] Component is undefined or not properly exported");
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Commercial Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Commercial profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      return (
+        <CommercialForm
+          initialData={commercialData || {}}
+          onSubmit={async (data: any) => {
+            console.log("[COMMERCIAL_SUBMIT]", {
+              data,
+              timestamp: new Date().toISOString()
+            });
+            if (updateCommercialData) {
+              await updateCommercialData(data);
+            }
+          }}
+          isSubmitting={isSubmitting}
+        />
+      );
+    } catch (error) {
+      console.error("[COMMERCIAL_FORM_ERROR]", error);
+      return (
+        <div className="p-6 bg-muted/20 rounded-lg text-center">
+          <h3 className="text-lg font-medium mb-2">Commercial Profile</h3>
+          <p className="text-muted-foreground">
+            There was an error loading the Commercial profile form.
+          </p>
+        </div>
+      );
+    }
+  };
+
+  // Safely load the Private Credit Profile Form
+  const getPrivateCreditFormContent = () => {
+    if (!selectedSpecialties.includes("PRIVATE_CREDIT")) return null;
+    
+    try {
+      // First check if the module exists
+      let PrivateCreditModule;
+      try {
+        PrivateCreditModule = require("@/components/profile/industry/private-credit/PrivateCreditForm");
+      } catch (importError) {
+        console.error("[PRIVATE_CREDIT_IMPORT_ERROR]", importError);
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Private Credit Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Private Credit profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      // Check if the module has the expected component
+      const PrivateCreditForm = PrivateCreditModule.PrivateCreditForm || PrivateCreditModule.default;
+      
+      if (!PrivateCreditForm) {
+        console.error("[PRIVATE_CREDIT_FORM_ERROR] Component is undefined or not properly exported");
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Private Credit Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Private Credit profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      return (
+        <PrivateCreditForm
+          initialData={privateCreditData || {}}
+          onSubmit={async (data: any) => {
+            console.log("[PRIVATE_CREDIT_SUBMIT]", {
+              data,
+              timestamp: new Date().toISOString()
+            });
+            if (updatePrivateCreditData) {
+              await updatePrivateCreditData(data);
+            }
+          }}
+          isSubmitting={isSubmitting}
+        />
+      );
+    } catch (error) {
+      console.error("[PRIVATE_CREDIT_FORM_ERROR]", error);
+      return (
+        <div className="p-6 bg-muted/20 rounded-lg text-center">
+          <h3 className="text-lg font-medium mb-2">Private Credit Profile</h3>
+          <p className="text-muted-foreground">
+            There was an error loading the Private Credit profile form.
+          </p>
+        </div>
+      );
+    }
+  };
+
   return (
     <div className="w-full px-4 sm:px-6 md:container mx-auto py-4 sm:py-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 sm:mb-8">
@@ -448,6 +580,8 @@ function ProfilePageContent() {
         propertyManagerFormContent={getPropertyManagerFormContent()}
         titleEscrowFormContent={getTitleEscrowFormContent()}
         insuranceFormContent={getInsuranceFormContent()}
+        commercialFormContent={getCommercialFormContent()}
+        privateCreditFormContent={getPrivateCreditFormContent()}
         initialRecognitions={recognitionsData}
         onSubmitRecognitions={updateRecognitionsData}
         initialMarketingInfo={marketingData}

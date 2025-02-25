@@ -25,6 +25,8 @@ interface ProfileContextType {
   mortgageData: any;
   propertyManagerData: any;
   insuranceData: any;
+  commercialData: any;
+  privateCreditData: any;
   
   // Professional recognitions
   recognitionsData: ProfessionalRecognition[];
@@ -58,6 +60,8 @@ interface ProfileContextType {
   updateMortgageData: (data: any) => Promise<void>;
   updatePropertyManagerData: (data: any) => Promise<void>;
   updateInsuranceData: (data: any) => Promise<void>;
+  updateCommercialData: (data: any) => Promise<void>;
+  updatePrivateCreditData: (data: any) => Promise<void>;
   updateRecognitionsData: (data: ProfessionalRecognition[]) => Promise<void>;
   updateMarketingData: (data: any) => Promise<void>;
   updateGoalsData: (data: any) => Promise<void>;
@@ -92,6 +96,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [mortgageData, setMortgageData] = useState<any>(null);
   const [propertyManagerData, setPropertyManagerData] = useState<any>(null);
   const [insuranceData, setInsuranceData] = useState<any>(null);
+  const [commercialData, setCommercialData] = useState<any>(null);
+  const [privateCreditData, setPrivateCreditData] = useState<any>(null);
   
   // Professional recognitions state
   const [recognitionsData, setRecognitionsData] = useState<ProfessionalRecognition[]>([]);
@@ -500,6 +506,72 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
   };
   
+  const updateCommercialData = async (data: any) => {
+    setIsSubmitting(true);
+    try {
+      // Import the action dynamically
+      const { updateCommercialProfile } = await import('@/utils/actions/profile-actions');
+      
+      // Call the server action
+      const result = await updateCommercialProfile(data);
+      
+      if (result.error) {
+        console.error("[UPDATE_COMMERCIAL_PROFILE_ERROR]", {
+          error: result.error,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Failed to update commercial profile");
+        return;
+      }
+      
+      // Update the state
+      setCommercialData(data);
+      toast.success("Commercial profile updated successfully");
+      calculateCompletionStatus();
+    } catch (error) {
+      console.error("[UPDATE_COMMERCIAL_ERROR]", {
+        error,
+        timestamp: new Date().toISOString()
+      });
+      toast.error("Failed to update commercial profile");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const updatePrivateCreditData = async (data: any) => {
+    setIsSubmitting(true);
+    try {
+      // Import the action dynamically
+      const { updatePrivateCreditProfile } = await import('@/utils/actions/profile-actions');
+      
+      // Call the server action
+      const result = await updatePrivateCreditProfile(data);
+      
+      if (result.error) {
+        console.error("[UPDATE_PRIVATE_CREDIT_PROFILE_ERROR]", {
+          error: result.error,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Failed to update private credit profile");
+        return;
+      }
+      
+      // Update the state
+      setPrivateCreditData(data);
+      toast.success("Private credit profile updated successfully");
+      calculateCompletionStatus();
+    } catch (error) {
+      console.error("[UPDATE_PRIVATE_CREDIT_ERROR]", {
+        error,
+        timestamp: new Date().toISOString()
+      });
+      toast.error("Failed to update private credit profile");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
   const updateRecognitionsData = async (data: ProfessionalRecognition[]) => {
     setIsSubmitting(true);
     try {
@@ -687,6 +759,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     mortgageData,
     propertyManagerData,
     insuranceData,
+    commercialData,
+    privateCreditData,
     recognitionsData,
     marketingData,
     goalsData,
@@ -706,6 +780,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     updateMortgageData,
     updatePropertyManagerData,
     updateInsuranceData,
+    updateCommercialData,
+    updatePrivateCreditData,
     updateRecognitionsData,
     updateMarketingData,
     updateGoalsData,

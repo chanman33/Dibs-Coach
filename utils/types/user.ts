@@ -10,7 +10,9 @@ export enum UserRole {
 // User Capabilities Enum
 export enum UserCapability {
   COACH = "COACH",
-  MENTEE = "MENTEE"
+  MENTEE = "MENTEE",
+  COMMERCIAL = "COMMERCIAL",
+  PRIVATE_CREDIT = "PRIVATE_CREDIT"
 }
 
 export enum UserStatus {

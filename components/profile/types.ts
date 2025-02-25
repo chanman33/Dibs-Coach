@@ -9,6 +9,8 @@ export const DOMAIN_SPECIALTIES = [
   { value: "PROPERTY_MANAGER", label: "Property Manager" },
   { value: "TITLE_ESCROW", label: "Title & Escrow" },
   { value: "INSURANCE", label: "Insurance" },
+  { value: "COMMERCIAL", label: "Commercial Real Estate" },
+  { value: "PRIVATE_CREDIT", label: "Private Credit" }
 ];
 
 // Form validation schema

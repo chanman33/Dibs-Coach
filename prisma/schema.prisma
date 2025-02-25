@@ -19,6 +19,8 @@ enum UserRole {
 enum UserCapability {
   COACH    // Can provide coaching services
   MENTEE   // Can receive coaching services
+  COMMERCIAL // Commercial real estate services
+  PRIVATE_CREDIT // Private credit lending services
 }
 
 enum UserStatus {
@@ -44,6 +46,8 @@ enum OrgIndustry {
   REAL_ESTATE_INVESTMENT // Real estate investment
   TITLE_ESCROW         // Title and escrow services
   INSURANCE            // Real estate insurance
+  COMMERCIAL          // Commercial real estate
+  PRIVATE_CREDIT      // Private credit lending
   OTHER               // Other real estate related services
 }
 
@@ -524,6 +528,41 @@ enum InsuranceType {
   OTHER
 }
 
+// Add new enums for Commercial and lending
+enum CommercialPropertyType {
+  OFFICE
+  RETAIL
+  INDUSTRIAL
+  MULTIFAMILY
+  MIXED_USE
+  LAND
+  HOTEL
+  MEDICAL
+  SELF_STORAGE
+  OTHER
+}
+
+enum CommercialDealType {
+  SALES
+  LEASING
+  INVESTMENT
+  DEVELOPMENT
+  PROPERTY_MANAGEMENT
+  CONSULTING
+}
+
+enum PrivateCreditLoanType {
+  BRIDGE
+  CONSTRUCTION
+  VALUE_ADD
+  ACQUISITION
+  REFINANCE
+  MEZZANINE
+  PREFERRED_EQUITY
+  OTHER
+}
+
+
 // Profile status enum
 enum ProfileStatus {
   DRAFT     // Profile is incomplete or being edited
@@ -559,13 +598,20 @@ model User {
   confirmedSpecialties String[]  @default([]) // Specialties that have been verified/confirmed
   primaryMarket        String?   // User's primary market/location
 
+  // Industry Profiles
+  realtorProfile          RealtorProfile?
+  investorProfile         InvestorProfile?
+  mortgageProfile         LoanOfficerProfile?
+  propertyManagerProfile  PropertyManagerProfile?
+  titleEscrowProfile     TitleEscrowProfile?
+  insuranceProfile       InsuranceProfile?
+  commercialProfile      CommercialProfile?
+  privateCreditProfile   PrivateCreditProfile?
+
+  // Specialty Arrays
+  selectedSpecialties    String[]  @default([])  // All selected specialties
+
   // Profile Relations
-  realtorProfile       RealtorProfile?
-  loanOfficerProfile   LoanOfficerProfile?
-  investorProfile      InvestorProfile?
-  propertyManagerProfile PropertyManagerProfile?
-  titleEscrowProfile    TitleEscrowProfile?
-  insuranceProfile     InsuranceProfile?
   menteeProfile         MenteeProfile?
   coachProfile          CoachProfile?
 
@@ -630,7 +676,7 @@ model User {
   @@index([isMentee])
   @@index([status])
   @@index([industrySpecialties])
-  @@index([confirmedSpecialties])
+  @@index([primaryMarket])
   @@map("User")
 }
 
@@ -1080,6 +1126,84 @@ model InsuranceProfile {
 
   @@index([userUlid])
   @@map("InsuranceProfile")
+}
+
+// Commercial Real Estate Profile
+model CommercialProfile {
+  ulid                   String   @id @db.Char(26)
+  userUlid               String   @unique @db.Char(26)
+  yearsExperience        Int?
+  
+  // Professional Information
+  companyName            String?
+  licenseNumber          String?  @unique
+  specializations        String[]
+  certifications         String[]
+  languages             String[]
+  
+  // Property Types & Focus
+  propertyTypes          CommercialPropertyType[]
+  dealTypes              CommercialDealType[]
+  typicalDealSize        Decimal? @db.Decimal(12,2)
+  
+  // Transaction History
+  totalTransactionVolume Decimal? @db.Decimal(12,2)
+  completedDeals         Int?
+  averageDealSize        Decimal? @db.Decimal(12,2)
+  
+  // Geographic Focus
+  geographicFocus        Json?    @db.JsonB
+  primaryMarket          String?
+  serviceAreas           String[]
+  
+  // Relations
+  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  createdAt            DateTime @default(now()) @db.Timestamptz
+  updatedAt            DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@map("CommercialProfile")
+}
+
+// Private Credit Profile
+model PrivateCreditProfile {
+  ulid                   String   @id @db.Char(26)
+  userUlid               String   @unique @db.Char(26)
+  yearsExperience        Int?
+  
+  // Professional Information
+  companyName            String?
+  licenseNumber          String?  @unique
+  specializations        String[]
+  certifications         String[]
+  languages             String[]
+  
+  // Lending Parameters
+  minLoanAmount         Decimal? @db.Decimal(12,2)
+  maxLoanAmount         Decimal? @db.Decimal(12,2)
+  typicalTermLength     Int?     // In months
+  interestRateRange     Json?    @db.JsonB  // {min: number, max: number}
+  loanTypes             PrivateCreditLoanType[]
+  
+  // Portfolio Metrics
+  totalLoanVolume       Decimal? @db.Decimal(12,2)
+  activeLoans           Int?
+  averageLoanSize       Decimal? @db.Decimal(12,2)
+  
+  // Geographic Focus
+  geographicFocus        Json?    @db.JsonB
+  primaryMarket          String?
+  licensedStates         String[]
+  
+  // Relations
+  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  createdAt            DateTime @default(now()) @db.Timestamptz
+  updatedAt            DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@map("PrivateCreditProfile")
 }
 
 model Session {
@@ -1952,6 +2076,8 @@ model AIMessage {
   @@index([threadUlid])
   @@map("AIMessage")
 }
+
+
 
 
 

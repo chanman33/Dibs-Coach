@@ -958,4 +958,18 @@ export const updatePropertyManagerProfile = withServerAction<{ success: boolean 
     const { updateIndustryProfile } = await import('@/utils/actions/profile-actions');
     return updateIndustryProfile({ profileType: "PropertyManagerProfile", profileData });
   }
+);
+
+export const updateCommercialProfile = withServerAction<{ success: boolean }, any>(
+  async (profileData, { userUlid }) => {
+    const { updateIndustryProfile } = await import('@/utils/actions/profile-actions');
+    return updateIndustryProfile({ profileType: "CommercialProfile", profileData });
+  }
+);
+
+export const updatePrivateCreditProfile = withServerAction<{ success: boolean }, any>(
+  async (profileData, { userUlid }) => {
+    const { updateIndustryProfile } = await import('@/utils/actions/profile-actions');
+    return updateIndustryProfile({ profileType: "PrivateCreditProfile", profileData });
+  }
 ); 

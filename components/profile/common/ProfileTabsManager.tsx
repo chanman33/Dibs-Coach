@@ -20,6 +20,8 @@ export const INDUSTRY_SPECIALTIES = {
   PROPERTY_MANAGER: "PROPERTY_MANAGER",
   TITLE_ESCROW: "TITLE_ESCROW",
   INSURANCE: "INSURANCE",
+  COMMERCIAL: "COMMERCIAL",
+  PRIVATE_CREDIT: "PRIVATE_CREDIT",
 };
 
 export type IndustrySpecialty = keyof typeof INDUSTRY_SPECIALTIES;
@@ -61,6 +63,8 @@ interface ProfileTabsManagerProps {
   propertyManagerFormContent?: React.ReactNode;
   titleEscrowFormContent?: React.ReactNode;
   insuranceFormContent?: React.ReactNode;
+  commercialFormContent?: React.ReactNode;
+  privateCreditFormContent?: React.ReactNode;
   initialRecognitions?: ProfessionalRecognition[];
   onSubmitRecognitions: (recognitions: ProfessionalRecognition[]) => Promise<void>;
   initialMarketingInfo?: MarketingInfoType;
@@ -83,6 +87,8 @@ export function ProfileTabsManager({
   propertyManagerFormContent,
   titleEscrowFormContent,
   insuranceFormContent,
+  commercialFormContent,
+  privateCreditFormContent,
   initialRecognitions = [],
   onSubmitRecognitions,
   initialMarketingInfo,
@@ -212,6 +218,26 @@ export function ProfileTabsManager({
       });
     }
 
+    // Add Commercial Profile tab
+    if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.COMMERCIAL) && commercialFormContent) {
+      domainSubTabs.push({
+        id: "commercial",
+        label: "Commercial Profile",
+        icon: <Building className="h-4 w-4" />,
+        content: commercialFormContent
+      });
+    }
+
+    // Add Private Credit Profile tab
+    if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.PRIVATE_CREDIT) && privateCreditFormContent) {
+      domainSubTabs.push({
+        id: "private-credit",
+        label: "Private Credit Profile",
+        icon: <Briefcase className="h-4 w-4" />,
+        content: privateCreditFormContent
+      });
+    }
+
     // Log the final sub-tabs for debugging
     console.log("[PROFILE_TABS_MANAGER] Final domain sub-tabs", {
       domainSubTabs: domainSubTabs.map(tab => tab.id),
@@ -334,6 +360,8 @@ export function ProfileTabsManager({
     propertyManagerFormContent,
     titleEscrowFormContent,
     insuranceFormContent,
+    commercialFormContent,
+    privateCreditFormContent,
     initialRecognitions,
     onSubmitRecognitions,
     initialMarketingInfo,
