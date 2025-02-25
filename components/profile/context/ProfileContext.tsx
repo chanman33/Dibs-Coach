@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { CoachProfileFormValues, CoachProfileInitialData, ProfessionalRecognition } from "../types";
 import { ProfileStatus } from "@/utils/types/coach";
 import { toast } from "sonner";
-import { fetchUserProfile, updateUserProfile, saveCoachSpecialties, fetchUserCapabilities } from "@/utils/actions/profile-actions";
+import { fetchUserProfile, updateUserProfile, saveCoachSpecialties, fetchUserCapabilities, debugDirectSpecialtiesUpdate } from "@/utils/actions/profile-actions";
 
 // Define the context shape
 interface ProfileContextType {
@@ -24,6 +24,7 @@ interface ProfileContextType {
   investorData: any;
   mortgageData: any;
   propertyManagerData: any;
+  insuranceData: any;
   
   // Professional recognitions
   recognitionsData: ProfessionalRecognition[];
@@ -56,6 +57,7 @@ interface ProfileContextType {
   updateInvestorData: (data: any) => Promise<void>;
   updateMortgageData: (data: any) => Promise<void>;
   updatePropertyManagerData: (data: any) => Promise<void>;
+  updateInsuranceData: (data: any) => Promise<void>;
   updateRecognitionsData: (data: ProfessionalRecognition[]) => Promise<void>;
   updateMarketingData: (data: any) => Promise<void>;
   updateGoalsData: (data: any) => Promise<void>;
@@ -63,6 +65,9 @@ interface ProfileContextType {
   // Specialty management
   updateSelectedSpecialties: (specialties: string[]) => void;
   saveSpecialties: (selectedSpecialties: string[]) => Promise<boolean>;
+  
+  // Debug function
+  debugServerAction: () => Promise<boolean>;
 }
 
 // Create the context with a default value
@@ -86,6 +91,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [investorData, setInvestorData] = useState<any>(null);
   const [mortgageData, setMortgageData] = useState<any>(null);
   const [propertyManagerData, setPropertyManagerData] = useState<any>(null);
+  const [insuranceData, setInsuranceData] = useState<any>(null);
   
   // Professional recognitions state
   const [recognitionsData, setRecognitionsData] = useState<ProfessionalRecognition[]>([]);
@@ -118,7 +124,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       const response = await fetchUserCapabilities();
       
       if (response.error) {
-        throw new Error(response.error.message || 'Failed to fetch user capabilities');
+        console.warn("[FETCH_CAPABILITIES_WARNING]", {
+          message: "Error fetching capabilities, using fallback values",
+          error: response.error
+        });
+        // Set default values even if there's an error
+        setUserCapabilities(response.data?.capabilities || []);
+        setSelectedSpecialties(response.data?.domainSpecialties || []);
+        setConfirmedSpecialties(response.data?.activeDomains || []);
+        return;
       }
       
       if (response.data) {
@@ -162,7 +176,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           setGeneralData(generalResult.data);
         }
         
-        // TODO: Fetch other data (coach profile, domain profiles, etc.)
+        // Fetch coach profile data
+        await fetchCoachProfileData();
         
         // Calculate completion percentage and missing fields
         calculateCompletionStatus();
@@ -176,6 +191,104 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     
     fetchInitialData();
   }, []);
+  
+  // Fetch coach profile data
+  const fetchCoachProfileData = async () => {
+    try {
+      const { fetchCoachProfile } = await import('@/utils/actions/profile-actions');
+      const result = await fetchCoachProfile();
+      
+      console.log("[FETCH_COACH_PROFILE_RESULT]", {
+        success: !result.error,
+        hasData: !!result.data,
+        timestamp: new Date().toISOString()
+      });
+      
+      if (result.error) {
+        console.error("[FETCH_COACH_PROFILE_ERROR]", {
+          error: result.error,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Set default values even if there's an error
+        const defaultCoachData = {
+          yearsCoaching: 0,
+          hourlyRate: 0,
+          defaultDuration: 60,
+          minimumDuration: 30,
+          maximumDuration: 120,
+          allowCustomDuration: false,
+          domainSpecialties: [],
+          confirmedSpecialties: []
+        };
+        
+        setCoachData(defaultCoachData);
+        
+        // Try to fetch specialties separately if coach profile fetch failed
+        await fetchUserCapabilitiesData();
+        return;
+      }
+      
+      if (result.data) {
+        // Update coach data state
+        setCoachData(result.data);
+        
+        // Update specialties from the fetched data
+        if (Array.isArray(result.data.domainSpecialties)) {
+          console.log("[SETTING_DOMAIN_SPECIALTIES]", {
+            specialties: result.data.domainSpecialties,
+            timestamp: new Date().toISOString()
+          });
+          setSelectedSpecialties(result.data.domainSpecialties);
+        }
+        
+        // Update confirmed specialties if available
+        if (Array.isArray(result.data.confirmedSpecialties)) {
+          console.log("[SETTING_CONFIRMED_SPECIALTIES]", {
+            specialties: result.data.confirmedSpecialties,
+            timestamp: new Date().toISOString()
+          });
+          setConfirmedSpecialties(result.data.confirmedSpecialties);
+        }
+      } else {
+        // Set default values if no data returned
+        const defaultCoachData = {
+          yearsCoaching: 0,
+          hourlyRate: 0,
+          defaultDuration: 60,
+          minimumDuration: 30,
+          maximumDuration: 120,
+          allowCustomDuration: false,
+          domainSpecialties: [],
+          confirmedSpecialties: []
+        };
+        
+        setCoachData(defaultCoachData);
+      }
+    } catch (error) {
+      console.error("[FETCH_COACH_PROFILE_ERROR]", {
+        error,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Set default values in case of error
+      const defaultCoachData = {
+        yearsCoaching: 0,
+        hourlyRate: 0,
+        defaultDuration: 60,
+        minimumDuration: 30,
+        maximumDuration: 120,
+        allowCustomDuration: false,
+        domainSpecialties: [],
+        confirmedSpecialties: []
+      };
+      
+      setCoachData(defaultCoachData);
+      
+      // Try to fetch specialties separately if coach profile fetch failed
+      await fetchUserCapabilitiesData();
+    }
+  };
   
   // Calculate completion status
   const calculateCompletionStatus = () => {
@@ -289,13 +402,102 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   };
   
   const updateMortgageData = async (data: any) => {
-    // Similar implementation as updateRealtorData
-    setMortgageData(data);
+    setIsSubmitting(true);
+    try {
+      // Import the action dynamically
+      const { updateMortgageProfile } = await import('@/utils/actions/profile-actions');
+      
+      // Call the server action
+      const result = await updateMortgageProfile(data);
+      
+      if (result.error) {
+        console.error("[UPDATE_MORTGAGE_PROFILE_ERROR]", {
+          error: result.error,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Failed to update mortgage profile");
+        return;
+      }
+      
+      // Update the state
+      setMortgageData(data);
+      toast.success("Mortgage profile updated successfully");
+      calculateCompletionStatus();
+    } catch (error) {
+      console.error("[UPDATE_MORTGAGE_ERROR]", {
+        error,
+        timestamp: new Date().toISOString()
+      });
+      toast.error("Failed to update mortgage profile");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   const updatePropertyManagerData = async (data: any) => {
-    // Similar implementation as updateRealtorData
-    setPropertyManagerData(data);
+    setIsSubmitting(true);
+    try {
+      // Import the action dynamically
+      const { updatePropertyManagerProfile } = await import('@/utils/actions/profile-actions');
+      
+      // Call the server action
+      const result = await updatePropertyManagerProfile(data);
+      
+      if (result.error) {
+        console.error("[UPDATE_PROPERTY_MANAGER_PROFILE_ERROR]", {
+          error: result.error,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Failed to update property manager profile");
+        return;
+      }
+      
+      // Update the state
+      setPropertyManagerData(data);
+      toast.success("Property manager profile updated successfully");
+      calculateCompletionStatus();
+    } catch (error) {
+      console.error("[UPDATE_PROPERTY_MANAGER_ERROR]", {
+        error,
+        timestamp: new Date().toISOString()
+      });
+      toast.error("Failed to update property manager profile");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const updateInsuranceData = async (data: any) => {
+    setIsSubmitting(true);
+    try {
+      // Import the action dynamically
+      const { updateInsuranceProfile } = await import('@/utils/actions/profile-actions');
+      
+      // Call the server action
+      const result = await updateInsuranceProfile(data);
+      
+      if (result.error) {
+        console.error("[UPDATE_INSURANCE_PROFILE_ERROR]", {
+          error: result.error,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Failed to update insurance profile");
+        return;
+      }
+      
+      // Update the state
+      setInsuranceData(data);
+      toast.success("Insurance profile updated successfully");
+      calculateCompletionStatus();
+    } catch (error) {
+      console.error("[UPDATE_INSURANCE_ERROR]", {
+        error,
+        timestamp: new Date().toISOString()
+      });
+      toast.error("Failed to update insurance profile");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   const updateRecognitionsData = async (data: ProfessionalRecognition[]) => {
@@ -332,6 +534,22 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       
+      console.log("[PROFILE_CONTEXT_SAVE_SPECIALTIES]", {
+        selectedSpecialties,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Validate input
+      if (!Array.isArray(selectedSpecialties)) {
+        console.error("[PROFILE_CONTEXT_SAVE_ERROR]", {
+          error: "Invalid input: specialties must be an array",
+          selectedSpecialties,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Invalid specialties format");
+        return false;
+      }
+      
       // Call the server action to update the coach profile specialties
       const response = await saveCoachSpecialties({ 
         specialties: selectedSpecialties 
@@ -339,24 +557,124 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       
       // Check if the response was successful
       if (response.error) {
+        console.error("[PROFILE_CONTEXT_SAVE_ERROR]", {
+          error: response.error,
+          selectedSpecialties,
+          timestamp: new Date().toISOString()
+        });
         toast.error(response.error.message || "Failed to save specialties");
         return false;
       }
       
       // Update the confirmed specialties state with the active domains from the response
       if (response.data) {
+        console.log("[PROFILE_CONTEXT_SAVE_SUCCESS]", {
+          activeDomains: response.data.activeDomains,
+          selectedSpecialties,
+          timestamp: new Date().toISOString()
+        });
+        
         setConfirmedSpecialties(response.data.activeDomains || []);
         toast.success("Specialties saved successfully");
+        
+        // Refresh user capabilities to ensure everything is in sync
+        fetchUserCapabilitiesData();
+        
         return true;
       }
       
       return false;
     } catch (error) {
-      console.error("[SAVE_SPECIALTIES_ERROR]", error);
+      console.error("[PROFILE_CONTEXT_SAVE_SPECIALTIES_ERROR]", {
+        error,
+        selectedSpecialties,
+        timestamp: new Date().toISOString()
+      });
       toast.error("An error occurred while saving specialties");
       return false;
     } finally {
       setIsLoading(false);
+    }
+  };
+  
+  // Debug function to check if server action is being called correctly
+  const debugServerAction = async () => {
+    try {
+      console.log("[DEBUG_SERVER_ACTION_START]", {
+        timestamp: new Date().toISOString()
+      });
+      
+      // Get the current user ULID from the URL or fetch it
+      let userUlid = '';
+      
+      try {
+        // First try to get it from the URL
+        const urlParts = window.location.pathname.split('/');
+        userUlid = urlParts[urlParts.length - 2]; // Assuming URL pattern like /dashboard/coach/profile/[ulid]
+        
+        // If not found in URL, try to get it from localStorage
+        if (!userUlid || userUlid === 'profile') {
+          const storedUlid = localStorage.getItem('userUlid');
+          if (storedUlid) {
+            userUlid = storedUlid;
+          }
+        }
+        
+        console.log("[DEBUG_SERVER_ACTION_USER_ULID]", {
+          userUlid,
+          source: userUlid ? 'found' : 'not found',
+          timestamp: new Date().toISOString()
+        });
+        
+        if (!userUlid) {
+          toast.error("Could not determine user ID for debug action");
+          return false;
+        }
+      } catch (error) {
+        console.error("[DEBUG_SERVER_ACTION_ULID_ERROR]", {
+          error,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Error getting user ID for debug action");
+        return false;
+      }
+      
+      // Call the direct debug function with a test specialty
+      const testSpecialties = ["REALTOR", "PROPERTY_MANAGER"];
+      
+      console.log("[DEBUG_SERVER_ACTION_CALLING]", {
+        userUlid,
+        testSpecialties,
+        timestamp: new Date().toISOString()
+      });
+      
+      const response = await debugDirectSpecialtiesUpdate(userUlid, testSpecialties);
+      
+      console.log("[DEBUG_SERVER_ACTION_RESPONSE]", {
+        response,
+        timestamp: new Date().toISOString()
+      });
+      
+      if (response.success) {
+        toast.success("Debug update successful!");
+        // Update the confirmed specialties state
+        setConfirmedSpecialties(testSpecialties);
+        // Also update selected specialties to match
+        setSelectedSpecialties(testSpecialties);
+        // Refresh user capabilities
+        fetchUserCapabilitiesData();
+        return true;
+      } else {
+        toast.error("Debug update failed: " + (response.error ? JSON.stringify(response.error) : "Unknown error"));
+        return false;
+      }
+    } catch (error) {
+      console.error("[DEBUG_SERVER_ACTION_ERROR]", {
+        error,
+        timestamp: new Date().toISOString()
+      });
+      toast.error("Debug action failed with an error!");
+      return false;
     }
   };
   
@@ -368,6 +686,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     investorData,
     mortgageData,
     propertyManagerData,
+    insuranceData,
     recognitionsData,
     marketingData,
     goalsData,
@@ -386,11 +705,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     updateInvestorData,
     updateMortgageData,
     updatePropertyManagerData,
+    updateInsuranceData,
     updateRecognitionsData,
     updateMarketingData,
     updateGoalsData,
     updateSelectedSpecialties,
-    saveSpecialties
+    saveSpecialties,
+    debugServerAction
   };
   
   return (

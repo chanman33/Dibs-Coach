@@ -48,6 +48,7 @@ interface ProfileTabsManagerProps {
   investorFormContent?: React.ReactNode;
   mortgageFormContent?: React.ReactNode;
   propertyManagerFormContent?: React.ReactNode;
+  titleEscrowFormContent?: React.ReactNode;
   initialRecognitions?: ProfessionalRecognition[];
   onSubmitRecognitions: (recognitions: ProfessionalRecognition[]) => Promise<void>;
   initialMarketingInfo?: MarketingInfoType;
@@ -68,6 +69,7 @@ export function ProfileTabsManager({
   investorFormContent,
   mortgageFormContent,
   propertyManagerFormContent,
+  titleEscrowFormContent,
   initialRecognitions = [],
   onSubmitRecognitions,
   initialMarketingInfo,
@@ -181,6 +183,14 @@ export function ProfileTabsManager({
         requiredSpecialties: [INDUSTRY_SPECIALTIES.PROPERTY_MANAGER],
         requiredConfirmedSpecialties: [INDUSTRY_SPECIALTIES.PROPERTY_MANAGER],
       },
+      {
+        id: "title-escrow",
+        label: "Title & Escrow Profile",
+        icon: <Building className="h-4 w-4" />,
+        content: titleEscrowFormContent || null,
+        requiredSpecialties: [INDUSTRY_SPECIALTIES.TITLE_ESCROW],
+        requiredConfirmedSpecialties: [INDUSTRY_SPECIALTIES.TITLE_ESCROW],
+      },
     ];
 
     // Filter tabs based on user capabilities and specialties
@@ -207,7 +217,6 @@ export function ProfileTabsManager({
       return false;
     });
 
-    console.log("Filtered tabs:", filteredTabs.map(tab => tab.id));
     setAvailableTabs(filteredTabs);
   }, [
     userCapabilities,
@@ -220,6 +229,7 @@ export function ProfileTabsManager({
     investorFormContent,
     mortgageFormContent,
     propertyManagerFormContent,
+    titleEscrowFormContent,
     initialRecognitions,
     onSubmitRecognitions,
     initialMarketingInfo,

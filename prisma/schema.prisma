@@ -617,9 +617,7 @@ model User {
   // Organization Relations
   organizationMemberships OrganizationMember[]
   
-  // Domain Expertise Relations
-  domainExpertise        DomainExpertise[]
-  domainVerifications    DomainVerification[]
+  // Professional Recognitions
   professionalRecognitions ProfessionalRecognition[]
 
   // New fields
@@ -649,7 +647,6 @@ model MenteeProfile {
 
   // Relations
   user               User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  domainExpertise    DomainExpertise[]
 
   createdAt          DateTime @default(now()) @db.Timestamptz
   updatedAt          DateTime @updatedAt @db.Timestamptz
@@ -686,7 +683,6 @@ model CoachProfile {
   // Relations
   user               User          @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
   professionalRecognitions ProfessionalRecognition[]
-  domainExpertise    DomainExpertise[]
 
   createdAt          DateTime      @default(now()) @db.Timestamptz
   updatedAt          DateTime      @updatedAt @db.Timestamptz
@@ -860,65 +856,6 @@ model MarketingProfile {
   @@index([userUlid])
   @@index([organizationUlid])
   @@map("MarketingProfile")
-}
-
-// Domain Expertise Models
-model DomainExpertise {
-  ulid              String   @id @db.Char(26)
-  userUlid          String   @db.Char(26)
-  type              String   // e.g., "REALTOR", "LOAN_OFFICER", "TITLE_ESCROW", "INSURANCE"
-  level             String   // e.g., "BEGINNER", "INTERMEDIATE", "EXPERT"
-  status            String   @default("PENDING")
-  yearsExperience   Int      @default(0)
-  description       String?
-  metadata          Json?    @db.JsonB
-  isActive          Boolean  @default(true)
-  
-  // Relations
-  user              User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  coachProfile      CoachProfile? @relation(fields: [coachProfileUlid], references: [ulid])
-  menteeProfile     MenteeProfile? @relation(fields: [menteeProfileUlid], references: [ulid])
-  verifications     DomainVerification[]
-  
-  // Profile relations
-  coachProfileUlid   String?  @db.Char(26)
-  menteeProfileUlid  String?  @db.Char(26)
-  
-  createdAt         DateTime @default(now()) @db.Timestamptz
-  updatedAt         DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@index([type])
-  @@index([level])
-  @@index([status])
-  @@index([coachProfileUlid])
-  @@index([menteeProfileUlid])
-  @@map("DomainExpertise")
-}
-
-model DomainVerification {
-  ulid                  String   @id @db.Char(26)
-  domainExpertiseUlid   String   @db.Char(26)
-  userUlid             String   @db.Char(26)
-  type                 String   // e.g., "LICENSE", "CERTIFICATION"
-  status               String   @default("PENDING")
-  documentUrl          String?
-  verificationData     Json?           @db.JsonB
-  expiresAt            DateTime?       @db.Timestamptz
-  metadata             Json?           @db.JsonB
-  
-  // Relations
-  domainExpertise      DomainExpertise @relation(fields: [domainExpertiseUlid], references: [ulid], onDelete: Cascade)
-  user                 User            @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  
-  createdAt            DateTime        @default(now()) @db.Timestamptz
-  updatedAt            DateTime        @updatedAt @db.Timestamptz
-
-  @@index([domainExpertiseUlid])
-  @@index([userUlid])
-  @@index([type])
-  @@index([status])
-  @@map("DomainVerification")
 }
 
 // Base profile for all realtors (both coaches and mentees)

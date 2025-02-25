@@ -52,6 +52,9 @@ interface CoachProfileResponse {
   capabilities: string[];
   _rawCoachProfile: any;
   _rawRealtorProfile: any;
+  _rawMortgageProfile: any;
+  _rawInsuranceProfile: any;
+  _rawPropertyManagerProfile: any;
   profileStatus: ProfileStatus;
   completionPercentage: number;
   canPublish: boolean;
@@ -89,10 +92,13 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
               createdAt,
               updatedAt
             )
-          )
+          ),
+          mortgageProfile:MortgageProfile (*),
+          insuranceProfile:InsuranceProfile (*),
+          propertyManagerProfile:PropertyManagerProfile (*)
         `)
         .eq('ulid', userUlid)
-        .single()
+        .maybeSingle()
 
       if (error) {
         console.error('[DEBUG] Error fetching profiles:', error);
@@ -106,8 +112,54 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         }
       }
 
+      if (!data) {
+        console.log('[DEBUG] No profile data found, returning default structure');
+        return {
+          data: {
+            specialties: [],
+            yearsCoaching: 0,
+            hourlyRate: 0,
+            defaultDuration: 60,
+            minimumDuration: 30,
+            maximumDuration: 120,
+            allowCustomDuration: false,
+            calendlyUrl: "",
+            eventTypeUrl: "",
+            languages: [],
+            certifications: [],
+            marketExpertise: "",
+            professionalRecognitions: [],
+            domainSpecialties: [],
+            capabilities: [],
+            _rawCoachProfile: null,
+            _rawRealtorProfile: null,
+            _rawMortgageProfile: null,
+            _rawInsuranceProfile: null,
+            _rawPropertyManagerProfile: null,
+            profileStatus: PROFILE_STATUS.DRAFT,
+            completionPercentage: 0,
+            canPublish: false,
+            missingFields: ['firstName', 'lastName', 'bio'],
+          },
+          error: null
+        }
+      }
+
       const coachProfile = Array.isArray(data.coachProfile) ? data.coachProfile[0] : data.coachProfile;
       const realtorProfile = Array.isArray(data.realtorProfile) ? data.realtorProfile[0] : data.realtorProfile;
+      const mortgageProfile = Array.isArray(data.mortgageProfile) ? data.mortgageProfile[0] : data.mortgageProfile;
+      const insuranceProfile = Array.isArray(data.insuranceProfile) ? data.insuranceProfile[0] : data.insuranceProfile;
+      const propertyManagerProfile = Array.isArray(data.propertyManagerProfile) ? data.propertyManagerProfile[0] : data.propertyManagerProfile;
+
+      // Log which profiles were found
+      console.log('[COACH_PROFILES_FOUND]', {
+        hasCoachProfile: !!coachProfile,
+        hasRealtorProfile: !!realtorProfile,
+        hasMortgageProfile: !!mortgageProfile,
+        hasInsuranceProfile: !!insuranceProfile,
+        hasPropertyManagerProfile: !!propertyManagerProfile,
+        timestamp: new Date().toISOString()
+      });
 
       const activeRecognitions = realtorProfile?.professionalRecognitions?.filter(
         (recognition: any) => recognition.status === 'ACTIVE'
@@ -145,8 +197,11 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         professionalRecognitions: activeRecognitions,
         domainSpecialties: coachProfile?.domainSpecialties || [],
         capabilities: [],
-        _rawCoachProfile: coachProfile,
-        _rawRealtorProfile: realtorProfile,
+        _rawCoachProfile: coachProfile || null,
+        _rawRealtorProfile: realtorProfile || null,
+        _rawMortgageProfile: mortgageProfile || null,
+        _rawInsuranceProfile: insuranceProfile || null,
+        _rawPropertyManagerProfile: propertyManagerProfile || null,
         profileStatus: (coachProfile?.profileStatus as ProfileStatus) || PROFILE_STATUS.DRAFT,
         completionPercentage: percentage,
         canPublish,

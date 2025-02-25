@@ -6,19 +6,30 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { FormSectionHeader } from "../common/FormSectionHeader";
 import { CoachProfileFormValues, DOMAIN_SPECIALTIES } from "../types";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface DomainSpecialtiesSectionProps {
   control: Control<CoachProfileFormValues>;
+  saveSpecialties?: (specialties: string[]) => Promise<boolean>;
+  isSubmitting?: boolean;
 }
 
-export function DomainSpecialtiesSection({ control }: DomainSpecialtiesSectionProps) {
+export function DomainSpecialtiesSection({ 
+  control, 
+  saveSpecialties,
+  isSubmitting = false
+}: DomainSpecialtiesSectionProps) {
   return (
     <div className="space-y-4 mb-8">
-      <FormSectionHeader
-        title="Industry Specialties"
-        required
-        tooltip="Select the real estate industry segments where you specialize. This helps match you with clients in your field."
-      />
+      <div className="flex justify-between items-center">
+        <FormSectionHeader
+          title="Industry Specialties"
+          required
+          tooltip="Select the real estate industry segments where you specialize. This helps match you with clients in your field."
+        />
+      </div>
+      
       <div className="mb-4">
         <p className="text-xs sm:text-sm text-muted-foreground">
           Define your coaching specialties and industry expertise to help clients find you.
@@ -50,11 +61,18 @@ export function DomainSpecialtiesSection({ control }: DomainSpecialtiesSectionPr
         render={({ field }) => (
           <FormItem>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {DOMAIN_SPECIALTIES.map((specialty) => (
-                <div key={specialty.value} className="flex items-start space-x-2 p-3 border rounded-md hover:bg-muted/30 transition-colors">
+              {DOMAIN_SPECIALTIES.map((specialty) => {
+                const isChecked = field.value?.includes(specialty.value);
+                return (
+                <div 
+                  key={specialty.value} 
+                  className={`flex items-start space-x-2 p-3 border rounded-md hover:bg-muted/30 transition-colors ${
+                    isChecked ? 'bg-blue-50 border-blue-200' : ''
+                  }`}
+                >
                   <Checkbox
                     id={`domain-specialty-${specialty.value}`}
-                    checked={field.value?.includes(specialty.value)}
+                    checked={isChecked}
                     onCheckedChange={(checked) => {
                       const currentValue = field.value || [];
                       if (checked) {
@@ -74,7 +92,7 @@ export function DomainSpecialtiesSection({ control }: DomainSpecialtiesSectionPr
                     </label>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
             <FormMessage />
           </FormItem>

@@ -14,7 +14,7 @@ export const DOMAIN_SPECIALTIES = [
 // Form validation schema
 export const coachProfileFormSchema = z.object({
   // Coach Profile Fields
-  specialties: z.array(z.string()).min(1, "Select at least one specialty"),
+  specialties: z.array(z.string()).optional(),
   yearsCoaching: z.number().min(0, "Years must be 0 or greater"),
   hourlyRate: z.number().min(0, "Rate must be 0 or greater"),
   

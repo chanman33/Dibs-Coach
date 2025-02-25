@@ -41,6 +41,15 @@ export function CoachProfileForm({
   onSpecialtiesChange,
   saveSpecialties
 }: CoachProfileFormProps) {
+  // Log initial data for debugging
+  useEffect(() => {
+    console.log("[COACH_PROFILE_FORM_INITIAL_DATA]", {
+      initialData,
+      domainSpecialties: initialData?.domainSpecialties,
+      timestamp: new Date().toISOString()
+    });
+  }, [initialData]);
+
   const [selectedDomainSpecialties, setSelectedDomainSpecialties] = useState<string[]>(
     initialData?.domainSpecialties || []
   );
@@ -63,7 +72,35 @@ export function CoachProfileForm({
       marketExpertise: initialData?.marketExpertise || "",
       professionalRecognitions: initialData?.professionalRecognitions || [],
     },
+    mode: "onSubmit"
   });
+
+  // Reset form values when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      console.log("[RESETTING_FORM_VALUES]", {
+        domainSpecialties: initialData.domainSpecialties,
+        timestamp: new Date().toISOString()
+      });
+      
+      form.reset({
+        specialties: initialData.specialties || [],
+        yearsCoaching: initialData.yearsCoaching || 0,
+        hourlyRate: initialData.hourlyRate || 0,
+        domainSpecialties: initialData.domainSpecialties || [],
+        calendlyUrl: initialData.calendlyUrl || "",
+        eventTypeUrl: initialData.eventTypeUrl || "",
+        defaultDuration: initialData.defaultDuration || 60,
+        minimumDuration: initialData.minimumDuration || 30,
+        maximumDuration: initialData.maximumDuration || 120,
+        allowCustomDuration: initialData.allowCustomDuration || false,
+        certifications: initialData.certifications || [],
+        languages: initialData.languages || [],
+        marketExpertise: initialData.marketExpertise || "",
+        professionalRecognitions: initialData.professionalRecognitions || [],
+      });
+    }
+  }, [initialData, form]);
 
   // Watch domain specialties for parent component notification
   const domainSpecialties = form.watch("domainSpecialties");
@@ -75,13 +112,112 @@ export function CoachProfileForm({
     }
   }, [domainSpecialties, onSpecialtiesChange]);
 
-  const handleSubmit = async (values: CoachProfileFormValues) => {
-    // First save the coach profile data
-    onSubmit(values);
+  // Function to check if form values have changed from initial data
+  const checkFormChanges = (values: CoachProfileFormValues) => {
+    const changes: Record<string, { previous: any; current: any }> = {};
     
-    // Then save the specialties to update domain expertise
-    if (saveSpecialties) {
-      await saveSpecialties(values.domainSpecialties);
+    // Check domain specialties
+    if (JSON.stringify(initialData?.domainSpecialties || []) !== JSON.stringify(values.domainSpecialties)) {
+      changes.domainSpecialties = {
+        previous: initialData?.domainSpecialties || [],
+        current: values.domainSpecialties
+      };
+    }
+    
+    // Check other fields
+    if (initialData?.hourlyRate !== values.hourlyRate) {
+      changes.hourlyRate = {
+        previous: initialData?.hourlyRate,
+        current: values.hourlyRate
+      };
+    }
+    
+    if (JSON.stringify(initialData?.languages || []) !== JSON.stringify(values.languages)) {
+      changes.languages = {
+        previous: initialData?.languages || [],
+        current: values.languages
+      };
+    }
+    
+    return {
+      hasChanges: Object.keys(changes).length > 0,
+      changes
+    };
+  };
+
+  const handleSubmit = async (values: CoachProfileFormValues) => {
+    try {
+      // Check for changes
+      const { hasChanges, changes } = checkFormChanges(values);
+      
+      // Log the form values for debugging
+      console.log("[COACH_PROFILE_SUBMISSION]", {
+        formValues: values,
+        selectedSpecialties: values.domainSpecialties,
+        hasChanges,
+        changes,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Show confirmation toast
+      toast.info("Submitting coach profile...");
+      
+      // First save the coach profile data
+      console.log("[COACH_PROFILE_CALLING_ONSUBMIT]", {
+        timestamp: new Date().toISOString()
+      });
+      
+      // Call onSubmit and await its completion
+      await onSubmit(values);
+      
+      // Then save the specialties to update domain expertise
+      if (saveSpecialties) {
+        console.log("[COACH_PROFILE_CALLING_SAVESPECIALTIES]", {
+          specialties: values.domainSpecialties,
+          timestamp: new Date().toISOString()
+        });
+        
+        try {
+          const success = await saveSpecialties(values.domainSpecialties);
+          console.log("[COACH_PROFILE_SAVESPECIALTIES_RESULT]", {
+            success,
+            specialties: values.domainSpecialties,
+            timestamp: new Date().toISOString()
+          });
+          
+          if (success) {
+            console.log("[SPECIALTIES_SAVED]", {
+              specialties: values.domainSpecialties,
+              timestamp: new Date().toISOString()
+            });
+            toast.success("Coach profile and industry specialties saved successfully!");
+          } else {
+            console.error("[SPECIALTIES_SAVE_FAILED]", {
+              specialties: values.domainSpecialties,
+              timestamp: new Date().toISOString()
+            });
+            toast.error("Failed to save industry specialties");
+          }
+        } catch (error) {
+          console.error("[COACH_PROFILE_SAVESPECIALTIES_ERROR]", {
+            error,
+            specialties: values.domainSpecialties,
+            timestamp: new Date().toISOString()
+          });
+          toast.error("Error saving industry specialties");
+        }
+      } else {
+        console.warn("[COACH_PROFILE_NO_SAVESPECIALTIES]", {
+          timestamp: new Date().toISOString()
+        });
+        toast.success("Coach profile saved successfully!");
+      }
+    } catch (error) {
+      console.error("[COACH_PROFILE_SUBMIT_ERROR]", {
+        error,
+        timestamp: new Date().toISOString()
+      });
+      toast.error("Failed to save coach profile");
     }
   };
 
@@ -124,33 +260,41 @@ export function CoachProfileForm({
           </Card>
 
           <Card className="p-4 sm:p-6 border shadow-sm">
-
-
             <div className="space-y-4 sm:space-y-8">
               {/* Industry specialties - Moved to the top */}
               <div>
-                <DomainSpecialtiesSection control={form.control} />
+                <DomainSpecialtiesSection 
+                  control={form.control} 
+                  saveSpecialties={saveSpecialties}
+                  isSubmitting={isSubmitting}
+                />
               </div>
-
-              {/* Coach type and experience */}
-              {/* <div>
-                <div className="mb-4">
-                  <h4 className="text-sm font-medium">Coaching Specialties</h4>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Select the types of coaching you offer and your experience level.
-                  </p>
-                </div>
-                <CoachSpecialtiesSection control={form.control} />
-              </div> */}
             </div>
           </Card>
 
-          <div className="flex justify-end mt-4 sm:mt-8">
+          <div className="flex justify-end mt-4 sm:mt-8 gap-2">
             <Button
               type="submit"
               size="lg"
               disabled={isSubmitting}
               className="px-6"
+              onClick={() => {
+                // This will be triggered before form submission
+                const values = form.getValues();
+                const { hasChanges, changes } = checkFormChanges(values);
+                
+                console.log("[SAVE_BUTTON_CLICKED]", {
+                  currentSpecialties: values.domainSpecialties,
+                  hasChanges,
+                  changes,
+                  formState: {
+                    isDirty: form.formState.isDirty,
+                    errors: Object.keys(form.formState.errors),
+                    isValid: form.formState.isValid
+                  },
+                  timestamp: new Date().toISOString()
+                });
+              }}
             >
               {isSubmitting ? (
                 <>

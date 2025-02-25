@@ -8,6 +8,7 @@ export const CoachApplicationSchema = z.object({
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'DRAFT']),
   experience: z.string(),
   specialties: z.array(z.string()),
+  industrySpecialties: z.array(z.string()).default([]),
   notes: z.string().nullable(),
   reviewerDbId: z.number().nullable(),
   reviewDate: z.string().datetime().nullable(),
@@ -40,6 +41,7 @@ export type ApplicationData = {
   status: CoachApplicationStatus;
   experience: string;
   specialties: string[];
+  industrySpecialties: string[];
   notes: string | null;
   applicationDate: string;
   reviewDate: string | null;

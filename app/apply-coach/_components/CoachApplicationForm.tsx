@@ -13,6 +13,8 @@ import { COACH_APPLICATION_STATUS } from '@/utils/types/coach';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { FileUpload } from '@/components/ui/file-upload';
+import { Checkbox } from '@/components/ui/checkbox';
+import { INDUSTRY_SPECIALTIES } from '@/components/profile/common/ProfileTabsManager';
 
 interface CoachApplicationFormData {
   firstName: string;
@@ -25,6 +27,7 @@ interface CoachApplicationFormData {
   yearsOfExperience: string;
   expertise: string;
   additionalInfo: string;
+  industrySpecialties: string[];
 }
 
 interface CoachApplicationFormProps {
@@ -33,6 +36,7 @@ interface CoachApplicationFormProps {
     status: typeof COACH_APPLICATION_STATUS[keyof typeof COACH_APPLICATION_STATUS];
     experience: string;
     specialties: string[];
+    industrySpecialties?: string[];
     resumeUrl: string | null;
     linkedIn: string | null;
     primarySocialMedia: string | null;
@@ -49,6 +53,9 @@ interface CoachApplicationFormProps {
 export default function CoachApplicationForm({ existingApplication, userData }: CoachApplicationFormProps) {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>(
+    existingApplication?.industrySpecialties || []
+  );
   const router = useRouter();
   const { register, handleSubmit, formState: { errors }, setValue } = useForm<CoachApplicationFormData>({
     defaultValues: {
@@ -61,9 +68,24 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
       primarySocialMedia: existingApplication?.primarySocialMedia || '',
       yearsOfExperience: existingApplication?.experience || '',
       expertise: existingApplication?.specialties?.join(', ') || '',
-      additionalInfo: existingApplication?.additionalInfo || ''
+      additionalInfo: existingApplication?.additionalInfo || '',
+      industrySpecialties: existingApplication?.industrySpecialties || []
     }
   });
+
+  // Handle specialty selection
+  const handleSpecialtyChange = (specialty: string, isChecked: boolean) => {
+    let updatedSpecialties: string[];
+    
+    if (isChecked) {
+      updatedSpecialties = [...selectedSpecialties, specialty];
+    } else {
+      updatedSpecialties = selectedSpecialties.filter(s => s !== specialty);
+    }
+    
+    setSelectedSpecialties(updatedSpecialties);
+    setValue('industrySpecialties', updatedSpecialties);
+  };
 
   const onSubmit = async (data: CoachApplicationFormData, isDraft: boolean = false) => {
     setLoading(true);
@@ -77,6 +99,11 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
       formData.append('phoneNumber', data.phoneNumber);
       formData.append('yearsOfExperience', data.yearsOfExperience);
       formData.append('expertise', data.expertise);
+      
+      // Add industry specialties
+      if (data.industrySpecialties && data.industrySpecialties.length > 0) {
+        formData.append('industrySpecialties', JSON.stringify(data.industrySpecialties));
+      }
       
       // Add optional fields
       if (data.resume) {
@@ -274,6 +301,36 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
             />
           </div>
 
+          {/* Industry Specialties Section */}
+          <div className="space-y-4">
+            <div>
+              <Label>Industry Specialties *</Label>
+              <p className="text-sm text-gray-500 mt-1">
+                Select the industries where you have expertise and can provide coaching.
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+              {Object.entries(INDUSTRY_SPECIALTIES).map(([key, value]) => (
+                <div key={key} className="flex items-center space-x-2">
+                  <Checkbox 
+                    id={`specialty-${key}`}
+                    checked={selectedSpecialties.includes(value)}
+                    onCheckedChange={(checked) => 
+                      handleSpecialtyChange(value, checked as boolean)
+                    }
+                  />
+                  <Label htmlFor={`specialty-${key}`} className="font-normal">
+                    {key.replace(/_/g, ' ')}
+                  </Label>
+                </div>
+              ))}
+            </div>
+            {selectedSpecialties.length === 0 && (
+              <p className="text-sm text-red-500">Please select at least one industry specialty</p>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="additionalInfo">Anything else we should know about you? *</Label>
             <Textarea
@@ -303,7 +360,7 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
             <Button 
               type="submit" 
               className="flex-1" 
-              disabled={loading}
+              disabled={loading || selectedSpecialties.length === 0}
             >
               {loading ? (
                 <>

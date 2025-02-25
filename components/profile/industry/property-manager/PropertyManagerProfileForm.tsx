@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { FormSectionHeader } from "./common/FormSectionHeader";
+import { FormSectionHeader } from "../../common/FormSectionHeader";
 
 // Define the schema for the Property Manager profile form
 const propertyManagerProfileSchema = z.object({
@@ -96,8 +96,208 @@ export function PropertyManagerProfileForm({
                 description="Your property management details and experience"
               />
               
-              {/* TODO: Add form fields for Property Manager profile */}
-              <p className="text-amber-500">Form fields will be implemented here</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Years of Experience */}
+                <FormField
+                  control={form.control}
+                  name="yearsExperience"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Years of Experience</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Company Name */}
+                <FormField
+                  control={form.control}
+                  name="companyName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Company Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter your company name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* License Number */}
+                <FormField
+                  control={form.control}
+                  name="licenseNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>License Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter your license number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* License State */}
+                <FormField
+                  control={form.control}
+                  name="licenseState"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>License State</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., CA" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormSectionHeader
+                title="Property Management Information"
+                description="Details about your property management services"
+              />
+
+              {/* Property Types */}
+              <FormField
+                control={form.control}
+                name="propertyTypes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Property Types</FormLabel>
+                    <FormDescription>
+                      Enter the types of properties you manage (comma-separated)
+                    </FormDescription>
+                    <FormControl>
+                      <Input 
+                        placeholder="e.g., Residential, Commercial, Multi-family, Single-family" 
+                        value={field.value?.join(", ") || ""}
+                        onChange={(e) => {
+                          const propertyTypes = e.target.value
+                            .split(",")
+                            .map(type => type.trim())
+                            .filter(Boolean);
+                          field.onChange(propertyTypes);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Service Areas */}
+              <FormField
+                control={form.control}
+                name="serviceAreas"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Service Areas</FormLabel>
+                    <FormDescription>
+                      Enter the geographic areas you serve (comma-separated)
+                    </FormDescription>
+                    <FormControl>
+                      <Input 
+                        placeholder="e.g., Los Angeles County, Orange County" 
+                        value={field.value?.join(", ") || ""}
+                        onChange={(e) => {
+                          const areas = e.target.value
+                            .split(",")
+                            .map(area => area.trim())
+                            .filter(Boolean);
+                          field.onChange(areas);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Specializations */}
+              <FormField
+                control={form.control}
+                name="specializations"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Specializations</FormLabel>
+                    <FormDescription>
+                      Enter your property management specializations (comma-separated)
+                    </FormDescription>
+                    <FormControl>
+                      <Input 
+                        placeholder="e.g., Luxury Properties, Vacation Rentals, HOA Management" 
+                        value={field.value?.join(", ") || ""}
+                        onChange={(e) => {
+                          const specializations = e.target.value
+                            .split(",")
+                            .map(spec => spec.trim())
+                            .filter(Boolean);
+                          field.onChange(specializations);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormSectionHeader
+                title="Performance Metrics"
+                description="Your property management business metrics"
+              />
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Units Managed */}
+                <FormField
+                  control={form.control}
+                  name="unitsManaged"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Total Units Managed</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Properties Managed */}
+                <FormField
+                  control={form.control}
+                  name="propertiesManaged"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Total Properties Managed</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
           </Card>
 

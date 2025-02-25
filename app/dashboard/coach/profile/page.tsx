@@ -44,7 +44,8 @@ function ProfilePageContent() {
     updateMarketingData,
     updateGoalsData,
     updateSelectedSpecialties,
-    saveSpecialties
+    saveSpecialties,
+    debugServerAction
   } = useProfileContext();
 
   // Handle specialty changes from the coach form
@@ -73,7 +74,7 @@ function ProfilePageContent() {
         <h1 className="text-2xl sm:text-3xl font-bold">Coach Profile</h1>
         
         {/* Profile completion status badge */}
-        <div className="mt-2 md:mt-0">
+        <div className="mt-2 md:mt-0 flex items-center gap-2">
           <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-50 text-primary-700">
             <span className="mr-2">Profile Completion:</span>
             <span className="font-bold">{completionPercentage}%</span>
@@ -129,6 +130,29 @@ function ProfilePageContent() {
         investorFormContent={null}
         mortgageFormContent={null}
         propertyManagerFormContent={null}
+        titleEscrowFormContent={
+          selectedSpecialties.includes("TITLE_ESCROW") ? (
+            <div className="mt-4">
+              {/* Import dynamically to avoid issues with server components */}
+              {(() => {
+                const TitleEscrowProfileForm = require("@/components/profile/industry/title-escrow/TitleEscrowProfileForm").default;
+                return (
+                  <TitleEscrowProfileForm
+                    initialData={{}}
+                    onSubmit={async (data: any) => {
+                      console.log("[TITLE_ESCROW_SUBMIT]", {
+                        data,
+                        timestamp: new Date().toISOString()
+                      });
+                      // TODO: Implement title & escrow profile update
+                    }}
+                    isSubmitting={isSubmitting}
+                  />
+                );
+              })()}
+            </div>
+          ) : null
+        }
         initialRecognitions={recognitionsData}
         onSubmitRecognitions={updateRecognitionsData}
         initialMarketingInfo={marketingData}

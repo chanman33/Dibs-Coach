@@ -471,6 +471,7 @@ export type Database = {
           draftData: Json | null
           draftVersion: number
           experience: string
+          industrySpecialties: string[] | null
           isDraft: boolean
           lastSavedAt: string | null
           linkedIn: string | null
@@ -492,6 +493,7 @@ export type Database = {
           draftData?: Json | null
           draftVersion?: number
           experience: string
+          industrySpecialties?: string[] | null
           isDraft?: boolean
           lastSavedAt?: string | null
           linkedIn?: string | null
@@ -513,6 +515,7 @@ export type Database = {
           draftData?: Json | null
           draftVersion?: number
           experience?: string
+          industrySpecialties?: string[] | null
           isDraft?: boolean
           lastSavedAt?: string | null
           linkedIn?: string | null
@@ -619,7 +622,6 @@ export type Database = {
       }
       CoachProfile: {
         Row: {
-          activeDomains: string[] | null
           allowCustomDuration: boolean
           averageRating: number | null
           calendlyUrl: string | null
@@ -640,7 +642,6 @@ export type Database = {
           yearsCoaching: number | null
         }
         Insert: {
-          activeDomains?: string[] | null
           allowCustomDuration?: boolean
           averageRating?: number | null
           calendlyUrl?: string | null
@@ -661,7 +662,6 @@ export type Database = {
           yearsCoaching?: number | null
         }
         Update: {
-          activeDomains?: string[] | null
           allowCustomDuration?: boolean
           averageRating?: number | null
           calendlyUrl?: string | null
@@ -1596,7 +1596,6 @@ export type Database = {
       }
       MenteeProfile: {
         Row: {
-          activeDomains: string[] | null
           createdAt: string
           experienceLevel: string | null
           focusAreas: string[] | null
@@ -1609,7 +1608,6 @@ export type Database = {
           userUlid: string
         }
         Insert: {
-          activeDomains?: string[] | null
           createdAt?: string
           experienceLevel?: string | null
           focusAreas?: string[] | null
@@ -1622,7 +1620,6 @@ export type Database = {
           userUlid: string
         }
         Update: {
-          activeDomains?: string[] | null
           createdAt?: string
           experienceLevel?: string | null
           focusAreas?: string[] | null
@@ -1989,19 +1986,16 @@ export type Database = {
       ProfessionalRecognition: {
         Row: {
           certificateUrl: string | null
+          coachProfileUlid: string | null
           createdAt: string
           description: string | null
           expiryDate: string | null
-          insuranceProfileUlid: string | null
-          investorProfileUlid: string | null
+          industryType: string | null
           issueDate: string
           issuer: string
-          loanOfficerProfileUlid: string | null
-          propertyManagerProfileUlid: string | null
-          realtorProfileUlid: string | null
+          isVisible: boolean
           status: Database["public"]["Enums"]["CertificationStatus"]
           title: string
-          titleEscrowProfileUlid: string | null
           type: Database["public"]["Enums"]["RecognitionType"]
           ulid: string
           updatedAt: string
@@ -2010,19 +2004,16 @@ export type Database = {
         }
         Insert: {
           certificateUrl?: string | null
+          coachProfileUlid?: string | null
           createdAt?: string
           description?: string | null
           expiryDate?: string | null
-          insuranceProfileUlid?: string | null
-          investorProfileUlid?: string | null
+          industryType?: string | null
           issueDate: string
           issuer: string
-          loanOfficerProfileUlid?: string | null
-          propertyManagerProfileUlid?: string | null
-          realtorProfileUlid?: string | null
+          isVisible?: boolean
           status?: Database["public"]["Enums"]["CertificationStatus"]
           title: string
-          titleEscrowProfileUlid?: string | null
           type: Database["public"]["Enums"]["RecognitionType"]
           ulid: string
           updatedAt: string
@@ -2031,19 +2022,16 @@ export type Database = {
         }
         Update: {
           certificateUrl?: string | null
+          coachProfileUlid?: string | null
           createdAt?: string
           description?: string | null
           expiryDate?: string | null
-          insuranceProfileUlid?: string | null
-          investorProfileUlid?: string | null
+          industryType?: string | null
           issueDate?: string
           issuer?: string
-          loanOfficerProfileUlid?: string | null
-          propertyManagerProfileUlid?: string | null
-          realtorProfileUlid?: string | null
+          isVisible?: boolean
           status?: Database["public"]["Enums"]["CertificationStatus"]
           title?: string
-          titleEscrowProfileUlid?: string | null
           type?: Database["public"]["Enums"]["RecognitionType"]
           ulid?: string
           updatedAt?: string
@@ -2052,45 +2040,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "ProfessionalRecognition_insuranceProfileUlid_fkey"
-            columns: ["insuranceProfileUlid"]
+            foreignKeyName: "ProfessionalRecognition_coachProfileUlid_fkey"
+            columns: ["coachProfileUlid"]
             isOneToOne: false
-            referencedRelation: "InsuranceProfile"
-            referencedColumns: ["ulid"]
-          },
-          {
-            foreignKeyName: "ProfessionalRecognition_investorProfileUlid_fkey"
-            columns: ["investorProfileUlid"]
-            isOneToOne: false
-            referencedRelation: "InvestorProfile"
-            referencedColumns: ["ulid"]
-          },
-          {
-            foreignKeyName: "ProfessionalRecognition_loanOfficerProfileUlid_fkey"
-            columns: ["loanOfficerProfileUlid"]
-            isOneToOne: false
-            referencedRelation: "LoanOfficerProfile"
-            referencedColumns: ["ulid"]
-          },
-          {
-            foreignKeyName: "ProfessionalRecognition_propertyManagerProfileUlid_fkey"
-            columns: ["propertyManagerProfileUlid"]
-            isOneToOne: false
-            referencedRelation: "PropertyManagerProfile"
-            referencedColumns: ["ulid"]
-          },
-          {
-            foreignKeyName: "ProfessionalRecognition_realtorProfileUlid_fkey"
-            columns: ["realtorProfileUlid"]
-            isOneToOne: false
-            referencedRelation: "RealtorProfile"
-            referencedColumns: ["ulid"]
-          },
-          {
-            foreignKeyName: "ProfessionalRecognition_titleEscrowProfileUlid_fkey"
-            columns: ["titleEscrowProfileUlid"]
-            isOneToOne: false
-            referencedRelation: "TitleEscrowProfile"
+            referencedRelation: "CoachProfile"
             referencedColumns: ["ulid"]
           },
           {
@@ -3159,14 +3112,17 @@ export type Database = {
         Row: {
           bio: string | null
           capabilities: Database["public"]["Enums"]["UserCapability"][] | null
+          confirmedSpecialties: string[] | null
           createdAt: string
           displayName: string | null
           email: string
           firstName: string | null
+          industrySpecialties: string[] | null
           isCoach: boolean
           isMentee: boolean
           lastName: string | null
           phoneNumber: string | null
+          primaryMarket: string | null
           profileImageUrl: string | null
           status: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId: string | null
@@ -3179,14 +3135,17 @@ export type Database = {
         Insert: {
           bio?: string | null
           capabilities?: Database["public"]["Enums"]["UserCapability"][] | null
+          confirmedSpecialties?: string[] | null
           createdAt?: string
           displayName?: string | null
           email: string
           firstName?: string | null
+          industrySpecialties?: string[] | null
           isCoach?: boolean
           isMentee?: boolean
           lastName?: string | null
           phoneNumber?: string | null
+          primaryMarket?: string | null
           profileImageUrl?: string | null
           status?: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId?: string | null
@@ -3199,14 +3158,17 @@ export type Database = {
         Update: {
           bio?: string | null
           capabilities?: Database["public"]["Enums"]["UserCapability"][] | null
+          confirmedSpecialties?: string[] | null
           createdAt?: string
           displayName?: string | null
           email?: string
           firstName?: string | null
+          industrySpecialties?: string[] | null
           isCoach?: boolean
           isMentee?: boolean
           lastName?: string | null
           phoneNumber?: string | null
+          primaryMarket?: string | null
           profileImageUrl?: string | null
           status?: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId?: string | null

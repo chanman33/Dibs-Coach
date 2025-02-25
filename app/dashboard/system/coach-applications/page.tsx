@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { type ApplicationData, type ApiResponse } from '@/utils/types/coach-application';
 import { COACH_APPLICATION_STATUS, type CoachApplicationStatus } from '@/utils/types/coach';
-import { getCoachApplication, reviewCoachApplication, getSignedResumeUrl, getAllCoachApplications } from '@/utils/actions/coach-application';
+import { getCoachApplication, reviewCoachApplication, getResumePresignedUrl, getAllCoachApplications } from '@/utils/actions/coach-application';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -131,6 +131,34 @@ export default function CoachApplicationsPage() {
   const handleViewApplication = (application: ApplicationData) => {
     setSelectedApplication(application);
     setIsModalOpen(true);
+    
+    // Reset resume URL
+    setResumeUrl(null);
+    
+    // Fetch resume URL if available
+    if (application.resumeUrl) {
+      const fetchResumeUrl = async () => {
+        try {
+          // Extract the filename from the full URL
+          const resumePath = application.resumeUrl?.split('/').pop();
+          if (resumePath) {
+            const result = await getResumePresignedUrl(`resumes/${resumePath}`);
+            if (result.data) {
+              setResumeUrl(result.data);
+            }
+          }
+        } catch (error) {
+          console.error('[FETCH_RESUME_URL_ERROR]', error);
+          toast({
+            title: 'Error',
+            description: 'Failed to fetch resume URL',
+            variant: 'destructive'
+          });
+        }
+      };
+      
+      fetchResumeUrl();
+    }
   };
 
   const handleReview = async (applicationUlid: string, status: CoachApplicationStatus) => {
@@ -440,6 +468,25 @@ export default function CoachApplicationsPage() {
                             </div>
                           </div>
                         </div>
+                        
+                        {/* Add Industry Specialties */}
+                        {application.industrySpecialties && application.industrySpecialties.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-sm text-muted-foreground">Industry Specialties</p>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {application.industrySpecialties.slice(0, 3).map((specialty, index) => (
+                                <Badge key={index} variant="secondary" className="text-xs">
+                                  {specialty.replace(/_/g, ' ')}
+                                </Badge>
+                              ))}
+                              {application.industrySpecialties.length > 3 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  +{application.industrySpecialties.length - 3}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -581,6 +628,20 @@ export default function CoachApplicationsPage() {
                       ))}
                     </div>
                   </div>
+                  
+                  {/* Add Industry Specialties Section */}
+                  {selectedApplication.industrySpecialties && selectedApplication.industrySpecialties.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Industry Specialties</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedApplication.industrySpecialties.map((specialty, index) => (
+                          <Badge key={index} variant="outline">
+                            {specialty.replace(/_/g, ' ')}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {selectedApplication.additionalInfo && (
                     <div>

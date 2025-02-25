@@ -24,7 +24,8 @@ const CoachApplicationSchema = z.object({
   yearsOfExperience: z.string().min(1, 'Years of experience is required'),
   expertise: z.string().min(1, 'Expertise is required'),
   additionalInfo: z.string().optional(),
-  resumeUrl: z.string().url().optional()
+  resumeUrl: z.string().url().optional(),
+  industrySpecialties: z.array(z.string()).optional()
 })
 
 const ApplicationReviewSchema = z.object({
@@ -52,6 +53,7 @@ type ApplicationResponse = {
   } | null;
   experience: string;
   specialties: string[];
+  industrySpecialties: string[];
   notes: string | null;
   applicationDate: string;
   reviewDate: string | null;
@@ -65,6 +67,7 @@ type RawApplicationData = {
   status: string;
   experience: string;
   specialties: string[];
+  industrySpecialties: string[];
   notes: string | null;
   applicationDate: string;
   reviewDate: string | null;
@@ -130,6 +133,18 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
         resumeUrl = urlData.publicUrl;
       }
 
+      // Parse industry specialties from JSON string if provided
+      let industrySpecialties: string[] = [];
+      const industrySpecialtiesStr = formData.get('industrySpecialties');
+      if (industrySpecialtiesStr) {
+        try {
+          industrySpecialties = JSON.parse(industrySpecialtiesStr as string);
+        } catch (error) {
+          console.error('[INDUSTRY_SPECIALTIES_PARSE_ERROR]', error);
+          // Continue with empty array if parsing fails
+        }
+      }
+
       // Convert FormData to object, handling optional fields
       const data = {
         firstName: formData.get('firstName') as string,
@@ -142,7 +157,8 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
         linkedIn: formData.get('linkedIn') || undefined,
         primarySocialMedia: formData.get('primarySocialMedia') || undefined,
         additionalInfo: formData.get('additionalInfo') || undefined,
-        resumeUrl: resumeUrl // Use the uploaded file URL
+        resumeUrl: resumeUrl, // Use the uploaded file URL
+        industrySpecialties: industrySpecialties.length > 0 ? industrySpecialties : undefined
       };
 
       // Validate input data
@@ -157,6 +173,7 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
           status: 'PENDING',
           experience: validatedData.yearsOfExperience,
           specialties: [validatedData.expertise],
+          industrySpecialties: validatedData.industrySpecialties || [],
           resumeUrl: validatedData.resumeUrl,
           linkedIn: validatedData.linkedIn,
           primarySocialMedia: validatedData.primarySocialMedia,
@@ -170,6 +187,7 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
           status,
           experience,
           specialties,
+          industrySpecialties,
           notes,
           applicationDate,
           reviewDate,
@@ -501,6 +519,7 @@ export const getAllCoachApplications = withServerAction<ApplicationData[]>(
           status,
           experience,
           specialties,
+          industrySpecialties,
           notes,
           applicationDate,
           reviewDate,
@@ -598,6 +617,7 @@ export const getAllCoachApplications = withServerAction<ApplicationData[]>(
             status: status as CoachApplicationStatus,
             experience: app.experience || '0',
             specialties: Array.isArray(app.specialties) ? app.specialties : [],
+            industrySpecialties: Array.isArray(app.industrySpecialties) ? app.industrySpecialties : [],
             notes: app.notes,
             applicationDate: app.applicationDate || app.createdAt,
             reviewDate: app.reviewDate,
