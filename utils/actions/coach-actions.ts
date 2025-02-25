@@ -17,21 +17,21 @@ export interface CoachProfileFormData {
   allowCustomDuration: boolean;
   calendlyUrl?: string;
   eventTypeUrl?: string;
+  domainSpecialties?: string[];
+  certifications?: string[];
+  languages?: string[];
+  marketExpertise?: string;
+  professionalRecognitions?: ProfessionalRecognition[];
 }
 
 interface ProfessionalRecognition {
-  ulid: string;
+  ulid?: string;
   title: string;
   type: "AWARD" | "ACHIEVEMENT";
-  issuer: string;
-  issueDate: string;
-  expiryDate?: string | null;
-  description?: string | null;
-  verificationUrl?: string | null;
-  certificateUrl?: string | null;
-  status: "ACTIVE" | "INACTIVE" | "EXPIRED";
-  createdAt: string;
-  updatedAt: string;
+  year: number;
+  organization: string | null;
+  description: string | null;
+  isVisible: boolean;
 }
 
 interface CoachProfileResponse {
@@ -48,6 +48,8 @@ interface CoachProfileResponse {
   certifications: string[];
   marketExpertise: string;
   professionalRecognitions: ProfessionalRecognition[];
+  domainSpecialties: string[];
+  capabilities: string[];
   _rawCoachProfile: any;
   _rawRealtorProfile: any;
   profileStatus: ProfileStatus;
@@ -141,6 +143,8 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         certifications: Array.isArray(realtorProfile?.certifications) ? realtorProfile.certifications : [],
         marketExpertise: realtorProfile?.bio || "",
         professionalRecognitions: activeRecognitions,
+        domainSpecialties: coachProfile?.domainSpecialties || [],
+        capabilities: [],
         _rawCoachProfile: coachProfile,
         _rawRealtorProfile: realtorProfile,
         profileStatus: (coachProfile?.profileStatus as ProfileStatus) || PROFILE_STATUS.DRAFT,
