@@ -13,204 +13,200 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { MoreHorizontal, CheckCircle, Clock, FileEdit, Eye, Loader2, InfoIcon } from 'lucide-react'
+import { MoreHorizontal, Tags } from 'lucide-react'
 import { PROFILE_STATUS, ProfileStatus } from '@/utils/types/coach'
-import { updateCoachProfileStatus } from '@/utils/actions/admin-coach-actions'
+import { formatDate } from '@/utils/format'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { updateCoachSpecialties } from '@/utils/actions/admin-coach-actions'
 import { toast } from 'sonner'
-import { Progress } from '@/components/ui/progress'
-import { useRouter } from 'next/navigation'
-import { PUBLICATION_THRESHOLD } from '@/utils/profile/calculateProfileCompletion'
 
-type CoachProfile = {
+// Available industry specialties
+const INDUSTRY_SPECIALTIES = [
+  'REALTOR',
+  'LOAN_OFFICER',
+  'INVESTOR',
+  'PROPERTY_MANAGER',
+  'TITLE_ESCROW',
+  'INSURANCE',
+  'COMMERCIAL',
+  'PRIVATE_CREDIT'
+]
+
+interface CoachProfile {
   userUlid: string
-  profileUlid: string
   firstName: string
   lastName: string
-  email: string
-  profileImageUrl: string | null
   profileStatus: ProfileStatus
+  industrySpecialties: string[]
   completionPercentage: number
-  specialties: string[]
-  hourlyRate: number | null
-  createdAt: string
+  hourlyRate: number
   updatedAt: string
 }
 
 interface CoachProfilesTableProps {
   profiles: CoachProfile[]
+  onUpdateStatus: (coachId: string, newStatus: ProfileStatus) => void
 }
 
-export function CoachProfilesTable({ profiles }: CoachProfilesTableProps) {
-  const [updating, setUpdating] = useState<string | null>(null)
-  const router = useRouter()
+export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTableProps) {
+  const [selectedCoach, setSelectedCoach] = useState<CoachProfile | null>(null)
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([])
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const handleStatusUpdate = async (coachUlid: string, status: ProfileStatus) => {
+  const handleOpenSpecialties = (coach: CoachProfile) => {
+    setSelectedCoach(coach)
+    setSelectedSpecialties(coach.industrySpecialties || [])
+    setIsDialogOpen(true)
+  }
+
+  const handleSpecialtyChange = (specialty: string) => {
+    setSelectedSpecialties(current => {
+      if (current.includes(specialty)) {
+        return current.filter(s => s !== specialty)
+      }
+      return [...current, specialty]
+    })
+  }
+
+  const handleSaveSpecialties = async () => {
+    if (!selectedCoach) return
+
     try {
-      setUpdating(coachUlid)
-      const { data, error } = await updateCoachProfileStatus({ coachUlid, status })
-      
-      if (error) {
-        toast.error(error.message)
+      const result = await updateCoachSpecialties({
+        coachUlid: selectedCoach.userUlid,
+        specialties: selectedSpecialties
+      })
+
+      if (result.error) {
+        toast.error(result.error.message)
         return
       }
-      
-      if (data?.success) {
-        toast.success(`Profile status updated to ${status}`)
-        router.refresh()
-      }
-    } catch (err) {
-      toast.error('Failed to update profile status')
-      console.error(err)
-    } finally {
-      setUpdating(null)
-    }
-  }
 
-  const renderStatusBadge = (status: ProfileStatus) => {
-    switch (status) {
-      case PROFILE_STATUS.PUBLISHED:
-        return <Badge className="bg-green-500">Published</Badge>
-      case PROFILE_STATUS.REVIEW:
-        return <Badge className="bg-yellow-500">In Review</Badge>
-      case PROFILE_STATUS.DRAFT:
-        return <Badge className="bg-gray-500">Draft</Badge>
-      default:
-        return null
+      toast.success('Specialties updated successfully')
+      setIsDialogOpen(false)
+    } catch (error) {
+      console.error('[SAVE_SPECIALTIES_ERROR]', error)
+      toast.error('Failed to update specialties')
     }
-  }
-
-  const getInitials = (firstName: string, lastName: string) => {
-    return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase()
   }
 
   return (
-    <div className="space-y-4">
-      <div className="text-sm text-muted-foreground">
-        <p className="flex items-center">
-          <InfoIcon className="mr-2 h-4 w-4" />
-          Coaches can now publish their profiles directly if they reach {PUBLICATION_THRESHOLD}% completion. 
-          You can still manually review and update profiles as needed.
-        </p>
-      </div>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Coach</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Completion</TableHead>
-              <TableHead>Specialties</TableHead>
-              <TableHead>Rate</TableHead>
-              <TableHead>Updated</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {profiles.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                  No coach profiles found
-                </TableCell>
-              </TableRow>
-            ) : (
-              profiles.map((profile) => (
-                <TableRow key={profile.userUlid}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={profile.profileImageUrl || undefined} alt={`${profile.firstName} ${profile.lastName}`} />
-                        <AvatarFallback>{getInitials(profile.firstName, profile.lastName)}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium">{profile.firstName} {profile.lastName}</div>
-                        <div className="text-sm text-muted-foreground">{profile.email}</div>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>{renderStatusBadge(profile.profileStatus)}</TableCell>
-                  <TableCell>
-                    <div className="w-32">
-                      <div className="flex justify-between text-xs mb-1">
-                        <span>{profile.completionPercentage}%</span>
-                      </div>
-                      <Progress value={profile.completionPercentage} className="h-2" />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="max-w-40 truncate">
-                      {profile.specialties.length > 0 
-                        ? profile.specialties.join(', ') 
-                        : <span className="text-muted-foreground italic">None</span>}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {profile.hourlyRate 
-                      ? `$${profile.hourlyRate}/hr`
-                      : <span className="text-muted-foreground italic">Not set</span>}
-                  </TableCell>
-                  <TableCell>
-                    {new Date(profile.updatedAt).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {updating === profile.userUlid ? (
-                      <Button size="sm" variant="ghost" disabled>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      </Button>
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Specialties</TableHead>
+            <TableHead>Completion</TableHead>
+            <TableHead>Rate</TableHead>
+            <TableHead>Last Updated</TableHead>
+            <TableHead>Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {profiles.map((profile) => (
+            <TableRow key={profile.userUlid}>
+              <TableCell>
+                {profile.firstName} {profile.lastName}
+              </TableCell>
+              <TableCell>
+                <Badge variant={profile.profileStatus === 'PUBLISHED' ? 'default' : 'secondary'}>
+                  {profile.profileStatus}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="flex gap-1 flex-wrap max-w-[200px]">
+                  {profile.industrySpecialties?.map((specialty) => (
+                    <Badge key={specialty} variant="outline">
+                      {specialty}
+                    </Badge>
+                  ))}
+                </div>
+              </TableCell>
+              <TableCell>{profile.completionPercentage}%</TableCell>
+              <TableCell>${profile.hourlyRate}/hr</TableCell>
+              <TableCell>{formatDate(profile.updatedAt)}</TableCell>
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="h-8 w-8 p-0">
+                      <span className="sr-only">Open menu</span>
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleOpenSpecialties(profile)}>
+                      <Tags className="mr-2 h-4 w-4" />
+                      Edit Specialties
+                    </DropdownMenuItem>
+                    {profile.profileStatus === 'DRAFT' ? (
+                      <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'PUBLISHED')}>
+                        Publish Profile
+                      </DropdownMenuItem>
                     ) : (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="sm" variant="ghost">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem 
-                            onClick={() => window.open(`/dashboard/system/coach-mgmt/${profile.userUlid}`, '_blank')}
-                          >
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuLabel>Change Status</DropdownMenuLabel>
-                          <DropdownMenuItem
-                            onClick={() => handleStatusUpdate(profile.userUlid, PROFILE_STATUS.DRAFT)}
-                            disabled={profile.profileStatus === PROFILE_STATUS.DRAFT}
-                          >
-                            <FileEdit className="mr-2 h-4 w-4" />
-                            Mark as Draft
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleStatusUpdate(profile.userUlid, PROFILE_STATUS.REVIEW)}
-                            disabled={profile.profileStatus === PROFILE_STATUS.REVIEW}
-                          >
-                            <Clock className="mr-2 h-4 w-4" />
-                            Mark as In Review
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleStatusUpdate(profile.userUlid, PROFILE_STATUS.PUBLISHED)}
-                            disabled={profile.profileStatus === PROFILE_STATUS.PUBLISHED || profile.completionPercentage < 80}
-                          >
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Publish Profile
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'DRAFT')}>
+                        Unpublish Profile
+                      </DropdownMenuItem>
                     )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Industry Specialties</DialogTitle>
+            <DialogDescription>
+              Select the industry specialties for {selectedCoach?.firstName} {selectedCoach?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[300px] px-4">
+            <div className="space-y-4">
+              {INDUSTRY_SPECIALTIES.map((specialty) => (
+                <div key={specialty} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={specialty}
+                    checked={selectedSpecialties.includes(specialty)}
+                    onCheckedChange={() => handleSpecialtyChange(specialty)}
+                  />
+                  <label
+                    htmlFor={specialty}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    {specialty.replace(/_/g, ' ')}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveSpecialties}>
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 } 

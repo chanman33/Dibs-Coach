@@ -9,12 +9,14 @@ import { ProfileCompletionAlert } from "@/components/coaching/ProfileCompletionA
 import { toast } from "sonner";
 import { CoachSpecialtiesSection } from "./CoachSpecialtiesSection";
 import { CoachRateInfoSection } from "./CoachRateInfoSection";
-import { DomainSpecialtiesSection } from "./DomainSpecialtiesSection";
 import { LanguagesSection } from "./LanguagesSection";
 import { RecognitionsSection } from "./RecognitionsSection";
 import { coachProfileFormSchema, CoachProfileFormValues, CoachProfileInitialData, UserInfo } from "../types";
 import { Card } from "@/components/ui/card";
 import { ProfileStatus } from "@/utils/types/coach";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { INDUSTRY_SPECIALTIES } from "@/components/profile/common/ProfileTabsManager";
 
 export interface CoachProfileFormProps {
   initialData?: CoachProfileInitialData;
@@ -25,8 +27,6 @@ export interface CoachProfileFormProps {
   missingFields?: string[];
   canPublish?: boolean;
   userInfo?: UserInfo;
-  onSpecialtiesChange?: (specialties: string[]) => void;
-  saveSpecialties?: (specialties: string[]) => Promise<boolean>;
 }
 
 export function CoachProfileForm({
@@ -38,8 +38,6 @@ export function CoachProfileForm({
   missingFields = [],
   canPublish = false,
   userInfo,
-  onSpecialtiesChange,
-  saveSpecialties
 }: CoachProfileFormProps) {
   // Log initial data for debugging
   useEffect(() => {
@@ -60,7 +58,6 @@ export function CoachProfileForm({
       specialties: initialData?.specialties || [],
       yearsCoaching: initialData?.yearsCoaching || 0,
       hourlyRate: initialData?.hourlyRate || 0,
-      domainSpecialties: initialData?.domainSpecialties || [],
       calendlyUrl: initialData?.calendlyUrl || "",
       eventTypeUrl: initialData?.eventTypeUrl || "",
       defaultDuration: initialData?.defaultDuration || 60,
@@ -87,7 +84,6 @@ export function CoachProfileForm({
         specialties: initialData.specialties || [],
         yearsCoaching: initialData.yearsCoaching || 0,
         hourlyRate: initialData.hourlyRate || 0,
-        domainSpecialties: initialData.domainSpecialties || [],
         calendlyUrl: initialData.calendlyUrl || "",
         eventTypeUrl: initialData.eventTypeUrl || "",
         defaultDuration: initialData.defaultDuration || 60,
@@ -102,27 +98,9 @@ export function CoachProfileForm({
     }
   }, [initialData, form]);
 
-  // Watch domain specialties for parent component notification
-  const domainSpecialties = form.watch("domainSpecialties");
-
-  useEffect(() => {
-    setSelectedDomainSpecialties(domainSpecialties);
-    if (onSpecialtiesChange) {
-      onSpecialtiesChange(domainSpecialties);
-    }
-  }, [domainSpecialties, onSpecialtiesChange]);
-
   // Function to check if form values have changed from initial data
   const checkFormChanges = (values: CoachProfileFormValues) => {
     const changes: Record<string, { previous: any; current: any }> = {};
-    
-    // Check domain specialties
-    if (JSON.stringify(initialData?.domainSpecialties || []) !== JSON.stringify(values.domainSpecialties)) {
-      changes.domainSpecialties = {
-        previous: initialData?.domainSpecialties || [],
-        current: values.domainSpecialties
-      };
-    }
     
     // Check other fields
     if (initialData?.hourlyRate !== values.hourlyRate) {
@@ -153,7 +131,6 @@ export function CoachProfileForm({
       // Log the form values for debugging
       console.log("[COACH_PROFILE_SUBMISSION]", {
         formValues: values,
-        selectedSpecialties: values.domainSpecialties,
         hasChanges,
         changes,
         timestamp: new Date().toISOString()
@@ -162,56 +139,10 @@ export function CoachProfileForm({
       // Show confirmation toast
       toast.info("Submitting coach profile...");
       
-      // First save the coach profile data
-      console.log("[COACH_PROFILE_CALLING_ONSUBMIT]", {
-        timestamp: new Date().toISOString()
-      });
-      
       // Call onSubmit and await its completion
       await onSubmit(values);
+      toast.success("Coach profile saved successfully!");
       
-      // Then save the specialties to update domain expertise
-      if (saveSpecialties) {
-        console.log("[COACH_PROFILE_CALLING_SAVESPECIALTIES]", {
-          specialties: values.domainSpecialties,
-          timestamp: new Date().toISOString()
-        });
-        
-        try {
-          const success = await saveSpecialties(values.domainSpecialties);
-          console.log("[COACH_PROFILE_SAVESPECIALTIES_RESULT]", {
-            success,
-            specialties: values.domainSpecialties,
-            timestamp: new Date().toISOString()
-          });
-          
-          if (success) {
-            console.log("[SPECIALTIES_SAVED]", {
-              specialties: values.domainSpecialties,
-              timestamp: new Date().toISOString()
-            });
-            toast.success("Coach profile and industry specialties saved successfully!");
-          } else {
-            console.error("[SPECIALTIES_SAVE_FAILED]", {
-              specialties: values.domainSpecialties,
-              timestamp: new Date().toISOString()
-            });
-            toast.error("Failed to save industry specialties");
-          }
-        } catch (error) {
-          console.error("[COACH_PROFILE_SAVESPECIALTIES_ERROR]", {
-            error,
-            specialties: values.domainSpecialties,
-            timestamp: new Date().toISOString()
-          });
-          toast.error("Error saving industry specialties");
-        }
-      } else {
-        console.warn("[COACH_PROFILE_NO_SAVESPECIALTIES]", {
-          timestamp: new Date().toISOString()
-        });
-        toast.success("Coach profile saved successfully!");
-      }
     } catch (error) {
       console.error("[COACH_PROFILE_SUBMIT_ERROR]", {
         error,
@@ -259,15 +190,28 @@ export function CoachProfileForm({
             </div>
           </Card>
 
+          {/* Read-only Industry Specialties */}
           <Card className="p-4 sm:p-6 border shadow-sm">
-            <div className="space-y-4 sm:space-y-8">
-              {/* Industry specialties - Moved to the top */}
-              <div>
-                <DomainSpecialtiesSection 
-                  control={form.control} 
-                  saveSpecialties={saveSpecialties}
-                  isSubmitting={isSubmitting}
-                />
+            <div>
+              <h3 className="text-base sm:text-lg font-semibold mb-2">Industry Specialties</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Your approved coaching specialties are shown below. To request approval for additional specialties, please contact admin@dibs.coach.
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {Object.entries(INDUSTRY_SPECIALTIES).map(([key, value]) => (
+                  <div key={key} className="flex items-center space-x-2">
+                    <Checkbox 
+                      id={`specialty-${key}`}
+                      checked={selectedDomainSpecialties.includes(value as string)}
+                      disabled={true}
+                      className="cursor-not-allowed"
+                    />
+                    <Label htmlFor={`specialty-${key}`} className="font-normal">
+                      {key.replace(/_/g, ' ')}
+                    </Label>
+                  </div>
+                ))}
               </div>
             </div>
           </Card>

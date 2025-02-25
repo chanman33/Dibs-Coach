@@ -3,16 +3,23 @@ import { z } from "zod";
 // Define Profile Status enum
 export const PROFILE_STATUS = {
   DRAFT: 'DRAFT',
-  REVIEW: 'REVIEW',
   PUBLISHED: 'PUBLISHED'
 } as const;
 
 export type ProfileStatus = typeof PROFILE_STATUS[keyof typeof PROFILE_STATUS];
 
+// Define approved specialties type
+export interface ApprovedSpecialties {
+  industrySpecialties: string[];
+  approvedAt: string;
+  approvedBy: string;
+}
+
 export const CoachProfileSchema = z.object({
   id: z.number().optional(),
   bio: z.string().min(1, "Bio is required").max(1000, "Bio must be less than 1000 characters"),
   specialties: z.array(z.string()).min(1, "At least one specialty is required"),
+  industrySpecialties: z.array(z.string()),
   yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater").optional(),
   certifications: z.array(z.string()).optional(),
   hourlyRate: z.number().min(0, "Hourly rate must be 0 or greater"),
@@ -36,13 +43,27 @@ export const CoachProfileSchema = z.object({
   completionPercentage: z.number().min(0).max(100).default(0),
 });
 
-export type CoachProfile = z.infer<typeof CoachProfileSchema> & {
-  id: number;
-  totalSessions: number;
-  averageRating: number | null;
-  profileStatus: ProfileStatus;
-  completionPercentage: number;
-};
+export interface CoachProfileData {
+  userUlid: string
+  firstName: string | null
+  lastName: string | null
+  profileStatus: ProfileStatus
+  industrySpecialties: string[]
+  completionPercentage: number
+  hourlyRate: number | null
+  updatedAt: string
+}
+
+export interface CoachProfile {
+  userUlid: string
+  firstName: string
+  lastName: string
+  profileStatus: ProfileStatus
+  industrySpecialties: string[]
+  completionPercentage: number
+  hourlyRate: number
+  updatedAt: string
+}
 
 export const UpdateCoachProfileSchema = CoachProfileSchema.partial().extend({
   id: z.number(),

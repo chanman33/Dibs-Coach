@@ -31,6 +31,7 @@ const CoachApplicationSchema = z.object({
 const ApplicationReviewSchema = z.object({
   applicationUlid: ulidSchema,
   status: z.enum(['pending', 'approved', 'rejected']),
+  approvedSpecialties: z.array(z.string()).optional(),
   notes: z.string().optional()
 })
 
@@ -306,73 +307,161 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
 )
 
 // Review coach application
-export const reviewCoachApplication = withServerAction<boolean>(
-  async ({ applicationUlid, status, notes }, { systemRole, userUlid }) => {
+export const reviewCoachApplication = withServerAction<ApplicationResponse>(
+  async (data: z.infer<typeof ApplicationReviewSchema>, { userUlid, systemRole }) => {
     try {
-      // Validate admin role
+      // Validate system role
       if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER && systemRole !== SYSTEM_ROLES.SYSTEM_MODERATOR) {
         return {
           data: null,
           error: {
-            code: 'FORBIDDEN',
-            message: 'Only system owners and moderators can review coach applications'
-          }
-        }
+            code: "UNAUTHORIZED",
+            message: "Not authorized to review applications",
+          },
+        };
       }
 
-      const supabase = await createAuthClient()
+      const supabase = await createAuthClient();
+
+      // Get the application
+      const { data: application, error: fetchError } = await supabase
+        .from('CoachApplication')
+        .select('*, applicant:applicantUlid (*)')
+        .eq('ulid', data.applicationUlid)
+        .single();
+
+      if (fetchError || !application) {
+        console.error('[COACH_APPLICATION_REVIEW_ERROR]', fetchError);
+        return {
+          data: null,
+          error: {
+            code: "NOT_FOUND",
+            message: "Application not found",
+          },
+        };
+      }
+
+      // If approving, validate that at least one specialty is approved
+      if (data.status === 'approved' && (!data.approvedSpecialties || data.approvedSpecialties.length === 0)) {
+        return {
+          data: null,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Must approve at least one specialty",
+          },
+        };
+      }
 
       // Update application status
-      const { data: application, error: updateError } = await supabase
+      const { error: updateError } = await supabase
         .from('CoachApplication')
         .update({
-          status,
-          notes,
+          status: data.status.toUpperCase(),
           reviewerUlid: userUlid,
           reviewDate: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          notes: data.notes,
+          updatedAt: new Date().toISOString(),
+          approvedSpecialties: data.approvedSpecialties || []
         })
-        .eq('ulid', applicationUlid)
-        .select('applicantUlid')
-        .single()
+        .eq('ulid', data.applicationUlid);
 
       if (updateError) {
-        console.error('[UPDATE_APPLICATION_ERROR]', updateError)
-        throw updateError
+        console.error('[COACH_APPLICATION_REVIEW_ERROR]', updateError);
+        return {
+          data: null,
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Failed to update application",
+          },
+        };
       }
 
-      if (!application) {
-        throw new Error('Application not found')
-      }
+      // If approved, add coach capability and create coach profile
+      if (data.status === 'approved') {
+        // Add coach capability
+        await addUserCapability(application.applicantUlid, USER_CAPABILITIES.COACH);
 
-      // Update user role if approved
-      if (status === COACH_APPLICATION_STATUS.APPROVED) {
-        // Use our new utility to add coach capability and update flags
-        const success = await addUserCapability(application.applicantUlid, USER_CAPABILITIES.COACH);
-        
-        if (!success) {
-          throw new Error('Failed to update user capabilities');
+        // Create coach profile with approved specialties
+        const { error: profileError } = await supabase
+          .from('CoachProfile')
+          .insert({
+            userUlid: application.applicantUlid,
+            approvedSpecialties: data.approvedSpecialties || [],
+            profileStatus: 'DRAFT',
+            completionPercentage: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          });
+
+        if (profileError) {
+          console.error('[COACH_PROFILE_CREATE_ERROR]', profileError);
+          return {
+            data: null,
+            error: {
+              code: "INTERNAL_ERROR",
+              message: "Failed to create coach profile",
+            },
+          };
         }
+      }
+
+      // Get updated application data
+      const { data: updatedApplication, error: refetchError } = await supabase
+        .from('CoachApplication')
+        .select(`
+          ulid,
+          status,
+          experience,
+          specialties,
+          industrySpecialties,
+          approvedSpecialties,
+          notes,
+          applicationDate,
+          reviewDate,
+          createdAt,
+          updatedAt,
+          applicant:applicantUlid!CoachApplication_applicantUlid_fkey (
+            ulid,
+            firstName,
+            lastName,
+            email
+          ),
+          reviewer:reviewerUlid!CoachApplication_reviewerUlid_fkey (
+            ulid,
+            firstName,
+            lastName
+          )
+        `)
+        .eq('ulid', data.applicationUlid)
+        .single() as unknown as { data: ApplicationResponse | null, error: any };
+
+      if (refetchError) {
+        console.error('[COACH_APPLICATION_REFETCH_ERROR]', refetchError);
+        return {
+          data: null,
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Failed to fetch updated application",
+          },
+        };
       }
 
       return {
-        data: true,
-        error: null
-      }
+        data: updatedApplication,
+        error: null,
+      };
     } catch (error) {
-      console.error('[REVIEW_APPLICATION_ERROR]', error)
+      console.error('[COACH_APPLICATION_REVIEW_ERROR]', error);
       return {
         data: null,
         error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to review application',
-          details: error instanceof Error ? { message: error.message } : undefined
-        }
-      }
+          code: "INTERNAL_ERROR",
+          message: "Failed to review application",
+        },
+      };
     }
-  },
-  { requiredSystemRole: SYSTEM_ROLES.SYSTEM_OWNER }
-)
+  }
+);
 
 // Get signed URL for resume file
 export const getResumePresignedUrl = withServerAction<string>(

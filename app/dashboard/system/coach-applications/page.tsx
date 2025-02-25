@@ -41,23 +41,48 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import clsx from 'clsx';
 import { useToast } from '@/components/ui/use-toast';
+import { cn } from '@/lib/utils';
+import { INDUSTRY_SPECIALTIES } from '@/components/profile/common/ProfileTabsManager';
 
 type StatusFilter = CoachApplicationStatus | 'ALL';
 
 const ITEMS_PER_PAGE = 10;
 
-// Update the applicant type in your CoachApplication type
-type Applicant = {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  email: string;
-};
+interface ApplicationResponse {
+  ulid: string;
+  status: typeof COACH_APPLICATION_STATUS[keyof typeof COACH_APPLICATION_STATUS];
+  applicant: {
+    ulid: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+    phoneNumber: string | null;
+    profileImageUrl: string | null;
+  };
+  reviewer: {
+    ulid: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+  experience: string;
+  specialties: string[];
+  industrySpecialties: string[];
+  approvedSpecialties: string[];
+  notes: string | null;
+  applicationDate: string;
+  reviewDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resumeUrl: string | null;
+  linkedIn: string | null;
+  primarySocialMedia: string | null;
+  additionalInfo: string | null;
+}
 
 export default function CoachApplicationsPage() {
-  const [applications, setApplications] = useState<ApplicationData[]>([]);
+  const [applications, setApplications] = useState<ApplicationResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
+  const [reviewNotes, setReviewNotes] = useState<string>('');
   const [processingIds, setProcessingIds] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
@@ -65,72 +90,95 @@ export default function CoachApplicationsPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedApplication, setSelectedApplication] = useState<ApplicationData | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<ApplicationResponse | null>(null);
   const [resumeUrl, setResumeUrl] = useState<string | null>(null);
   const [selectedApplications, setSelectedApplications] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchApplications = async () => {
-      try {
-        console.log('[FETCH_APPLICATIONS_START]', 'Fetching coach applications');
-        const result = await getAllCoachApplications(null);
-        
-        if (result.error) {
-          console.error('[FETCH_APPLICATIONS_ERROR]', {
-            error: result.error,
-            message: 'Error returned from getAllCoachApplications'
-          });
-          throw new Error(result.error.message);
-        }
-        
-        if (!result.data) {
-          console.error('[FETCH_APPLICATIONS_ERROR]', {
-            message: 'No data returned from server',
-            result
-          });
-          throw new Error('No data returned from server');
-        }
-
-        console.log('[FETCH_APPLICATIONS_SUCCESS]', {
-          count: result.data.length,
-          sampleApplication: result.data[0] ? {
-            ulid: result.data[0].ulid,
-            status: result.data[0].status,
-            hasApplicant: !!result.data[0].applicant,
-            applicantInfo: result.data[0].applicant ? {
-              firstName: !!result.data[0].applicant.firstName,
-              lastName: !!result.data[0].applicant.lastName,
-              email: !!result.data[0].applicant.email,
-              phoneNumber: !!result.data[0].applicant.phoneNumber
-            } : null
-          } : 'No applications'
-        });
-        
-        setApplications(result.data);
-      } catch (error) {
+  const fetchApplications = async () => {
+    try {
+      console.log('[FETCH_APPLICATIONS_START]', 'Fetching coach applications');
+      const result = await getAllCoachApplications(null);
+      
+      if (result.error) {
         console.error('[FETCH_APPLICATIONS_ERROR]', {
-          error,
-          message: 'Failed to fetch applications',
-          stack: error instanceof Error ? error.stack : undefined
+          error: result.error,
+          message: 'Error returned from getAllCoachApplications'
         });
-        toast({
-          title: 'Error',
-          description: error instanceof Error ? error.message : 'Failed to fetch applications',
-          variant: 'destructive'
-        });
-      } finally {
-        setLoading(false);
+        throw new Error(result.error.message);
       }
-    };
+      
+      if (!result.data) {
+        console.error('[FETCH_APPLICATIONS_ERROR]', {
+          message: 'No data returned from server',
+          result
+        });
+        throw new Error('No data returned from server');
+      }
 
+      console.log('[FETCH_APPLICATIONS_SUCCESS]', {
+        count: result.data.length,
+        sampleApplication: result.data[0] ? {
+          ulid: result.data[0].ulid,
+          status: result.data[0].status,
+          hasApplicant: !!result.data[0].applicant,
+          applicantInfo: result.data[0].applicant ? {
+            firstName: !!result.data[0].applicant.firstName,
+            lastName: !!result.data[0].applicant.lastName,
+            email: !!result.data[0].applicant.email,
+            phoneNumber: !!result.data[0].applicant.phoneNumber
+          } : null
+        } : 'No applications'
+      });
+      
+      // Transform ApplicationData to ApplicationResponse
+      const transformedData: ApplicationResponse[] = result.data
+        .filter((app): app is ApplicationData & { applicant: NonNullable<ApplicationData['applicant']> } => 
+          app.applicant !== null
+        )
+        .map(app => ({
+          ...app,
+          approvedSpecialties: app.industrySpecialties || [],
+          applicant: {
+            ulid: app.applicant.ulid,
+            firstName: app.applicant.firstName,
+            lastName: app.applicant.lastName,
+            email: app.applicant.email,
+            phoneNumber: app.applicant.phoneNumber || null,
+            profileImageUrl: app.applicant.profileImageUrl || null
+          }
+        }));
+      
+      setApplications(transformedData);
+    } catch (error) {
+      console.error('[FETCH_APPLICATIONS_ERROR]', {
+        error,
+        message: 'Failed to fetch applications',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to fetch applications',
+        variant: 'destructive'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchApplications();
-  }, [toast]);
+  }, []);
 
-  const handleViewApplication = (application: ApplicationData) => {
+  const handleViewApplication = (application: ApplicationResponse) => {
     setSelectedApplication(application);
     setIsModalOpen(true);
+    setSelectedSpecialties(application.approvedSpecialties || []);
+    setReviewNotes(application.notes || '');
     
     // Reset resume URL
     setResumeUrl(null);
@@ -161,56 +209,46 @@ export default function CoachApplicationsPage() {
     }
   };
 
-  const handleReview = async (applicationUlid: string, status: CoachApplicationStatus) => {
+  const handleReview = async (applicationUlid: string, status: 'pending' | 'approved' | 'rejected') => {
+    setIsSubmitting(true);
     try {
-      setProcessingIds(prev => [...prev, applicationUlid]);
-      const application = applications.find(app => app.ulid === applicationUlid);
-      if (!application) {
-        throw new Error('Application not found');
-      }
-
       const result = await reviewCoachApplication({
         applicationUlid,
         status,
-        notes: reviewNotes[applicationUlid]
+        notes: reviewNotes,
+        approvedSpecialties: status === 'approved' ? selectedSpecialties : undefined
       });
 
       if (result.error) {
-        throw new Error(result.error.message);
+        toast({
+          title: 'Error',
+          description: result.error.message,
+          variant: 'destructive'
+        });
+        return;
       }
-
-      // Update local state
-      setApplications(prev =>
-        prev.map(app =>
-          app.ulid === applicationUlid
-            ? { ...app, status, notes: reviewNotes[applicationUlid] || null, reviewDate: new Date().toISOString() }
-            : app
-        )
-      );
 
       toast({
         title: 'Success',
-        description: `Application ${status.toLowerCase()} successfully`
+        description: `Application ${status} successfully`
       });
 
-      // Close the modal after successful review
-      setIsModalOpen(false);
-      setSelectedApplication(null);
-      // Clear review notes for this application
-      setReviewNotes(prev => {
-        const newNotes = { ...prev };
-        delete newNotes[applicationUlid];
-        return newNotes;
-      });
+      // Reset state and close dialog
+      setIsReviewDialogOpen(false);
+      setSelectedSpecialties([]);
+      setReviewNotes('');
+      
+      // Refresh applications
+      await fetchApplications();
     } catch (error) {
       console.error('[REVIEW_APPLICATION_ERROR]', error);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to review application',
+        description: 'Failed to review application',
         variant: 'destructive'
       });
     } finally {
-      setProcessingIds(prev => prev.filter(id => id !== applicationUlid));
+      setIsSubmitting(false);
     }
   };
 
@@ -259,7 +297,7 @@ export default function CoachApplicationsPage() {
         const result = await reviewCoachApplication({
           applicationUlid,
           status,
-          notes: reviewNotes[applicationUlid]
+          notes: reviewNotes
         });
 
         if (result.error) {
@@ -271,7 +309,7 @@ export default function CoachApplicationsPage() {
       setApplications(prev =>
         prev.map(app =>
           selectedApplications.includes(app.ulid)
-            ? { ...app, status, notes: reviewNotes[app.ulid] || null, reviewDate: new Date().toISOString() }
+            ? { ...app, status, notes: reviewNotes, reviewDate: new Date().toISOString() }
             : app
         )
       );
@@ -657,15 +695,12 @@ export default function CoachApplicationsPage() {
                       <h3 className="text-lg font-semibold">Review Decision</h3>
                       <Textarea
                         placeholder="Add review notes..."
-                        value={reviewNotes[selectedApplication.ulid] || ''}
-                        onChange={(e) => setReviewNotes(prev => ({
-                          ...prev,
-                          [selectedApplication.ulid]: e.target.value
-                        }))}
+                        value={reviewNotes}
+                        onChange={(e) => setReviewNotes(e.target.value)}
                       />
                       <div className="flex gap-4">
                         <Button
-                          onClick={() => handleReview(selectedApplication.ulid, COACH_APPLICATION_STATUS.APPROVED)}
+                          onClick={() => handleReview(selectedApplication.ulid, 'approved')}
                           disabled={processingIds.includes(selectedApplication.ulid)}
                           className="flex-1"
                         >
@@ -677,7 +712,7 @@ export default function CoachApplicationsPage() {
                           Approve
                         </Button>
                         <Button
-                          onClick={() => handleReview(selectedApplication.ulid, COACH_APPLICATION_STATUS.REJECTED)}
+                          onClick={() => handleReview(selectedApplication.ulid, 'rejected')}
                           disabled={processingIds.includes(selectedApplication.ulid)}
                           variant="destructive"
                           className="flex-1"
@@ -729,6 +764,151 @@ export default function CoachApplicationsPage() {
                 </div>
               </div>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Dialog */}
+      <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Review Coach Application</DialogTitle>
+            <DialogDescription>
+              Review the application details and select which specialties to approve.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedApplication && (
+            <div className="space-y-6">
+              {/* Application Details */}
+              <div className="grid gap-4">
+                <div>
+                  <h3 className="font-medium mb-2">Applicant Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Name</Label>
+                      <p className="mt-1">
+                        {selectedApplication.applicant?.firstName} {selectedApplication.applicant?.lastName}
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <p className="mt-1">{selectedApplication.applicant?.email}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2">Experience & Expertise</h3>
+                  <div className="grid gap-2">
+                    <div>
+                      <Label>Years of Experience</Label>
+                      <p className="mt-1">{selectedApplication.experience}</p>
+                    </div>
+                    <div>
+                      <Label>Areas of Expertise</Label>
+                      <p className="mt-1">{selectedApplication.specialties.join(', ')}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Industry Specialties Selection */}
+                <div>
+                  <h3 className="font-medium mb-2">Industry Specialties</h3>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Select which specialties to approve for this coach.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    {Object.entries(INDUSTRY_SPECIALTIES).map(([key, value]) => (
+                      <div key={key} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`specialty-${key}`}
+                          checked={selectedSpecialties.includes(value)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedSpecialties([...selectedSpecialties, value]);
+                            } else {
+                              setSelectedSpecialties(selectedSpecialties.filter(s => s !== value));
+                            }
+                          }}
+                        />
+                        <Label htmlFor={`specialty-${key}`} className="font-normal">
+                          {key.replace(/_/g, ' ')}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Notes Field */}
+                <div>
+                  <Label htmlFor="notes">Review Notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={reviewNotes}
+                    onChange={(e) => setReviewNotes(e.target.value)}
+                    placeholder="Add any notes about this application..."
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              {selectedApplication.status === COACH_APPLICATION_STATUS.PENDING && (
+                <div className="flex justify-end gap-4">
+                  <Button
+                    variant="destructive"
+                    onClick={() => handleReview(selectedApplication.ulid, 'rejected')}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Rejecting...
+                      </>
+                    ) : (
+                      'Reject'
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => handleReview(selectedApplication.ulid, 'approved')}
+                    disabled={isSubmitting || selectedSpecialties.length === 0}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Approving...
+                      </>
+                    ) : (
+                      'Approve'
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {selectedApplication.status !== COACH_APPLICATION_STATUS.PENDING && (
+                <div className={cn(
+                  "p-4 rounded-lg text-center",
+                  selectedApplication.status === COACH_APPLICATION_STATUS.APPROVED && "bg-green-100 text-green-800",
+                  selectedApplication.status === COACH_APPLICATION_STATUS.REJECTED && "bg-red-100 text-red-800"
+                )}>
+                  <p className="font-medium">
+                    Application {selectedApplication.status.toLowerCase()}
+                    {selectedApplication.reviewDate && ` on ${format(new Date(selectedApplication.reviewDate), 'PPP')}`}
+                  </p>
+                  {selectedApplication.status === COACH_APPLICATION_STATUS.APPROVED && (
+                    <div className="mt-4">
+                      <h4 className="font-medium mb-2">Approved Specialties</h4>
+                      <ul className="list-disc list-inside">
+                        {selectedApplication.approvedSpecialties?.map((specialty) => (
+                          <li key={specialty}>{specialty.replace(/_/g, ' ')}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </DialogContent>
       </Dialog>

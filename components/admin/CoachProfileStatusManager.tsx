@@ -19,16 +19,21 @@ import {
 } from '@/components/ui/select'
 import { PROFILE_STATUS, ProfileStatus } from '@/utils/types/coach'
 import { Progress } from '@/components/ui/progress'
-import { CheckCircle, XCircle, Clock } from 'lucide-react'
+import { CheckCircle, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { INDUSTRY_SPECIALTIES } from '@/components/profile/common/ProfileTabsManager'
 
 interface CoachProfileStatusManagerProps {
   coachId: string
   coachName: string
   currentStatus: ProfileStatus
   completionPercentage: number
+  approvedSpecialties: string[]
   updateStatus: (coachId: string, newStatus: ProfileStatus) => Promise<boolean>
+  updateSpecialties: (coachId: string, specialties: string[]) => Promise<boolean>
 }
 
 export function CoachProfileStatusManager({
@@ -36,9 +41,12 @@ export function CoachProfileStatusManager({
   coachName,
   currentStatus,
   completionPercentage,
-  updateStatus
+  approvedSpecialties,
+  updateStatus,
+  updateSpecialties
 }: CoachProfileStatusManagerProps) {
   const [status, setStatus] = useState<ProfileStatus>(currentStatus)
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>(approvedSpecialties)
   const [isUpdating, setIsUpdating] = useState(false)
 
   const handleStatusChange = async () => {
@@ -62,12 +70,31 @@ export function CoachProfileStatusManager({
     }
   }
 
+  const handleSpecialtiesUpdate = async () => {
+    try {
+      setIsUpdating(true)
+      const success = await updateSpecialties(coachId, selectedSpecialties)
+      
+      if (success) {
+        toast.success('Industry specialties updated successfully')
+      } else {
+        toast.error('Failed to update specialties')
+        // Reset to current specialties
+        setSelectedSpecialties(approvedSpecialties)
+      }
+    } catch (error) {
+      console.error('Error updating coach specialties:', error)
+      toast.error('An unexpected error occurred')
+      setSelectedSpecialties(approvedSpecialties)
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
   const renderStatusBadge = (status: ProfileStatus) => {
     switch (status) {
       case PROFILE_STATUS.PUBLISHED:
         return <Badge className="bg-green-500">Published</Badge>
-      case PROFILE_STATUS.REVIEW:
-        return <Badge className="bg-yellow-500">In Review</Badge>
       case PROFILE_STATUS.DRAFT:
         return <Badge className="bg-gray-500">Draft</Badge>
       default:
@@ -79,8 +106,6 @@ export function CoachProfileStatusManager({
     switch (status) {
       case PROFILE_STATUS.PUBLISHED:
         return <CheckCircle className="h-5 w-5 text-green-500" />
-      case PROFILE_STATUS.REVIEW:
-        return <Clock className="h-5 w-5 text-yellow-500" />
       case PROFILE_STATUS.DRAFT:
         return <XCircle className="h-5 w-5 text-gray-500" />
       default:
@@ -89,6 +114,7 @@ export function CoachProfileStatusManager({
   }
 
   const isStatusChanged = status !== currentStatus
+  const isSpecialtiesChanged = JSON.stringify(selectedSpecialties) !== JSON.stringify(approvedSpecialties)
 
   return (
     <Card className="w-full">
@@ -100,7 +126,7 @@ export function CoachProfileStatusManager({
         <CardDescription>Coach Profile Status</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
             <div className="flex justify-between text-sm mb-1">
               <span>Profile Completion</span>
@@ -109,45 +135,83 @@ export function CoachProfileStatusManager({
             <Progress value={completionPercentage} className="h-2" />
           </div>
           
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Current Status:</span>
-            <div className="flex items-center gap-1">
-              {renderStatusIcon(currentStatus)}
-              <span>{currentStatus}</span>
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Current Status:</span>
+              <div className="flex items-center gap-1">
+                {renderStatusIcon(currentStatus)}
+                <span>{currentStatus}</span>
+              </div>
+            </div>
+            
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Change Status</label>
+              <Select
+                value={status}
+                onValueChange={(value) => setStatus(value as ProfileStatus)}
+                disabled={isUpdating}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.values(PROFILE_STATUS).map((statusOption) => (
+                    <SelectItem key={statusOption} value={statusOption}>
+                      <div className="flex items-center gap-2">
+                        {renderStatusIcon(statusOption as ProfileStatus)}
+                        <span>{statusOption}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-          
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Change Status</label>
-            <Select
-              value={status}
-              onValueChange={(value) => setStatus(value as ProfileStatus)}
-              disabled={isUpdating}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.values(PROFILE_STATUS).map((statusOption) => (
-                  <SelectItem key={statusOption} value={statusOption}>
-                    <div className="flex items-center gap-2">
-                      {renderStatusIcon(statusOption as ProfileStatus)}
-                      <span>{statusOption}</span>
-                    </div>
-                  </SelectItem>
+
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium mb-2">Industry Specialties</h3>
+              <div className="grid grid-cols-2 gap-4">
+                {Object.entries(INDUSTRY_SPECIALTIES).map(([key, value]) => (
+                  <div key={key} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`specialty-${key}`}
+                      checked={selectedSpecialties.includes(value)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedSpecialties([...selectedSpecialties, value]);
+                        } else {
+                          setSelectedSpecialties(selectedSpecialties.filter(s => s !== value));
+                        }
+                      }}
+                      disabled={isUpdating}
+                    />
+                    <Label htmlFor={`specialty-${key}`} className="font-normal">
+                      {key.replace(/_/g, ' ')}
+                    </Label>
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
+              </div>
+            </div>
           </div>
         </div>
       </CardContent>
-      <CardFooter>
+      
+      <CardFooter className="flex flex-col gap-2">
         <Button 
           onClick={handleStatusChange}
           disabled={!isStatusChanged || isUpdating}
           className="w-full"
         >
-          {isUpdating ? 'Updating...' : 'Update Status'}
+          {isUpdating ? 'Updating Status...' : 'Update Status'}
+        </Button>
+        <Button 
+          onClick={handleSpecialtiesUpdate}
+          disabled={!isSpecialtiesChanged || isUpdating}
+          variant="secondary"
+          className="w-full"
+        >
+          {isUpdating ? 'Updating Specialties...' : 'Update Specialties'}
         </Button>
       </CardFooter>
     </Card>
