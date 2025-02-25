@@ -68,6 +68,322 @@ function ProfilePageContent() {
     primaryMarket: generalData.primaryMarket
   };
 
+  // Safely load the Investor Profile Form
+  const getInvestorFormContent = () => {
+    if (!selectedSpecialties.includes("INVESTOR")) return null;
+    
+    try {
+      // First check if the module exists
+      let InvestorModule;
+      try {
+        InvestorModule = require("@/components/profile/industry/investor/InvestorProfileForm");
+      } catch (importError) {
+        console.error("[INVESTOR_IMPORT_ERROR]", importError);
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Investor Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Investor profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      // Check if the module has the expected component
+      const InvestorProfileForm = InvestorModule.InvestorProfileForm || InvestorModule.default;
+      
+      if (!InvestorProfileForm) {
+        console.error("[INVESTOR_FORM_ERROR] Component is undefined or not properly exported");
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Investor Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Investor profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      return (
+        <InvestorProfileForm
+          initialData={investorData || {}}
+          onSubmit={async (data: any) => {
+            console.log("[INVESTOR_SUBMIT]", {
+              data,
+              timestamp: new Date().toISOString()
+            });
+            if (updateInvestorData) {
+              await updateInvestorData(data);
+            }
+          }}
+          isSubmitting={isSubmitting}
+        />
+      );
+    } catch (error) {
+      console.error("[INVESTOR_FORM_ERROR]", error);
+      return (
+        <div className="p-6 bg-muted/20 rounded-lg text-center">
+          <h3 className="text-lg font-medium mb-2">Investor Profile</h3>
+          <p className="text-muted-foreground">
+            There was an error loading the Investor profile form.
+          </p>
+        </div>
+      );
+    }
+  };
+
+  // Safely load the Mortgage Profile Form
+  const getMortgageFormContent = () => {
+    if (!selectedSpecialties.includes("MORTGAGE")) return null;
+    
+    try {
+      // First check if the module exists
+      let MortgageModule;
+      try {
+        MortgageModule = require("@/components/profile/industry/mortgage/MortgageProfileForm");
+      } catch (importError) {
+        console.error("[MORTGAGE_IMPORT_ERROR]", importError);
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Mortgage Professional Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Mortgage Professional profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      // Check if the module has the expected component
+      const MortgageProfileForm = MortgageModule.MortgageProfileForm || MortgageModule.default;
+      
+      if (!MortgageProfileForm) {
+        console.error("[MORTGAGE_FORM_ERROR] Component is undefined or not properly exported");
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Mortgage Professional Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Mortgage Professional profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      return (
+        <MortgageProfileForm
+          initialData={mortgageData || {}}
+          onSubmit={async (data: any) => {
+            console.log("[MORTGAGE_SUBMIT]", {
+              data,
+              timestamp: new Date().toISOString()
+            });
+            if (updateMortgageData) {
+              await updateMortgageData(data);
+            }
+          }}
+          isSubmitting={isSubmitting}
+        />
+      );
+    } catch (error) {
+      console.error("[MORTGAGE_FORM_ERROR]", error);
+      return (
+        <div className="p-6 bg-muted/20 rounded-lg text-center">
+          <h3 className="text-lg font-medium mb-2">Mortgage Professional Profile</h3>
+          <p className="text-muted-foreground">
+            There was an error loading the Mortgage Professional profile form.
+          </p>
+        </div>
+      );
+    }
+  };
+
+  // Safely load the Property Manager Profile Form
+  const getPropertyManagerFormContent = () => {
+    if (!selectedSpecialties.includes("PROPERTY_MANAGER")) return null;
+    
+    try {
+      // First check if the module exists
+      let PropertyManagerModule;
+      try {
+        PropertyManagerModule = require("@/components/profile/industry/property-manager/PropertyManagerProfileForm");
+      } catch (importError) {
+        console.error("[PROPERTY_MANAGER_IMPORT_ERROR]", importError);
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Property Manager Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Property Manager profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      // Check if the module has the expected component
+      const PropertyManagerProfileForm = PropertyManagerModule.PropertyManagerProfileForm || PropertyManagerModule.default;
+      
+      if (!PropertyManagerProfileForm) {
+        console.error("[PROPERTY_MANAGER_FORM_ERROR] Component is undefined or not properly exported");
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Property Manager Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Property Manager profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      return (
+        <PropertyManagerProfileForm
+          initialData={propertyManagerData || {}}
+          onSubmit={async (data: any) => {
+            console.log("[PROPERTY_MANAGER_SUBMIT]", {
+              data,
+              timestamp: new Date().toISOString()
+            });
+            if (updatePropertyManagerData) {
+              await updatePropertyManagerData(data);
+            }
+          }}
+          isSubmitting={isSubmitting}
+        />
+      );
+    } catch (error) {
+      console.error("[PROPERTY_MANAGER_FORM_ERROR]", error);
+      return (
+        <div className="p-6 bg-muted/20 rounded-lg text-center">
+          <h3 className="text-lg font-medium mb-2">Property Manager Profile</h3>
+          <p className="text-muted-foreground">
+            There was an error loading the Property Manager profile form.
+          </p>
+        </div>
+      );
+    }
+  };
+
+  // Safely load the Insurance Profile Form
+  const getInsuranceFormContent = () => {
+    if (!selectedSpecialties.includes("INSURANCE")) return null;
+    
+    try {
+      // First check if the module exists
+      let InsuranceModule;
+      try {
+        InsuranceModule = require("@/components/profile/industry/insurance/InsuranceProfileForm");
+      } catch (importError) {
+        console.error("[INSURANCE_IMPORT_ERROR]", importError);
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Insurance Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Insurance profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      // Check if the module has the expected component
+      const InsuranceProfileForm = InsuranceModule.InsuranceProfileForm || InsuranceModule.default;
+      
+      if (!InsuranceProfileForm) {
+        console.error("[INSURANCE_FORM_ERROR] Component is undefined or not properly exported");
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Insurance Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Insurance profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      return (
+        <InsuranceProfileForm
+          initialData={{}}
+          onSubmit={async (data: any) => {
+            console.log("[INSURANCE_SUBMIT]", {
+              data,
+              timestamp: new Date().toISOString()
+            });
+            // TODO: Implement insurance profile update
+          }}
+          isSubmitting={isSubmitting}
+        />
+      );
+    } catch (error) {
+      console.error("[INSURANCE_FORM_ERROR]", error);
+      return (
+        <div className="p-6 bg-muted/20 rounded-lg text-center">
+          <h3 className="text-lg font-medium mb-2">Insurance Profile</h3>
+          <p className="text-muted-foreground">
+            There was an error loading the Insurance profile form.
+          </p>
+        </div>
+      );
+    }
+  };
+
+  // Safely load the Title Escrow Profile Form
+  const getTitleEscrowFormContent = () => {
+    if (!selectedSpecialties.includes("TITLE_ESCROW")) return null;
+    
+    try {
+      // First check if the module exists
+      let TitleEscrowModule;
+      try {
+        TitleEscrowModule = require("@/components/profile/industry/title-escrow/TitleEscrowProfileForm");
+      } catch (importError) {
+        console.error("[TITLE_ESCROW_IMPORT_ERROR]", importError);
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Title & Escrow Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Title & Escrow profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      // Check if the module has the expected component
+      const TitleEscrowProfileForm = TitleEscrowModule.TitleEscrowProfileForm || TitleEscrowModule.default;
+      
+      if (!TitleEscrowProfileForm) {
+        console.error("[TITLE_ESCROW_FORM_ERROR] Component is undefined or not properly exported");
+        return (
+          <div className="p-6 bg-muted/20 rounded-lg text-center">
+            <h3 className="text-lg font-medium mb-2">Title & Escrow Profile</h3>
+            <p className="text-muted-foreground">
+              There was an error loading the Title & Escrow profile form.
+            </p>
+          </div>
+        );
+      }
+      
+      return (
+        <TitleEscrowProfileForm
+          initialData={{}}
+          onSubmit={async (data: any) => {
+            console.log("[TITLE_ESCROW_SUBMIT]", {
+              data,
+              timestamp: new Date().toISOString()
+            });
+            // TODO: Implement title & escrow profile update
+          }}
+          isSubmitting={isSubmitting}
+        />
+      );
+    } catch (error) {
+      console.error("[TITLE_ESCROW_FORM_ERROR]", error);
+      return (
+        <div className="p-6 bg-muted/20 rounded-lg text-center">
+          <h3 className="text-lg font-medium mb-2">Title & Escrow Profile</h3>
+          <p className="text-muted-foreground">
+            There was an error loading the Title & Escrow profile form.
+          </p>
+        </div>
+      );
+    }
+  };
+
   return (
     <div className="w-full px-4 sm:px-6 md:container mx-auto py-4 sm:py-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 sm:mb-8">
@@ -127,32 +443,11 @@ function ProfilePageContent() {
             />
           ) : null
         }
-        investorFormContent={null}
-        mortgageFormContent={null}
-        propertyManagerFormContent={null}
-        titleEscrowFormContent={
-          selectedSpecialties.includes("TITLE_ESCROW") ? (
-            <div className="mt-4">
-              {/* Import dynamically to avoid issues with server components */}
-              {(() => {
-                const TitleEscrowProfileForm = require("@/components/profile/industry/title-escrow/TitleEscrowProfileForm").default;
-                return (
-                  <TitleEscrowProfileForm
-                    initialData={{}}
-                    onSubmit={async (data: any) => {
-                      console.log("[TITLE_ESCROW_SUBMIT]", {
-                        data,
-                        timestamp: new Date().toISOString()
-                      });
-                      // TODO: Implement title & escrow profile update
-                    }}
-                    isSubmitting={isSubmitting}
-                  />
-                );
-              })()}
-            </div>
-          ) : null
-        }
+        investorFormContent={getInvestorFormContent()}
+        mortgageFormContent={getMortgageFormContent()}
+        propertyManagerFormContent={getPropertyManagerFormContent()}
+        titleEscrowFormContent={getTitleEscrowFormContent()}
+        insuranceFormContent={getInsuranceFormContent()}
         initialRecognitions={recognitionsData}
         onSubmitRecognitions={updateRecognitionsData}
         initialMarketingInfo={marketingData}
