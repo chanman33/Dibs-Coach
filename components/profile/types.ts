@@ -102,4 +102,6 @@ export interface CoachProfileFormProps {
   missingFields?: string[];
   canPublish?: boolean;
   userInfo?: UserInfo;
+  onSpecialtiesChange: (specialties: string[]) => void;
+  saveSpecialties: (selectedSpecialties: string[]) => Promise<void>;
 } 
