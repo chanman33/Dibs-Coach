@@ -26,6 +26,7 @@ export interface CoachProfileFormProps {
   canPublish?: boolean;
   userInfo?: UserInfo;
   onSpecialtiesChange?: (specialties: string[]) => void;
+  saveSpecialties?: (specialties: string[]) => Promise<boolean>;
 }
 
 export function CoachProfileForm({
@@ -37,7 +38,8 @@ export function CoachProfileForm({
   missingFields = [],
   canPublish = false,
   userInfo,
-  onSpecialtiesChange
+  onSpecialtiesChange,
+  saveSpecialties
 }: CoachProfileFormProps) {
   const [selectedDomainSpecialties, setSelectedDomainSpecialties] = useState<string[]>(
     initialData?.domainSpecialties || []
@@ -73,8 +75,14 @@ export function CoachProfileForm({
     }
   }, [domainSpecialties, onSpecialtiesChange]);
 
-  const handleSubmit = (values: CoachProfileFormValues) => {
+  const handleSubmit = async (values: CoachProfileFormValues) => {
+    // First save the coach profile data
     onSubmit(values);
+    
+    // Then save the specialties to update domain expertise
+    if (saveSpecialties) {
+      await saveSpecialties(values.domainSpecialties);
+    }
   };
 
   return (

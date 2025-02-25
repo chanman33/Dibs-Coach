@@ -4,11 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { CoachProfileFormValues, CoachProfileInitialData, ProfessionalRecognition } from "../types";
 import { ProfileStatus } from "@/utils/types/coach";
 import { toast } from "sonner";
-import { fetchUserProfile, updateUserProfile } from "@/utils/actions/profile-actions";
-
-// Temporarily hardcode capabilities for development
-const MOCK_CAPABILITIES = ["COACH"];
-const MOCK_SPECIALTIES = ["REALTOR", "INVESTOR"];
+import { fetchUserProfile, updateUserProfile, saveCoachSpecialties, fetchUserCapabilities } from "@/utils/actions/profile-actions";
 
 // Define the context shape
 interface ProfileContextType {
@@ -51,6 +47,7 @@ interface ProfileContextType {
   // User capabilities and specialties
   userCapabilities: string[];
   selectedSpecialties: string[];
+  confirmedSpecialties: string[];
   
   // Update functions
   updateGeneralData: (data: any) => Promise<void>;
@@ -65,6 +62,7 @@ interface ProfileContextType {
   
   // Specialty management
   updateSelectedSpecialties: (specialties: string[]) => void;
+  saveSpecialties: (selectedSpecialties: string[]) => Promise<boolean>;
 }
 
 // Create the context with a default value
@@ -111,19 +109,42 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // User capabilities and specialties
   const [userCapabilities, setUserCapabilities] = useState<string[]>([]);
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
+  const [confirmedSpecialties, setConfirmedSpecialties] = useState<string[]>([]);
 
   // Fetch user capabilities
-  const fetchUserCapabilities = async () => {
+  const fetchUserCapabilitiesData = async () => {
     try {
-      // Use hardcoded values for now until we can resolve the import issue
-      setUserCapabilities(MOCK_CAPABILITIES);
-      setSelectedSpecialties(MOCK_SPECIALTIES);
+      // Call the server action to fetch user capabilities
+      const response = await fetchUserCapabilities();
       
-      console.log("Set mock capabilities:", MOCK_CAPABILITIES);
-      console.log("Set mock specialties:", MOCK_SPECIALTIES);
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to fetch user capabilities');
+      }
+      
+      if (response.data) {
+        // Set user capabilities
+        setUserCapabilities(response.data.capabilities || []);
+        
+        // Set selected specialties from domain specialties
+        if (response.data.domainSpecialties) {
+          setSelectedSpecialties(response.data.domainSpecialties);
+        }
+        
+        // Set confirmed specialties from active domains
+        if (response.data.activeDomains) {
+          setConfirmedSpecialties(response.data.activeDomains);
+        }
+        
+        console.log("Fetched user capabilities:", response.data.capabilities);
+      }
     } catch (error) {
       console.error("[FETCH_CAPABILITIES_ERROR]", error);
       toast.error("Failed to load user capabilities");
+      
+      // Set empty arrays as fallback
+      setUserCapabilities([]);
+      setSelectedSpecialties([]);
+      setConfirmedSpecialties([]);
     }
   };
 
@@ -133,7 +154,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       try {
         // Fetch user capabilities first
-        await fetchUserCapabilities();
+        await fetchUserCapabilitiesData();
         
         // Fetch general profile data
         const generalResult = await fetchUserProfile();
@@ -213,7 +234,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         year: recognition.year,
         organization: recognition.organization || null,
         description: recognition.description || null,
-        isVisible: recognition.isVisible
+        isVisible: recognition.isVisible,
+        industryType: recognition.industryType || null
       }));
       
       setCoachData({
@@ -306,6 +328,38 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setSelectedSpecialties(specialties);
   };
   
+  const saveSpecialties = async (selectedSpecialties: string[]) => {
+    try {
+      setIsLoading(true);
+      
+      // Call the server action to update the coach profile specialties
+      const response = await saveCoachSpecialties({ 
+        specialties: selectedSpecialties 
+      });
+      
+      // Check if the response was successful
+      if (response.error) {
+        toast.error(response.error.message || "Failed to save specialties");
+        return false;
+      }
+      
+      // Update the confirmed specialties state with the active domains from the response
+      if (response.data) {
+        setConfirmedSpecialties(response.data.activeDomains || []);
+        toast.success("Specialties saved successfully");
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error("[SAVE_SPECIALTIES_ERROR]", error);
+      toast.error("An error occurred while saving specialties");
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   // Context value
   const contextValue: ProfileContextType = {
     generalData,
@@ -325,6 +379,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     isSubmitting,
     userCapabilities,
     selectedSpecialties,
+    confirmedSpecialties,
     updateGeneralData,
     updateCoachData,
     updateRealtorData,
@@ -334,7 +389,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     updateRecognitionsData,
     updateMarketingData,
     updateGoalsData,
-    updateSelectedSpecialties
+    updateSelectedSpecialties,
+    saveSpecialties
   };
   
   return (

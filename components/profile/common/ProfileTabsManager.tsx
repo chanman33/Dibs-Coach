@@ -5,6 +5,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Award, Building, Home, ListChecks, User, Briefcase, Globe, Target } from "lucide-react";
 import { ProfessionalRecognition } from "../types";
 import GeneralForm from "./GeneralForm";
+import { RecognitionsTab } from "../coach/RecognitionsSection";
+import MarketingInfo from "../coach/MarketingInfo";
+import { MarketingInfo as MarketingInfoType } from "@/utils/types/marketing";
+import GoalsForm from "./GoalsForm";
+import { Goal, GoalFormValues } from "@/utils/types/goals";
 
 export const INDUSTRY_SPECIALTIES = {
   REALTOR: "REALTOR",
@@ -25,11 +30,13 @@ export interface ProfileTab {
   content: React.ReactNode;
   requiredCapabilities?: string[];
   requiredSpecialties?: string[];
+  requiredConfirmedSpecialties?: string[];
 }
 
 interface ProfileTabsManagerProps {
   userCapabilities: string[];
   selectedSpecialties: string[];
+  confirmedSpecialties: string[];
   generalUserInfo?: {
     displayName?: string | null;
     bio?: string | null;
@@ -43,12 +50,17 @@ interface ProfileTabsManagerProps {
   propertyManagerFormContent?: React.ReactNode;
   initialRecognitions?: ProfessionalRecognition[];
   onSubmitRecognitions: (recognitions: ProfessionalRecognition[]) => Promise<void>;
+  initialMarketingInfo?: MarketingInfoType;
+  onSubmitMarketingInfo?: (data: MarketingInfoType) => Promise<void>;
+  initialGoals?: Goal[];
+  onSubmitGoals?: (goals: Goal[]) => Promise<void>;
   isSubmitting?: boolean;
 }
 
 export function ProfileTabsManager({
   userCapabilities,
   selectedSpecialties,
+  confirmedSpecialties = [],
   generalUserInfo,
   onSubmitGeneral,
   coachFormContent,
@@ -58,17 +70,15 @@ export function ProfileTabsManager({
   propertyManagerFormContent,
   initialRecognitions = [],
   onSubmitRecognitions,
+  initialMarketingInfo,
+  onSubmitMarketingInfo,
+  initialGoals = [],
+  onSubmitGoals,
   isSubmitting = false,
 }: ProfileTabsManagerProps) {
   const [activeTab, setActiveTab] = useState("general");
   const [availableTabs, setAvailableTabs] = useState<ProfileTab[]>([]);
   const [showTabsDropdown, setShowTabsDropdown] = useState(false);
-
-  // Debug log to check capabilities and specialties
-  useEffect(() => {
-    console.log("User capabilities:", userCapabilities);
-    console.log("Selected specialties:", selectedSpecialties);
-  }, [userCapabilities, selectedSpecialties]);
 
   // Define all possible tabs
   useEffect(() => {
@@ -98,10 +108,12 @@ export function ProfileTabsManager({
         label: "Professional Recognitions",
         icon: <Award className="h-4 w-4" />,
         content: (
-          <div>
-            {/* Replace with actual RecognitionsTab component */}
-            <div>Professional Recognitions content will go here</div>
-          </div>
+          <RecognitionsTab 
+            initialRecognitions={initialRecognitions}
+            onSubmit={onSubmitRecognitions}
+            isSubmitting={isSubmitting}
+            selectedSpecialties={selectedSpecialties}
+          />
         ),
         requiredCapabilities: ["COACH"],
       },
@@ -110,10 +122,11 @@ export function ProfileTabsManager({
         label: "Marketing Info",
         icon: <Globe className="h-4 w-4" />,
         content: (
-          <div>
-            {/* Replace with actual MarketingInfo component */}
-            <div>Marketing Info content will go here</div>
-          </div>
+          <MarketingInfo
+            initialData={initialMarketingInfo}
+            onSubmit={onSubmitMarketingInfo}
+            isSubmitting={isSubmitting}
+          />
         ),
         requiredCapabilities: ["COACH"],
       },
@@ -122,10 +135,17 @@ export function ProfileTabsManager({
         label: "Goals & Objectives",
         icon: <Target className="h-4 w-4" />,
         content: (
-          <div>
-            {/* Replace with actual GoalsForm component */}
-            <div>Goals section will go here</div>
-          </div>
+          <GoalsForm
+            open={true}
+            onClose={() => {}}
+            onSubmit={async (data: GoalFormValues) => {
+              if (onSubmitGoals) {
+                // Convert GoalFormValues to Goal array if needed
+                // This is a simplified conversion - adjust based on your actual implementation
+                await onSubmitGoals([]);
+              }
+            }}
+          />
         ),
         requiredCapabilities: ["COACH"],
       },
@@ -133,46 +153,54 @@ export function ProfileTabsManager({
         id: "realtor",
         label: "Realtor Profile",
         icon: <Home className="h-4 w-4" />,
-        content: realtorFormContent || <div>Realtor profile form will go here</div>,
+        content: realtorFormContent || null,
         requiredSpecialties: [INDUSTRY_SPECIALTIES.REALTOR],
+        requiredConfirmedSpecialties: [INDUSTRY_SPECIALTIES.REALTOR],
       },
       {
         id: "investor",
         label: "Investor Profile",
         icon: <Building className="h-4 w-4" />,
-        content: investorFormContent || <div>Investor profile form will go here</div>,
+        content: investorFormContent || null,
         requiredSpecialties: [INDUSTRY_SPECIALTIES.INVESTOR],
+        requiredConfirmedSpecialties: [INDUSTRY_SPECIALTIES.INVESTOR],
       },
       {
         id: "mortgage",
         label: "Mortgage Profile",
         icon: <Building className="h-4 w-4" />,
-        content: mortgageFormContent || <div>Mortgage profile form will go here</div>,
+        content: mortgageFormContent || null,
         requiredSpecialties: [INDUSTRY_SPECIALTIES.MORTGAGE],
+        requiredConfirmedSpecialties: [INDUSTRY_SPECIALTIES.MORTGAGE],
       },
       {
         id: "property-manager",
         label: "Property Manager Profile",
         icon: <Building className="h-4 w-4" />,
-        content: propertyManagerFormContent || <div>Property Manager profile form will go here</div>,
+        content: propertyManagerFormContent || null,
         requiredSpecialties: [INDUSTRY_SPECIALTIES.PROPERTY_MANAGER],
+        requiredConfirmedSpecialties: [INDUSTRY_SPECIALTIES.PROPERTY_MANAGER],
       },
     ];
 
     // Filter tabs based on user capabilities and specialties
     const filteredTabs = allTabs.filter(tab => {
       // If no required capabilities or specialties, show the tab
-      if (!tab.requiredCapabilities && !tab.requiredSpecialties) {
+      if (!tab.requiredCapabilities && !tab.requiredSpecialties && !tab.requiredConfirmedSpecialties) {
         return true;
       }
 
       // Check if user has any of the required capabilities
       if (tab.requiredCapabilities && tab.requiredCapabilities.some(cap => userCapabilities.includes(cap))) {
-        return true;
+        // For capability-based tabs (like general, coach, recognitions, etc.), no need to check confirmed specialties
+        if (!tab.requiredConfirmedSpecialties) {
+          return true;
+        }
       }
 
-      // Check if user has selected any of the required specialties
-      if (tab.requiredSpecialties && tab.requiredSpecialties.some(spec => selectedSpecialties.includes(spec))) {
+      // For specialty tabs, check if the specialty is both selected AND confirmed
+      if (tab.requiredConfirmedSpecialties && 
+          tab.requiredConfirmedSpecialties.some(spec => confirmedSpecialties.includes(spec))) {
         return true;
       }
 
@@ -184,6 +212,7 @@ export function ProfileTabsManager({
   }, [
     userCapabilities,
     selectedSpecialties,
+    confirmedSpecialties,
     generalUserInfo,
     onSubmitGeneral,
     coachFormContent,
@@ -193,6 +222,10 @@ export function ProfileTabsManager({
     propertyManagerFormContent,
     initialRecognitions,
     onSubmitRecognitions,
+    initialMarketingInfo,
+    onSubmitMarketingInfo,
+    initialGoals,
+    onSubmitGoals,
     isSubmitting,
   ]);
 

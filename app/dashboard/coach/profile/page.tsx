@@ -33,6 +33,7 @@ function ProfilePageContent() {
     isSubmitting,
     userCapabilities,
     selectedSpecialties,
+    confirmedSpecialties,
     updateGeneralData,
     updateCoachData,
     updateRealtorData,
@@ -42,19 +43,14 @@ function ProfilePageContent() {
     updateRecognitionsData,
     updateMarketingData,
     updateGoalsData,
-    updateSelectedSpecialties
+    updateSelectedSpecialties,
+    saveSpecialties
   } = useProfileContext();
 
   // Handle specialty changes from the coach form
   const handleSpecialtiesChange = (specialties: string[]) => {
     updateSelectedSpecialties(specialties);
   };
-
-  // Debug log to check capabilities and specialties
-  useEffect(() => {
-    console.log("Page - User capabilities:", userCapabilities);
-    console.log("Page - Selected specialties:", selectedSpecialties);
-  }, [userCapabilities, selectedSpecialties]);
 
   if (isLoading) {
     return (
@@ -101,19 +97,11 @@ function ProfilePageContent() {
         </Alert>
       )}
       
-      {/* Debug info - only show in development */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-2 sm:p-4 bg-gray-100 rounded-md text-xs sm:text-sm">
-          <h3 className="font-semibold">Debug Info:</h3>
-          <p>User Capabilities: {userCapabilities.join(', ') || 'None'}</p>
-          <p>Selected Specialties: {selectedSpecialties.join(', ') || 'None'}</p>
-        </div>
-      )}
-      
       {/* Tabs manager */}
       <ProfileTabsManager
         userCapabilities={userCapabilities}
         selectedSpecialties={selectedSpecialties}
+        confirmedSpecialties={confirmedSpecialties}
         generalUserInfo={generalUserInfo}
         onSubmitGeneral={updateGeneralData}
         coachFormContent={
@@ -126,6 +114,7 @@ function ProfilePageContent() {
             missingFields={missingFields}
             canPublish={canPublish}
             onSpecialtiesChange={handleSpecialtiesChange}
+            saveSpecialties={saveSpecialties}
           />
         }
         realtorFormContent={
@@ -137,23 +126,15 @@ function ProfilePageContent() {
             />
           ) : null
         }
-        investorFormContent={
-          selectedSpecialties.includes("INVESTOR") ? (
-            <div>Investor profile form will go here</div>
-          ) : null
-        }
-        mortgageFormContent={
-          selectedSpecialties.includes("MORTGAGE") ? (
-            <div>Mortgage profile form will go here</div>
-          ) : null
-        }
-        propertyManagerFormContent={
-          selectedSpecialties.includes("PROPERTY_MANAGER") ? (
-            <div>Property Manager profile form will go here</div>
-          ) : null
-        }
+        investorFormContent={null}
+        mortgageFormContent={null}
+        propertyManagerFormContent={null}
         initialRecognitions={recognitionsData}
         onSubmitRecognitions={updateRecognitionsData}
+        initialMarketingInfo={marketingData}
+        onSubmitMarketingInfo={updateMarketingData}
+        initialGoals={goalsData}
+        onSubmitGoals={updateGoalsData}
         isSubmitting={isSubmitting}
       />
     </div>

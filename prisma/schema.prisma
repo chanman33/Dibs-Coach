@@ -554,6 +554,11 @@ model User {
   status               UserStatus @default(ACTIVE)
   profileImageUrl      String?
 
+  // Industry specialties - direct access for better extensibility
+  industrySpecialties  String[]  @default([]) // e.g., ["REALTOR", "INVESTOR"]
+  confirmedSpecialties String[]  @default([]) // Specialties that have been verified/confirmed
+  primaryMarket        String?   // User's primary market/location
+
   // Profile Relations
   realtorProfile       RealtorProfile?
   loanOfficerProfile   LoanOfficerProfile?
@@ -626,6 +631,8 @@ model User {
   @@index([isCoach])
   @@index([isMentee])
   @@index([status])
+  @@index([industrySpecialties])
+  @@index([confirmedSpecialties])
   @@map("User")
 }
 
@@ -640,12 +647,9 @@ model MenteeProfile {
   isActive           Boolean  @default(true)
   lastSessionDate    DateTime?
 
-  // Domain Expertise
-  activeDomains      String[] // Array of active domain types
-  domainExpertise      DomainExpertise[]
-
   // Relations
   user               User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  domainExpertise    DomainExpertise[]
 
   createdAt          DateTime @default(now()) @db.Timestamptz
   updatedAt          DateTime @updatedAt @db.Timestamptz
@@ -661,10 +665,6 @@ model CoachProfile {
   coachingSpecialties String[]
   yearsCoaching        Int?
   hourlyRate          Decimal?     @db.Decimal(10, 2)
-
-  // Domain Expertise
-  activeDomains       String[]     // Array of active domain types
-  domainExpertise     DomainExpertise[]
 
   // Calendly Integration
   calendlyUrl         String?
@@ -685,6 +685,8 @@ model CoachProfile {
 
   // Relations
   user               User          @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  professionalRecognitions ProfessionalRecognition[]
+  domainExpertise    DomainExpertise[]
 
   createdAt          DateTime      @default(now()) @db.Timestamptz
   updatedAt          DateTime      @updatedAt @db.Timestamptz
@@ -878,7 +880,7 @@ model DomainExpertise {
   menteeProfile     MenteeProfile? @relation(fields: [menteeProfileUlid], references: [ulid])
   verifications     DomainVerification[]
   
-  // New fields for profile relations
+  // Profile relations
   coachProfileUlid   String?  @db.Char(26)
   menteeProfileUlid  String?  @db.Char(26)
   
@@ -935,11 +937,10 @@ model RealtorProfile {
   // Geographic Focus
   geographicFocus        Json?
   primaryMarket          String?
-
+  
   // Relations
   user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
   listings             Listing[]
-  professionalRecognitions ProfessionalRecognition[]
 
   // MLS Integration fields
   mlsId                String?  @unique
@@ -950,10 +951,10 @@ model RealtorProfile {
   memberKey             String?  @unique
   memberStatus          String?
   designations          String[]
-
+  
   createdAt            DateTime @default(now()) @db.Timestamptz
   updatedAt            DateTime @updatedAt @db.Timestamptz
-
+  
   @@index([userUlid])
   @@map("RealtorProfile")
 }
@@ -990,7 +991,6 @@ model LoanOfficerProfile {
   
   // Relations
   user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  professionalRecognitions ProfessionalRecognition[]
 
   createdAt            DateTime @default(now()) @db.Timestamptz
   updatedAt            DateTime @updatedAt @db.Timestamptz
@@ -1029,7 +1029,6 @@ model InvestorProfile {
   
   // Relations
   user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  professionalRecognitions ProfessionalRecognition[]
 
   createdAt            DateTime @default(now()) @db.Timestamptz
   updatedAt            DateTime @updatedAt @db.Timestamptz
@@ -1070,7 +1069,6 @@ model PropertyManagerProfile {
   
   // Relations
   user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  professionalRecognitions ProfessionalRecognition[]
 
   createdAt            DateTime @default(now()) @db.Timestamptz
   updatedAt            DateTime @updatedAt @db.Timestamptz
@@ -1105,7 +1103,6 @@ model TitleEscrowProfile {
   
   // Relations
   user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  professionalRecognitions ProfessionalRecognition[] @relation("TitleEscrowProfileRecognitions")
 
   createdAt              DateTime @default(now()) @db.Timestamptz
   updatedAt              DateTime @updatedAt @db.Timestamptz
@@ -1140,7 +1137,6 @@ model InsuranceProfile {
   
   // Relations
   user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  professionalRecognitions ProfessionalRecognition[] @relation("InsuranceProfileRecognitions")
 
   createdAt              DateTime @default(now()) @db.Timestamptz
   updatedAt              DateTime @updatedAt @db.Timestamptz
@@ -1243,6 +1239,7 @@ model CoachApplication {
   status                 CoachApplicationStatus @default(PENDING)
   experience             String
   specialties            String[] @default([])
+  industrySpecialties    String[] @default([])
   applicationDate        DateTime @default(now())
   reviewerUlid           String?  @db.Char(26)
   reviewDate             DateTime?
@@ -1616,7 +1613,7 @@ model Achievement {
   @@map("Achievement")
 }
 
-// Professional recognition (formerly stored in RealtorProfile.achievements)
+// Updated Professional Recognition model
 model ProfessionalRecognition {
   ulid                   String   @id @db.Char(26)
   userUlid              String   @db.Char(26)
@@ -1629,34 +1626,19 @@ model ProfessionalRecognition {
   verificationUrl       String?
   certificateUrl        String?
   status                CertificationStatus @default(ACTIVE)
+  industryType          String? // Field to indicate which industry the recognition belongs to (e.g., "REALTOR", "INVESTOR")
+  isVisible             Boolean @default(true) // Whether this recognition should be displayed on the profile
 
-  // Relations
+  // Relations - simplified to just user and coach profile
   user                  User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  realtorProfile        RealtorProfile?     @relation(fields: [realtorProfileUlid], references: [ulid])
-  loanOfficerProfile    LoanOfficerProfile? @relation(fields: [loanOfficerProfileUlid], references: [ulid])
-  investorProfile       InvestorProfile?    @relation(fields: [investorProfileUlid], references: [ulid])
-  propertyManagerProfile PropertyManagerProfile? @relation(fields: [propertyManagerProfileUlid], references: [ulid])
-  titleEscrowProfile    TitleEscrowProfile? @relation("TitleEscrowProfileRecognitions", fields: [titleEscrowProfileUlid], references: [ulid])
-  insuranceProfile      InsuranceProfile?   @relation("InsuranceProfileRecognitions", fields: [insuranceProfileUlid], references: [ulid])
-
-  // Foreign Keys
-  realtorProfileUlid        String? @db.Char(26)
-  loanOfficerProfileUlid    String? @db.Char(26)
-  investorProfileUlid       String? @db.Char(26)
-  propertyManagerProfileUlid String? @db.Char(26)
-  titleEscrowProfileUlid    String? @db.Char(26)
-  insuranceProfileUlid      String? @db.Char(26)
+  coachProfile          CoachProfile? @relation(fields: [coachProfileUlid], references: [ulid])
+  coachProfileUlid      String? @db.Char(26)
 
   createdAt              DateTime @default(now()) @db.Timestamptz
   updatedAt              DateTime @updatedAt @db.Timestamptz
 
   @@index([userUlid])
-  @@index([realtorProfileUlid])
-  @@index([loanOfficerProfileUlid])
-  @@index([investorProfileUlid])
-  @@index([propertyManagerProfileUlid])
-  @@index([titleEscrowProfileUlid])
-  @@index([insuranceProfileUlid])
+  @@index([coachProfileUlid])
   @@map("ProfessionalRecognition")
 }
 

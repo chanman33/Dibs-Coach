@@ -58,7 +58,8 @@ export function RecognitionsSection({ control, setValue, watch }: RecognitionsSe
     year: new Date().getFullYear(),
     organization: null,
     description: null,
-    isVisible: true
+    isVisible: true,
+    industryType: null
   });
 
   const recognitions = watch("professionalRecognitions") || [];
@@ -70,7 +71,8 @@ export function RecognitionsSection({ control, setValue, watch }: RecognitionsSe
       year: new Date().getFullYear(),
       organization: null,
       description: null,
-      isVisible: true
+      isVisible: true,
+      industryType: null
     });
     setEditIndex(null);
     setShowForm(false);
@@ -109,6 +111,7 @@ export function RecognitionsSection({ control, setValue, watch }: RecognitionsSe
       organization: recognition.organization || null,
       description: recognition.description || null,
       isVisible: recognition.isVisible,
+      industryType: recognition.industryType || null,
       ulid: recognition.ulid
     });
     setEditIndex(index);
@@ -333,23 +336,27 @@ interface RecognitionsTabProps {
   initialRecognitions?: ProfessionalRecognition[];
   onSubmit: (recognitions: ProfessionalRecognition[]) => Promise<void>;
   isSubmitting?: boolean;
+  selectedSpecialties?: string[];
 }
 
 export function RecognitionsTab({ 
   initialRecognitions = [], 
   onSubmit,
-  isSubmitting = false
+  isSubmitting = false,
+  selectedSpecialties = []
 }: RecognitionsTabProps) {
   const [recognitions, setRecognitions] = useState<ProfessionalRecognition[]>(initialRecognitions);
   const [showForm, setShowForm] = useState(false);
   const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [industryFilter, setIndustryFilter] = useState<string | null>(null);
   const [recognitionValues, setRecognitionValues] = useState<ProfessionalRecognition>({
     title: "",
     type: "AWARD",
     year: new Date().getFullYear(),
     organization: null,
     description: null,
-    isVisible: true
+    isVisible: true,
+    industryType: null
   });
 
   const clearForm = () => {
@@ -359,7 +366,8 @@ export function RecognitionsTab({
       year: new Date().getFullYear(),
       organization: null,
       description: null,
-      isVisible: true
+      isVisible: true,
+      industryType: null
     });
     setEditIndex(null);
     setShowForm(false);
@@ -398,6 +406,7 @@ export function RecognitionsTab({
       organization: recognition.organization || null,
       description: recognition.description || null,
       isVisible: recognition.isVisible,
+      industryType: recognition.industryType || null,
       ulid: recognition.ulid
     });
     setEditIndex(index);
@@ -436,6 +445,14 @@ export function RecognitionsTab({
     }
   };
 
+  const filteredRecognitions = industryFilter 
+    ? recognitions.filter(r => r.industryType === industryFilter)
+    : recognitions;
+
+  const industryTypes = Array.from(new Set(recognitions
+    .map(r => r.industryType)
+    .filter(Boolean) as string[]));
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -452,69 +469,102 @@ export function RecognitionsTab({
         Add your certifications, awards, and other professional achievements to showcase your expertise.
       </p>
 
+      {industryTypes.length > 0 && (
+        <div className="flex items-center space-x-4">
+          <div className="text-sm font-medium">Filter by industry:</div>
+          <Select
+            value={industryFilter || ""}
+            onValueChange={(value) => setIndustryFilter(value === "" ? null : value)}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="All industries" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All industries</SelectItem>
+              {industryTypes.map(type => (
+                <SelectItem key={type} value={type}>{type}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       <div className="space-y-4">
-        {recognitions.length > 0 ? (
+        {filteredRecognitions.length > 0 ? (
           <div className="grid gap-4 md:grid-cols-2">
-            {recognitions.map((recognition, index) => (
-              <Card key={index} className={recognition.isVisible ? "" : "opacity-70"}>
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      <Award className="h-4 w-4 text-primary" />
-                      <CardTitle className="text-base">{recognition.title}</CardTitle>
+            {filteredRecognitions.map((recognition, index) => {
+              const originalIndex = recognitions.findIndex(r => 
+                r === recognition || (r.ulid && r.ulid === recognition.ulid)
+              );
+              
+              return (
+                <Card key={index} className={recognition.isVisible ? "" : "opacity-70"}>
+                  <CardHeader className="pb-2">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2">
+                        <Award className="h-4 w-4 text-primary" />
+                        <CardTitle className="text-base">{recognition.title}</CardTitle>
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge variant={recognition.type === "AWARD" ? "default" : "outline"}>
+                          {recognition.type === "AWARD" ? "Award" : "Achievement"}
+                        </Badge>
+                        {recognition.industryType && (
+                          <Badge variant="secondary" className="text-xs">
+                            {recognition.industryType}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                    <Badge variant={recognition.type === "AWARD" ? "default" : "outline"}>
-                      {recognition.type === "AWARD" ? "Award" : "Achievement"}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center mt-1">
-                    <div className="text-sm text-muted-foreground">
-                      {recognition.organization && `${recognition.organization} • `}
-                      {recognition.year}
+                    <div className="flex justify-between items-center mt-1">
+                      <div className="text-sm text-muted-foreground">
+                        {recognition.organization && `${recognition.organization} • `}
+                        {recognition.year}
+                      </div>
+                      <Badge variant={recognition.isVisible ? "outline" : "secondary"} className="text-xs">
+                        {recognition.isVisible ? "Visible" : "Hidden"}
+                      </Badge>
                     </div>
-                    <Badge variant={recognition.isVisible ? "outline" : "secondary"} className="text-xs">
-                      {recognition.isVisible ? "Visible" : "Hidden"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                {recognition.description && (
-                  <CardContent className="py-2">
-                    <p className="text-sm text-muted-foreground">{recognition.description}</p>
-                  </CardContent>
-                )}
-                <CardFooter className="pt-2 border-t flex justify-end gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => handleToggleVisibility(index)}
-                  >
-                    {recognition.isVisible ? (
-                      <EyeOff className="h-4 w-4 mr-1" />
-                    ) : (
-                      <Eye className="h-4 w-4 mr-1" />
-                    )}
-                    {recognition.isVisible ? "Hide" : "Show"}
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => handleEditRecognition(index)}
-                  >
-                    <Edit className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => handleDeleteRecognition(index)}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Delete
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
+                  </CardHeader>
+                  {recognition.description && (
+                    <CardContent className="py-2">
+                      <p className="text-sm text-muted-foreground">{recognition.description}</p>
+                    </CardContent>
+                  )}
+                  <CardFooter className="pt-2 border-t flex justify-end gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleToggleVisibility(originalIndex)}
+                    >
+                      {recognition.isVisible ? (
+                        <EyeOff className="h-4 w-4 mr-1" />
+                      ) : (
+                        <Eye className="h-4 w-4 mr-1" />
+                      )}
+                      {recognition.isVisible ? "Hide" : "Show"}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleEditRecognition(originalIndex)}
+                    >
+                      <Edit className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleDeleteRecognition(originalIndex)}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete
+                    </Button>
+                  </CardFooter>
+                </Card>
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-8 border rounded-md bg-gray-50 text-muted-foreground">
@@ -524,23 +574,31 @@ export function RecognitionsTab({
           </div>
         )}
 
-        {!showForm ? (
+        <div className="flex justify-center mt-4">
           <Button 
             variant="outline" 
-            className="flex gap-1 mx-auto mt-4"
-            onClick={() => setShowForm(true)}
+            onClick={() => setShowForm(!showForm)}
+            className="gap-1"
           >
-            <PlusCircle className="h-4 w-4" />
-            Add Recognition
+            {showForm ? (
+              <>Cancel</>
+            ) : (
+              <>
+                <PlusCircle className="h-4 w-4" />
+                Add Recognition
+              </>
+            )}
           </Button>
-        ) : (
-          <Card className="mt-4">
+        </div>
+
+        {showForm && (
+          <Card className="mt-4 border-primary">
             <CardHeader>
-              <CardTitle className="text-base">
-                {editIndex !== null ? "Edit Recognition" : "Add Recognition"}
+              <CardTitle className="text-lg">
+                {editIndex !== null ? "Edit Recognition" : "Add New Recognition"}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent>
               <div className="space-y-4">
                 <div>
                   <FormLabel>Title</FormLabel>
@@ -550,7 +608,8 @@ export function RecognitionsTab({
                       ...recognitionValues,
                       title: e.target.value
                     })}
-                    placeholder="e.g., Certified Residential Specialist (CRS)"
+                    placeholder="e.g., Top Producer Award"
+                    required
                   />
                 </div>
 
@@ -602,6 +661,32 @@ export function RecognitionsTab({
                 </div>
 
                 <div>
+                  <FormLabel>Industry Type</FormLabel>
+                  <Select
+                    value={recognitionValues.industryType || ""}
+                    onValueChange={(value) => setRecognitionValues({
+                      ...recognitionValues,
+                      industryType: value === "" ? null : value
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select industry (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">None (General)</SelectItem>
+                      {selectedSpecialties.map((specialty) => (
+                        <SelectItem key={specialty} value={specialty}>
+                          {specialty}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription className="text-xs mt-1">
+                    Categorize this recognition by industry to help organize your profile.
+                  </FormDescription>
+                </div>
+
+                <div>
                   <FormLabel>Description</FormLabel>
                   <Textarea 
                     value={recognitionValues.description || ""}
@@ -609,15 +694,15 @@ export function RecognitionsTab({
                       ...recognitionValues,
                       description: e.target.value ? e.target.value : null
                     })}
-                    placeholder="Describe this recognition and why it's relevant to your coaching"
+                    placeholder="Briefly describe this recognition and what it represents (optional)"
                     rows={3}
                   />
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="flex justify-between border-t pt-4">
+            <CardFooter className="border-t pt-4 flex justify-end gap-2">
               <Button 
-                variant="ghost" 
+                variant="outline" 
                 onClick={clearForm}
               >
                 Cancel
@@ -625,7 +710,6 @@ export function RecognitionsTab({
               <Button 
                 onClick={handleSaveRecognition}
               >
-                <Check className="h-4 w-4 mr-1" />
                 {editIndex !== null ? "Update" : "Add"} Recognition
               </Button>
             </CardFooter>

@@ -45,6 +45,7 @@ export const coachProfileFormSchema = z.object({
     description: z.string().nullable().optional(),
     year: z.number().min(1900, "Year must be valid").max(new Date().getFullYear(), "Year cannot be in the future"),
     isVisible: z.boolean().default(true),
+    industryType: z.string().nullable().optional(),
   })).default([]),
 });
 
@@ -60,6 +61,7 @@ export interface ProfessionalRecognition {
   organization: string | null;
   description: string | null;
   isVisible: boolean;
+  industryType: string | null;
 }
 
 // Initial data structure

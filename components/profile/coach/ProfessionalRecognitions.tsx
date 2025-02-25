@@ -31,7 +31,7 @@ import { ProfessionalRecognition } from "@/utils/types/realtor";
 interface ProfessionalRecognitionsProps {
   recognitions: ProfessionalRecognition[];
   onEdit?: (recognition: ProfessionalRecognition) => void;
-  editingId?: number | null;
+  editingId?: string | null;
   editForm?: React.ReactNode;
 }
 
@@ -52,10 +52,10 @@ export function ProfessionalRecognitions({
     <div className="space-y-4">
       {recognitions.map((recognition, index) => {
         console.log('[DEBUG] Rendering recognition:', recognition);
-        const key = recognition.id ? `recognition-${recognition.id}` : `recognition-new-${index}`;
+        const key = recognition.ulid ? `recognition-${recognition.ulid}` : `recognition-new-${index}`;
         
         // If this recognition is being edited, show the edit form instead
-        if (recognition.id === editingId && editForm) {
+        if (recognition.ulid === editingId && editForm) {
           return (
             <div key={key} className="border rounded-lg p-4">
               {editForm}
