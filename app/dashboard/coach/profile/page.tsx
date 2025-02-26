@@ -520,31 +520,7 @@ function ProfilePageContent() {
     <div className="w-full px-4 sm:px-6 md:container mx-auto py-4 sm:py-8">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 sm:mb-8">
         <h1 className="text-2xl sm:text-3xl font-bold">Coach Profile</h1>
-        
-        {/* Profile completion status badge */}
-        <div className="mt-2 md:mt-0 flex items-center gap-2">
-          <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-50 text-primary-700">
-            <span className="mr-2">Profile Completion:</span>
-            <span className="font-bold">{completionPercentage}%</span>
-          </div>
-        </div>
       </div>
-      
-      {/* Profile completion alert */}
-      {completionPercentage < 100 && (
-        <Alert className="mb-4 sm:mb-8">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Profile Incomplete</AlertTitle>
-          <AlertDescription>
-            Your profile is {completionPercentage}% complete. Please fill in the following fields to complete your profile:
-            <ul className="list-disc list-inside mt-2">
-              {missingFields.map((field, index) => (
-                <li key={index}>{field}</li>
-              ))}
-            </ul>
-          </AlertDescription>
-        </Alert>
-      )}
       
       {/* Tabs manager */}
       <ProfileTabsManager

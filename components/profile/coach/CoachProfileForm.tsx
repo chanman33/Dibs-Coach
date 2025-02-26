@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
-import { ProfileCompletionAlert } from "@/components/coaching/ProfileCompletionAlert";
 import { toast } from "sonner";
 import { CoachSpecialtiesSection } from "./CoachSpecialtiesSection";
 import { CoachRateInfoSection } from "./CoachRateInfoSection";
@@ -17,6 +16,7 @@ import { ProfileStatus } from "@/utils/types/coach";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { INDUSTRY_SPECIALTIES } from "@/components/profile/common/ProfileTabsManager";
+import { ProfileCompletion } from "./ProfileCompletion";
 
 export interface CoachProfileFormProps {
   initialData?: CoachProfileInitialData;
@@ -27,6 +27,8 @@ export interface CoachProfileFormProps {
   missingFields?: string[];
   canPublish?: boolean;
   userInfo?: UserInfo;
+  onSpecialtiesChange: (specialties: string[]) => void;
+  saveSpecialties: (selectedSpecialties: string[]) => Promise<boolean | void>;
 }
 
 export function CoachProfileForm({
@@ -38,6 +40,8 @@ export function CoachProfileForm({
   missingFields = [],
   canPublish = false,
   userInfo,
+  onSpecialtiesChange,
+  saveSpecialties,
 }: CoachProfileFormProps) {
   // Log initial data for debugging
   useEffect(() => {
@@ -156,22 +160,13 @@ export function CoachProfileForm({
     <div className="space-y-4 sm:space-y-6">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 sm:space-y-6">
-          {/* Information alert about specialties */}
-          <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-2">
-            <div className="flex">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500 h-5 w-5 mr-2 mt-0.5">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M12 16v-4"></path>
-                <path d="M12 8h.01"></path>
-              </svg>
-              <div>
-                <h4 className="text-sm font-medium text-blue-800">Profile Structure Based on Specialties</h4>
-                <p className="text-xs text-blue-700 mt-1">
-                  Your profile tabs will adapt based on your selected industry specialties. After saving your selections, you'll see additional tabs for each specialty (e.g., Realtor Profile, Investor Profile) where you can add industry-specific information.
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Profile Completion Status */}
+          <ProfileCompletion
+            completionPercentage={completionPercentage || 0}
+            profileStatus={profileStatus || 'DRAFT'}
+            canPublish={canPublish || false}
+            missingFields={missingFields || []}
+          />
 
           <Card className="p-4 sm:p-6 border shadow-sm">
             <div className="mb-4 sm:mb-6">

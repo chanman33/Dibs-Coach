@@ -691,6 +691,86 @@ export type Database = {
           },
         ]
       }
+      CommercialProfile: {
+        Row: {
+          averageDealSize: number | null
+          certifications: string[] | null
+          companyName: string | null
+          completedDeals: number | null
+          createdAt: string
+          dealTypes: Database["public"]["Enums"]["CommercialDealType"][] | null
+          geographicFocus: Json | null
+          languages: string[] | null
+          licenseNumber: string | null
+          primaryMarket: string | null
+          propertyTypes:
+            | Database["public"]["Enums"]["CommercialPropertyType"][]
+            | null
+          serviceAreas: string[] | null
+          specializations: string[] | null
+          totalTransactionVolume: number | null
+          typicalDealSize: number | null
+          ulid: string
+          updatedAt: string
+          userUlid: string
+          yearsExperience: number | null
+        }
+        Insert: {
+          averageDealSize?: number | null
+          certifications?: string[] | null
+          companyName?: string | null
+          completedDeals?: number | null
+          createdAt?: string
+          dealTypes?: Database["public"]["Enums"]["CommercialDealType"][] | null
+          geographicFocus?: Json | null
+          languages?: string[] | null
+          licenseNumber?: string | null
+          primaryMarket?: string | null
+          propertyTypes?:
+            | Database["public"]["Enums"]["CommercialPropertyType"][]
+            | null
+          serviceAreas?: string[] | null
+          specializations?: string[] | null
+          totalTransactionVolume?: number | null
+          typicalDealSize?: number | null
+          ulid: string
+          updatedAt: string
+          userUlid: string
+          yearsExperience?: number | null
+        }
+        Update: {
+          averageDealSize?: number | null
+          certifications?: string[] | null
+          companyName?: string | null
+          completedDeals?: number | null
+          createdAt?: string
+          dealTypes?: Database["public"]["Enums"]["CommercialDealType"][] | null
+          geographicFocus?: Json | null
+          languages?: string[] | null
+          licenseNumber?: string | null
+          primaryMarket?: string | null
+          propertyTypes?:
+            | Database["public"]["Enums"]["CommercialPropertyType"][]
+            | null
+          serviceAreas?: string[] | null
+          specializations?: string[] | null
+          totalTransactionVolume?: number | null
+          typicalDealSize?: number | null
+          ulid?: string
+          updatedAt?: string
+          userUlid?: string
+          yearsExperience?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "CommercialProfile_userUlid_fkey"
+            columns: ["userUlid"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["ulid"]
+          },
+        ]
+      }
       Dispute: {
         Row: {
           amount: number
@@ -750,133 +830,6 @@ export type Database = {
             columns: ["sessionUlid"]
             isOneToOne: false
             referencedRelation: "Session"
-            referencedColumns: ["ulid"]
-          },
-        ]
-      }
-      DomainExpertise: {
-        Row: {
-          coachProfileUlid: string | null
-          createdAt: string
-          description: string | null
-          isActive: boolean
-          level: string
-          menteeProfileUlid: string | null
-          metadata: Json | null
-          status: string
-          type: string
-          ulid: string
-          updatedAt: string
-          userUlid: string
-          yearsExperience: number
-        }
-        Insert: {
-          coachProfileUlid?: string | null
-          createdAt?: string
-          description?: string | null
-          isActive?: boolean
-          level: string
-          menteeProfileUlid?: string | null
-          metadata?: Json | null
-          status?: string
-          type: string
-          ulid: string
-          updatedAt: string
-          userUlid: string
-          yearsExperience?: number
-        }
-        Update: {
-          coachProfileUlid?: string | null
-          createdAt?: string
-          description?: string | null
-          isActive?: boolean
-          level?: string
-          menteeProfileUlid?: string | null
-          metadata?: Json | null
-          status?: string
-          type?: string
-          ulid?: string
-          updatedAt?: string
-          userUlid?: string
-          yearsExperience?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "DomainExpertise_coachProfileUlid_fkey"
-            columns: ["coachProfileUlid"]
-            isOneToOne: false
-            referencedRelation: "CoachProfile"
-            referencedColumns: ["ulid"]
-          },
-          {
-            foreignKeyName: "DomainExpertise_menteeProfileUlid_fkey"
-            columns: ["menteeProfileUlid"]
-            isOneToOne: false
-            referencedRelation: "MenteeProfile"
-            referencedColumns: ["ulid"]
-          },
-          {
-            foreignKeyName: "DomainExpertise_userUlid_fkey"
-            columns: ["userUlid"]
-            isOneToOne: false
-            referencedRelation: "User"
-            referencedColumns: ["ulid"]
-          },
-        ]
-      }
-      DomainVerification: {
-        Row: {
-          createdAt: string
-          documentUrl: string | null
-          domainExpertiseUlid: string
-          expiresAt: string | null
-          metadata: Json | null
-          status: string
-          type: string
-          ulid: string
-          updatedAt: string
-          userUlid: string
-          verificationData: Json | null
-        }
-        Insert: {
-          createdAt?: string
-          documentUrl?: string | null
-          domainExpertiseUlid: string
-          expiresAt?: string | null
-          metadata?: Json | null
-          status?: string
-          type: string
-          ulid: string
-          updatedAt: string
-          userUlid: string
-          verificationData?: Json | null
-        }
-        Update: {
-          createdAt?: string
-          documentUrl?: string | null
-          domainExpertiseUlid?: string
-          expiresAt?: string | null
-          metadata?: Json | null
-          status?: string
-          type?: string
-          ulid?: string
-          updatedAt?: string
-          userUlid?: string
-          verificationData?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "DomainVerification_domainExpertiseUlid_fkey"
-            columns: ["domainExpertiseUlid"]
-            isOneToOne: false
-            referencedRelation: "DomainExpertise"
-            referencedColumns: ["ulid"]
-          },
-          {
-            foreignKeyName: "DomainVerification_userUlid_fkey"
-            columns: ["userUlid"]
-            isOneToOne: false
-            referencedRelation: "User"
             referencedColumns: ["ulid"]
           },
         ]
@@ -1977,6 +1930,92 @@ export type Database = {
           {
             foreignKeyName: "Payout_payeeUlid_fkey"
             columns: ["payeeUlid"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["ulid"]
+          },
+        ]
+      }
+      PrivateCreditProfile: {
+        Row: {
+          activeLoans: number | null
+          averageLoanSize: number | null
+          certifications: string[] | null
+          companyName: string | null
+          createdAt: string
+          geographicFocus: Json | null
+          interestRateRange: Json | null
+          languages: string[] | null
+          licensedStates: string[] | null
+          licenseNumber: string | null
+          loanTypes:
+            | Database["public"]["Enums"]["PrivateCreditLoanType"][]
+            | null
+          maxLoanAmount: number | null
+          minLoanAmount: number | null
+          primaryMarket: string | null
+          specializations: string[] | null
+          totalLoanVolume: number | null
+          typicalTermLength: number | null
+          ulid: string
+          updatedAt: string
+          userUlid: string
+          yearsExperience: number | null
+        }
+        Insert: {
+          activeLoans?: number | null
+          averageLoanSize?: number | null
+          certifications?: string[] | null
+          companyName?: string | null
+          createdAt?: string
+          geographicFocus?: Json | null
+          interestRateRange?: Json | null
+          languages?: string[] | null
+          licensedStates?: string[] | null
+          licenseNumber?: string | null
+          loanTypes?:
+            | Database["public"]["Enums"]["PrivateCreditLoanType"][]
+            | null
+          maxLoanAmount?: number | null
+          minLoanAmount?: number | null
+          primaryMarket?: string | null
+          specializations?: string[] | null
+          totalLoanVolume?: number | null
+          typicalTermLength?: number | null
+          ulid: string
+          updatedAt: string
+          userUlid: string
+          yearsExperience?: number | null
+        }
+        Update: {
+          activeLoans?: number | null
+          averageLoanSize?: number | null
+          certifications?: string[] | null
+          companyName?: string | null
+          createdAt?: string
+          geographicFocus?: Json | null
+          interestRateRange?: Json | null
+          languages?: string[] | null
+          licensedStates?: string[] | null
+          licenseNumber?: string | null
+          loanTypes?:
+            | Database["public"]["Enums"]["PrivateCreditLoanType"][]
+            | null
+          maxLoanAmount?: number | null
+          minLoanAmount?: number | null
+          primaryMarket?: string | null
+          specializations?: string[] | null
+          totalLoanVolume?: number | null
+          typicalTermLength?: number | null
+          ulid?: string
+          updatedAt?: string
+          userUlid?: string
+          yearsExperience?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "PrivateCreditProfile_userUlid_fkey"
+            columns: ["userUlid"]
             isOneToOne: false
             referencedRelation: "User"
             referencedColumns: ["ulid"]
@@ -3112,7 +3151,6 @@ export type Database = {
         Row: {
           bio: string | null
           capabilities: Database["public"]["Enums"]["UserCapability"][] | null
-          confirmedSpecialties: string[] | null
           createdAt: string
           displayName: string | null
           email: string
@@ -3124,10 +3162,12 @@ export type Database = {
           phoneNumber: string | null
           primaryMarket: string | null
           profileImageUrl: string | null
+          selectedSpecialties: string[] | null
           status: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId: string | null
           stripeCustomerId: string | null
           systemRole: Database["public"]["Enums"]["UserRole"]
+          totalYearsRE: number
           ulid: string
           updatedAt: string
           userId: string
@@ -3135,7 +3175,6 @@ export type Database = {
         Insert: {
           bio?: string | null
           capabilities?: Database["public"]["Enums"]["UserCapability"][] | null
-          confirmedSpecialties?: string[] | null
           createdAt?: string
           displayName?: string | null
           email: string
@@ -3147,10 +3186,12 @@ export type Database = {
           phoneNumber?: string | null
           primaryMarket?: string | null
           profileImageUrl?: string | null
+          selectedSpecialties?: string[] | null
           status?: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId?: string | null
           stripeCustomerId?: string | null
           systemRole?: Database["public"]["Enums"]["UserRole"]
+          totalYearsRE?: number
           ulid: string
           updatedAt: string
           userId: string
@@ -3158,7 +3199,6 @@ export type Database = {
         Update: {
           bio?: string | null
           capabilities?: Database["public"]["Enums"]["UserCapability"][] | null
-          confirmedSpecialties?: string[] | null
           createdAt?: string
           displayName?: string | null
           email?: string
@@ -3170,10 +3210,12 @@ export type Database = {
           phoneNumber?: string | null
           primaryMarket?: string | null
           profileImageUrl?: string | null
+          selectedSpecialties?: string[] | null
           status?: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId?: string | null
           stripeCustomerId?: string | null
           systemRole?: Database["public"]["Enums"]["UserRole"]
+          totalYearsRE?: number
           ulid?: string
           updatedAt?: string
           userId?: string
@@ -3464,6 +3506,24 @@ export type Database = {
       BasementType: "Finished" | "Partially" | "Unfinished" | "None"
       CertificationStatus: "ACTIVE" | "EXPIRED" | "REVOKED" | "PENDING"
       CoachApplicationStatus: "PENDING" | "APPROVED" | "REJECTED"
+      CommercialDealType:
+        | "SALES"
+        | "LEASING"
+        | "INVESTMENT"
+        | "DEVELOPMENT"
+        | "PROPERTY_MANAGEMENT"
+        | "CONSULTING"
+      CommercialPropertyType:
+        | "OFFICE"
+        | "RETAIL"
+        | "INDUSTRIAL"
+        | "MULTIFAMILY"
+        | "MIXED_USE"
+        | "LAND"
+        | "HOTEL"
+        | "MEDICAL"
+        | "SELF_STORAGE"
+        | "OTHER"
       Currency: "USD" | "EUR" | "GBP"
       DisputeStatus: "OPEN" | "RESOLVED" | "REJECTED"
       DomainStatus: "PENDING" | "ACTIVE" | "INACTIVE" | "SUSPENDED"
@@ -3558,6 +3618,8 @@ export type Database = {
         | "TITLE_ESCROW"
         | "INSURANCE"
         | "OTHER"
+        | "COMMERCIAL"
+        | "PRIVATE_CREDIT"
       OrgLevel: "GLOBAL" | "REGIONAL" | "LOCAL" | "BRANCH"
       OrgRole:
         | "GLOBAL_OWNER"
@@ -3587,6 +3649,15 @@ export type Database = {
       PaymentStatus: "PENDING" | "COMPLETED" | "FAILED" | "REFUNDED"
       PayoutStatus: "PENDING" | "PROCESSED" | "FAILED"
       PlanType: "INDIVIDUAL" | "TEAM" | "ENTERPRISE"
+      PrivateCreditLoanType:
+        | "BRIDGE"
+        | "CONSTRUCTION"
+        | "VALUE_ADD"
+        | "ACQUISITION"
+        | "REFINANCE"
+        | "MEZZANINE"
+        | "PREFERRED_EQUITY"
+        | "OTHER"
       ProfileStatus: "DRAFT" | "REVIEW" | "PUBLISHED"
       PropertyCondition:
         | "Excellent"
@@ -3671,7 +3742,7 @@ export type Database = {
         | "TITLE_EXAMINER"
         | "UNDERWRITER"
         | "OTHER"
-      UserCapability: "COACH" | "MENTEE"
+      UserCapability: "COACH" | "MENTEE" | "COMMERCIAL" | "PRIVATE_CREDIT"
       UserRole: "SYSTEM_OWNER" | "SYSTEM_MODERATOR" | "USER"
       UserStatus: "ACTIVE" | "INACTIVE" | "SUSPENDED"
       VerificationStatus: "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED"

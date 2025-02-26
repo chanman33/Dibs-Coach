@@ -595,8 +595,8 @@ model User {
 
   // Industry specialties - direct access for better extensibility
   industrySpecialties  String[]  @default([]) // e.g., ["REALTOR", "INVESTOR"]
-  confirmedSpecialties String[]  @default([]) // Specialties that have been verified/confirmed
   primaryMarket        String?   // User's primary market/location
+  totalYearsRE         Int       @default(0) 
 
   // Industry Profiles
   realtorProfile          RealtorProfile?
