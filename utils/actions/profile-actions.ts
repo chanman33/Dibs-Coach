@@ -11,7 +11,7 @@ import type { ApiResponse } from "@/utils/types/api"
 export interface GeneralFormData {
   displayName: string
   bio: string | null
-  yearsExperience: number
+  totalYearsRE: number
   primaryMarket: string
 }
 
@@ -47,12 +47,14 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
     try {
       const supabase = await createAuthClient()
 
-      // Get user data first
+      // Get user data
       const { data: userData, error: userError } = await supabase
         .from("User")
         .select(`
           displayName,
-          bio
+          bio,
+          totalYearsRE,
+          primaryMarket
         `)
         .eq("ulid", userUlid)
         .maybeSingle()
@@ -69,36 +71,31 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
         }
       }
 
-      // Get realtor profile data
-      const { data: profileData, error: profileError } = await supabase
-        .from("RealtorProfile")
-        .select(`
-          yearsExperience,
-          primaryMarket
-        `)
-        .eq("userUlid", userUlid)
-        .maybeSingle()
+      // Log the raw user data
+      console.log("[USER_PROFILE_FETCH]", {
+        userUlid,
+        rawUserData: userData,
+        totalYearsRE: userData?.totalYearsRE,
+        timestamp: new Date().toISOString()
+      });
 
-      if (profileError) {
-        console.error("[PROFILE_FETCH_ERROR]", { userUlid, error: profileError })
-        return {
-          data: null,
-          error: {
-            code: 'DATABASE_ERROR',
-            message: 'Failed to fetch user profile',
-            details: profileError
-          }
-        }
-      }
+      // Return values with proper defaults
+      const responseData = {
+        displayName: userData?.displayName || "",
+        bio: userData?.bio || null,
+        totalYearsRE: userData?.totalYearsRE ?? 0, // Using nullish coalescing to only default when null/undefined
+        primaryMarket: userData?.primaryMarket || ""
+      };
 
-      // Return default values if no data found
+      // Log the response data
+      console.log("[USER_PROFILE_RESPONSE]", {
+        userUlid,
+        responseData,
+        timestamp: new Date().toISOString()
+      });
+
       return {
-        data: {
-          displayName: userData?.displayName || "",
-          bio: userData?.bio || null,
-          yearsExperience: profileData?.yearsExperience || 0,
-          primaryMarket: profileData?.primaryMarket || ""
-        },
+        data: responseData,
         error: null
       }
     } catch (error) {
@@ -118,14 +115,24 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
 export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormData>(
   async (data, { userUlid }) => {
     try {
+      // Log the incoming update data
+      console.log("[USER_PROFILE_UPDATE_START]", {
+        userUlid,
+        updateData: data,
+        totalYearsRE: data.totalYearsRE,
+        timestamp: new Date().toISOString()
+      });
+
       const supabase = await createAuthClient()
 
-      // Update user data first
+      // Update user data
       const { error: userError } = await supabase
         .from("User")
         .update({
           displayName: data.displayName,
           bio: data.bio,
+          totalYearsRE: data.totalYearsRE,
+          primaryMarket: data.primaryMarket,
           updatedAt: new Date().toISOString()
         })
         .eq("ulid", userUlid)
@@ -142,33 +149,19 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
         }
       }
 
-      // Update realtor profile
-      const { error: profileError } = await supabase
-        .from("RealtorProfile")
-        .update({
-          yearsExperience: data.yearsExperience,
-          primaryMarket: data.primaryMarket,
-          updatedAt: new Date().toISOString()
-        })
-        .eq("userUlid", userUlid)
-
-      if (profileError) {
-        console.error("[PROFILE_UPDATE_ERROR]", { userUlid, error: profileError })
-        return {
-          data: null,
-          error: {
-            code: 'DATABASE_ERROR',
-            message: 'Failed to update realtor profile',
-            details: profileError
-          }
-        }
-      }
+      // Log successful update
+      console.log("[USER_PROFILE_UPDATE_SUCCESS]", {
+        userUlid,
+        updatedData: data,
+        totalYearsRE: data.totalYearsRE,
+        timestamp: new Date().toISOString()
+      });
 
       return {
         data: {
           displayName: data.displayName,
           bio: data.bio,
-          yearsExperience: data.yearsExperience,
+          totalYearsRE: data.totalYearsRE,
           primaryMarket: data.primaryMarket
         },
         error: null
@@ -196,7 +189,8 @@ export const fetchCoachProfile = withServerAction<any, void>(
       const { data: userData, error: userError } = await supabase
         .from("User")
         .select(`
-          industrySpecialties
+          industrySpecialties,
+          capabilities
         `)
         .eq("ulid", userUlid)
         .maybeSingle();
@@ -207,26 +201,30 @@ export const fetchCoachProfile = withServerAction<any, void>(
           error: userError,
           timestamp: new Date().toISOString()
         });
-        
-        // Return minimal data even if user fetch fails
         return {
-          data: {
-            domainSpecialties: [],
-            specialties: [],
-            yearsCoaching: 0,
-            hourlyRate: 0,
-            defaultDuration: 60,
-            minimumDuration: 30,
-            maximumDuration: 120,
-            allowCustomDuration: false,
-            calendlyUrl: "",
-            eventTypeUrl: "",
-            profileStatus: "DRAFT",
-            completionPercentage: 0,
-            canPublish: false,
-            missingFields: []
-          },
-          error: null
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch user data',
+            details: userError
+          }
+        };
+      }
+
+      // Check if user has COACH capability
+      if (!userData?.capabilities?.includes('COACH')) {
+        console.error("[COACH_CAPABILITY_ERROR]", {
+          userUlid,
+          message: "User does not have COACH capability",
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User is not authorized as a coach',
+            details: null
+          }
         };
       }
       
@@ -249,9 +247,9 @@ export const fetchCoachProfile = withServerAction<any, void>(
 
       // If there's no coach profile, return default values
       if (!coachProfile || coachError) {
-        console.log("[COACH_PROFILE_NOT_FOUND]", { 
+        console.log("[COACH_PROFILE_INIT]", { 
           userUlid,
-          error: coachError,
+          message: "Initializing new coach profile with default values",
           timestamp: new Date().toISOString()
         });
         
@@ -271,13 +269,27 @@ export const fetchCoachProfile = withServerAction<any, void>(
             profileStatus: "DRAFT",
             completionPercentage: 0,
             canPublish: false,
-            missingFields: []
+            missingFields: ["basicInfo", "specialties", "calendly"]
           },
           error: null
         };
       }
 
-      // Return combined data with defaults for missing values
+      // Calculate missing fields
+      const missingFields: string[] = [];
+      if (!coachProfile.yearsCoaching) missingFields.push("basicInfo");
+      if (!coachProfile.calendlyUrl) missingFields.push("calendly");
+      if (!userData?.industrySpecialties?.length) missingFields.push("specialties");
+
+      // Calculate completion percentage
+      const totalFields = 3; // basicInfo, calendly, specialties
+      const completedFields = totalFields - missingFields.length;
+      const completionPercentage = Math.round((completedFields / totalFields) * 100);
+
+      // Determine if profile can be published
+      const canPublish = missingFields.length === 0;
+
+      // Return combined data with calculated fields
       return {
         data: {
           domainSpecialties: userData?.industrySpecialties || [],
@@ -291,9 +303,9 @@ export const fetchCoachProfile = withServerAction<any, void>(
           calendlyUrl: coachProfile?.calendlyUrl || "",
           eventTypeUrl: coachProfile?.eventTypeUrl || "",
           profileStatus: coachProfile?.profileStatus || "DRAFT",
-          completionPercentage: 0,
-          canPublish: false,
-          missingFields: []
+          completionPercentage,
+          canPublish,
+          missingFields
         },
         error: null
       };
@@ -319,7 +331,7 @@ export const fetchCoachProfile = withServerAction<any, void>(
           profileStatus: "DRAFT",
           completionPercentage: 0,
           canPublish: false,
-          missingFields: []
+          missingFields: ["basicInfo", "specialties", "calendly"]
         },
         error: {
           code: 'INTERNAL_ERROR',

@@ -13,7 +13,7 @@ interface ProfileContextType {
     displayName: string;
     bio: string | null;
     primaryMarket: string;
-    yearsExperience: number;
+    totalYearsRE: number;
   };
   
   // Coach profile data
@@ -84,7 +84,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     displayName: "",
     bio: null as string | null,
     primaryMarket: "",
-    yearsExperience: 0
+    totalYearsRE: 0
   });
   
   // Coach profile state

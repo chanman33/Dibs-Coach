@@ -72,7 +72,8 @@ function ProfilePageContent() {
   const generalUserInfo = {
     displayName: generalData.displayName,
     bio: generalData.bio,
-    primaryMarket: generalData.primaryMarket
+    primaryMarket: generalData.primaryMarket,
+    totalYearsRE: generalData.totalYearsRE
   };
 
   // Safely load the Investor Profile Form

@@ -53,6 +53,7 @@ interface ProfileTabsManagerProps {
   generalUserInfo?: {
     displayName?: string | null;
     bio?: string | null;
+    totalYearsRE?: number;
     primaryMarket?: string | null;
   };
   onSubmitGeneral?: (data: any) => Promise<void>;

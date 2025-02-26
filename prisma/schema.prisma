@@ -608,8 +608,7 @@ model User {
   commercialProfile      CommercialProfile?
   privateCreditProfile   PrivateCreditProfile?
 
-  // Specialty Arrays
-  selectedSpecialties    String[]  @default([])  // All selected specialties
+  
 
   // Profile Relations
   menteeProfile         MenteeProfile?
@@ -708,6 +707,9 @@ model CoachProfile {
   coachingSpecialties String[]
   yearsCoaching        Int?
   hourlyRate          Decimal?     @db.Decimal(10, 2)
+
+  // Specialty Arrays
+  selectedSpecialties    String[]  @default([])  // All selected specialties
 
   // Calendly Integration
   calendlyUrl         String?
