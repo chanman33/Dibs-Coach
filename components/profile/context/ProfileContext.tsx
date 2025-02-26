@@ -4,7 +4,15 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { CoachProfileFormValues, CoachProfileInitialData, ProfessionalRecognition } from "../types";
 import { ProfileStatus } from "@/utils/types/coach";
 import { toast } from "sonner";
-import { fetchUserProfile, updateUserProfile, saveCoachSpecialties, fetchUserCapabilities, debugDirectSpecialtiesUpdate } from "@/utils/actions/profile-actions";
+import { 
+  fetchUserProfile, 
+  updateUserProfile, 
+  saveCoachSpecialties, 
+  fetchUserCapabilities, 
+  debugDirectSpecialtiesUpdate,
+  fetchCoachProfile,
+  updateCoachProfile
+} from "@/utils/actions/profile-actions";
 
 // Define the context shape
 interface ProfileContextType {
@@ -41,6 +49,9 @@ interface ProfileContextType {
   profileStatus: ProfileStatus;
   completionPercentage: number;
   missingFields: string[];
+  missingRequiredFields: string[];
+  optionalMissingFields: string[];
+  validationMessages: Record<string, string>;
   canPublish: boolean;
   
   // Loading states
@@ -112,6 +123,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>("DRAFT");
   const [completionPercentage, setCompletionPercentage] = useState(0);
   const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [missingRequiredFields, setMissingRequiredFields] = useState<string[]>([]);
+  const [optionalMissingFields, setOptionalMissingFields] = useState<string[]>([]);
+  const [validationMessages, setValidationMessages] = useState<Record<string, string>>({});
   const [canPublish, setCanPublish] = useState(false);
   
   // Loading states
@@ -170,7 +184,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   // Fetch initial data
   useEffect(() => {
-    const fetchInitialData = async () => {
+    const fetchData = async () => {
       setIsLoading(true);
       try {
         // Fetch user capabilities first
@@ -183,19 +197,25 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         }
         
         // Fetch coach profile data
-        await fetchCoachProfileData();
+        const coachProfileResult = await fetchCoachProfile();
+        if (coachProfileResult.data) {
+          setCoachData(coachProfileResult.data);
+          // Update completion status from coach profile data
+          updateCompletionStatus(coachProfileResult.data);
+        } else if (coachProfileResult.error) {
+          console.error("[FETCH_COACH_ERROR]", coachProfileResult.error);
+        }
         
         // Calculate completion percentage and missing fields
-        calculateCompletionStatus();
+        // calculateCompletionStatus();
       } catch (error) {
-        console.error("[PROFILE_CONTEXT_ERROR]", error);
-        toast.error("Failed to load profile data");
+        console.error("[FETCH_DATA_ERROR]", error);
       } finally {
         setIsLoading(false);
       }
     };
     
-    fetchInitialData();
+    fetchData();
   }, []);
   
   // Fetch coach profile data
@@ -296,30 +316,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  // Calculate completion status
-  const calculateCompletionStatus = () => {
-    // This is a placeholder implementation
-    // In a real implementation, you would check all required fields across all forms
-    const requiredFields = [
-      "displayName",
-      "primaryMarket",
-      // Add other required fields here
-    ];
-    
-    const missingFieldsList: string[] = [];
-    
-    if (!generalData.displayName) missingFieldsList.push("Display Name");
-    if (!generalData.primaryMarket) missingFieldsList.push("Primary Market");
-    // Check other required fields
-    
-    const completedFields = requiredFields.length - missingFieldsList.length;
-    const percentage = Math.round((completedFields / requiredFields.length) * 100);
-    
-    setCompletionPercentage(percentage);
-    setMissingFields(missingFieldsList);
-    setCanPublish(missingFieldsList.length === 0);
-  };
-  
   // Update functions
   const updateGeneralData = async (data: any) => {
     setIsSubmitting(true);
@@ -328,7 +324,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       if (result.data) {
         setGeneralData(result.data);
         toast.success("General profile updated successfully");
-        calculateCompletionStatus();
+        
+        // Fetch updated coach profile to get new completion status
+        const coachProfileResult = await fetchCoachProfile();
+        if (coachProfileResult.data) {
+          updateCompletionStatus(coachProfileResult.data);
+        }
       } else if (result.error) {
         toast.error(result.error.message);
       }
@@ -340,45 +341,33 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
   };
   
+  // Update completion status from server response
+  const updateCompletionStatus = (data: any) => {
+    if (data) {
+      setCompletionPercentage(data.completionPercentage || 0);
+      setMissingFields(data.missingFields || []);
+      setMissingRequiredFields(data.missingRequiredFields || []);
+      setOptionalMissingFields(data.optionalMissingFields || []);
+      setValidationMessages(data.validationMessages || {});
+      setCanPublish(data.canPublish || false);
+      setProfileStatus(data.profileStatus || "DRAFT");
+    }
+  };
+  
   const updateCoachData = async (data: CoachProfileFormValues) => {
     setIsSubmitting(true);
     try {
-      // TODO: Implement coach profile update
-      
-      // Convert the professional recognitions to the correct type
-      const professionalRecognitions = data.professionalRecognitions.map(recognition => ({
-        ulid: recognition.ulid,
-        title: recognition.title,
-        type: recognition.type,
-        year: recognition.year,
-        organization: recognition.organization || null,
-        description: recognition.description || null,
-        isVisible: recognition.isVisible,
-        industryType: recognition.industryType || null
-      }));
-      
-      setCoachData({
-        specialties: data.specialties,
-        yearsCoaching: data.yearsCoaching,
-        hourlyRate: data.hourlyRate,
-        domainSpecialties: data.domainSpecialties,
-        calendlyUrl: data.calendlyUrl,
-        eventTypeUrl: data.eventTypeUrl,
-        defaultDuration: data.defaultDuration,
-        minimumDuration: data.minimumDuration,
-        maximumDuration: data.maximumDuration,
-        allowCustomDuration: data.allowCustomDuration,
-        certifications: data.certifications,
-        languages: data.languages,
-        marketExpertise: data.marketExpertise,
-        professionalRecognitions
-      });
-      
-      // Update the selected specialties
-      updateSelectedSpecialties(data.domainSpecialties);
-      
-      toast.success("Coach profile updated successfully");
-      calculateCompletionStatus();
+      const result = await updateCoachProfile(data);
+      if (result.data) {
+        // Only set coach data if we have valid profile data
+        const profileData = result.data as CoachProfileInitialData;
+        setCoachData(profileData);
+        // Update completion status from updated coach profile data
+        updateCompletionStatus(result.data);
+        toast.success("Coach profile updated successfully");
+      } else if (result.error) {
+        toast.error(result.error.message);
+      }
     } catch (error) {
       console.error("[UPDATE_COACH_ERROR]", error);
       toast.error("Failed to update coach profile");
@@ -393,7 +382,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // TODO: Implement realtor profile update
       setRealtorData(data);
       toast.success("Realtor profile updated successfully");
-      calculateCompletionStatus();
+      
+      // Fetch updated coach profile to get new completion status
+      const coachProfileResult = await fetchCoachProfile();
+      if (coachProfileResult.data) {
+        updateCompletionStatus(coachProfileResult.data);
+      }
     } catch (error) {
       console.error("[UPDATE_REALTOR_ERROR]", error);
       toast.error("Failed to update realtor profile");
@@ -428,7 +422,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // Update the state
       setMortgageData(data);
       toast.success("Mortgage profile updated successfully");
-      calculateCompletionStatus();
+      
+      // Fetch updated coach profile to get new completion status
+      const coachProfileResult = await fetchCoachProfile();
+      if (coachProfileResult.data) {
+        updateCompletionStatus(coachProfileResult.data);
+      }
     } catch (error) {
       console.error("[UPDATE_MORTGAGE_ERROR]", {
         error,
@@ -461,7 +460,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // Update the state
       setPropertyManagerData(data);
       toast.success("Property manager profile updated successfully");
-      calculateCompletionStatus();
+      
+      // Fetch updated coach profile to get new completion status
+      const coachProfileResult = await fetchCoachProfile();
+      if (coachProfileResult.data) {
+        updateCompletionStatus(coachProfileResult.data);
+      }
     } catch (error) {
       console.error("[UPDATE_PROPERTY_MANAGER_ERROR]", {
         error,
@@ -494,7 +498,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // Update the state
       setInsuranceData(data);
       toast.success("Insurance profile updated successfully");
-      calculateCompletionStatus();
+      
+      // Fetch updated coach profile to get new completion status
+      const coachProfileResult = await fetchCoachProfile();
+      if (coachProfileResult.data) {
+        updateCompletionStatus(coachProfileResult.data);
+      }
     } catch (error) {
       console.error("[UPDATE_INSURANCE_ERROR]", {
         error,
@@ -527,7 +536,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // Update the state
       setCommercialData(data);
       toast.success("Commercial profile updated successfully");
-      calculateCompletionStatus();
+      
+      // Fetch updated coach profile to get new completion status
+      const coachProfileResult = await fetchCoachProfile();
+      if (coachProfileResult.data) {
+        updateCompletionStatus(coachProfileResult.data);
+      }
     } catch (error) {
       console.error("[UPDATE_COMMERCIAL_ERROR]", {
         error,
@@ -560,7 +574,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // Update the state
       setPrivateCreditData(data);
       toast.success("Private credit profile updated successfully");
-      calculateCompletionStatus();
+      
+      // Fetch updated coach profile to get new completion status
+      const coachProfileResult = await fetchCoachProfile();
+      if (coachProfileResult.data) {
+        updateCompletionStatus(coachProfileResult.data);
+      }
     } catch (error) {
       console.error("[UPDATE_PRIVATE_CREDIT_ERROR]", {
         error,
@@ -578,7 +597,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // TODO: Implement recognitions update
       setRecognitionsData(data);
       toast.success("Professional recognitions updated successfully");
-      calculateCompletionStatus();
+      
+      // Fetch updated coach profile to get new completion status
+      const coachProfileResult = await fetchCoachProfile();
+      if (coachProfileResult.data) {
+        updateCompletionStatus(coachProfileResult.data);
+      }
     } catch (error) {
       console.error("[UPDATE_RECOGNITIONS_ERROR]", error);
       toast.error("Failed to update professional recognitions");
@@ -767,6 +791,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     profileStatus,
     completionPercentage,
     missingFields,
+    missingRequiredFields,
+    optionalMissingFields,
+    validationMessages,
     canPublish,
     isLoading,
     isSubmitting,

@@ -5,7 +5,7 @@ import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { revalidatePath } from "next/cache"
 import { PROFILE_STATUS, ProfileStatus } from "@/utils/types/coach"
-import { calculateProfileCompletion, PUBLICATION_THRESHOLD } from "@/utils/profile/calculateProfileCompletion"
+import { calculateProfileCompletion, PUBLICATION_THRESHOLD } from "@/utils/actions/calculateProfileCompletion"
 
 export interface CoachProfileFormData {
   specialties: string[];

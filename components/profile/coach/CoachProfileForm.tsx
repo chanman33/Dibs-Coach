@@ -25,6 +25,9 @@ export interface CoachProfileFormProps {
   profileStatus?: ProfileStatus;
   completionPercentage?: number;
   missingFields?: string[];
+  missingRequiredFields?: string[];
+  optionalMissingFields?: string[];
+  validationMessages?: Record<string, string>;
   canPublish?: boolean;
   userInfo?: UserInfo;
   onSpecialtiesChange: (specialties: string[]) => void;
@@ -38,6 +41,9 @@ export function CoachProfileForm({
   profileStatus,
   completionPercentage = 0,
   missingFields = [],
+  missingRequiredFields = [],
+  optionalMissingFields = [],
+  validationMessages = {},
   canPublish = false,
   userInfo,
   onSpecialtiesChange,
@@ -162,10 +168,13 @@ export function CoachProfileForm({
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 sm:space-y-6">
           {/* Profile Completion Status */}
           <ProfileCompletion
-            completionPercentage={completionPercentage || 0}
+            completionPercentage={completionPercentage}
             profileStatus={profileStatus || 'DRAFT'}
-            canPublish={canPublish || false}
-            missingFields={missingFields || []}
+            canPublish={canPublish}
+            missingFields={missingFields}
+            missingRequiredFields={missingRequiredFields}
+            optionalMissingFields={optionalMissingFields}
+            validationMessages={validationMessages}
           />
 
           <Card className="p-4 sm:p-6 border shadow-sm">

@@ -31,6 +31,9 @@ function ProfilePageContent() {
     profileStatus,
     completionPercentage,
     missingFields,
+    missingRequiredFields,
+    optionalMissingFields,
+    validationMessages,
     canPublish,
     isLoading,
     isSubmitting,
@@ -541,6 +544,9 @@ function ProfilePageContent() {
             profileStatus={profileStatus}
             completionPercentage={completionPercentage}
             missingFields={missingFields}
+            missingRequiredFields={missingRequiredFields}
+            optionalMissingFields={optionalMissingFields}
+            validationMessages={validationMessages}
             canPublish={canPublish}
             onSpecialtiesChange={handleSpecialtiesChange}
             saveSpecialties={saveSpecialties}

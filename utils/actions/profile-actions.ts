@@ -7,6 +7,7 @@ import type { MarketingInfo } from "@/utils/types/marketing"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ServerActionContext } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
+import { calculateProfileCompletion } from '@/utils/actions/calculateProfileCompletion'
 
 export interface GeneralFormData {
   displayName: string
@@ -168,12 +169,21 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
 export const fetchCoachProfile = withServerAction<any, void>(
   async (_, { userUlid }) => {
     try {
+      console.log('[FETCH_COACH_PROFILE] Starting fetch for user:', {
+        userUlid,
+        timestamp: new Date().toISOString()
+      });
+
       const supabase = await createAuthClient()
       
       // First fetch the user data to get industry specialties
       const { data: userData, error: userError } = await supabase
         .from("User")
         .select(`
+          firstName,
+          lastName,
+          bio,
+          profileImageUrl,
           industrySpecialties,
           capabilities
         `)
@@ -181,8 +191,9 @@ export const fetchCoachProfile = withServerAction<any, void>(
         .maybeSingle();
         
       if (userError) {
-        console.error("[DB_ERROR]", { 
+        console.error("[DB_ERROR] Failed to fetch user data:", { 
           error: userError,
+          userUlid,
           timestamp: new Date().toISOString()
         });
         return {
@@ -195,8 +206,20 @@ export const fetchCoachProfile = withServerAction<any, void>(
         };
       }
 
+      console.log('[USER_DATA_FETCHED]', {
+        hasData: !!userData,
+        capabilities: userData?.capabilities,
+        hasSpecialties: !!userData?.industrySpecialties?.length,
+        timestamp: new Date().toISOString()
+      });
+
       // Check if user has COACH capability
       if (!userData?.capabilities?.includes('COACH')) {
+        console.log('[UNAUTHORIZED_COACH] User lacks COACH capability:', {
+          userUlid,
+          capabilities: userData?.capabilities,
+          timestamp: new Date().toISOString()
+        });
         return {
           data: null,
           error: {
@@ -207,7 +230,7 @@ export const fetchCoachProfile = withServerAction<any, void>(
         };
       }
       
-      // Then fetch the coach profile data
+      // Then fetch the coach profile data - only select columns we know exist
       const { data: coachProfile, error: coachError } = await supabase
         .from("CoachProfile")
         .select(`
@@ -223,11 +246,13 @@ export const fetchCoachProfile = withServerAction<any, void>(
           profileStatus
         `)
         .eq("userUlid", userUlid)
-        .maybeSingle()
+        .maybeSingle();
 
-      if (coachError) {
-        console.error("[DB_ERROR]", { 
+      // Handle case where profile doesn't exist yet (not an error)
+      if (coachError && coachError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+        console.error("[DB_ERROR] Failed to fetch coach profile:", { 
           error: coachError,
+          userUlid,
           timestamp: new Date().toISOString()
         });
         return {
@@ -240,59 +265,95 @@ export const fetchCoachProfile = withServerAction<any, void>(
         };
       }
 
-      // Calculate missing fields and completion percentage
-      const missingFields: string[] = [];
-      if (!coachProfile?.yearsCoaching) missingFields.push("basicInfo");
-      if (!coachProfile?.calendlyUrl) missingFields.push("calendly");
-      if (!userData?.industrySpecialties?.length) missingFields.push("specialties");
+      console.log('[COACH_PROFILE_FETCHED]', {
+        hasData: !!coachProfile,
+        profileStatus: coachProfile?.profileStatus || 'DRAFT',
+        timestamp: new Date().toISOString()
+      });
 
-      // Calculate completion percentage
-      const totalFields = 3; // basicInfo, calendly, specialties
-      const completedFields = totalFields - missingFields.length;
-      const completionPercentage = Math.round((completedFields / totalFields) * 100);
+      // Prepare profile data for completion calculation
+      // Use empty/default values if profile doesn't exist yet
+      const profileData = {
+        firstName: userData?.firstName || null,
+        lastName: userData?.lastName || null,
+        bio: userData?.bio || null,
+        profileImageUrl: userData?.profileImageUrl || null,
+        coachingSpecialties: userData?.industrySpecialties || [], // Use industrySpecialties instead of specialties
+        hourlyRate: coachProfile?.hourlyRate || null,
+        yearsCoaching: coachProfile?.yearsCoaching || null,
+        calendlyUrl: coachProfile?.calendlyUrl || null,
+        eventTypeUrl: coachProfile?.eventTypeUrl || null,
+      };
 
-      return {
+      console.log('[PROFILE_DATA_PREPARED]', {
+        profileData,
+        timestamp: new Date().toISOString()
+      });
+      
+      const { percentage, missingFields, missingRequiredFields, optionalMissingFields, canPublish, validationMessages } = calculateProfileCompletion(profileData);
+
+      const response = {
         data: {
+          ...profileData,
           domainSpecialties: userData?.industrySpecialties || [],
-          specialties: [],
-          yearsCoaching: coachProfile?.yearsCoaching || 0,
-          hourlyRate: coachProfile?.hourlyRate || 0,
           defaultDuration: coachProfile?.defaultDuration || 60,
           minimumDuration: coachProfile?.minimumDuration || 30,
           maximumDuration: coachProfile?.maximumDuration || 120,
           allowCustomDuration: coachProfile?.allowCustomDuration || false,
-          calendlyUrl: coachProfile?.calendlyUrl || "",
-          eventTypeUrl: coachProfile?.eventTypeUrl || "",
           profileStatus: coachProfile?.profileStatus || "DRAFT",
-          completionPercentage,
-          canPublish: missingFields.length === 0,
-          missingFields
+          completionPercentage: percentage,
+          canPublish,
+          missingFields,
+          missingRequiredFields,
+          optionalMissingFields,
+          validationMessages
         },
         error: null
       };
+
+      console.log('[PROFILE_RESPONSE_PREPARED]', {
+        completionPercentage: percentage,
+        canPublish,
+        missingFieldsCount: missingFields.length,
+        profileStatus: response.data.profileStatus,
+        timestamp: new Date().toISOString()
+      });
+
+      return response;
     } catch (error) {
-      console.error("[INTERNAL_ERROR]", {
+      console.error("[INTERNAL_ERROR] Unexpected error in fetchCoachProfile:", {
         error,
         stack: error instanceof Error ? error.stack : undefined,
         timestamp: new Date().toISOString()
       });
+      // Return a valid response structure for new users
       return {
         data: {
-          yearsCoaching: 0,
-          hourlyRate: 0,
+          firstName: null,
+          lastName: null,
+          bio: null,
+          profileImageUrl: null,
+          coachingSpecialties: [],
+          yearsCoaching: null,
+          hourlyRate: null,
           defaultDuration: 60,
           minimumDuration: 30,
           maximumDuration: 120,
           allowCustomDuration: false,
-          calendlyUrl: "",
-          eventTypeUrl: "",
-          professionalRecognitions: [],
+          calendlyUrl: null,
+          eventTypeUrl: null,
           domainSpecialties: [],
-          specialties: [],
           profileStatus: "DRAFT",
           completionPercentage: 0,
           canPublish: false,
-          missingFields: ["basicInfo", "specialties", "calendly"]
+          missingFields: [
+            'firstName',
+            'lastName',
+            'bio',
+            'profileImageUrl',
+            'coachingSpecialties',
+            'hourlyRate'
+          ]
         },
         error: {
           code: 'INTERNAL_ERROR',

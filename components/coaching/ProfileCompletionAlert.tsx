@@ -14,7 +14,7 @@ import { PROFILE_STATUS, ProfileStatus } from '@/utils/types/coach'
 import { useState } from 'react'
 import { updateProfileStatus } from '@/utils/actions/coach-actions'
 import { toast } from 'sonner'
-import { getMissingFieldsMessage } from '@/utils/profile/calculateProfileCompletion'
+import { getMissingFieldsMessage } from '@/utils/actions/calculateProfileCompletion'
 
 interface ProfileCompletionAlertProps {
   completionPercentage: number
