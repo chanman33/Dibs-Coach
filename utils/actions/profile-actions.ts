@@ -967,4 +967,51 @@ export const updatePrivateCreditProfile = withServerAction<{ success: boolean },
     const { updateIndustryProfile } = await import('@/utils/actions/profile-actions');
     return updateIndustryProfile({ profileType: "PrivateCreditProfile", profileData });
   }
-); 
+);
+
+export interface LanguageUpdateData {
+  languages: string[]
+}
+
+export const updateUserLanguages = withServerAction<{ success: boolean }, LanguageUpdateData>(
+  async (data, { userUlid }) => {
+    try {
+      const supabase = await createAuthClient()
+      
+      const { error } = await supabase
+        .from("User")
+        .update({
+          languages: data.languages,
+          updatedAt: new Date().toISOString()
+        })
+        .eq("ulid", userUlid)
+
+      if (error) {
+        console.error("[UPDATE_LANGUAGES_ERROR]", { userUlid, error })
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to update user languages',
+            details: error
+          }
+        }
+      }
+
+      return {
+        data: { success: true },
+        error: null
+      }
+    } catch (error) {
+      console.error("[UPDATE_LANGUAGES_ERROR]", error)
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to update languages',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      }
+    }
+  }
+) 

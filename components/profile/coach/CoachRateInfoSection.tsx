@@ -6,6 +6,29 @@ import { Input } from "@/components/ui/input";
 import { FormSectionHeader } from "../common/FormSectionHeader";
 import { CoachProfileFormValues } from "../types";
 import { RequiredFieldIndicator } from "../common/RequiredFieldIndicator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const HOURLY_RATES = [
+  { value: 100, label: "$100" },
+  { value: 150, label: "$150" },
+  { value: 200, label: "$200" },
+  { value: 250, label: "$250" },
+  { value: 300, label: "$300" },
+  { value: 400, label: "$400" },
+  { value: 500, label: "$500" },
+  { value: 750, label: "$750" },
+  { value: 1000, label: "$1,000" },
+  { value: 1500, label: "$1,500" },
+  { value: 2000, label: "$2,000" },
+  { value: 2500, label: "$2,500" },
+  { value: 3000, label: "$3,000" }
+];
 
 interface CoachRateInfoSectionProps {
   control: Control<CoachProfileFormValues>;
@@ -54,25 +77,27 @@ export function CoachRateInfoSection({ control }: CoachRateInfoSectionProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                Hourly Rate (USD) <RequiredFieldIndicator />
+                Hourly Rate <RequiredFieldIndicator />
               </FormLabel>
               <FormControl>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <span className="text-gray-500">$</span>
-                  </div>
-                  <Input
-                    type="number"
-                    min="0"
-                    className="pl-7"
-                    {...field}
-                    onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
-                    placeholder="e.g., 75"
-                  />
-                </div>
+                <Select
+                  value={field.value?.toString()}
+                  onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue defaultValue="" placeholder="Select hourly rate" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {HOURLY_RATES.map((rate) => (
+                      <SelectItem key={rate.value} value={rate.value.toString()}>
+                        {rate.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </FormControl>
               <FormDescription>
-                Your standard hourly rate in USD. This can be adjusted for specific sessions.
+                Set your hourly coaching rate. This rate will be visible to potential clients.
               </FormDescription>
               <FormMessage />
             </FormItem>

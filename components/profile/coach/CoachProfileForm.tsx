@@ -17,6 +17,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { INDUSTRY_SPECIALTIES } from "@/components/profile/common/ProfileTabsManager";
 import { ProfileCompletion } from "./ProfileCompletion";
+import { COMMON_LANGUAGES } from "@/lib/constants";
+
+export type Language = {
+  code: string;
+  name: string;
+  nativeName?: string;
+};
 
 export interface CoachProfileFormProps {
   initialData?: CoachProfileInitialData;
@@ -74,13 +81,36 @@ export function CoachProfileForm({
       minimumDuration: initialData?.minimumDuration || 30,
       maximumDuration: initialData?.maximumDuration || 120,
       allowCustomDuration: initialData?.allowCustomDuration || false,
-      certifications: initialData?.certifications || [],
       languages: initialData?.languages || [],
       marketExpertise: initialData?.marketExpertise || "",
       professionalRecognitions: initialData?.professionalRecognitions || [],
     },
     mode: "onSubmit"
   });
+
+  // Add form state change listener
+  useEffect(() => {
+    const subscription = form.watch((value, { name, type }) => {
+      console.log("[FORM_FIELD_CHANGE]", {
+        field: name,
+        type,
+        value,
+        timestamp: new Date().toISOString()
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
+
+  // Add form state debug logging
+  useEffect(() => {
+    console.log("[FORM_STATE]", {
+      isDirty: form.formState.isDirty,
+      isValid: form.formState.isValid,
+      errors: form.formState.errors,
+      touchedFields: form.formState.touchedFields,
+      timestamp: new Date().toISOString()
+    });
+  }, [form.formState]);
 
   // Reset form values when initialData changes
   useEffect(() => {
@@ -100,11 +130,13 @@ export function CoachProfileForm({
         minimumDuration: initialData.minimumDuration || 30,
         maximumDuration: initialData.maximumDuration || 120,
         allowCustomDuration: initialData.allowCustomDuration || false,
-        certifications: initialData.certifications || [],
         languages: initialData.languages || [],
         marketExpertise: initialData.marketExpertise || "",
         professionalRecognitions: initialData.professionalRecognitions || [],
       });
+
+      // Update local state for display only
+      setSelectedDomainSpecialties(initialData.domainSpecialties || []);
     }
   }, [initialData, form]);
 
@@ -135,6 +167,17 @@ export function CoachProfileForm({
 
   const handleSubmit = async (values: CoachProfileFormValues) => {
     try {
+      // Log form state before validation
+      console.log("[PRE_VALIDATION_FORM_STATE]", {
+        values,
+        formState: {
+          isDirty: form.formState.isDirty,
+          isValid: form.formState.isValid,
+          errors: form.formState.errors
+        },
+        timestamp: new Date().toISOString()
+      });
+
       // Check for changes
       const { hasChanges, changes } = checkFormChanges(values);
       
@@ -146,16 +189,37 @@ export function CoachProfileForm({
         timestamp: new Date().toISOString()
       });
       
+      if (!hasChanges) {
+        console.log("[NO_CHANGES_DETECTED]", {
+          values,
+          initialData,
+          timestamp: new Date().toISOString()
+        });
+        toast.info("No changes detected in the form");
+        return;
+      }
+      
       // Show confirmation toast
       toast.info("Submitting coach profile...");
-      
-      // Call onSubmit and await its completion
+
       await onSubmit(values);
+      
+      // Log successful submission
+      console.log("[SUBMISSION_SUCCESS]", {
+        values,
+        timestamp: new Date().toISOString()
+      });
+      
       toast.success("Coach profile saved successfully!");
       
     } catch (error) {
       console.error("[COACH_PROFILE_SUBMIT_ERROR]", {
         error,
+        formState: {
+          isDirty: form.formState.isDirty,
+          isValid: form.formState.isValid,
+          errors: form.formState.errors
+        },
         timestamp: new Date().toISOString()
       });
       toast.error("Failed to save coach profile");
@@ -190,7 +254,12 @@ export function CoachProfileForm({
               <CoachRateInfoSection control={form.control} />
 
               {/* Languages */}
-              <LanguagesSection control={form.control} />
+              <LanguagesSection 
+                initialLanguages={initialData?.languages || ['en']}
+                onLanguagesUpdate={(languages) => {
+                  form.setValue('languages', languages);
+                }}
+              />
             </div>
           </Card>
 
@@ -232,7 +301,6 @@ export function CoachProfileForm({
                 const { hasChanges, changes } = checkFormChanges(values);
                 
                 console.log("[SAVE_BUTTON_CLICKED]", {
-                  currentSpecialties: values.domainSpecialties,
                   hasChanges,
                   changes,
                   formState: {

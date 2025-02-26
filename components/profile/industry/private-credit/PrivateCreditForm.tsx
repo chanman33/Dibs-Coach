@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,9 +9,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { MultiSelect } from "@/components/ui/multi-select";
+import Select from "react-select";
+import CreatableSelect from "react-select/creatable";
 import { toast } from "sonner";
 import { FormField } from "@/components/ui/form-field";
+
+interface SelectOption {
+  label: string;
+  value: string;
+}
 
 const LOAN_TYPES = [
   "Bridge",
@@ -53,6 +60,8 @@ interface PrivateCreditFormProps {
 }
 
 export default function PrivateCreditForm({ initialData, onSubmit, isSubmitting = false }: PrivateCreditFormProps) {
+  const [isSubmittingState, setIsSubmittingState] = useState(false);
+
   const form = useForm<PrivateCreditFormValues>({
     resolver: zodResolver(privateCreditFormSchema),
     defaultValues: {
@@ -76,6 +85,7 @@ export default function PrivateCreditForm({ initialData, onSubmit, isSubmitting 
 
   const handleSubmit = async (data: PrivateCreditFormValues) => {
     try {
+      setIsSubmittingState(true);
       await onSubmit(data);
       toast.success("Private credit profile updated successfully");
     } catch (error) {
@@ -84,7 +94,106 @@ export default function PrivateCreditForm({ initialData, onSubmit, isSubmitting 
         timestamp: new Date().toISOString()
       });
       toast.error("Failed to update private credit profile");
+    } finally {
+      setIsSubmittingState(false);
     }
+  };
+
+  const selectStyles = {
+    control: (base: any) => ({
+      ...base,
+      backgroundColor: 'var(--background)',
+      borderColor: 'var(--input)',
+      borderRadius: 'var(--radius)',
+      '&:hover': {
+        borderColor: 'var(--input-hover)'
+      }
+    }),
+    menu: (base: any) => ({
+      ...base,
+      backgroundColor: 'var(--background)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius)',
+      boxShadow: 'var(--shadow)',
+      zIndex: 50,
+      backdropFilter: 'blur(4px)',
+      padding: 4
+    }),
+    menuList: (base: any) => ({
+      ...base,
+      padding: 0
+    }),
+    option: (base: any, state: any) => ({
+      ...base,
+      backgroundColor: state.isFocused 
+        ? 'var(--accent)' 
+        : state.isSelected 
+          ? 'var(--accent)' 
+          : 'var(--background)',
+      color: state.isFocused || state.isSelected 
+        ? 'var(--accent-foreground)' 
+        : 'var(--foreground)',
+      cursor: 'pointer',
+      borderRadius: 'var(--radius)',
+      margin: '2px 4px',
+      padding: '8px 12px',
+      ':active': {
+        backgroundColor: 'var(--accent)'
+      }
+    }),
+    multiValue: (base: any) => ({
+      ...base,
+      backgroundColor: 'var(--accent)',
+      borderRadius: 'var(--radius)',
+      padding: '0 2px'
+    }),
+    multiValueLabel: (base: any) => ({
+      ...base,
+      color: 'var(--accent-foreground)',
+      padding: '4px',
+      fontSize: '0.875rem'
+    }),
+    multiValueRemove: (base: any) => ({
+      ...base,
+      color: 'var(--accent-foreground)',
+      borderRadius: 'var(--radius)',
+      ':hover': {
+        backgroundColor: 'var(--destructive)',
+        color: 'var(--destructive-foreground)'
+      },
+      padding: '4px'
+    }),
+    placeholder: (base: any) => ({
+      ...base,
+      color: 'var(--muted-foreground)'
+    }),
+    input: (base: any) => ({
+      ...base,
+      color: 'var(--foreground)'
+    }),
+    clearIndicator: (base: any) => ({
+      ...base,
+      color: 'var(--muted-foreground)',
+      ':hover': {
+        color: 'var(--foreground)'
+      },
+      padding: '4px'
+    }),
+    dropdownIndicator: (base: any) => ({
+      ...base,
+      color: 'var(--muted-foreground)',
+      ':hover': {
+        color: 'var(--foreground)'
+      },
+      padding: '4px'
+    }),
+    noOptionsMessage: (base: any) => ({
+      ...base,
+      color: 'var(--muted-foreground)',
+      backgroundColor: 'var(--background)',
+      borderRadius: 'var(--radius)',
+      margin: '4px'
+    })
   };
 
   return (
@@ -173,11 +282,18 @@ export default function PrivateCreditForm({ initialData, onSubmit, isSubmitting 
                   control={form.control}
                   name="loanTypes"
                   render={({ field }) => (
-                    <MultiSelect
+                    <Select<SelectOption, true>
+                      isMulti
                       options={LOAN_TYPES.map(type => ({ label: type, value: type }))}
-                      value={field.value}
-                      onChange={field.onChange}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Select loan types"
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
                     />
                   )}
                 />
@@ -215,11 +331,19 @@ export default function PrivateCreditForm({ initialData, onSubmit, isSubmitting 
                   control={form.control}
                   name="licensedStates"
                   render={({ field }) => (
-                    <MultiSelect
-                      value={field.value}
-                      onChange={field.onChange}
+                    <CreatableSelect<SelectOption, true>
+                      isMulti
+                      options={field.value.map(value => ({ label: value, value }))}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Add licensed states"
-                      creatable
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
+                      isClearable
                     />
                   )}
                 />
@@ -233,11 +357,19 @@ export default function PrivateCreditForm({ initialData, onSubmit, isSubmitting 
                   control={form.control}
                   name="specializations"
                   render={({ field }) => (
-                    <MultiSelect
-                      value={field.value}
-                      onChange={field.onChange}
+                    <CreatableSelect<SelectOption, true>
+                      isMulti
+                      options={field.value.map(value => ({ label: value, value }))}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Add specializations"
-                      creatable
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
+                      isClearable
                     />
                   )}
                 />
@@ -247,11 +379,19 @@ export default function PrivateCreditForm({ initialData, onSubmit, isSubmitting 
                   control={form.control}
                   name="certifications"
                   render={({ field }) => (
-                    <MultiSelect
-                      value={field.value}
-                      onChange={field.onChange}
+                    <CreatableSelect<SelectOption, true>
+                      isMulti
+                      options={field.value.map(value => ({ label: value, value }))}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Add certifications"
-                      creatable
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
+                      isClearable
                     />
                   )}
                 />
@@ -261,11 +401,19 @@ export default function PrivateCreditForm({ initialData, onSubmit, isSubmitting 
                   control={form.control}
                   name="languages"
                   render={({ field }) => (
-                    <MultiSelect
-                      value={field.value}
-                      onChange={field.onChange}
+                    <CreatableSelect<SelectOption, true>
+                      isMulti
+                      options={field.value.map(value => ({ label: value, value }))}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Add languages"
-                      creatable
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
+                      isClearable
                     />
                   )}
                 />
@@ -274,8 +422,15 @@ export default function PrivateCreditForm({ initialData, onSubmit, isSubmitting 
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Save Changes"}
+        <Button type="submit" className="w-full" disabled={isSubmittingState}>
+          {isSubmittingState ? (
+            <>
+              <span className="mr-2">Saving...</span>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            </>
+          ) : (
+            "Save Changes"
+          )}
         </Button>
       </form>
     </Form>

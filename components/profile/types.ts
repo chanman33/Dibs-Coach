@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ProfileStatus } from "@/utils/types/coach";
+import { COMMON_LANGUAGES } from "@/lib/constants";
 
 // Domain specialties for coaches
 export const DOMAIN_SPECIALTIES = [
@@ -18,10 +19,7 @@ export const coachProfileFormSchema = z.object({
   // Coach Profile Fields
   specialties: z.array(z.string()).optional(),
   yearsCoaching: z.number().min(0, "Years must be 0 or greater"),
-  hourlyRate: z.number().min(0, "Rate must be 0 or greater"),
-  
-  // Domain expertise
-  domainSpecialties: z.array(z.string()).min(1, "Select at least one domain specialty"),
+  hourlyRate: z.number().min(100, "Please select an hourly rate").max(3000, "Maximum hourly rate is $3,000"),
   
   // Calendly Integration
   calendlyUrl: z.string().optional(),
@@ -34,8 +32,12 @@ export const coachProfileFormSchema = z.object({
   allowCustomDuration: z.boolean().default(false),
   
   // Professional Information
-  certifications: z.array(z.string()),
-  languages: z.array(z.string()),
+  languages: z.array(
+    z.string().refine(
+      (val) => COMMON_LANGUAGES.some(lang => lang.code === val),
+      { message: "Please select valid languages" }
+    )
+  ).min(1, "Please select at least one language"),
   marketExpertise: z.string().optional(),
   
   // Professional Recognitions
@@ -71,7 +73,7 @@ export interface CoachProfileInitialData {
   specialties?: string[];
   yearsCoaching?: number;
   hourlyRate?: number;
-  domainSpecialties?: string[];
+  domainSpecialties?: string[]; // Keep this for display purposes only
   calendlyUrl?: string;
   eventTypeUrl?: string;
   defaultDuration?: number;

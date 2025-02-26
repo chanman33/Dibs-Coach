@@ -60,49 +60,57 @@ export const GET = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       }
     }, { status: 500 });
   }
-}, { requiredRoles: [ROLES.COACH] });
+});
 
 export const POST = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
   const supabase = await createAuthClient();
-  
+
   try {
     const body = await req.json();
     const validatedData = CoachProfileSchema.parse(body);
 
-    // Start transaction
-    const { data: existingProfile, error: checkError } = await supabase
-      .from("CoachProfile")
-      .select("ulid")
-      .eq("userUlid", userUlid)
+    // Extract languages from validated data to update User model
+    const { languages, ...coachProfileData } = validatedData;
+
+    // Update languages in User model if provided
+    if (languages && languages.length > 0) {
+      const { error: userUpdateError } = await supabase
+        .from("User")
+        .update({ 
+          languages,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('ulid', userUlid);
+
+      if (userUpdateError) {
+        console.error("[COACH_PROFILE_ERROR] Failed to update user languages:", { userUlid, error: userUpdateError });
+        return NextResponse.json<ApiResponse<never>>({ 
+          data: null,
+          error: {
+            code: 'UPDATE_ERROR',
+            message: 'Failed to update user languages'
+          }
+        }, { status: 500 });
+      }
+    }
+
+    // Check if realtor profile exists
+    const { data: realtorProfile, error: fetchError } = await supabase
+      .from("RealtorProfile")
+      .select()
+      .eq('userUlid', userUlid)
       .single();
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.error("[COACH_PROFILE_ERROR] Failed to check existing profile:", { userUlid, error: checkError });
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error("[COACH_PROFILE_ERROR] Failed to fetch realtor profile:", { userUlid, error: fetchError });
       return NextResponse.json<ApiResponse<never>>({ 
         data: null,
         error: {
-          code: 'DB_ERROR',
-          message: 'Failed to check existing profile'
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch realtor profile'
         }
       }, { status: 500 });
     }
-
-    if (existingProfile) {
-      return NextResponse.json<ApiResponse<never>>({ 
-        data: null,
-        error: {
-          code: 'ALREADY_EXISTS',
-          message: 'Coach profile already exists'
-        }
-      }, { status: 400 });
-    }
-
-    // Create realtor profile if it doesn't exist
-    const { data: realtorProfile, error: realtorError } = await supabase
-      .from("RealtorProfile")
-      .select("ulid")
-      .eq("userUlid", userUlid)
-      .single();
 
     if (!realtorProfile) {
       const { error: createError } = await supabase
@@ -114,7 +122,6 @@ export const POST = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
           propertyTypes: [],
           specializations: [],
           certifications: [],
-          languages: [],
           geographicFocus: {},
           marketingAreas: [],
           testimonials: {},
@@ -133,11 +140,11 @@ export const POST = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       }
     }
 
-    // Create coach profile
+    // Create coach profile with remaining data (excluding languages)
     const { data: profile, error: createError } = await supabase
       .from("CoachProfile")
       .insert({
-        ...validatedData,
+        ...coachProfileData,
         userUlid,
         updatedAt: new Date().toISOString()
       })
@@ -160,25 +167,16 @@ export const POST = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       error: null
     });
   } catch (error) {
-    console.error("[COACH_PROFILE_ERROR] Unexpected error:", { userUlid, error });
-    if (error instanceof Error) {
-      return NextResponse.json<ApiResponse<never>>({ 
-        data: null,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: error.message
-        }
-      }, { status: 400 });
-    }
+    console.error("[COACH_PROFILE_ERROR]", error);
     return NextResponse.json<ApiResponse<never>>({ 
       data: null,
       error: {
-        code: 'INTERNAL_ERROR',
-        message: 'An unexpected error occurred'
+        code: 'VALIDATION_ERROR',
+        message: error instanceof Error ? error.message : 'Invalid request data'
       }
-    }, { status: 500 });
+    }, { status: 400 });
   }
-}, { requiredRoles: [ROLES.COACH] });
+});
 
 export const PUT = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
   const supabase = await createAuthClient();
@@ -186,6 +184,31 @@ export const PUT = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
   try {
     const data = await req.json();
     const validatedData = UpdateCoachProfileSchema.parse(data);
+
+    // Extract languages from validated data to update User model
+    const { languages, ...coachProfileData } = validatedData;
+
+    // Update languages in User model if provided
+    if (languages && languages.length > 0) {
+      const { error: userUpdateError } = await supabase
+        .from("User")
+        .update({ 
+          languages,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('ulid', userUlid);
+
+      if (userUpdateError) {
+        console.error("[COACH_PROFILE_ERROR] Failed to update user languages:", { userUlid, error: userUpdateError });
+        return NextResponse.json<ApiResponse<never>>({ 
+          data: null,
+          error: {
+            code: 'UPDATE_ERROR',
+            message: 'Failed to update user languages'
+          }
+        }, { status: 500 });
+      }
+    }
 
     // Get user and profile IDs
     const { data: profiles, error: profileError } = await supabase
@@ -209,11 +232,11 @@ export const PUT = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       }, { status: 404 });
     }
 
-    // Update coach profile
+    // Update coach profile with remaining data (excluding languages)
     const { data: updatedProfile, error: updateError } = await supabase
       .from("CoachProfile")
       .update({
-        ...validatedData,
+        ...coachProfileData,
         updatedAt: new Date().toISOString()
       })
       .eq("userUlid", userUlid)
@@ -254,4 +277,4 @@ export const PUT = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       }
     }, { status: 500 });
   }
-}, { requiredRoles: [ROLES.COACH] }); 
+}); 

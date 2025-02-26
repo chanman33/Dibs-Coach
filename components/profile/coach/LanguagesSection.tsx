@@ -1,81 +1,79 @@
 "use client"
 
 import { useState } from "react";
-import { Control } from "react-hook-form";
-import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
-import { FormSectionHeader } from "../common/FormSectionHeader";
-import { CoachProfileFormValues } from "../types";
+import { FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import Select from "react-select";
+import { COMMON_LANGUAGES } from "@/lib/constants";
+import { RequiredFieldIndicator } from "@/components/ui/required-field-indicator";
+import { selectStyles } from "@/components/ui/select-styles";
+import { updateUserLanguages } from "@/utils/actions/profile-actions";
+import { toast } from "sonner";
 
 interface LanguagesSectionProps {
-  control: Control<CoachProfileFormValues>;
+  initialLanguages?: string[];
+  onLanguagesUpdate?: (languages: string[]) => void;
 }
 
-export function LanguagesSection({ control }: LanguagesSectionProps) {
-  const [inputValue, setInputValue] = useState<string>("");
+export function LanguagesSection({ initialLanguages = ['en'], onLanguagesUpdate }: LanguagesSectionProps) {
+  const [languages, setLanguages] = useState<string[]>(initialLanguages);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleLanguageChange = async (newValue: any) => {
+    try {
+      setIsUpdating(true);
+      const selectedCodes = newValue ? newValue.map((item: any) => item.value) : ['en'];
+      
+      // Always include English
+      if (!selectedCodes.includes('en')) {
+        selectedCodes.unshift('en');
+      }
+
+      // Update languages in the database
+      const result = await updateUserLanguages({ languages: selectedCodes });
+      
+      if (result.error) {
+        toast.error("Failed to update languages");
+        return;
+      }
+
+      setLanguages(selectedCodes);
+      if (onLanguagesUpdate) {
+        onLanguagesUpdate(selectedCodes);
+      }
+      toast.success("Languages updated successfully");
+    } catch (error) {
+      console.error("[LANGUAGE_UPDATE_ERROR]", error);
+      toast.error("Failed to update languages");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   return (
-    <div className="space-y-4 mb-8">
-      <FormSectionHeader 
-        title="Languages" 
-        tooltip="List all languages you're comfortable coaching in. English is assumed."
+    <FormItem>
+      <FormLabel>
+        Languages <RequiredFieldIndicator />
+      </FormLabel>
+      <Select
+        isMulti
+        isDisabled={isUpdating}
+        placeholder="Select languages you speak"
+        options={COMMON_LANGUAGES.map(lang => ({
+          value: lang.code,
+          label: `${lang.name} (${lang.nativeName})`,
+        }))}
+        value={COMMON_LANGUAGES
+          .filter(lang => languages.includes(lang.code))
+          .map(lang => ({
+            value: lang.code,
+            label: `${lang.name} (${lang.nativeName})`
+          }))}
+        onChange={handleLanguageChange}
+        classNamePrefix="react-select"
+        className="react-select-container"
+        styles={selectStyles}
       />
-      
-      <FormField
-        control={control}
-        name="languages"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Languages You Speak</FormLabel>
-            <FormControl>
-              <div className="space-y-3">
-                <Input
-                  placeholder="Add a language (e.g., Spanish, French) and press Enter"
-                  value={inputValue}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && inputValue.trim()) {
-                      e.preventDefault();
-                      const newValue = [...(field.value || []), inputValue.trim()];
-                      field.onChange(newValue);
-                      setInputValue("");
-                    }
-                  }}
-                />
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {field.value?.map((language, index) => (
-                    <Badge key={index} variant="secondary" className="py-1.5 px-3">
-                      {language}
-                      <button
-                        type="button"
-                        className="ml-2 text-gray-500 hover:text-gray-700"
-                        onClick={() => {
-                          const newValue = [...field.value];
-                          newValue.splice(index, 1);
-                          field.onChange(newValue);
-                        }}
-                      >
-                        <X size={14} />
-                      </button>
-                    </Badge>
-                  ))}
-                  {!field.value?.length && (
-                    <div className="text-sm text-gray-500 italic">
-                      No languages added yet. English is assumed by default.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </FormControl>
-            <FormDescription>
-              Enter each language you speak fluently enough to coach in.
-            </FormDescription>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </div>
+      <FormMessage />
+    </FormItem>
   );
 } 

@@ -703,7 +703,6 @@ export type Database = {
           createdAt: string
           dealTypes: Database["public"]["Enums"]["CommercialDealType"][] | null
           geographicFocus: Json | null
-          languages: string[] | null
           licenseNumber: string | null
           primaryMarket: string | null
           propertyTypes:
@@ -726,7 +725,6 @@ export type Database = {
           createdAt?: string
           dealTypes?: Database["public"]["Enums"]["CommercialDealType"][] | null
           geographicFocus?: Json | null
-          languages?: string[] | null
           licenseNumber?: string | null
           primaryMarket?: string | null
           propertyTypes?:
@@ -749,7 +747,6 @@ export type Database = {
           createdAt?: string
           dealTypes?: Database["public"]["Enums"]["CommercialDealType"][] | null
           geographicFocus?: Json | null
-          languages?: string[] | null
           licenseNumber?: string | null
           primaryMarket?: string | null
           propertyTypes?:
@@ -895,7 +892,6 @@ export type Database = {
           createdAt: string
           geographicFocus: Json | null
           insuranceTypes: Database["public"]["Enums"]["InsuranceType"][] | null
-          languages: string[] | null
           licensedStates: string[] | null
           licenseNumber: string | null
           policiesIssued: number | null
@@ -914,7 +910,6 @@ export type Database = {
           createdAt?: string
           geographicFocus?: Json | null
           insuranceTypes?: Database["public"]["Enums"]["InsuranceType"][] | null
-          languages?: string[] | null
           licensedStates?: string[] | null
           licenseNumber?: string | null
           policiesIssued?: number | null
@@ -933,7 +928,6 @@ export type Database = {
           createdAt?: string
           geographicFocus?: Json | null
           insuranceTypes?: Database["public"]["Enums"]["InsuranceType"][] | null
-          languages?: string[] | null
           licensedStates?: string[] | null
           licenseNumber?: string | null
           policiesIssued?: number | null
@@ -965,7 +959,6 @@ export type Database = {
           investmentStrategies:
             | Database["public"]["Enums"]["InvestmentStrategy"][]
             | null
-          languages: string[] | null
           maxInvestmentAmount: number | null
           minInvestmentAmount: number | null
           preferredPropertyTypes: string[] | null
@@ -989,7 +982,6 @@ export type Database = {
           investmentStrategies?:
             | Database["public"]["Enums"]["InvestmentStrategy"][]
             | null
-          languages?: string[] | null
           maxInvestmentAmount?: number | null
           minInvestmentAmount?: number | null
           preferredPropertyTypes?: string[] | null
@@ -1013,7 +1005,6 @@ export type Database = {
           investmentStrategies?:
             | Database["public"]["Enums"]["InvestmentStrategy"][]
             | null
-          languages?: string[] | null
           maxInvestmentAmount?: number | null
           minInvestmentAmount?: number | null
           preferredPropertyTypes?: string[] | null
@@ -1385,7 +1376,6 @@ export type Database = {
           closedLoansCount: number | null
           createdAt: string
           geographicFocus: Json | null
-          languages: string[] | null
           lenderName: string | null
           licensedStates: string[] | null
           loanTypes: Database["public"]["Enums"]["LoanType"][] | null
@@ -1408,7 +1398,6 @@ export type Database = {
           closedLoansCount?: number | null
           createdAt?: string
           geographicFocus?: Json | null
-          languages?: string[] | null
           lenderName?: string | null
           licensedStates?: string[] | null
           loanTypes?: Database["public"]["Enums"]["LoanType"][] | null
@@ -1431,7 +1420,6 @@ export type Database = {
           closedLoansCount?: number | null
           createdAt?: string
           geographicFocus?: Json | null
-          languages?: string[] | null
           lenderName?: string | null
           licensedStates?: string[] | null
           loanTypes?: Database["public"]["Enums"]["LoanType"][] | null
@@ -1948,7 +1936,6 @@ export type Database = {
           createdAt: string
           geographicFocus: Json | null
           interestRateRange: Json | null
-          languages: string[] | null
           licensedStates: string[] | null
           licenseNumber: string | null
           loanTypes:
@@ -1973,7 +1960,6 @@ export type Database = {
           createdAt?: string
           geographicFocus?: Json | null
           interestRateRange?: Json | null
-          languages?: string[] | null
           licensedStates?: string[] | null
           licenseNumber?: string | null
           loanTypes?:
@@ -1998,7 +1984,6 @@ export type Database = {
           createdAt?: string
           geographicFocus?: Json | null
           interestRateRange?: Json | null
-          languages?: string[] | null
           licensedStates?: string[] | null
           licenseNumber?: string | null
           loanTypes?:
@@ -2103,7 +2088,6 @@ export type Database = {
           companyName: string | null
           createdAt: string
           geographicFocus: Json | null
-          languages: string[] | null
           licenseNumber: string | null
           managementSoftware: string | null
           managerTypes:
@@ -2129,7 +2113,6 @@ export type Database = {
           companyName?: string | null
           createdAt?: string
           geographicFocus?: Json | null
-          languages?: string[] | null
           licenseNumber?: string | null
           managementSoftware?: string | null
           managerTypes?:
@@ -2155,7 +2138,6 @@ export type Database = {
           companyName?: string | null
           createdAt?: string
           geographicFocus?: Json | null
-          languages?: string[] | null
           licenseNumber?: string | null
           managementSoftware?: string | null
           managerTypes?:
@@ -2193,7 +2175,6 @@ export type Database = {
           createdAt: string
           designations: string[] | null
           geographicFocus: Json | null
-          languages: string[] | null
           memberKey: string | null
           memberStatus: string | null
           mlsId: string | null
@@ -2213,7 +2194,6 @@ export type Database = {
           createdAt?: string
           designations?: string[] | null
           geographicFocus?: Json | null
-          languages?: string[] | null
           memberKey?: string | null
           memberStatus?: string | null
           mlsId?: string | null
@@ -2233,7 +2213,6 @@ export type Database = {
           createdAt?: string
           designations?: string[] | null
           geographicFocus?: Json | null
-          languages?: string[] | null
           memberKey?: string | null
           memberStatus?: string | null
           mlsId?: string | null
@@ -3008,7 +2987,6 @@ export type Database = {
           companyName: string | null
           createdAt: string
           geographicFocus: Json | null
-          languages: string[] | null
           licensedStates: string[] | null
           licenseNumber: string | null
           primaryMarket: string | null
@@ -3029,7 +3007,6 @@ export type Database = {
           companyName?: string | null
           createdAt?: string
           geographicFocus?: Json | null
-          languages?: string[] | null
           licensedStates?: string[] | null
           licenseNumber?: string | null
           primaryMarket?: string | null
@@ -3050,7 +3027,6 @@ export type Database = {
           companyName?: string | null
           createdAt?: string
           geographicFocus?: Json | null
-          languages?: string[] | null
           licensedStates?: string[] | null
           licenseNumber?: string | null
           primaryMarket?: string | null
@@ -3161,6 +3137,7 @@ export type Database = {
           industrySpecialties: string[] | null
           isCoach: boolean
           isMentee: boolean
+          languages: Database["public"]["Enums"]["Language"][] | null
           lastName: string | null
           phoneNumber: string | null
           primaryMarket: string | null
@@ -3184,6 +3161,7 @@ export type Database = {
           industrySpecialties?: string[] | null
           isCoach?: boolean
           isMentee?: boolean
+          languages?: Database["public"]["Enums"]["Language"][] | null
           lastName?: string | null
           phoneNumber?: string | null
           primaryMarket?: string | null
@@ -3207,6 +3185,7 @@ export type Database = {
           industrySpecialties?: string[] | null
           isCoach?: boolean
           isMentee?: boolean
+          languages?: Database["public"]["Enums"]["Language"][] | null
           lastName?: string | null
           phoneNumber?: string | null
           primaryMarket?: string | null
@@ -3584,6 +3563,21 @@ export type Database = {
         | "SYNDICATION"
         | "OTHER"
       InviteStatus: "PENDING" | "ACCEPTED" | "REJECTED" | "EXPIRED"
+      Language:
+        | "en"
+        | "es"
+        | "zh"
+        | "tl"
+        | "vi"
+        | "ar"
+        | "fr"
+        | "ko"
+        | "ru"
+        | "de"
+        | "hi"
+        | "pt"
+        | "it"
+        | "ja"
       ListingAgreement: "Exclusive" | "OpenListing" | "PocketListing"
       ListingStatus:
         | "Active"

@@ -528,6 +528,24 @@ enum InsuranceType {
   OTHER
 }
 
+// Language enum based on COMMON_LANGUAGES
+enum Language {
+  en      // English
+  es      // Spanish
+  zh      // Chinese
+  tl      // Tagalog
+  vi      // Vietnamese
+  ar      // Arabic
+  fr      // French
+  ko      // Korean
+  ru      // Russian
+  de      // German
+  hi      // Hindi
+  pt      // Portuguese
+  it      // Italian
+  ja      // Japanese
+}
+
 // Add new enums for Commercial and lending
 enum CommercialPropertyType {
   OFFICE
@@ -594,9 +612,10 @@ model User {
   profileImageUrl      String?
 
   // Industry specialties - direct access for better extensibility
-  industrySpecialties  String[]  @default([]) // e.g., ["REALTOR", "INVESTOR"]
+  industrySpecialties  String[]  @default([])
   primaryMarket        String?   // User's primary market/location
   totalYearsRE         Int       @default(0) 
+  languages            Language[] @default([en]) // Array of language codes, default to English
 
   // Industry Profiles
   realtorProfile          RealtorProfile?
@@ -916,7 +935,6 @@ model RealtorProfile {
   propertyTypes          String[]
   specializations        String[]
   certifications         String[]
-  languages             String[]
   companyName           String?
   
   // Geographic Focus
@@ -957,7 +975,6 @@ model LoanOfficerProfile {
   loanTypes              LoanType[]
   specializations        String[]
   certifications         String[]
-  languages             String[]
   
   // Performance Metrics
   closedLoansCount       Int?
@@ -994,7 +1011,6 @@ model InvestorProfile {
   investmentStrategies   InvestmentStrategy[]
   specializations        String[]
   certifications         String[]
-  languages             String[]
   
   // Investment Criteria
   minInvestmentAmount    Decimal? @db.Decimal(12,2)
@@ -1033,7 +1049,6 @@ model PropertyManagerProfile {
   managerTypes           PropertyManagerType[]
   specializations        String[]
   certifications         String[]
-  languages             String[]
   
   // Portfolio Metrics
   propertiesManaged      Int?
@@ -1074,7 +1089,6 @@ model TitleEscrowProfile {
   titleEscrowTypes       TitleEscrowType[]
   specializations        String[]
   certifications         String[]
-  languages             String[]
   
   // Performance Metrics
   closingsCompleted      Int?
@@ -1108,7 +1122,6 @@ model InsuranceProfile {
   insuranceTypes         InsuranceType[]
   specializations        String[]
   certifications         String[]
-  languages             String[]
   
   // Performance Metrics
   policiesIssued         Int?
@@ -1141,7 +1154,6 @@ model CommercialProfile {
   licenseNumber          String?  @unique
   specializations        String[]
   certifications         String[]
-  languages             String[]
   
   // Property Types & Focus
   propertyTypes          CommercialPropertyType[]
@@ -1179,7 +1191,6 @@ model PrivateCreditProfile {
   licenseNumber          String?  @unique
   specializations        String[]
   certifications         String[]
-  languages             String[]
   
   // Lending Parameters
   minLoanAmount         Decimal? @db.Decimal(12,2)

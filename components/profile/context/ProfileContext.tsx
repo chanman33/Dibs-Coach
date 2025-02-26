@@ -11,7 +11,8 @@ import {
   fetchUserCapabilities, 
   debugDirectSpecialtiesUpdate,
   fetchCoachProfile,
-  updateCoachProfile
+  updateCoachProfile,
+  updateUserLanguages
 } from "@/utils/actions/profile-actions";
 
 // Define the context shape
@@ -357,12 +358,25 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updateCoachData = async (data: CoachProfileFormValues) => {
     setIsSubmitting(true);
     try {
-      const result = await updateCoachProfile(data);
+      // First update languages in User model if they've changed
+      if (data.languages) {
+        const languageUpdateResult = await updateUserLanguages({
+          languages: data.languages
+        });
+        if (languageUpdateResult.error) {
+          toast.error("Failed to update languages");
+          return;
+        }
+      }
+
+      // Remove languages from coach profile data since it's handled separately
+      const { languages, ...coachProfileData } = data;
+      
+      // Update coach profile without languages
+      const result = await updateCoachProfile(coachProfileData);
       if (result.data) {
-        // Only set coach data if we have valid profile data
         const profileData = result.data as CoachProfileInitialData;
         setCoachData(profileData);
-        // Update completion status from updated coach profile data
         updateCompletionStatus(result.data);
         toast.success("Coach profile updated successfully");
       } else if (result.error) {

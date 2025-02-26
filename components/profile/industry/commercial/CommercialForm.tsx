@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,10 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { MultiSelect } from "@/components/ui/multi-select";
+import Select from "react-select";
+import CreatableSelect from "react-select/creatable";
 import { toast } from "sonner";
 import { FormField } from "@/components/ui/form-field";
 import { Controller } from "react-hook-form";
+import { selectStyles } from "@/components/ui/select-styles";
 
 const PROPERTY_TYPES = [
   "Office",
@@ -59,7 +62,14 @@ interface CommercialFormProps {
   isSubmitting?: boolean;
 }
 
+interface SelectOption {
+  label: string;
+  value: string;
+}
+
 export default function CommercialForm({ initialData, onSubmit, isSubmitting = false }: CommercialFormProps) {
+  const [isSubmittingState, setIsSubmittingState] = useState(false);
+  
   const form = useForm<CommercialFormValues>({
     resolver: zodResolver(commercialFormSchema),
     defaultValues: {
@@ -133,11 +143,18 @@ export default function CommercialForm({ initialData, onSubmit, isSubmitting = f
                   control={form.control}
                   name="propertyTypes"
                   render={({ field }) => (
-                    <MultiSelect
+                    <Select<SelectOption, true>
+                      isMulti
                       options={PROPERTY_TYPES.map(type => ({ label: type, value: type }))}
-                      value={field.value}
-                      onChange={field.onChange}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Select property types"
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
                     />
                   )}
                 />
@@ -147,11 +164,18 @@ export default function CommercialForm({ initialData, onSubmit, isSubmitting = f
                   control={form.control}
                   name="dealTypes"
                   render={({ field }) => (
-                    <MultiSelect
+                    <Select<SelectOption, true>
+                      isMulti
                       options={DEAL_TYPES.map(type => ({ label: type, value: type }))}
-                      value={field.value}
-                      onChange={field.onChange}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Select deal types"
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
                     />
                   )}
                 />
@@ -196,11 +220,19 @@ export default function CommercialForm({ initialData, onSubmit, isSubmitting = f
                   control={form.control}
                   name="serviceAreas"
                   render={({ field }) => (
-                    <MultiSelect
-                      value={field.value}
-                      onChange={field.onChange}
+                    <CreatableSelect<SelectOption, true>
+                      isMulti
+                      options={field.value.map(value => ({ label: value, value }))}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Add service areas"
-                      creatable
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
+                      isClearable
                     />
                   )}
                 />
@@ -214,11 +246,19 @@ export default function CommercialForm({ initialData, onSubmit, isSubmitting = f
                   control={form.control}
                   name="specializations"
                   render={({ field }) => (
-                    <MultiSelect
-                      value={field.value}
-                      onChange={field.onChange}
+                    <CreatableSelect<SelectOption, true>
+                      isMulti
+                      options={field.value.map(value => ({ label: value, value }))}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Add specializations"
-                      creatable
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
+                      isClearable
                     />
                   )}
                 />
@@ -228,11 +268,19 @@ export default function CommercialForm({ initialData, onSubmit, isSubmitting = f
                   control={form.control}
                   name="certifications"
                   render={({ field }) => (
-                    <MultiSelect
-                      value={field.value}
-                      onChange={field.onChange}
+                    <CreatableSelect<SelectOption, true>
+                      isMulti
+                      options={field.value.map(value => ({ label: value, value }))}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Add certifications"
-                      creatable
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
+                      isClearable
                     />
                   )}
                 />
@@ -242,11 +290,19 @@ export default function CommercialForm({ initialData, onSubmit, isSubmitting = f
                   control={form.control}
                   name="languages"
                   render={({ field }) => (
-                    <MultiSelect
-                      value={field.value}
-                      onChange={field.onChange}
+                    <CreatableSelect<SelectOption, true>
+                      isMulti
+                      options={field.value.map(value => ({ label: value, value }))}
+                      value={field.value.map(value => ({ label: value, value }))}
+                      onChange={(newValue) => {
+                        const selectedValues = newValue ? newValue.map(item => item.value) : [];
+                        field.onChange(selectedValues);
+                      }}
                       placeholder="Add languages"
-                      creatable
+                      classNamePrefix="react-select"
+                      className="react-select-container"
+                      styles={selectStyles}
+                      isClearable
                     />
                   )}
                 />
@@ -255,8 +311,15 @@ export default function CommercialForm({ initialData, onSubmit, isSubmitting = f
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Save Changes"}
+        <Button type="submit" className="w-full" disabled={isSubmittingState}>
+          {isSubmittingState ? (
+            <>
+              <span className="mr-2">Saving...</span>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            </>
+          ) : (
+            "Save Changes"
+          )}
         </Button>
       </form>
     </Form>

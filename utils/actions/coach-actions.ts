@@ -4,7 +4,7 @@ import { createAuthClient } from "../auth"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { revalidatePath } from "next/cache"
-import { PROFILE_STATUS, ProfileStatus } from "@/utils/types/coach"
+import { PROFILE_STATUS, type ProfileStatus } from "@/utils/types/coach"
 import { calculateProfileCompletion, PUBLICATION_THRESHOLD } from "@/utils/actions/calculateProfileCompletion"
 
 export interface CoachProfileFormData {
@@ -69,36 +69,49 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       const supabase = await createAuthClient()
 
       const { data, error } = await supabase
-        .from('User')
+        .from("User")
         .select(`
           firstName,
           lastName,
           bio,
           profileImageUrl,
-          coachProfile:CoachProfile (*),
-          realtorProfile:RealtorProfile (
-            *,
-            professionalRecognitions:ProfessionalRecognition (
+          languages,
+          coachProfile:CoachProfile(
+            ulid,
+            specialties,
+            yearsCoaching,
+            hourlyRate,
+            defaultDuration,
+            minimumDuration,
+            maximumDuration,
+            allowCustomDuration,
+            calendlyUrl,
+            eventTypeUrl,
+            domainSpecialties,
+            profileStatus,
+            updatedAt
+          ),
+          realtorProfile:RealtorProfile(
+            ulid,
+            bio,
+            certifications,
+            professionalRecognitions:ProfessionalRecognition(
               ulid,
               title,
               type,
-              issuer,
-              issueDate,
-              expiryDate,
+              organization,
               description,
-              verificationUrl,
-              certificateUrl,
-              status,
-              createdAt,
-              updatedAt
+              year,
+              isVisible,
+              industryType
             )
           ),
-          mortgageProfile:MortgageProfile (*),
-          insuranceProfile:InsuranceProfile (*),
-          propertyManagerProfile:PropertyManagerProfile (*)
+          mortgageProfile:LoanOfficerProfile(ulid),
+          insuranceProfile:InsuranceProfile(ulid),
+          propertyManagerProfile:PropertyManagerProfile(ulid)
         `)
-        .eq('ulid', userUlid)
-        .maybeSingle()
+        .eq("ulid", userUlid)
+        .single();
 
       if (error) {
         console.error('[DEBUG] Error fetching profiles:', error);
@@ -191,7 +204,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         allowCustomDuration: coachProfile?.allowCustomDuration || false,
         calendlyUrl: coachProfile?.calendlyUrl || "",
         eventTypeUrl: coachProfile?.eventTypeUrl || "",
-        languages: Array.isArray(realtorProfile?.languages) ? realtorProfile.languages : [],
+        languages: Array.isArray(data?.languages) ? data.languages : ['en'],
         certifications: Array.isArray(realtorProfile?.certifications) ? realtorProfile.certifications : [],
         marketExpertise: realtorProfile?.bio || "",
         professionalRecognitions: activeRecognitions,
@@ -279,20 +292,18 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
       
       const { percentage, missingFields, canPublish } = calculateProfileCompletion(profileData);
       
-      let profileStatus: ProfileStatus = PROFILE_STATUS.DRAFT;
-      if (canPublish) {
-        profileStatus = PROFILE_STATUS.REVIEW;
-      }
-
+      // Check existing profile status
       const { data: existingProfile, error: existingProfileError } = await supabase
         .from('CoachProfile')
         .select('profileStatus')
         .eq('userUlid', userUlid)
         .maybeSingle();
-        
-        if (existingProfile?.profileStatus === PROFILE_STATUS.PUBLISHED) {
-          profileStatus = PROFILE_STATUS.PUBLISHED;
-        }
+
+      // Determine profile status
+      let profileStatus: ProfileStatus = PROFILE_STATUS.DRAFT;
+      if (canPublish && existingProfile?.profileStatus === PROFILE_STATUS.PUBLISHED) {
+        profileStatus = PROFILE_STATUS.PUBLISHED;
+      }
 
       const coachProfileData = {
         userUlid,
