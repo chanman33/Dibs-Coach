@@ -71,28 +71,13 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
         }
       }
 
-      // Log the raw user data
-      console.log("[USER_PROFILE_FETCH]", {
-        userUlid,
-        rawUserData: userData,
-        totalYearsRE: userData?.totalYearsRE,
-        timestamp: new Date().toISOString()
-      });
-
       // Return values with proper defaults
       const responseData = {
         displayName: userData?.displayName || "",
         bio: userData?.bio || null,
-        totalYearsRE: userData?.totalYearsRE ?? 0, // Using nullish coalescing to only default when null/undefined
+        totalYearsRE: userData?.totalYearsRE ?? 0,
         primaryMarket: userData?.primaryMarket || ""
       };
-
-      // Log the response data
-      console.log("[USER_PROFILE_RESPONSE]", {
-        userUlid,
-        responseData,
-        timestamp: new Date().toISOString()
-      });
 
       return {
         data: responseData,
@@ -196,8 +181,7 @@ export const fetchCoachProfile = withServerAction<any, void>(
         .maybeSingle();
         
       if (userError) {
-        console.error("[FETCH_USER_SPECIALTIES_ERROR]", { 
-          userUlid, 
+        console.error("[DB_ERROR]", { 
           error: userError,
           timestamp: new Date().toISOString()
         });
@@ -213,11 +197,6 @@ export const fetchCoachProfile = withServerAction<any, void>(
 
       // Check if user has COACH capability
       if (!userData?.capabilities?.includes('COACH')) {
-        console.error("[COACH_CAPABILITY_ERROR]", {
-          userUlid,
-          message: "User does not have COACH capability",
-          timestamp: new Date().toISOString()
-        });
         return {
           data: null,
           error: {
@@ -232,6 +211,7 @@ export const fetchCoachProfile = withServerAction<any, void>(
       const { data: coachProfile, error: coachError } = await supabase
         .from("CoachProfile")
         .select(`
+          ulid,
           yearsCoaching,
           hourlyRate,
           defaultDuration,
@@ -245,40 +225,25 @@ export const fetchCoachProfile = withServerAction<any, void>(
         .eq("userUlid", userUlid)
         .maybeSingle()
 
-      // If there's no coach profile, return default values
-      if (!coachProfile || coachError) {
-        console.log("[COACH_PROFILE_INIT]", { 
-          userUlid,
-          message: "Initializing new coach profile with default values",
+      if (coachError) {
+        console.error("[DB_ERROR]", { 
+          error: coachError,
           timestamp: new Date().toISOString()
         });
-        
-        // Return user data with default coach profile values
         return {
-          data: {
-            domainSpecialties: userData?.industrySpecialties || [],
-            specialties: [],
-            yearsCoaching: 0,
-            hourlyRate: 0,
-            defaultDuration: 60,
-            minimumDuration: 30,
-            maximumDuration: 120,
-            allowCustomDuration: false,
-            calendlyUrl: "",
-            eventTypeUrl: "",
-            profileStatus: "DRAFT",
-            completionPercentage: 0,
-            canPublish: false,
-            missingFields: ["basicInfo", "specialties", "calendly"]
-          },
-          error: null
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch coach profile',
+            details: coachError
+          }
         };
       }
 
-      // Calculate missing fields
+      // Calculate missing fields and completion percentage
       const missingFields: string[] = [];
-      if (!coachProfile.yearsCoaching) missingFields.push("basicInfo");
-      if (!coachProfile.calendlyUrl) missingFields.push("calendly");
+      if (!coachProfile?.yearsCoaching) missingFields.push("basicInfo");
+      if (!coachProfile?.calendlyUrl) missingFields.push("calendly");
       if (!userData?.industrySpecialties?.length) missingFields.push("specialties");
 
       // Calculate completion percentage
@@ -286,10 +251,6 @@ export const fetchCoachProfile = withServerAction<any, void>(
       const completedFields = totalFields - missingFields.length;
       const completionPercentage = Math.round((completedFields / totalFields) * 100);
 
-      // Determine if profile can be published
-      const canPublish = missingFields.length === 0;
-
-      // Return combined data with calculated fields
       return {
         data: {
           domainSpecialties: userData?.industrySpecialties || [],
@@ -304,19 +265,19 @@ export const fetchCoachProfile = withServerAction<any, void>(
           eventTypeUrl: coachProfile?.eventTypeUrl || "",
           profileStatus: coachProfile?.profileStatus || "DRAFT",
           completionPercentage,
-          canPublish,
+          canPublish: missingFields.length === 0,
           missingFields
         },
         error: null
       };
     } catch (error) {
-      console.error("[COACH_PROFILE_ERROR]", {
+      console.error("[INTERNAL_ERROR]", {
         error,
+        stack: error instanceof Error ? error.stack : undefined,
         timestamp: new Date().toISOString()
       });
       return {
         data: {
-          // Default values in case of error
           yearsCoaching: 0,
           hourlyRate: 0,
           defaultDuration: 60,
@@ -643,11 +604,6 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
 
       // Use the industrySpecialties as both domain specialties and active domains
       const domainSpecialties = userData.industrySpecialties || [];
-
-      console.log("[USER_CAPABILITIES]", { 
-        capabilities: userData.capabilities,
-        domainSpecialties
-      });
 
       return {
         data: {

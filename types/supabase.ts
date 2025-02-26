@@ -635,6 +635,7 @@ export type Database = {
           maximumDuration: number
           minimumDuration: number
           profileStatus: Database["public"]["Enums"]["ProfileStatus"]
+          selectedSpecialties: string[] | null
           totalSessions: number
           ulid: string
           updatedAt: string
@@ -655,6 +656,7 @@ export type Database = {
           maximumDuration?: number
           minimumDuration?: number
           profileStatus?: Database["public"]["Enums"]["ProfileStatus"]
+          selectedSpecialties?: string[] | null
           totalSessions?: number
           ulid: string
           updatedAt: string
@@ -675,6 +677,7 @@ export type Database = {
           maximumDuration?: number
           minimumDuration?: number
           profileStatus?: Database["public"]["Enums"]["ProfileStatus"]
+          selectedSpecialties?: string[] | null
           totalSessions?: number
           ulid?: string
           updatedAt?: string
@@ -3162,7 +3165,6 @@ export type Database = {
           phoneNumber: string | null
           primaryMarket: string | null
           profileImageUrl: string | null
-          selectedSpecialties: string[] | null
           status: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId: string | null
           stripeCustomerId: string | null
@@ -3186,7 +3188,6 @@ export type Database = {
           phoneNumber?: string | null
           primaryMarket?: string | null
           profileImageUrl?: string | null
-          selectedSpecialties?: string[] | null
           status?: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId?: string | null
           stripeCustomerId?: string | null
@@ -3210,7 +3211,6 @@ export type Database = {
           phoneNumber?: string | null
           primaryMarket?: string | null
           profileImageUrl?: string | null
-          selectedSpecialties?: string[] | null
           status?: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId?: string | null
           stripeCustomerId?: string | null
