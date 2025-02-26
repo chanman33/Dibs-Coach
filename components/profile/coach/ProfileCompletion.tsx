@@ -126,7 +126,7 @@ export function ProfileCompletion({
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-semibold text-blue-900">Profile Setup</h3>
+            <h3 className="text-lg font-semibold text-blue-900">Coach Profile Setup</h3>
             <p className="text-sm text-blue-700">
               {profileStatus === PROFILE_STATUS.PUBLISHED
                 ? 'Your profile is visible to potential clients'

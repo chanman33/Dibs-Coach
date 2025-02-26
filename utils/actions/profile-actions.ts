@@ -196,8 +196,7 @@ export const fetchCoachProfile = withServerAction<any, void>(
       const { data: userData, error: userError } = await supabase
         .from("User")
         .select(`
-          industrySpecialties,
-          confirmedSpecialties
+          industrySpecialties
         `)
         .eq("ulid", userUlid)
         .maybeSingle();
@@ -213,14 +212,21 @@ export const fetchCoachProfile = withServerAction<any, void>(
         return {
           data: {
             domainSpecialties: [],
-            confirmedSpecialties: [],
-            specialties: []
+            specialties: [],
+            yearsCoaching: 0,
+            hourlyRate: 0,
+            defaultDuration: 60,
+            minimumDuration: 30,
+            maximumDuration: 120,
+            allowCustomDuration: false,
+            calendlyUrl: "",
+            eventTypeUrl: "",
+            profileStatus: "DRAFT",
+            completionPercentage: 0,
+            canPublish: false,
+            missingFields: []
           },
-          error: {
-            code: 'USER_NOT_FOUND',
-            message: 'User not found',
-            details: userError
-          }
+          error: null
         };
       }
       
@@ -235,23 +241,24 @@ export const fetchCoachProfile = withServerAction<any, void>(
           maximumDuration,
           allowCustomDuration,
           calendlyUrl,
-          eventTypeUrl
+          eventTypeUrl,
+          profileStatus
         `)
         .eq("userUlid", userUlid)
         .maybeSingle()
 
-      if (coachError) {
-        console.error("[COACH_PROFILE_ERROR]", { 
-          userUlid, 
+      // If there's no coach profile, return default values
+      if (!coachProfile || coachError) {
+        console.log("[COACH_PROFILE_NOT_FOUND]", { 
+          userUlid,
           error: coachError,
           timestamp: new Date().toISOString()
         });
         
-        // Return user data even if coach profile fetch fails
+        // Return user data with default coach profile values
         return {
           data: {
             domainSpecialties: userData?.industrySpecialties || [],
-            confirmedSpecialties: userData?.confirmedSpecialties || [],
             specialties: [],
             yearsCoaching: 0,
             hourlyRate: 0,
@@ -260,7 +267,11 @@ export const fetchCoachProfile = withServerAction<any, void>(
             maximumDuration: 120,
             allowCustomDuration: false,
             calendlyUrl: "",
-            eventTypeUrl: ""
+            eventTypeUrl: "",
+            profileStatus: "DRAFT",
+            completionPercentage: 0,
+            canPublish: false,
+            missingFields: []
           },
           error: null
         };
@@ -270,7 +281,6 @@ export const fetchCoachProfile = withServerAction<any, void>(
       return {
         data: {
           domainSpecialties: userData?.industrySpecialties || [],
-          confirmedSpecialties: userData?.confirmedSpecialties || [],
           specialties: [],
           yearsCoaching: coachProfile?.yearsCoaching || 0,
           hourlyRate: coachProfile?.hourlyRate || 0,
@@ -279,7 +289,11 @@ export const fetchCoachProfile = withServerAction<any, void>(
           maximumDuration: coachProfile?.maximumDuration || 120,
           allowCustomDuration: coachProfile?.allowCustomDuration || false,
           calendlyUrl: coachProfile?.calendlyUrl || "",
-          eventTypeUrl: coachProfile?.eventTypeUrl || ""
+          eventTypeUrl: coachProfile?.eventTypeUrl || "",
+          profileStatus: coachProfile?.profileStatus || "DRAFT",
+          completionPercentage: 0,
+          canPublish: false,
+          missingFields: []
         },
         error: null
       };
@@ -301,8 +315,11 @@ export const fetchCoachProfile = withServerAction<any, void>(
           eventTypeUrl: "",
           professionalRecognitions: [],
           domainSpecialties: [],
-          confirmedSpecialties: [],
-          specialties: []
+          specialties: [],
+          profileStatus: "DRAFT",
+          completionPercentage: 0,
+          canPublish: false,
+          missingFields: []
         },
         error: {
           code: 'INTERNAL_ERROR',
@@ -470,7 +487,7 @@ export const saveCoachSpecialties = withServerAction<SpecialtiesResponse, Specia
       // First, check if the user exists and get current values
       const { data: userData, error: userError } = await supabase
         .from("User")
-        .select("industrySpecialties, confirmedSpecialties")
+        .select("industrySpecialties")
         .eq("ulid", userUlid)
         .single();
         
@@ -493,7 +510,6 @@ export const saveCoachSpecialties = withServerAction<SpecialtiesResponse, Specia
       console.log("[SAVE_SPECIALTIES_CURRENT_VALUES]", {
         userUlid,
         currentIndustrySpecialties: userData.industrySpecialties,
-        currentConfirmedSpecialties: userData.confirmedSpecialties,
         timestamp: new Date().toISOString()
       });
       
@@ -506,16 +522,15 @@ export const saveCoachSpecialties = withServerAction<SpecialtiesResponse, Specia
         timestamp: new Date().toISOString()
       });
       
-      // Simple direct update approach
+      // Update only industrySpecialties
       const { data: updateResult, error: updateError } = await supabase
         .from("User")
         .update({
           industrySpecialties: specialtiesToSave,
-          confirmedSpecialties: specialtiesToSave,
           updatedAt: new Date().toISOString()
         })
         .eq("ulid", userUlid)
-        .select("industrySpecialties, confirmedSpecialties");
+        .select("industrySpecialties");
 
       // Log the update result
       console.log("[SAVE_SPECIALTIES_UPDATE_RESULT]", {
@@ -533,60 +548,14 @@ export const saveCoachSpecialties = withServerAction<SpecialtiesResponse, Specia
           specialties: specialtiesToSave,
           timestamp: new Date().toISOString()
         });
-        
-        // Try a simpler approach with just one field
-        console.log("[SAVE_SPECIALTIES_TRYING_SIMPLER_UPDATE]", {
-          userUlid,
-          timestamp: new Date().toISOString()
-        });
-        
-        const { data: simpleUpdateResult, error: simpleUpdateError } = await supabase
-          .from("User")
-          .update({
-            industrySpecialties: specialtiesToSave
-          })
-          .eq("ulid", userUlid)
-          .select("industrySpecialties");
-          
-        console.log("[SAVE_SPECIALTIES_SIMPLER_UPDATE_RESULT]", {
-          userUlid,
-          success: !simpleUpdateError,
-          error: simpleUpdateError,
-          updatedData: simpleUpdateResult,
-          timestamp: new Date().toISOString()
-        });
-        
-        if (simpleUpdateError) {
-          return {
-            data: null,
-            error: {
-              code: 'UPDATE_ERROR',
-              message: 'Failed to update user specialties',
-              details: updateError
-            }
-          };
-        }
-        
-        // If the simpler update succeeded, use those values
-        if (simpleUpdateResult && simpleUpdateResult.length > 0) {
-          const updatedUser = simpleUpdateResult[0];
-          
-          // Revalidate the profile page
-          revalidatePath('/dashboard/coach/profile');
-          
-          console.log("[SAVE_SPECIALTIES_PARTIAL_SUCCESS]", {
-            userUlid,
-            specialties: updatedUser.industrySpecialties,
-            timestamp: new Date().toISOString()
-          });
-          
-          return {
-            data: {
-              activeDomains: updatedUser.industrySpecialties || []
-            },
-            error: null
-          };
-        }
+        return {
+          data: null,
+          error: {
+            code: 'UPDATE_ERROR',
+            message: 'Failed to update user specialties',
+            details: updateError
+          }
+        };
       }
 
       // Revalidate the profile page
@@ -643,8 +612,7 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
         .from("User")
         .select(`
           capabilities,
-          industrySpecialties,
-          confirmedSpecialties
+          industrySpecialties
         `)
         .eq("ulid", userUlid)
         .single();
@@ -661,21 +629,19 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
         };
       }
 
-      // Use the industrySpecialties and confirmedSpecialties directly from the User model
+      // Use the industrySpecialties as both domain specialties and active domains
       const domainSpecialties = userData.industrySpecialties || [];
-      const activeDomains = userData.confirmedSpecialties || [];
 
       console.log("[USER_CAPABILITIES]", { 
         capabilities: userData.capabilities,
-        domainSpecialties,
-        activeDomains
+        domainSpecialties
       });
 
       return {
         data: {
           capabilities: userData.capabilities || [],
           domainSpecialties,
-          activeDomains
+          activeDomains: domainSpecialties
         },
         error: null
       };

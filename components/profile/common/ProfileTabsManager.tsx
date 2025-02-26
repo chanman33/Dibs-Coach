@@ -59,11 +59,14 @@ interface ProfileTabsManagerProps {
   coachFormContent: React.ReactNode;
   realtorFormContent?: React.ReactNode;
   investorFormContent?: React.ReactNode;
+  investorListingsContent?: React.ReactNode;
   mortgageFormContent?: React.ReactNode;
   propertyManagerFormContent?: React.ReactNode;
+  propertyManagerListingsContent?: React.ReactNode;
   titleEscrowFormContent?: React.ReactNode;
   insuranceFormContent?: React.ReactNode;
   commercialFormContent?: React.ReactNode;
+  commercialListingsContent?: React.ReactNode;
   privateCreditFormContent?: React.ReactNode;
   initialRecognitions?: ProfessionalRecognition[];
   onSubmitRecognitions: (recognitions: ProfessionalRecognition[]) => Promise<void>;
@@ -83,11 +86,14 @@ export function ProfileTabsManager({
   coachFormContent,
   realtorFormContent,
   investorFormContent,
+  investorListingsContent,
   mortgageFormContent,
   propertyManagerFormContent,
+  propertyManagerListingsContent,
   titleEscrowFormContent,
   insuranceFormContent,
   commercialFormContent,
+  commercialListingsContent,
   privateCreditFormContent,
   initialRecognitions = [],
   onSubmitRecognitions,
@@ -159,12 +165,23 @@ export function ProfileTabsManager({
     }
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.INVESTOR) && investorFormContent) {
+      // Add the main Investor Profile tab
       domainSubTabs.push({
         id: "investor",
         label: "Investor Profile",
         icon: <Building className="h-4 w-4" />,
         content: investorFormContent
       });
+      
+      // Add the Listings tab for Investors
+      if (investorListingsContent) {
+        domainSubTabs.push({
+          id: "investor-listings",
+          label: "Investment Properties",
+          icon: <List className="h-4 w-4" />,
+          content: investorListingsContent
+        });
+      }
     }
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.MORTGAGE) && mortgageFormContent) {
@@ -177,6 +194,7 @@ export function ProfileTabsManager({
     }
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.PROPERTY_MANAGER) && propertyManagerFormContent) {
+      // Add the main Property Manager Profile tab
       domainSubTabs.push({
         id: "property-manager",
         label: "Property Manager Profile",
@@ -184,20 +202,15 @@ export function ProfileTabsManager({
         content: propertyManagerFormContent
       });
       
-      // Add a dedicated tab for property management listings if needed
-      domainSubTabs.push({
-        id: "property-manager-listings",
-        label: "Properties",
-        icon: <Home className="h-4 w-4" />,
-        content: (
-          <div className="p-6 bg-muted/20 rounded-lg text-center">
-            <h3 className="text-lg font-medium mb-2">Property Management Listings</h3>
-            <p className="text-muted-foreground">
-              This feature is coming soon. You'll be able to showcase your managed properties here.
-            </p>
-          </div>
-        )
-      });
+      // Add the Listings tab for Property Managers
+      if (propertyManagerListingsContent) {
+        domainSubTabs.push({
+          id: "property-manager-listings",
+          label: "Managed Properties",
+          icon: <List className="h-4 w-4" />,
+          content: propertyManagerListingsContent
+        });
+      }
     }
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.TITLE_ESCROW) && titleEscrowFormContent) {
@@ -218,14 +231,25 @@ export function ProfileTabsManager({
       });
     }
 
-    // Add Commercial Profile tab
+    // Add Commercial Profile and Listings tabs
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.COMMERCIAL) && commercialFormContent) {
+      // Add the main Commercial Profile tab
       domainSubTabs.push({
         id: "commercial",
         label: "Commercial Profile",
         icon: <Building className="h-4 w-4" />,
         content: commercialFormContent
       });
+      
+      // Add the Listings tab for Commercial
+      if (commercialListingsContent) {
+        domainSubTabs.push({
+          id: "commercial-listings",
+          label: "Commercial Properties",
+          icon: <List className="h-4 w-4" />,
+          content: commercialListingsContent
+        });
+      }
     }
 
     // Add Private Credit Profile tab
@@ -356,11 +380,14 @@ export function ProfileTabsManager({
     coachFormContent,
     realtorFormContent,
     investorFormContent,
+    investorListingsContent,
     mortgageFormContent,
     propertyManagerFormContent,
+    propertyManagerListingsContent,
     titleEscrowFormContent,
     insuranceFormContent,
     commercialFormContent,
+    commercialListingsContent,
     privateCreditFormContent,
     initialRecognitions,
     onSubmitRecognitions,

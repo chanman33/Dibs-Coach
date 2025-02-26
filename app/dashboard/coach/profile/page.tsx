@@ -12,6 +12,9 @@ import GoalsForm from "@/components/profile/common/GoalsForm";
 import { Loader } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { InvestorListings } from "@/components/profile/industry/investor";
+import { PropertyManagerListings } from "@/components/profile/industry/property-manager";
+import { CommercialListings } from "@/components/profile/industry/commercial";
 
 // Main profile page content component
 function ProfilePageContent() {
@@ -552,11 +555,20 @@ function ProfilePageContent() {
           ) : null
         }
         investorFormContent={getInvestorFormContent()}
+        investorListingsContent={
+          selectedSpecialties.includes("INVESTOR") ? <InvestorListings /> : null
+        }
         mortgageFormContent={getMortgageFormContent()}
         propertyManagerFormContent={getPropertyManagerFormContent()}
+        propertyManagerListingsContent={
+          selectedSpecialties.includes("PROPERTY_MANAGER") ? <PropertyManagerListings /> : null
+        }
         titleEscrowFormContent={getTitleEscrowFormContent()}
         insuranceFormContent={getInsuranceFormContent()}
         commercialFormContent={getCommercialFormContent()}
+        commercialListingsContent={
+          selectedSpecialties.includes("COMMERCIAL") ? <CommercialListings /> : null
+        }
         privateCreditFormContent={getPrivateCreditFormContent()}
         initialRecognitions={recognitionsData}
         onSubmitRecognitions={updateRecognitionsData}

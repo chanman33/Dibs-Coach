@@ -31,11 +31,14 @@ interface ProfileTabsManagerProps {
   coachFormContent: React.ReactNode;
   realtorFormContent?: React.ReactNode;
   investorFormContent?: React.ReactNode;
+  investorListingsContent?: React.ReactNode;
   mortgageFormContent?: React.ReactNode;
   propertyManagerFormContent?: React.ReactNode;
+  propertyManagerListingsContent?: React.ReactNode;
   titleEscrowFormContent?: React.ReactNode;
   insuranceFormContent?: React.ReactNode;
   commercialFormContent?: React.ReactNode;
+  commercialListingsContent?: React.ReactNode;
   privateCreditFormContent?: React.ReactNode;
   initialRecognitions?: ProfessionalRecognition[];
   onSubmitRecognitions: (recognitions: ProfessionalRecognition[]) => Promise<void>;
@@ -55,11 +58,14 @@ export default function ProfileTabsManager({
   coachFormContent,
   realtorFormContent,
   investorFormContent,
+  investorListingsContent,
   mortgageFormContent,
   propertyManagerFormContent,
+  propertyManagerListingsContent,
   titleEscrowFormContent,
   insuranceFormContent,
   commercialFormContent,
+  commercialListingsContent,
   privateCreditFormContent,
   initialRecognitions,
   onSubmitRecognitions,
@@ -157,7 +163,7 @@ export default function ProfileTabsManager({
         )}
       </TabsList>
 
-      <div className="mt-6">
+      <div className="mt-6 space-y-6">
         <TabsContent value="general">
           {/* General content */}
         </TabsContent>
@@ -176,7 +182,10 @@ export default function ProfileTabsManager({
 
         {isSpecialtyEnabled(INDUSTRY_SPECIALTIES.INVESTOR) && (
           <TabsContent value="investor">
-            {investorFormContent}
+            <div className="space-y-6">
+              {investorFormContent}
+              {investorListingsContent}
+            </div>
           </TabsContent>
         )}
 
@@ -188,7 +197,10 @@ export default function ProfileTabsManager({
 
         {isSpecialtyEnabled(INDUSTRY_SPECIALTIES.PROPERTY_MANAGER) && (
           <TabsContent value="property-manager">
-            {propertyManagerFormContent}
+            <div className="space-y-6">
+              {propertyManagerFormContent}
+              {propertyManagerListingsContent}
+            </div>
           </TabsContent>
         )}
 
@@ -206,7 +218,10 @@ export default function ProfileTabsManager({
 
         {isSpecialtyEnabled(INDUSTRY_SPECIALTIES.COMMERCIAL) && (
           <TabsContent value="commercial">
-            {commercialFormContent}
+            <div className="space-y-6">
+              {commercialFormContent}
+              {commercialListingsContent}
+            </div>
           </TabsContent>
         )}
 
