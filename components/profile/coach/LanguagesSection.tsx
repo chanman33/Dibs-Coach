@@ -1,12 +1,11 @@
 "use client"
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import Select from "react-select";
 import { COMMON_LANGUAGES } from "@/lib/constants";
-import { RequiredFieldIndicator } from "@/components/ui/required-field-indicator";
 import { selectStyles } from "@/components/ui/select-styles";
-import { updateUserLanguages } from "@/utils/actions/profile-actions";
+import { updateUserLanguages, fetchUserLanguages } from "@/utils/actions/profile-actions";
 import { toast } from "sonner";
 
 interface LanguagesSectionProps {
@@ -17,21 +16,56 @@ interface LanguagesSectionProps {
 export function LanguagesSection({ initialLanguages = ['en'], onLanguagesUpdate }: LanguagesSectionProps) {
   const [languages, setLanguages] = useState<string[]>(initialLanguages);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch languages on mount
+  useEffect(() => {
+    const loadLanguages = async () => {
+      try {
+        const result = await fetchUserLanguages();
+        
+        if (result.error) {
+          console.error("[LANGUAGES_FETCH_ERROR]", result.error);
+          return;
+        }
+
+        if (result.data) {
+          console.log("[LANGUAGES_FETCH_SUCCESS]", {
+            languages: result.data.languages,
+            timestamp: new Date().toISOString()
+          });
+          setLanguages(result.data.languages);
+        }
+      } catch (error) {
+        console.error("[LANGUAGES_FETCH_ERROR]", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadLanguages();
+  }, []);
 
   const handleLanguageChange = async (newValue: any) => {
     try {
       setIsUpdating(true);
       const selectedCodes = newValue ? newValue.map((item: any) => item.value) : ['en'];
       
-      // Always include English
-      if (!selectedCodes.includes('en')) {
-        selectedCodes.unshift('en');
+      // Always include English as default if no languages are selected
+      if (selectedCodes.length === 0) {
+        selectedCodes.push('en');
       }
+
+      console.log("[LANGUAGE_UPDATE_START]", {
+        selectedCodes,
+        timestamp: new Date().toISOString()
+      });
 
       // Update languages in the database
       const result = await updateUserLanguages({ languages: selectedCodes });
       
       if (result.error) {
+        console.error("[LANGUAGE_UPDATE_ERROR]", result.error);
         toast.error("Failed to update languages");
         return;
       }
@@ -41,6 +75,11 @@ export function LanguagesSection({ initialLanguages = ['en'], onLanguagesUpdate 
         onLanguagesUpdate(selectedCodes);
       }
       toast.success("Languages updated successfully");
+
+      console.log("[LANGUAGE_UPDATE_SUCCESS]", {
+        languages: selectedCodes,
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
       console.error("[LANGUAGE_UPDATE_ERROR]", error);
       toast.error("Failed to update languages");
@@ -49,15 +88,22 @@ export function LanguagesSection({ initialLanguages = ['en'], onLanguagesUpdate 
     }
   };
 
+  if (isLoading) {
+    return (
+      <FormItem>
+        <FormLabel>Languages</FormLabel>
+        <div className="h-10 animate-pulse bg-muted rounded-md" />
+      </FormItem>
+    );
+  }
+
   return (
     <FormItem>
-      <FormLabel>
-        Languages <RequiredFieldIndicator />
-      </FormLabel>
+      <FormLabel>Languages</FormLabel>
       <Select
         isMulti
         isDisabled={isUpdating}
-        placeholder="Select languages you speak"
+        placeholder="Select languages you speak (English is default)"
         options={COMMON_LANGUAGES.map(lang => ({
           value: lang.code,
           label: `${lang.name} (${lang.nativeName})`,

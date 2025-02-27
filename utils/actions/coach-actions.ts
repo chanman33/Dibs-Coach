@@ -19,7 +19,6 @@ export interface CoachProfileFormData {
   eventTypeUrl?: string;
   domainSpecialties?: string[];
   certifications?: string[];
-  languages?: string[];
   professionalRecognitions?: ProfessionalRecognition[];
 }
 
@@ -43,7 +42,6 @@ interface CoachProfileResponse {
   allowCustomDuration: boolean;
   calendlyUrl: string;
   eventTypeUrl: string;
-  languages: string[];
   certifications: string[];
   professionalRecognitions: ProfessionalRecognition[];
   domainSpecialties: string[];
@@ -62,7 +60,12 @@ interface CoachProfileResponse {
 export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
   async (_, { userUlid }) => {
     try {
-      const supabase = createAuthClient();
+      const supabase = await createAuthClient();
+
+      console.log("[FETCH_COACH_PROFILE_START]", {
+        userUlid,
+        timestamp: new Date().toISOString()
+      });
 
       // Fetch coach profile with professional recognitions
       const { data: coachProfile, error: coachError } = await supabase
@@ -110,8 +113,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           firstName,
           lastName,
           bio,
-          profileImageUrl,
-          languages
+          profileImageUrl
         `)
         .eq("ulid", userUlid)
         .single();
@@ -156,7 +158,6 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         allowCustomDuration: coachProfile?.allowCustomDuration || false,
         calendlyUrl: coachProfile?.calendlyUrl || "",
         eventTypeUrl: coachProfile?.eventTypeUrl || "",
-        languages: Array.isArray(userData?.languages) ? userData.languages : ['en'],
         certifications: [],
         professionalRecognitions: activeRecognitions,
         domainSpecialties: coachProfile?.domainSpecialties || [],
@@ -166,7 +167,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         _rawMortgageProfile: null,
         _rawInsuranceProfile: null,
         _rawPropertyManagerProfile: null,
-        profileStatus: "DRAFT",
+        profileStatus: coachProfile?.profileStatus || "DRAFT",
         completionPercentage: percentage,
         canPublish,
         missingFields

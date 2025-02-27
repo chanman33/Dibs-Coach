@@ -976,18 +976,59 @@ export interface LanguageUpdateData {
 export const updateUserLanguages = withServerAction<{ success: boolean }, LanguageUpdateData>(
   async (data, { userUlid }) => {
     try {
+      console.log("[UPDATE_LANGUAGES_START]", {
+        userUlid,
+        languages: data.languages,
+        timestamp: new Date().toISOString()
+      });
+
       const supabase = await createAuthClient()
       
-      const { error } = await supabase
+      // First, get current languages
+      const { data: currentData, error: fetchError } = await supabase
+        .from("User")
+        .select("languages")
+        .eq("ulid", userUlid)
+        .single();
+
+      console.log("[UPDATE_LANGUAGES_CURRENT]", {
+        userUlid,
+        currentLanguages: currentData?.languages,
+        fetchError,
+        timestamp: new Date().toISOString()
+      });
+
+      if (fetchError) {
+        console.error("[UPDATE_LANGUAGES_FETCH_ERROR]", { 
+          userUlid, 
+          error: fetchError,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      const { data: updateData, error } = await supabase
         .from("User")
         .update({
           languages: data.languages,
           updatedAt: new Date().toISOString()
         })
         .eq("ulid", userUlid)
+        .select("languages");
+
+      console.log("[UPDATE_LANGUAGES_RESULT]", {
+        userUlid,
+        updatedLanguages: updateData?.[0]?.languages,
+        error,
+        timestamp: new Date().toISOString()
+      });
 
       if (error) {
-        console.error("[UPDATE_LANGUAGES_ERROR]", { userUlid, error })
+        console.error("[UPDATE_LANGUAGES_ERROR]", { 
+          userUlid, 
+          error,
+          attempted_languages: data.languages,
+          timestamp: new Date().toISOString()
+        });
         return {
           data: null,
           error: {
@@ -1003,7 +1044,12 @@ export const updateUserLanguages = withServerAction<{ success: boolean }, Langua
         error: null
       }
     } catch (error) {
-      console.error("[UPDATE_LANGUAGES_ERROR]", error)
+      console.error("[UPDATE_LANGUAGES_ERROR]", {
+        userUlid,
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       return {
         data: null,
         error: {
@@ -1014,4 +1060,79 @@ export const updateUserLanguages = withServerAction<{ success: boolean }, Langua
       }
     }
   }
-) 
+)
+
+export interface UserLanguagesResponse {
+  languages: string[];
+}
+
+export const fetchUserLanguages = withServerAction<UserLanguagesResponse, void>(
+  async (_, { userUlid }) => {
+    try {
+      console.log("[FETCH_USER_LANGUAGES_START]", {
+        userUlid,
+        timestamp: new Date().toISOString()
+      });
+
+      const supabase = await createAuthClient();
+      
+      const { data: userData, error } = await supabase
+        .from("User")
+        .select("languages")
+        .eq("ulid", userUlid)
+        .single();
+
+      console.log("[FETCH_USER_LANGUAGES_RESULT]", {
+        userUlid,
+        rawLanguages: userData?.languages,
+        error,
+        timestamp: new Date().toISOString()
+      });
+
+      if (error) {
+        console.error("[FETCH_USER_LANGUAGES_ERROR]", { 
+          userUlid, 
+          error,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch user languages',
+            details: error
+          }
+        };
+      }
+
+      // Ensure languages is always an array
+      const languages = Array.isArray(userData?.languages) ? userData.languages : ['en'];
+
+      console.log("[FETCH_USER_LANGUAGES_PROCESSED]", {
+        userUlid,
+        languages,
+        timestamp: new Date().toISOString()
+      });
+
+      return {
+        data: { languages },
+        error: null
+      };
+    } catch (error) {
+      console.error("[FETCH_USER_LANGUAGES_ERROR]", {
+        userUlid,
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to fetch languages',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      };
+    }
+  }
+); 
