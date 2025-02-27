@@ -1,6 +1,10 @@
+import { LucideIcon } from 'lucide-react';
+
 export interface FilterOption {
   label: string;
   value: string;
+  count?: number;
+  icon?: LucideIcon;
 }
 
 export interface CoachFilters {

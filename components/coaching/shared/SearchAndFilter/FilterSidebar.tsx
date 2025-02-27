@@ -3,7 +3,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star } from 'lucide-react';
+import { 
+  Star, 
+  Home, 
+  Building, 
+  LandPlot, 
+  PiggyBank, 
+  FileText, 
+  Building2,
+  Landmark 
+} from 'lucide-react';
 import {
   Collapsible,
   CollapsibleContent,
@@ -14,11 +23,13 @@ import { cn } from '@/lib/utils';
 import { ChevronDown, X } from 'lucide-react';
 
 const INDUSTRY_DOMAINS = [
-  { label: 'Realtor', value: 'realtor' },
-  { label: 'Mortgage', value: 'mortgage' },
-  { label: 'Property Manager', value: 'property_manager' },
-  { label: 'Insurance', value: 'insurance' },
-  { label: 'Investor', value: 'investor' },
+  { label: 'Realtor', value: 'realtor', icon: Home },
+  { label: 'Mortgage Officer', value: 'mortgage', icon: Landmark },
+  { label: 'Commercial Real Estate', value: 'commercial_re', icon: Building },
+  { label: 'Property Management', value: 'property_manager', icon: LandPlot },
+  { label: 'Investor', value: 'investor', icon: PiggyBank },
+  { label: 'Private Credit', value: 'private_credit', icon: FileText },
+  { label: 'Title & Escrow', value: 'title_escrow', icon: Building2 },
 ];
 
 const PRICE_RANGES = [
@@ -182,28 +193,27 @@ export function FilterSidebar({
         >
           {renderFilterHeader('Industry', 'domains', filters.domain?.length)}
           <CollapsibleContent className="pt-2">
-            <div className="grid grid-cols-1 gap-2">
-              {displayDomains.map((domain) => (
-                <div
-                  key={domain.value}
-                  className="flex items-center space-x-2 rounded-md px-2 py-1.5 hover:bg-muted/50"
-                >
-                  <Checkbox
-                    id={`domain-${domain.value}`}
-                    checked={(filters.domain || []).includes(domain.value)}
-                    onCheckedChange={(checked) =>
-                      handleDomainChange(checked as boolean, domain.value)
-                    }
-                    className="h-4 w-4"
-                  />
-                  <Label
-                    htmlFor={`domain-${domain.value}`}
-                    className="flex-grow text-sm cursor-pointer"
+            <div className="grid grid-cols-1 gap-1.5">
+              {displayDomains.map((domain) => {
+                if (!domain.icon) return null;
+                const Icon = domain.icon;
+                const isSelected = (filters.domain || []).includes(domain.value);
+                
+                return (
+                  <button
+                    key={domain.value}
+                    onClick={() => handleDomainChange(!isSelected, domain.value)}
+                    className={cn(
+                      "flex items-center w-full px-2 py-1.5 rounded-md text-sm",
+                      "hover:bg-muted/50 transition-colors",
+                      isSelected ? "bg-primary/10 text-primary font-medium" : "text-foreground"
+                    )}
                   >
-                    {domain.label}
-                  </Label>
-                </div>
-              ))}
+                    <Icon className="h-4 w-4 mr-2 flex-shrink-0" />
+                    <span className="truncate">{domain.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </CollapsibleContent>
         </Collapsible>
