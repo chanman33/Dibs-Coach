@@ -5,7 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Award, Building, Home, ListChecks, User, Briefcase, Globe, Target, Info, List } from "lucide-react";
 import { ProfessionalRecognition } from "../types";
 import GeneralForm from "./GeneralForm";
-import { RecognitionsTab } from "../coach/RecognitionsSection";
+import { RecognitionsTab } from "../coach/RecognitionsTab";
 import MarketingInfo from "../coach/MarketingInfo";
 import { MarketingInfo as MarketingInfoType } from "@/utils/types/marketing";
 import GoalsForm from "./GoalsForm";

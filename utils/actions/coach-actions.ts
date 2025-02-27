@@ -62,126 +62,81 @@ interface CoachProfileResponse {
 export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
   async (_, { userUlid }) => {
     try {
-      console.log('[DEBUG] Starting fetchCoachProfile...');
-      
-      const supabase = await createAuthClient()
+      const supabase = createAuthClient();
 
-      const { data, error } = await supabase
+      // Fetch coach profile with professional recognitions
+      const { data: coachProfile, error: coachError } = await supabase
+        .from("CoachProfile")
+        .select(`
+          *,
+          ProfessionalRecognition (
+            ulid,
+            title,
+            type,
+            year,
+            organization,
+            description,
+            isVisible,
+            industryType
+          )
+        `)
+        .eq("userUlid", userUlid)
+        .single();
+
+      if (coachError) {
+        console.error("[COACH_PROFILE_FETCH_ERROR]", {
+          userUlid,
+          error: coachError,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: {
+            code: "DATABASE_ERROR",
+            message: "Failed to fetch coach profile",
+            details: coachError
+          }
+        };
+      }
+
+      // Get active recognitions from the coach profile
+      const activeRecognitions = coachProfile?.ProfessionalRecognition?.filter(
+        (recognition: any) => recognition.isVisible
+      ) || [];
+
+      const { data: userData, error: userError } = await supabase
         .from("User")
         .select(`
           firstName,
           lastName,
           bio,
           profileImageUrl,
-          languages,
-          coachProfile:CoachProfile(
-            ulid,
-            specialties,
-            yearsCoaching,
-            hourlyRate,
-            defaultDuration,
-            minimumDuration,
-            maximumDuration,
-            allowCustomDuration,
-            calendlyUrl,
-            eventTypeUrl,
-            domainSpecialties,
-            profileStatus,
-            updatedAt
-          ),
-          realtorProfile:RealtorProfile(
-            ulid,
-            bio,
-            certifications,
-            professionalRecognitions:ProfessionalRecognition(
-              ulid,
-              title,
-              type,
-              organization,
-              description,
-              year,
-              isVisible,
-              industryType
-            )
-          ),
-          mortgageProfile:LoanOfficerProfile(ulid),
-          insuranceProfile:InsuranceProfile(ulid),
-          propertyManagerProfile:PropertyManagerProfile(ulid)
+          languages
         `)
         .eq("ulid", userUlid)
         .single();
 
-      if (error) {
-        console.error('[DEBUG] Error fetching profiles:', error);
+      if (userError) {
+        console.error("[USER_FETCH_ERROR]", {
+          userUlid,
+          error: userError,
+          timestamp: new Date().toISOString()
+        });
         return {
           data: null,
           error: {
-            code: 'DATABASE_ERROR',
-            message: 'Failed to fetch coach profile',
-            details: { error }
+            code: "DATABASE_ERROR",
+            message: "Failed to fetch user data",
+            details: userError
           }
-        }
+        };
       }
 
-      if (!data) {
-        console.log('[DEBUG] No profile data found, returning default structure');
-        return {
-          data: {
-            specialties: [],
-            yearsCoaching: 0,
-            hourlyRate: 0,
-            defaultDuration: 60,
-            minimumDuration: 30,
-            maximumDuration: 120,
-            allowCustomDuration: false,
-            calendlyUrl: "",
-            eventTypeUrl: "",
-            languages: [],
-            certifications: [],
-            professionalRecognitions: [],
-            domainSpecialties: [],
-            capabilities: [],
-            _rawCoachProfile: null,
-            _rawRealtorProfile: null,
-            _rawMortgageProfile: null,
-            _rawInsuranceProfile: null,
-            _rawPropertyManagerProfile: null,
-            profileStatus: PROFILE_STATUS.DRAFT,
-            completionPercentage: 0,
-            canPublish: false,
-            missingFields: ['firstName', 'lastName', 'bio'],
-          },
-          error: null
-        }
-      }
-
-      const coachProfile = Array.isArray(data.coachProfile) ? data.coachProfile[0] : data.coachProfile;
-      const realtorProfile = Array.isArray(data.realtorProfile) ? data.realtorProfile[0] : data.realtorProfile;
-      const mortgageProfile = Array.isArray(data.mortgageProfile) ? data.mortgageProfile[0] : data.mortgageProfile;
-      const insuranceProfile = Array.isArray(data.insuranceProfile) ? data.insuranceProfile[0] : data.insuranceProfile;
-      const propertyManagerProfile = Array.isArray(data.propertyManagerProfile) ? data.propertyManagerProfile[0] : data.propertyManagerProfile;
-
-      // Log which profiles were found
-      console.log('[COACH_PROFILES_FOUND]', {
-        hasCoachProfile: !!coachProfile,
-        hasRealtorProfile: !!realtorProfile,
-        hasMortgageProfile: !!mortgageProfile,
-        hasInsuranceProfile: !!insuranceProfile,
-        hasPropertyManagerProfile: !!propertyManagerProfile,
-        timestamp: new Date().toISOString()
-      });
-
-      const activeRecognitions = realtorProfile?.professionalRecognitions?.filter(
-        (recognition: any) => recognition.status === 'ACTIVE'
-      ) || [];
-
-      const { firstName, lastName, bio, profileImageUrl } = data;
-      
       const profileData = {
-        firstName,
-        lastName,
-        bio,
-        profileImageUrl,
+        firstName: userData?.firstName,
+        lastName: userData?.lastName,
+        bio: userData?.bio,
+        profileImageUrl: userData?.profileImageUrl,
         coachingSpecialties: coachProfile?.specialties || [],
         hourlyRate: coachProfile?.hourlyRate || null,
         yearsCoaching: coachProfile?.yearsCoaching || null,
@@ -201,36 +156,37 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         allowCustomDuration: coachProfile?.allowCustomDuration || false,
         calendlyUrl: coachProfile?.calendlyUrl || "",
         eventTypeUrl: coachProfile?.eventTypeUrl || "",
-        languages: Array.isArray(data?.languages) ? data.languages : ['en'],
-        certifications: Array.isArray(realtorProfile?.certifications) ? realtorProfile.certifications : [],
+        languages: Array.isArray(userData?.languages) ? userData.languages : ['en'],
+        certifications: [],
         professionalRecognitions: activeRecognitions,
         domainSpecialties: coachProfile?.domainSpecialties || [],
         capabilities: [],
         _rawCoachProfile: coachProfile || null,
-        _rawRealtorProfile: realtorProfile || null,
-        _rawMortgageProfile: mortgageProfile || null,
-        _rawInsuranceProfile: insuranceProfile || null,
-        _rawPropertyManagerProfile: propertyManagerProfile || null,
-        profileStatus: (coachProfile?.profileStatus as ProfileStatus) || PROFILE_STATUS.DRAFT,
+        _rawRealtorProfile: null,
+        _rawMortgageProfile: null,
+        _rawInsuranceProfile: null,
+        _rawPropertyManagerProfile: null,
+        profileStatus: "DRAFT",
         completionPercentage: percentage,
         canPublish,
-        missingFields,
+        missingFields
       };
 
-      return {
-        data: responseData,
-        error: null
-      }
+      return { data: responseData, error: null };
     } catch (error) {
-      console.error('[FETCH_COACH_PROFILE_ERROR]', error)
+      console.error("[FETCH_COACH_PROFILE_ERROR]", {
+        userUlid,
+        error,
+        timestamp: new Date().toISOString()
+      });
       return {
         data: null,
         error: {
-          code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
-          details: error instanceof Error ? { message: error.message } : undefined
+          code: "INTERNAL_ERROR",
+          message: "An unexpected error occurred",
+          details: error instanceof Error ? error.message : String(error)
         }
-      }
+      };
     }
   }
 )

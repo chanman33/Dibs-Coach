@@ -5,54 +5,45 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Pencil } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { ProfessionalRecognition } from "@/utils/types/realtor";
+import { Pencil, Eye, EyeOff } from "lucide-react";
+import { cn } from "@/utils/cn";
+import { ProfessionalRecognition, RecognitionType } from "@/utils/types/recognition";
 
 interface ProfessionalRecognitionsProps {
   recognitions: ProfessionalRecognition[];
   onEdit?: (recognition: ProfessionalRecognition) => void;
+  onToggleVisibility?: (recognition: ProfessionalRecognition) => void;
   editingId?: string | null;
   editForm?: React.ReactNode;
+  showVisibilityControls?: boolean;
+  className?: string;
 }
 
 export function ProfessionalRecognitions({ 
   recognitions, 
   onEdit,
+  onToggleVisibility,
   editingId,
-  editForm 
+  editForm,
+  showVisibilityControls = true,
+  className
 }: ProfessionalRecognitionsProps) {
-  console.log('[DEBUG] ProfessionalRecognitions received:', recognitions);
-
-  if (!recognitions || recognitions.length === 0) {
-    console.log('[DEBUG] No recognitions to display');
-    return null;
+  if (!recognitions?.length) {
+    return (
+      <div className={cn("text-center py-8 border rounded-lg bg-muted/10", className)}>
+        <p className="text-muted-foreground">No professional recognitions added yet</p>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      {recognitions.map((recognition, index) => {
-        console.log('[DEBUG] Rendering recognition:', recognition);
-        const key = recognition.ulid ? `recognition-${recognition.ulid}` : `recognition-new-${index}`;
+    <div className={cn("space-y-4", className)}>
+      {recognitions.map((recognition) => {
+        const key = recognition.ulid || `new-recognition-${recognition.title}`;
         
         // If this recognition is being edited, show the edit form instead
         if (recognition.ulid === editingId && editForm) {
@@ -65,7 +56,13 @@ export function ProfessionalRecognitions({
 
         // Otherwise show the recognition card
         return (
-          <Card key={key} className="w-full">
+          <Card 
+            key={key} 
+            className={cn(
+              "w-full transition-opacity duration-200",
+              !recognition.isVisible && "opacity-60"
+            )}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -79,26 +76,61 @@ export function ProfessionalRecognitions({
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={recognition.type === "AWARD" ? "default" : "secondary"}>
-                    {recognition.type}
+                  <Badge 
+                    variant={recognition.type === RecognitionType.AWARD ? "default" : "secondary"}
+                    className="capitalize"
+                  >
+                    {recognition.type.toLowerCase()}
                   </Badge>
-                  {onEdit && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => onEdit(recognition)}
-                      className="h-8 w-8"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                  {recognition.industryType && (
+                    <Badge variant="outline" className="capitalize">
+                      {recognition.industryType.toLowerCase()}
+                    </Badge>
                   )}
                 </div>
               </div>
             </CardHeader>
+            
             {recognition.description && (
               <CardContent>
                 <p className="text-sm text-muted-foreground">{recognition.description}</p>
               </CardContent>
+            )}
+
+            {(onEdit || onToggleVisibility) && (
+              <CardFooter className="pt-2 border-t flex justify-end gap-2">
+                {showVisibilityControls && onToggleVisibility && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onToggleVisibility(recognition)}
+                    className="gap-2"
+                  >
+                    {recognition.isVisible ? (
+                      <>
+                        <EyeOff className="h-4 w-4" />
+                        <span>Hide</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-4 w-4" />
+                        <span>Show</span>
+                      </>
+                    )}
+                  </Button>
+                )}
+                {onEdit && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onEdit(recognition)}
+                    className="gap-2"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    <span>Edit</span>
+                  </Button>
+                )}
+              </CardFooter>
             )}
           </Card>
         );
