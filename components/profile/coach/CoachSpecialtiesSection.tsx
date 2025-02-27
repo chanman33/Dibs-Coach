@@ -26,12 +26,8 @@ export function CoachSpecialtiesSection({ control }: CoachSpecialtiesSectionProp
 
   return (
     <div className="space-y-4 mb-8">
-      <FormSectionHeader 
-        title="Coaching Specialties" 
-        required 
-        tooltip="Select your areas of expertise to help potential clients find the right match for their needs."
-      />
-      
+
+
       <FormField
         control={control}
         name="specialties"

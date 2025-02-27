@@ -253,7 +253,7 @@ export function CoachProfileForm({
             <div className="mb-4 sm:mb-6">
               <h3 className="text-base sm:text-lg font-semibold">Coaching Specialties</h3>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Select the specific areas where you can provide expert coaching and guidance.
+                Select the specific areas where you can provide expert coaching and guidance. These are career and industry specific skills.
               </p>
             </div>
             <CoachSpecialtiesSection control={form.control} />
@@ -264,7 +264,7 @@ export function CoachProfileForm({
             <div>
               <h3 className="text-base sm:text-lg font-semibold mb-2">Industry Specialties</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Your approved coaching specialties are shown below. To request approval for additional specialties, please contact admin@dibs.coach.
+                Your approved coaching specialties are shown below. To request approval for additional specialties, please contact support.
               </p>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

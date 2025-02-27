@@ -176,7 +176,7 @@ export interface CoachSpecialtyEntry {
 export const CoachProfileSchema = z.object({
   id: z.number().optional(),
   bio: z.string().min(1, "Bio is required").max(1000, "Bio must be less than 1000 characters"),
-  specialties: z.array(z.string()).min(1, "At least one specialty is required"),
+  specialties: z.array(z.string()).optional().default([]),
   industrySpecialties: z.array(z.string()),
   yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater").optional(),
   certifications: z.array(z.string()).optional(),
@@ -204,7 +204,7 @@ export const CoachProfileSchema = z.object({
       category: z.enum(Object.keys(COACH_SPECIALTIES) as [SpecialtyCategory, ...SpecialtyCategory[]]),
       specialty: z.string()
     })
-  ).min(1, "At least one specialty is required"),
+  ).optional().default([]),
 });
 
 export interface CoachProfileData {
