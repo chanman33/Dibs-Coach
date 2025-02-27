@@ -18,6 +18,7 @@ import { CommercialListings } from "@/components/profile/industry/commercial";
 
 // Main profile page content component
 function ProfilePageContent() {
+  const [isLoading, setIsLoading] = useState(true);
   const {
     generalData,
     coachData,
@@ -35,7 +36,6 @@ function ProfilePageContent() {
     optionalMissingFields,
     validationMessages,
     canPublish,
-    isLoading,
     isSubmitting,
     userCapabilities,
     selectedSpecialties,
@@ -62,6 +62,24 @@ function ProfilePageContent() {
   const handleSpecialtiesChange = (specialties: string[]) => {
     updateSelectedSpecialties(specialties);
   };
+
+  // Add proper dependency array to prevent unnecessary re-renders
+  useEffect(() => {
+    if (!isLoading) return; // Skip if already loaded
+    
+    const loadInitialData = async () => {
+      setIsLoading(true);
+      try {
+        // Your existing data loading logic here
+      } catch (error) {
+        console.error('[PROFILE_LOAD_ERROR]', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, []); // Empty dependency array for initial load only
 
   if (isLoading) {
     return (
@@ -549,7 +567,9 @@ function ProfilePageContent() {
             validationMessages={validationMessages}
             canPublish={canPublish}
             onSpecialtiesChange={handleSpecialtiesChange}
-            saveSpecialties={saveSpecialties}
+            saveSpecialties={async (specialties) => {
+              await saveSpecialties(specialties);
+            }}
           />
         }
         realtorFormContent={

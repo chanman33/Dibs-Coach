@@ -18,26 +18,21 @@ export function LanguagesSection({ initialLanguages = ['en'], onLanguagesUpdate 
   const [isUpdating, setIsUpdating] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch languages on mount
   useEffect(() => {
     const loadLanguages = async () => {
       try {
         const result = await fetchUserLanguages();
         
         if (result.error) {
-          console.error("[LANGUAGES_FETCH_ERROR]", result.error);
+          console.error("Failed to fetch languages:", result.error);
           return;
         }
 
         if (result.data) {
-          console.log("[LANGUAGES_FETCH_SUCCESS]", {
-            languages: result.data.languages,
-            timestamp: new Date().toISOString()
-          });
           setLanguages(result.data.languages);
         }
       } catch (error) {
-        console.error("[LANGUAGES_FETCH_ERROR]", error);
+        console.error("Failed to fetch languages:", error);
       } finally {
         setIsLoading(false);
       }
@@ -51,21 +46,13 @@ export function LanguagesSection({ initialLanguages = ['en'], onLanguagesUpdate 
       setIsUpdating(true);
       const selectedCodes = newValue ? newValue.map((item: any) => item.value) : ['en'];
       
-      // Always include English as default if no languages are selected
       if (selectedCodes.length === 0) {
         selectedCodes.push('en');
       }
 
-      console.log("[LANGUAGE_UPDATE_START]", {
-        selectedCodes,
-        timestamp: new Date().toISOString()
-      });
-
-      // Update languages in the database
       const result = await updateUserLanguages({ languages: selectedCodes });
       
       if (result.error) {
-        console.error("[LANGUAGE_UPDATE_ERROR]", result.error);
         toast.error("Failed to update languages");
         return;
       }
@@ -75,13 +62,8 @@ export function LanguagesSection({ initialLanguages = ['en'], onLanguagesUpdate 
         onLanguagesUpdate(selectedCodes);
       }
       toast.success("Languages updated successfully");
-
-      console.log("[LANGUAGE_UPDATE_SUCCESS]", {
-        languages: selectedCodes,
-        timestamp: new Date().toISOString()
-      });
     } catch (error) {
-      console.error("[LANGUAGE_UPDATE_ERROR]", error);
+      console.error("Failed to update languages:", error);
       toast.error("Failed to update languages");
     } finally {
       setIsUpdating(false);

@@ -3,31 +3,68 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Form } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription,
+} from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { CoachSpecialtiesSection } from "./CoachSpecialtiesSection";
-import { CoachRateInfoSection } from "./CoachRateInfoSection";
-import { LanguagesSection } from "./LanguagesSection";
-import { RecognitionsSection } from "./RecognitionsSection";
-import { coachProfileFormSchema, CoachProfileFormValues, CoachProfileInitialData, UserInfo } from "../types";
+import { ProfileCompletion } from "./ProfileCompletion";
 import { Card } from "@/components/ui/card";
 import { ProfileStatus } from "@/utils/types/coach";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { INDUSTRY_SPECIALTIES } from "@/components/profile/common/ProfileTabsManager";
-import { ProfileCompletion } from "./ProfileCompletion";
-import { COMMON_LANGUAGES } from "@/lib/constants";
+import { z } from "zod";
+import type { CoachProfileFormValues } from "../types";
+import type { UserInfo } from "../types";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { FormSectionHeader } from "../common/FormSectionHeader";
 
-export type Language = {
-  code: string;
-  name: string;
-  nativeName?: string;
-};
+const HOURLY_RATES = [
+  { value: 100, label: "$100" },
+  { value: 150, label: "$150" },
+  { value: 200, label: "$200" },
+  { value: 250, label: "$250" },
+  { value: 300, label: "$300" },
+  { value: 400, label: "$400" },
+  { value: 500, label: "$500" },
+  { value: 750, label: "$750" },
+  { value: 1000, label: "$1,000" },
+  { value: 1500, label: "$1,500" },
+  { value: 2000, label: "$2,000" },
+  { value: 2500, label: "$2,500" },
+  { value: 3000, label: "$3,000" }
+];
 
+// New focused schema for just the fields this component manages
+const coachBasicInfoSchema = z.object({
+  yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater"),
+  hourlyRate: z.number().min(0, "Hourly rate must be 0 or greater"),
+  specialties: z.array(z.string()).default([]),
+});
+
+type CoachBasicInfoValues = z.infer<typeof coachBasicInfoSchema>;
+
+// Update the props interface to be more specific about what this component handles
 export interface CoachProfileFormProps {
-  initialData?: CoachProfileInitialData;
-  onSubmit: (values: CoachProfileFormValues) => void;
+  initialData?: {
+    yearsCoaching?: number;
+    hourlyRate?: number;
+    specialties?: string[];
+    [key: string]: any; // Allow other fields to exist but we don't care about them here
+  };
+  onSubmit: (data: CoachProfileFormValues) => Promise<void>; // Keep original type for compatibility
   isSubmitting?: boolean;
   profileStatus?: ProfileStatus;
   completionPercentage?: number;
@@ -37,8 +74,8 @@ export interface CoachProfileFormProps {
   validationMessages?: Record<string, string>;
   canPublish?: boolean;
   userInfo?: UserInfo;
-  onSpecialtiesChange: (specialties: string[]) => void;
-  saveSpecialties: (selectedSpecialties: string[]) => Promise<boolean | void>;
+  onSpecialtiesChange?: (specialties: string[]) => void;
+  saveSpecialties?: (specialties: string[]) => Promise<void>;
 }
 
 export function CoachProfileForm({
@@ -56,168 +93,151 @@ export function CoachProfileForm({
   onSpecialtiesChange,
   saveSpecialties,
 }: CoachProfileFormProps) {
-  // Log initial data for debugging
-  useEffect(() => {
-    console.log("[COACH_PROFILE_FORM_INITIAL_DATA]", {
-      initialData,
-      domainSpecialties: initialData?.domainSpecialties,
-      timestamp: new Date().toISOString()
-    });
-  }, [initialData]);
-
-  const [selectedDomainSpecialties, setSelectedDomainSpecialties] = useState<string[]>(
-    initialData?.domainSpecialties || []
-  );
-
-  const form = useForm<CoachProfileFormValues>({
-    resolver: zodResolver(coachProfileFormSchema),
+  const form = useForm<CoachBasicInfoValues>({
+    resolver: zodResolver(coachBasicInfoSchema),
     defaultValues: {
-      specialties: initialData?.specialties || [],
       yearsCoaching: initialData?.yearsCoaching || 0,
-      hourlyRate: initialData?.hourlyRate || 0,
-      calendlyUrl: initialData?.calendlyUrl || "",
-      eventTypeUrl: initialData?.eventTypeUrl || "",
-      defaultDuration: initialData?.defaultDuration || 60,
-      minimumDuration: initialData?.minimumDuration || 30,
-      maximumDuration: initialData?.maximumDuration || 120,
-      allowCustomDuration: initialData?.allowCustomDuration || false,
+      hourlyRate: initialData?.hourlyRate || 100,
+      specialties: initialData?.specialties || [],
     },
-    mode: "onSubmit"
+    mode: "onChange",
   });
 
-  // Add form state change listener
+  // Watch specialties changes
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "specialties" && onSpecialtiesChange) {
+        const specialties = value.specialties || [];
+        onSpecialtiesChange(specialties.filter((s): s is string => s !== undefined));
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, onSpecialtiesChange]);
+
+  // Log initial form state
+  useEffect(() => {
+    console.log("[COACH_BASIC_INFO_INITIAL_STATE]", {
+      defaultValues: form.formState.defaultValues,
+      timestamp: new Date().toISOString(),
+      formState: {
+        isDirty: form.formState.isDirty,
+        isValid: form.formState.isValid,
+        errors: form.formState.errors
+      }
+    });
+  }, []);
+
+  const handleSubmit = async (data: CoachBasicInfoValues) => {
+    try {
+      console.log("[COACH_BASIC_INFO_SUBMIT_START]", {
+        submittedData: {
+          yearsCoaching: data.yearsCoaching,
+          hourlyRate: data.hourlyRate,
+          specialties: data.specialties,
+        },
+        formState: {
+          isDirty: form.formState.isDirty,
+          dirtyFields: Object.keys(form.formState.dirtyFields || {}),
+          isValid: form.formState.isValid,
+          errors: form.formState.errors
+        },
+        timestamp: new Date().toISOString()
+      });
+
+      if (!form.formState.isValid) {
+        console.log("[COACH_BASIC_INFO_VALIDATION_FAILED]", {
+          errors: form.formState.errors,
+          invalidFields: Object.keys(form.formState.errors),
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Please fix validation errors before submitting");
+        return;
+      }
+
+      console.log("[COACH_BASIC_INFO_CALLING_ONSUBMIT]", {
+        onSubmitExists: !!onSubmit,
+        timestamp: new Date().toISOString()
+      });
+
+      // Merge the new data with initialData to preserve other fields
+      const mergedData: CoachProfileFormValues = {
+        ...initialData as CoachProfileFormValues,
+        yearsCoaching: data.yearsCoaching,
+        hourlyRate: data.hourlyRate,
+        specialties: data.specialties,
+      };
+
+      await onSubmit(mergedData);
+      
+      // Reset form state after successful submission
+      form.reset(data);
+      
+      console.log("[COACH_BASIC_INFO_SUBMIT_SUCCESS]", {
+        submittedData: {
+          yearsCoaching: data.yearsCoaching,
+          hourlyRate: data.hourlyRate,
+          specialties: data.specialties,
+        },
+        timestamp: new Date().toISOString()
+      });
+      toast.success("Basic info updated successfully");
+    } catch (error) {
+      console.error("[COACH_BASIC_INFO_SUBMIT_ERROR]", {
+        error: error instanceof Error ? {
+          message: error.message,
+          stack: error.stack
+        } : error,
+        attemptedData: {
+          yearsCoaching: data.yearsCoaching,
+          hourlyRate: data.hourlyRate,
+          specialties: data.specialties,
+        },
+        timestamp: new Date().toISOString()
+      });
+      toast.error("Failed to update basic info");
+    }
+  };
+
+  // Add logging to track form state changes
   useEffect(() => {
     const subscription = form.watch((value, { name, type }) => {
-      console.log("[FORM_FIELD_CHANGE]", {
+      console.log("[COACH_BASIC_INFO_FIELD_CHANGE]", {
         field: name,
         type,
-        value,
+        newValue: value[name as keyof typeof value],
+        allFormValues: value,
+        formState: {
+          isDirty: form.formState.isDirty,
+          dirtyFields: Object.keys(form.formState.dirtyFields || {}),
+          isValid: form.formState.isValid,
+          errors: form.formState.errors
+        },
         timestamp: new Date().toISOString()
       });
     });
     return () => subscription.unsubscribe();
   }, [form]);
 
-  // Add form state debug logging
-  useEffect(() => {
-    console.log("[FORM_STATE]", {
-      isDirty: form.formState.isDirty,
-      isValid: form.formState.isValid,
-      errors: form.formState.errors,
-      touchedFields: form.formState.touchedFields,
-      timestamp: new Date().toISOString()
-    });
-  }, [form.formState]);
-
-  // Reset form values when initialData changes
-  useEffect(() => {
-    if (initialData) {
-      console.log("[RESETTING_FORM_VALUES]", {
-        domainSpecialties: initialData.domainSpecialties,
-        timestamp: new Date().toISOString()
-      });
-      
-      form.reset({
-        specialties: initialData.specialties || [],
-        yearsCoaching: initialData.yearsCoaching || 0,
-        hourlyRate: initialData.hourlyRate || 0,
-        calendlyUrl: initialData.calendlyUrl || "",
-        eventTypeUrl: initialData.eventTypeUrl || "",
-        defaultDuration: initialData.defaultDuration || 60,
-        minimumDuration: initialData.minimumDuration || 30,
-        maximumDuration: initialData.maximumDuration || 120,
-        allowCustomDuration: initialData.allowCustomDuration || false,
-      });
-
-      // Update local state for display only
-      setSelectedDomainSpecialties(initialData.domainSpecialties || []);
-    }
-  }, [initialData, form]);
-
-  // Function to check if form values have changed from initial data
-  const checkFormChanges = (values: CoachProfileFormValues) => {
-    const changes: Record<string, { previous: any; current: any }> = {};
-    
-    // Check other fields
-    if (initialData?.hourlyRate !== values.hourlyRate) {
-      changes.hourlyRate = {
-        previous: initialData?.hourlyRate,
-        current: values.hourlyRate
-      };
-    }
-    
-  
-    return {
-      hasChanges: Object.keys(changes).length > 0,
-      changes
-    };
-  };
-
-  const handleSubmit = async (values: CoachProfileFormValues) => {
-    try {
-      // Log form state before validation
-      console.log("[PRE_VALIDATION_FORM_STATE]", {
-        values,
-        formState: {
-          isDirty: form.formState.isDirty,
-          isValid: form.formState.isValid,
-          errors: form.formState.errors
-        },
-        timestamp: new Date().toISOString()
-      });
-
-      // Check for changes
-      const { hasChanges, changes } = checkFormChanges(values);
-      
-      // Log the form values for debugging
-      console.log("[COACH_PROFILE_SUBMISSION]", {
-        formValues: values,
-        hasChanges,
-        changes,
-        timestamp: new Date().toISOString()
-      });
-      
-      if (!hasChanges) {
-        console.log("[NO_CHANGES_DETECTED]", {
-          values,
-          initialData,
-          timestamp: new Date().toISOString()
-        });
-        toast.info("No changes detected in the form");
-        return;
-      }
-      
-      // Show confirmation toast
-      toast.info("Submitting coach profile...");
-
-      await onSubmit(values);
-      
-      // Log successful submission
-      console.log("[SUBMISSION_SUCCESS]", {
-        values,
-        timestamp: new Date().toISOString()
-      });
-      
-      toast.success("Coach profile saved successfully!");
-      
-    } catch (error) {
-      console.error("[COACH_PROFILE_SUBMIT_ERROR]", {
-        error,
-        formState: {
-          isDirty: form.formState.isDirty,
-          isValid: form.formState.isValid,
-          errors: form.formState.errors
-        },
-        timestamp: new Date().toISOString()
-      });
-      toast.error("Failed to save coach profile");
-    }
-  };
-
   return (
     <div className="space-y-4 sm:space-y-6">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 sm:space-y-6">
+        <form 
+          onSubmit={(e) => {
+            e.preventDefault();
+            console.log("[COACH_BASIC_INFO_SUBMIT_EVENT]", {
+              currentValues: form.getValues(),
+              formState: {
+                isDirty: form.formState.isDirty,
+                dirtyFields: Object.keys(form.formState.dirtyFields || {}),
+                isValid: form.formState.isValid,
+                errors: form.formState.errors
+              },
+              timestamp: new Date().toISOString()
+            });
+            form.handleSubmit(handleSubmit)(e);
+          }} 
+          className="space-y-4 sm:space-y-6"
+        >
           {/* Profile Completion Status */}
           <ProfileCompletion
             completionPercentage={completionPercentage}
@@ -229,22 +249,74 @@ export function CoachProfileForm({
             validationMessages={validationMessages}
           />
 
+          {/* Basic Coach Information Card */}
           <Card className="p-4 sm:p-6 border shadow-sm">
-            <div className="mb-4 sm:mb-6">
-              <h3 className="text-base sm:text-lg font-semibold">Basic Coach Information</h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                This information will be displayed to potential clients looking for a coach.
-              </p>
-            </div>
-
-            <div className="space-y-4 sm:space-y-8">
-              {/* Hourly rate */}
-              <CoachRateInfoSection control={form.control} />
-
-              {/* Languages */}
-              <LanguagesSection 
-                initialLanguages={initialData?.languages || ['en']}
-              />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <FormSectionHeader 
+                  title="Coaching Experience & Rates" 
+                  required 
+                  tooltip="Your experience level and pricing information helps set client expectations."
+                />
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  This information will be displayed to potential clients looking for a coach.
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                <FormField
+                  control={form.control}
+                  name="yearsCoaching"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Years of Coaching Experience</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          {...field}
+                          onChange={(e) => field.onChange(Number(e.target.value))}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        How many years have you been coaching professionally?
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="hourlyRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Hourly Rate (USD)</FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value?.toString()}
+                          onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select hourly rate" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {HOURLY_RATES.map((rate) => (
+                              <SelectItem key={rate.value} value={rate.value.toString()}>
+                                {rate.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormDescription>
+                        Set your hourly coaching rate. This rate will be visible to potential clients.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
           </Card>
 
@@ -253,69 +325,20 @@ export function CoachProfileForm({
             <div className="mb-4 sm:mb-6">
               <h3 className="text-base sm:text-lg font-semibold">Coaching Specialties</h3>
               <p className="text-xs sm:text-sm text-muted-foreground">
-                Select the specific areas where you can provide expert coaching and guidance. These are career and industry specific skills.
+                Select the specific areas where you can provide expert coaching and guidance.
               </p>
             </div>
             <CoachSpecialtiesSection control={form.control} />
           </Card>
 
-          {/* Read-only Industry Specialties */}
-          <Card className="p-4 sm:p-6 border shadow-sm">
-            <div>
-              <h3 className="text-base sm:text-lg font-semibold mb-2">Industry Specialties</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Your approved coaching specialties are shown below. To request approval for additional specialties, please contact support.
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {Object.entries(INDUSTRY_SPECIALTIES).map(([key, value]) => (
-                  <div key={key} className="flex items-center space-x-2">
-                    <Checkbox 
-                      id={`specialty-${key}`}
-                      checked={selectedDomainSpecialties.includes(value as string)}
-                      disabled={true}
-                      className="cursor-not-allowed"
-                    />
-                    <Label htmlFor={`specialty-${key}`} className="font-normal">
-                      {key.replace(/_/g, ' ')}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          <div className="flex justify-end mt-4 sm:mt-8 gap-2">
-            <Button
-              type="submit"
-              size="lg"
+          {/* Submit Button */}
+          <div className="flex justify-end">
+            <Button 
+              type="submit" 
               disabled={isSubmitting}
-              className="px-6"
-              onClick={() => {
-                // This will be triggered before form submission
-                const values = form.getValues();
-                const { hasChanges, changes } = checkFormChanges(values);
-                
-                console.log("[SAVE_BUTTON_CLICKED]", {
-                  hasChanges,
-                  changes,
-                  formState: {
-                    isDirty: form.formState.isDirty,
-                    errors: Object.keys(form.formState.errors),
-                    isValid: form.formState.isValid
-                  },
-                  timestamp: new Date().toISOString()
-                });
-              }}
+              className="w-full sm:w-auto"
             >
-              {isSubmitting ? (
-                <>
-                  <span className="mr-2">Saving</span>
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                </>
-              ) : (
-                "Save Coach Profile"
-              )}
+              {isSubmitting ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </form>

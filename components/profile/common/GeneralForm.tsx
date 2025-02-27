@@ -43,11 +43,12 @@ export default function GeneralForm({
 
   useEffect(() => {
     if (initialData) {
-      console.log("[GENERAL_FORM_INITIAL_DATA]", {
-        initialData,
-        totalYearsRE: initialData.totalYearsRE,
-        timestamp: new Date().toISOString()
-      });
+      // Log initial data
+      // console.log("[GENERAL_FORM_INITIAL_DATA]", {
+      //   initialData,
+      //   totalYearsRE: initialData.totalYearsRE,
+      //   timestamp: new Date().toISOString()
+      // });
 
       setFormData(prev => {
         const newData = {
@@ -58,12 +59,13 @@ export default function GeneralForm({
           primaryMarket: initialData.primaryMarket || "",
         };
 
-        console.log("[GENERAL_FORM_STATE_UPDATE]", {
-          previousState: prev,
-          newState: newData,
-          totalYearsRE: newData.totalYearsRE,
-          timestamp: new Date().toISOString()
-        });
+        // Log state update
+        // console.log("[GENERAL_FORM_STATE_UPDATE]", {
+        //   previousState: prev,
+        //   newState: newData,
+        //   totalYearsRE: newData.totalYearsRE,
+        //   timestamp: new Date().toISOString()
+        // });
 
         return newData;
       })
@@ -73,14 +75,15 @@ export default function GeneralForm({
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     
-    if (name === "totalYearsRE") {
-      console.log("[TOTAL_YEARS_CHANGE]", {
-        oldValue: formData.totalYearsRE,
-        newValue: parseInt(value) || 0,
-        rawValue: value,
-        timestamp: new Date().toISOString()
-      });
-    }
+    // Log total years change
+    // if (name === "totalYearsRE") {
+    //   console.log("[TOTAL_YEARS_CHANGE]", {
+    //     oldValue: formData.totalYearsRE,
+    //     newValue: parseInt(value) || 0,
+    //     rawValue: value,
+    //     timestamp: new Date().toISOString()
+    //   });
+    // }
 
     setFormData(prev => ({
       ...prev,
@@ -93,12 +96,14 @@ export default function GeneralForm({
     try {
       // Validate form data
       const validatedData = generalFormSchema.parse(formData)
-      console.log("[GENERAL_FORM_SUBMIT]", {
-        formData,
-        validatedData,
-        totalYearsRE: validatedData.totalYearsRE,
-        timestamp: new Date().toISOString()
-      });
+
+      // Log form submission details
+      // console.log("[GENERAL_FORM_SUBMIT]", {
+      //   formData,
+      //   validatedData,
+      //   totalYearsRE: validatedData.totalYearsRE,
+      //   timestamp: new Date().toISOString()
+      // });
       onSubmit(validatedData)
     } catch (error) {
       if (error instanceof z.ZodError) {

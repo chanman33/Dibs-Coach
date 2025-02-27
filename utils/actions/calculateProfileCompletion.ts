@@ -23,66 +23,28 @@ export type CoachProfileData = {
   [key: string]: any;
 };
 
-// Define the fields that contribute to profile completion
-const PROFILE_FIELDS: ProfileField[] = [
-  {
-    name: 'firstName',
-    weight: 10,
-    required: true,
-    checkFn: (value) => !!value && value.trim().length > 0,
-  },
-  {
-    name: 'lastName',
-    weight: 10,
-    required: true,
-    checkFn: (value) => !!value && value.trim().length > 0,
-  },
-  {
-    name: 'bio',
-    weight: 15,
-    required: true,
-    checkFn: (value) => !!value && value.trim().length >= 50, // Minimum bio length
-  },
-  {
-    name: 'profileImageUrl',
-    weight: 15,
-    required: true,
-    checkFn: (value) => !!value && value.trim().length > 0,
-  },
-  {
-    name: 'coachingSpecialties',
-    weight: 15,
-    required: true,
-    checkFn: (value) => Array.isArray(value) && value.length > 0,
-  },
-  {
-    name: 'hourlyRate',
-    weight: 10,
-    required: true,
-    checkFn: (value) => value !== null && value !== undefined && value > 0,
-  },
-  {
-    name: 'yearsCoaching',
-    weight: 5,
-    required: false,
-    checkFn: (value) => value !== null && value !== undefined && value >= 0,
-  },
-  {
-    name: 'calendlyUrl',
-    weight: 10,
-    required: true,
-    checkFn: (value) => !!value && value.trim().length > 0,
-  },
-  {
-    name: 'eventTypeUrl',
-    weight: 10,
-    required: true,
-    checkFn: (value) => !!value && value.trim().length > 0,
-  },
-];
+interface FieldConfig {
+  weight: number;
+  required: boolean;
+}
 
-// Minimum percentage required for profile to be published
-export const PUBLICATION_THRESHOLD = 70;
+export const REQUIRED_FIELDS: Record<string, FieldConfig> = {
+  firstName: { weight: 10, required: true },
+  lastName: { weight: 10, required: true },
+  bio: { weight: 15, required: true },
+  profileImageUrl: { weight: 15, required: true },
+  coachingSpecialties: { weight: 15, required: true },
+  hourlyRate: { weight: 10, required: true },
+  yearsCoaching: { weight: 10, required: true },
+  calendlyUrl: { weight: 10, required: true },
+  eventTypeUrl: { weight: 10, required: true }
+};
+
+export const OPTIONAL_FIELDS: Record<string, FieldConfig> = {
+  // Add optional fields here with their weights
+};
+
+export const PUBLICATION_THRESHOLD = 80;
 
 /**
  * Calculate the profile completion percentage based on fields
@@ -109,66 +71,66 @@ export function calculateProfileCompletion(profile: CoachProfileData): {
   const optionalMissingFields: string[] = [];
   const validationMessages: Record<string, string> = {};
 
-  // Calculate weights and track missing fields
-  PROFILE_FIELDS.forEach((field) => {
-    if (field.required) {
-      totalRequiredWeight += field.weight;
-    } else {
-      totalOptionalWeight += field.weight;
-    }
-    
-    // Check if the field is complete
-    const isComplete = field.checkFn(profile[field.name]);
-    
-    if (isComplete) {
-      if (field.required) {
-        completedRequiredWeight += field.weight;
-      } else {
-        completedOptionalWeight += field.weight;
-      }
-    } else {
-      missingFields.push(field.name);
-      if (field.required) {
-        missingRequiredFields.push(field.name);
-        // Add validation message for required fields
-        if (field.name === 'bio') {
-          validationMessages[field.name] = 'Bio must be at least 50 characters long';
-        } else {
-          validationMessages[field.name] = `${getFieldDisplayName(field.name)} is required`;
-        }
-      } else {
-        optionalMissingFields.push(field.name);
-        validationMessages[field.name] = `Adding ${getFieldDisplayName(field.name)} will improve your profile`;
-      }
-    }
+  // Check required fields
+  for (const [field, config] of Object.entries(REQUIRED_FIELDS)) {
+    totalRequiredWeight += config.weight;
 
-    // Log each field's status
-    console.log('[PROFILE_FIELD_CHECK]', {
-      field: field.name,
-      value: profile[field.name],
-      isComplete,
-      weight: field.weight,
-      required: field.required,
+    // Log field check
+    console.log("[PROFILE_FIELD_CHECK]", {
+      field,
+      value: profile[field],
+      isComplete: isFieldComplete(field, profile[field]),
+      weight: config.weight,
+      required: config.required,
       timestamp: new Date().toISOString()
     });
-  });
 
-  // Calculate percentage based primarily on required fields
-  const requiredPercentage = totalRequiredWeight > 0 
-    ? Math.round((completedRequiredWeight / totalRequiredWeight) * 100)
-    : 0;
-    
-  const optionalPercentage = totalOptionalWeight > 0
+    if (isFieldComplete(field, profile[field])) {
+      completedRequiredWeight += config.weight;
+    } else {
+      missingFields.push(field);
+      if (config.required) {
+        missingRequiredFields.push(field);
+        // Add validation message for required fields
+        if (field === 'bio') {
+          validationMessages[field] = 'Bio must be at least 50 characters long';
+        } else {
+          validationMessages[field] = `${getFieldDisplayName(field)} is required`;
+        }
+      }
+    }
+  }
+
+  // Check optional fields
+  for (const [field, config] of Object.entries(OPTIONAL_FIELDS)) {
+    totalOptionalWeight += config.weight;
+
+    if (isFieldComplete(field, profile[field])) {
+      completedOptionalWeight += config.weight;
+    } else {
+      missingFields.push(field);
+      optionalMissingFields.push(field);
+      validationMessages[field] = `Adding ${getFieldDisplayName(field)} will improve your profile`;
+    }
+  }
+
+  // Calculate percentages
+  const requiredPercentage = Math.round((completedRequiredWeight / totalRequiredWeight) * 100);
+  const optionalPercentage = totalOptionalWeight > 0 
     ? Math.round((completedOptionalWeight / totalOptionalWeight) * 100)
     : 0;
 
-  // Weight the final percentage to favor required fields (80% required, 20% optional)
-  const percentage = Math.round((requiredPercentage * 0.8) + (optionalPercentage * 0.2));
-  
-  // Can only publish if ALL required fields are complete
-  const canPublish = missingRequiredFields.length === 0;
+  // Overall percentage weighted towards required fields (80% required, 20% optional)
+  const percentage = Math.round(
+    totalOptionalWeight > 0
+      ? (requiredPercentage * 0.8) + (optionalPercentage * 0.2)
+      : requiredPercentage
+  );
 
-  console.log('[PROFILE_COMPLETION_RESULT]', {
+  const canPublish = percentage >= PUBLICATION_THRESHOLD && missingRequiredFields.length === 0;
+
+  // Log completion result
+  console.log("[PROFILE_COMPLETION_RESULT]", {
     totalRequiredWeight,
     completedRequiredWeight,
     totalOptionalWeight,
@@ -191,6 +153,32 @@ export function calculateProfileCompletion(profile: CoachProfileData): {
     canPublish,
     validationMessages
   };
+}
+
+function isFieldComplete(field: string, value: any): boolean {
+  if (value === undefined || value === null) return false;
+
+  switch (field) {
+    case 'firstName':
+    case 'lastName':
+    case 'bio':
+    case 'profileImageUrl':
+    case 'calendlyUrl':
+    case 'eventTypeUrl':
+      return typeof value === 'string' && value.trim().length > 0;
+    
+    case 'coachingSpecialties':
+      return Array.isArray(value) && value.length > 0;
+    
+    case 'hourlyRate':
+      return typeof value === 'number' && value >= 100 && value <= 3000;
+    
+    case 'yearsCoaching':
+      return typeof value === 'number' && value >= 0;
+    
+    default:
+      return false;
+  }
 }
 
 /**

@@ -19,12 +19,17 @@ export const DOMAIN_SPECIALTIES = [
 export const coachProfileFormSchema = z.object({
   // Coach Profile Fields
   specialties: z.array(z.string()).optional(),
-  yearsCoaching: z.number().min(0, "Years must be 0 or greater"),
-  hourlyRate: z.number().min(100, "Please select an hourly rate").max(3000, "Maximum hourly rate is $3,000"),
+  yearsCoaching: z.number()
+    .min(0, "Years must be 0 or greater")
+    .int("Years must be a whole number")
+    .nonnegative("Years cannot be negative"),
+  hourlyRate: z.number()
+    .min(100, "Minimum hourly rate is $100")
+    .max(3000, "Maximum hourly rate is $3,000"),
   
   // Calendly Integration
-  calendlyUrl: z.string().optional(),
-  eventTypeUrl: z.string().optional(),
+  calendlyUrl: z.string().url("Invalid Calendly URL").optional(),
+  eventTypeUrl: z.string().url("Invalid event type URL").optional(),
   
   // Session Configuration
   defaultDuration: z.number().min(30).max(120).default(60),
@@ -96,5 +101,5 @@ export interface CoachProfileFormProps {
   canPublish?: boolean;
   userInfo?: UserInfo;
   onSpecialtiesChange: (specialties: Specialty[]) => void;
-  saveSpecialties: (selectedSpecialties: Specialty[]) => Promise<void>;
+  saveSpecialties: (selectedSpecialties: Specialty[]) => Promise<boolean>;
 } 

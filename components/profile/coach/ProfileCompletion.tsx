@@ -33,16 +33,16 @@ export function ProfileCompletion({
 
   // Log initial props
   useEffect(() => {
-    console.log('[PROFILE_COMPLETION_PROPS]', {
-      completionPercentage,
-      profileStatus,
-      canPublish,
-      missingFields,
-      missingRequiredFields,
-      optionalMissingFields,
-      validationMessages,
-      timestamp: new Date().toISOString()
-    });
+    // console.log('[PROFILE_COMPLETION_PROPS]', {
+    //   completionPercentage,
+    //   profileStatus,
+    //   canPublish,
+    //   missingFields,
+    //   missingRequiredFields,
+    //   optionalMissingFields,
+    //   validationMessages,
+    //   timestamp: new Date().toISOString()
+    // });
   }, [completionPercentage, profileStatus, canPublish, missingFields, missingRequiredFields, optionalMissingFields, validationMessages]);
 
   const renderStatusBadge = () => {
@@ -106,16 +106,16 @@ export function ProfileCompletion({
       const incompleteOptional = optionalMissingFields.filter(field => step.fields.includes(field));
       
       // Log detailed completion status
-      console.log('[STEP_COMPLETION_STATUS]', {
-        step: step.title,
-        completed: incompleteRequired.length === 0,
-        fields: step.fields,
-        incompleteRequired,
-        incompleteOptional,
-        missingRequiredFields, // Add this to see full list
-        optional: step.optional,
-        timestamp: new Date().toISOString()
-      });
+      // console.log('[STEP_COMPLETION_STATUS]', {
+      //   step: step.title,
+      //   completed: incompleteRequired.length === 0,
+      //   fields: step.fields,
+      //   incompleteRequired,
+      //   incompleteOptional,
+      //   missingRequiredFields, // Add this to see full list
+      //   optional: step.optional,
+      //   timestamp: new Date().toISOString()
+      // });
     });
 
     return (
@@ -130,15 +130,15 @@ export function ProfileCompletion({
             (step.title === 'Scheduling' && (incompleteRequired.length > 0 || incompleteOptional.length > 0));
           
           // Log step render details with more info
-          console.log('[STEP_RENDER_STATUS]', {
-            step: step.title,
-            hasIncomplete,
-            incompleteRequired,
-            incompleteOptional,
-            isSchedulingStep: step.title === 'Scheduling',
-            fields: step.fields,
-            timestamp: new Date().toISOString()
-          });
+          // console.log('[STEP_RENDER_STATUS]', {
+          //   step: step.title,
+          //   hasIncomplete,
+          //   incompleteRequired,
+          //   incompleteOptional,
+          //   isSchedulingStep: step.title === 'Scheduling',
+          //   fields: step.fields,
+          //   timestamp: new Date().toISOString()
+          // });
           
           return (
             <div 

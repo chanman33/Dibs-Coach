@@ -10,7 +10,11 @@ import { CoachProfileFormValues } from "../types";
 import { GroupBase } from 'react-select';
 
 interface CoachSpecialtiesSectionProps {
-  control: Control<CoachProfileFormValues>;
+  control: Control<{
+    yearsCoaching: number;
+    hourlyRate: number;
+    specialties: string[];
+  }>;
 }
 
 export function CoachSpecialtiesSection({ control }: CoachSpecialtiesSectionProps) {
@@ -25,9 +29,7 @@ export function CoachSpecialtiesSection({ control }: CoachSpecialtiesSectionProp
   }));
 
   return (
-    <div className="space-y-4 mb-8">
-
-
+    <div className="space-y-4">
       <FormField
         control={control}
         name="specialties"

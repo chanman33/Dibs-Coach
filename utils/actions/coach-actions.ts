@@ -203,6 +203,12 @@ interface UpdateCoachProfileResponse {
 export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, CoachProfileFormData>(
   async (formData, { userUlid }) => {
     try {
+      console.log("[UPDATE_COACH_PROFILE_START]", {
+        userUlid,
+        formData,
+        timestamp: new Date().toISOString()
+      });
+
       const supabase = await createAuthClient()
       
       const { data: userData, error: userError } = await supabase
@@ -218,7 +224,11 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         .single()
 
       if (userError) {
-        console.error('[DEBUG] Error fetching user:', userError)
+        console.error('[UPDATE_COACH_USER_ERROR]', {
+          userUlid,
+          error: userError,
+          timestamp: new Date().toISOString()
+        });
         return {
           data: null,
           error: {
@@ -228,6 +238,12 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           }
         }
       }
+
+      console.log("[UPDATE_COACH_USER_FETCHED]", {
+        userUlid,
+        userData,
+        timestamp: new Date().toISOString()
+      });
 
       const realtorProfileUlid = userData.realtorProfile[0].ulid;
 
@@ -252,6 +268,21 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         .eq('userUlid', userUlid)
         .maybeSingle();
 
+      if (existingProfileError) {
+        console.error('[UPDATE_COACH_EXISTING_PROFILE_ERROR]', {
+          userUlid,
+          error: existingProfileError,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      console.log("[UPDATE_COACH_PROFILE_STATUS_CHECK]", {
+        userUlid,
+        existingProfile,
+        canPublish,
+        timestamp: new Date().toISOString()
+      });
+
       // Determine profile status
       let profileStatus: ProfileStatus = PROFILE_STATUS.DRAFT;
       if (canPublish && existingProfile?.profileStatus === PROFILE_STATUS.PUBLISHED) {
@@ -274,6 +305,12 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         updatedAt: new Date().toISOString(),
       }
 
+      console.log("[UPDATE_COACH_PROFILE_DATA]", {
+        userUlid,
+        coachProfileData,
+        timestamp: new Date().toISOString()
+      });
+
       const { error: coachError } = await supabase
         .from('CoachProfile')
         .upsert(coachProfileData, {
@@ -282,7 +319,11 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         .select()
 
       if (coachError) {
-        console.error('[DEBUG] Error updating coach profile:', coachError)
+        console.error('[UPDATE_COACH_PROFILE_ERROR]', {
+          userUlid,
+          error: coachError,
+          timestamp: new Date().toISOString()
+        });
         return {
           data: null,
           error: {
@@ -292,6 +333,11 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           }
         }
       }
+
+      console.log("[UPDATE_COACH_PROFILE_SUCCESS]", {
+        userUlid,
+        timestamp: new Date().toISOString()
+      });
 
       revalidatePath('/dashboard/coach/profile')
       return { 
@@ -305,7 +351,12 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         error: null
       }
     } catch (error) {
-      console.error('[COACH_PROFILE_UPDATE_ERROR]', error)
+      console.error('[UPDATE_COACH_PROFILE_ERROR]', {
+        userUlid,
+        error,
+        formData,
+        timestamp: new Date().toISOString()
+      });
       return {
         data: null,
         error: {

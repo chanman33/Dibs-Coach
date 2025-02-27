@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Award, Building, Home, ListChecks, User, Briefcase, Globe, Target, Info, List } from "lucide-react";
-import { ProfessionalRecognition } from "../types";
+import { ProfessionalRecognition, CoachProfileFormValues } from "../types";
 import GeneralForm from "./GeneralForm";
 import { RecognitionsTab } from "../coach/RecognitionsTab";
 import MarketingInfo from "../coach/MarketingInfo";
@@ -57,6 +57,7 @@ interface ProfileTabsManagerProps {
     primaryMarket?: string | null;
   };
   onSubmitGeneral?: (data: any) => Promise<void>;
+  onSubmitCoach?: (data: CoachProfileFormValues) => Promise<void>;
   coachFormContent: React.ReactNode;
   realtorFormContent?: React.ReactNode;
   investorFormContent?: React.ReactNode;
@@ -84,6 +85,7 @@ export function ProfileTabsManager({
   confirmedSpecialties = [],
   generalUserInfo,
   onSubmitGeneral,
+  onSubmitCoach,
   coachFormContent,
   realtorFormContent,
   investorFormContent,
@@ -115,12 +117,13 @@ export function ProfileTabsManager({
     // Create domain-specific sub-tabs based on confirmed specialties
     const domainSubTabs: ProfileSubTab[] = [];
     
-    console.log("[PROFILE_TABS_MANAGER] Building domain sub-tabs", {
-      confirmedSpecialties,
-      hasRealtorContent: !!realtorFormContent,
-      hasPropertyManagerContent: !!propertyManagerFormContent,
-      timestamp: new Date().toISOString()
-    });
+    // Log the building of domain sub-tabs
+    // console.log("[PROFILE_TABS_MANAGER] Building domain sub-tabs", {
+    //   confirmedSpecialties,
+    //   hasRealtorContent: !!realtorFormContent,
+    //   hasPropertyManagerContent: !!propertyManagerFormContent,
+    //   timestamp: new Date().toISOString()
+    // });
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.REALTOR) && realtorFormContent) {
       // Add the main Realtor Profile tab
@@ -264,10 +267,10 @@ export function ProfileTabsManager({
     }
 
     // Log the final sub-tabs for debugging
-    console.log("[PROFILE_TABS_MANAGER] Final domain sub-tabs", {
-      domainSubTabs: domainSubTabs.map(tab => tab.id),
-      timestamp: new Date().toISOString()
-    });
+    // console.log("[PROFILE_TABS_MANAGER] Final domain sub-tabs", {
+    //   domainSubTabs: domainSubTabs.map(tab => tab.id),
+    //   timestamp: new Date().toISOString()
+    // });
 
     const allTabs: ProfileTab[] = [
       {
@@ -410,10 +413,11 @@ export function ProfileTabsManager({
   useEffect(() => {
     if (activeTab === "coach") {
       setActiveSubTab("basic-info");
-      console.log("[PROFILE_TABS_MANAGER] Specialties changed, resetting to basic-info tab", {
-        confirmedSpecialties,
-        timestamp: new Date().toISOString()
-      });
+      // Log the reset to basic-info tab
+      // console.log("[PROFILE_TABS_MANAGER] Specialties changed, resetting to basic-info tab", {
+      //   confirmedSpecialties,
+      //   timestamp: new Date().toISOString()
+      // });
     }
   }, [confirmedSpecialties, activeTab]);
 
@@ -445,6 +449,18 @@ export function ProfileTabsManager({
       return activeSubTabObject?.content || activeTabObject.content;
     }
     return activeTabObject?.content;
+  };
+
+  const handleCoachSubmit = async (data: CoachProfileFormValues) => {
+    // Log the coach submit
+    // console.log("[PROFILE_TABS_COACH_SUBMIT]", {
+    //   data,
+    //   timestamp: new Date().toISOString()
+    // });
+    
+    if (onSubmitCoach) {
+      await onSubmitCoach(data);
+    }
   };
 
   return (
