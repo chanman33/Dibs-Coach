@@ -20,7 +20,6 @@ export interface CoachProfileFormData {
   domainSpecialties?: string[];
   certifications?: string[];
   languages?: string[];
-  marketExpertise?: string;
   professionalRecognitions?: ProfessionalRecognition[];
 }
 
@@ -46,7 +45,6 @@ interface CoachProfileResponse {
   eventTypeUrl: string;
   languages: string[];
   certifications: string[];
-  marketExpertise: string;
   professionalRecognitions: ProfessionalRecognition[];
   domainSpecialties: string[];
   capabilities: string[];
@@ -140,7 +138,6 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
             eventTypeUrl: "",
             languages: [],
             certifications: [],
-            marketExpertise: "",
             professionalRecognitions: [],
             domainSpecialties: [],
             capabilities: [],
@@ -206,7 +203,6 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         eventTypeUrl: coachProfile?.eventTypeUrl || "",
         languages: Array.isArray(data?.languages) ? data.languages : ['en'],
         certifications: Array.isArray(realtorProfile?.certifications) ? realtorProfile.certifications : [],
-        marketExpertise: realtorProfile?.bio || "",
         professionalRecognitions: activeRecognitions,
         domainSpecialties: coachProfile?.domainSpecialties || [],
         capabilities: [],

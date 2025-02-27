@@ -81,9 +81,6 @@ export function CoachProfileForm({
       minimumDuration: initialData?.minimumDuration || 30,
       maximumDuration: initialData?.maximumDuration || 120,
       allowCustomDuration: initialData?.allowCustomDuration || false,
-      languages: initialData?.languages || [],
-      marketExpertise: initialData?.marketExpertise || "",
-      professionalRecognitions: initialData?.professionalRecognitions || [],
     },
     mode: "onSubmit"
   });
@@ -130,9 +127,6 @@ export function CoachProfileForm({
         minimumDuration: initialData.minimumDuration || 30,
         maximumDuration: initialData.maximumDuration || 120,
         allowCustomDuration: initialData.allowCustomDuration || false,
-        languages: initialData.languages || [],
-        marketExpertise: initialData.marketExpertise || "",
-        professionalRecognitions: initialData.professionalRecognitions || [],
       });
 
       // Update local state for display only
@@ -152,13 +146,7 @@ export function CoachProfileForm({
       };
     }
     
-    if (JSON.stringify(initialData?.languages || []) !== JSON.stringify(values.languages)) {
-      changes.languages = {
-        previous: initialData?.languages || [],
-        current: values.languages
-      };
-    }
-    
+  
     return {
       hasChanges: Object.keys(changes).length > 0,
       changes
@@ -256,11 +244,19 @@ export function CoachProfileForm({
               {/* Languages */}
               <LanguagesSection 
                 initialLanguages={initialData?.languages || ['en']}
-                onLanguagesUpdate={(languages) => {
-                  form.setValue('languages', languages);
-                }}
               />
             </div>
+          </Card>
+
+          {/* Add Coaching Specialties Card */}
+          <Card className="p-4 sm:p-6 border shadow-sm">
+            <div className="mb-4 sm:mb-6">
+              <h3 className="text-base sm:text-lg font-semibold">Coaching Specialties</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Select the specific areas where you can provide expert coaching and guidance.
+              </p>
+            </div>
+            <CoachSpecialtiesSection control={form.control} />
           </Card>
 
           {/* Read-only Industry Specialties */}

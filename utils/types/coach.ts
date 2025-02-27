@@ -15,6 +15,164 @@ export interface ApprovedSpecialties {
   approvedBy: string;
 }
 
+// Move these to the top, before CoachProfileSchema
+export const COACH_SPECIALTIES = {
+  BUSINESS_DEVELOPMENT: [
+    "Lead Generation Strategy",
+    "Sphere of Influence Building",
+    "Digital Marketing Mastery",
+    "Social Media Influence",
+    "Content Strategy & Branding",
+    "Referral Network Development",
+    "Client Acquisition & Retention",
+  ],
+
+  BUSINESS_OPERATIONS: [
+    "Team Leadership & Management",
+    "Process Automation & Systems",
+    "Performance Management",
+    "Business Planning & Strategy",
+    "Multiple Income Stream Development",
+    "Market Expansion Strategy",
+    "Risk Management & Compliance",
+  ],
+
+  CLIENT_RELATIONS: [
+    "High-Net-Worth Client Services",
+    "International Client Relations",
+    "Client Communication Strategy",
+    "Conflict Resolution",
+    "Cross-Cultural Communication",
+    "Multi-Generation Wealth Planning",
+  ],
+
+  PROFESSIONAL_DEVELOPMENT: [
+    "Personal Brand Development",
+    "Industry Certification Prep",
+    "Professional Network Building",
+    "Time Management & Productivity",
+    "Video Marketing Mastery",
+    "Digital Tools & Innovation",
+  ],
+
+  // Career-Specific Specialties
+  REALTOR: [
+    "Listing Presentation Mastery",
+    "Luxury Market Strategy",
+    "First-Time Buyer Guidance",
+    "Virtual Showing Mastery",
+    "Open House Optimization",
+    "Expired Listing Revival",
+    "Geographic Farm Development",
+  ],
+
+  MORTGAGE_OFFICER: [
+    "Loan Structure Strategy",
+    "Underwriting Navigation",
+    "Credit Repair Guidance",
+    "Alternative Lending Solutions",
+    "FHA/VA Loan Specialization",
+    "Construction Loan Mastery",
+    "Portfolio Loan Development",
+  ],
+
+  COMMERCIAL_RE: [
+    "Commercial Deal Structuring",
+    "Investment Analysis",
+    "Market Analysis & Forecasting",
+    "Tenant Representation",
+    "Property Valuation Strategy",
+    "Development Project Management",
+    "REO & Distressed Properties",
+  ],
+
+  PROPERTY_MANAGER: [
+    "Property Management Systems",
+    "Tenant Screening & Relations",
+    "Maintenance Program Development",
+    "Property Technology Integration",
+    "Revenue Optimization",
+    "Staff Management & Training",
+    "Portfolio Scaling Strategy",
+  ],
+
+  INVESTOR: [
+    "Investment Deal Analysis",
+    "Portfolio Optimization",
+    "Creative Financing Strategies",
+    "1031 Exchange Mastery",
+    "Syndication Formation",
+    "Joint Venture Structuring",
+    "Value-Add Strategy",
+  ],
+
+  PRIVATE_CREDIT: [
+    "Private Lending Strategy",
+    "Risk Assessment",
+    "Deal Underwriting",
+    "Capital Structure Planning",
+    "Default Management",
+    "Fund Structure & Management",
+    "Investor Relations",
+  ],
+
+  TITLE_ESCROW: [
+    "Transaction Management",
+    "Due Diligence Process",
+    "Title Search Optimization",
+    "Closing Efficiency Systems",
+    "Legal Compliance Strategy",
+    "Client Education Programs",
+    "Remote Closing Management",
+  ],
+
+  // Emerging Trends & Opportunities
+  MARKET_INNOVATION: [
+    "PropTech Integration",
+    "ESG & Sustainable Real Estate",
+    "Build-to-Rent Strategy",
+    "Climate Risk Assessment",
+    "Smart Home Technology",
+    "Blockchain in Real Estate",
+    "Virtual & Augmented Reality",
+  ],
+
+  ECONOMIC_MASTERY: [
+    "Economic Cycle Navigation",
+    "Market Data Analysis",
+    "Investment Timing Strategy",
+    "Distressed Market Opportunities",
+    "Regional Market Analysis",
+    "Economic Indicator Interpretation",
+    "Risk Mitigation Planning",
+  ],
+
+  SOCIAL_MEDIA: [
+    "Facebook Marketing & Ads",
+    "Instagram Growth & Content",
+    "TikTok Strategy & Trends",
+    "LinkedIn Personal Branding",
+    "X/Twitter Engagement",
+    "Pinterest Marketing",
+    "Social Media Content Planning",
+    "Social Media Analytics",
+    "Influencer Collaboration",
+    "Social Media Advertising",
+    "Community Management",
+    "Social Media ROI Strategy",
+  ],
+} as const;
+
+export type SpecialtyCategory = keyof typeof COACH_SPECIALTIES;
+export type Specialty = typeof COACH_SPECIALTIES[SpecialtyCategory][number];
+
+// Add new type for stored specialty
+export interface CoachSpecialtyEntry {
+  category: SpecialtyCategory;
+  specialty: Specialty;
+}
+
+// Now the schema can use these types
 export const CoachProfileSchema = z.object({
   id: z.number().optional(),
   bio: z.string().min(1, "Bio is required").max(1000, "Bio must be less than 1000 characters"),
@@ -41,6 +199,12 @@ export const CoachProfileSchema = z.object({
   // Add new fields
   profileStatus: z.enum(Object.values(PROFILE_STATUS) as [string, ...string[]]).default(PROFILE_STATUS.DRAFT),
   completionPercentage: z.number().min(0).max(100).default(0),
+  coachingSpecialties: z.array(
+    z.object({
+      category: z.enum(Object.keys(COACH_SPECIALTIES) as [SpecialtyCategory, ...SpecialtyCategory[]]),
+      specialty: z.string()
+    })
+  ).min(1, "At least one specialty is required"),
 });
 
 export interface CoachProfileData {
@@ -70,19 +234,6 @@ export const UpdateCoachProfileSchema = CoachProfileSchema.partial().extend({
 });
 
 export type UpdateCoachProfile = z.infer<typeof UpdateCoachProfileSchema>;
-
-// Specialties and certifications options
-export const COACH_SPECIALTIES = [
-  "Residential Properties",
-  "Commercial Properties",
-  "Property Management",
-  "Investment Properties",
-  "Luxury Real Estate",
-  "First-Time Buyers",
-  "Marketing Strategy",
-  "Business Development",
-  "Team Leadership",
-] as const;
 
 export const COACH_CERTIFICATIONS = [
   "Licensed Real Estate Broker",
@@ -169,7 +320,7 @@ export interface PublicCoach {
   displayName: string | null
   bio: string | null
   profileImageUrl: string | null
-  coachingSpecialties: string[]
+  coachingSpecialties: CoachSpecialtyEntry[]
   hourlyRate: number | null
   averageRating: number | null
   totalSessions: number

@@ -91,9 +91,9 @@ export function ProfileCompletion({
       {
         title: 'Professional Background',
         description: 'Certifications and expertise',
-        fields: ['certifications', 'languages', 'marketExpertise'],
+        fields: ['certifications', 'languages'],
         completed: !optionalMissingFields.some(field => 
-          ['certifications', 'languages', 'marketExpertise'].includes(field)
+          ['certifications', 'languages'].includes(field)
         ),
         optional: true,
       }

@@ -1,62 +1,89 @@
 "use client"
 
-import { COACH_SPECIALTIES } from "@/utils/types/coach";
+import { COACH_SPECIALTIES, SpecialtyCategory, Specialty } from "@/utils/types/coach";
 import { Control } from "react-hook-form";
 import { FormField, FormItem, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FormSectionHeader } from "../common/FormSectionHeader";
-import { Checkbox } from "@/components/ui/checkbox";
+import Select from 'react-select';
+import { selectStyles } from "@/components/ui/select-styles";
 import { CoachProfileFormValues } from "../types";
+import { GroupBase } from 'react-select';
 
 interface CoachSpecialtiesSectionProps {
   control: Control<CoachProfileFormValues>;
 }
 
 export function CoachSpecialtiesSection({ control }: CoachSpecialtiesSectionProps) {
+  // Convert COACH_SPECIALTIES into options format for react-select
+  const specialtyOptions = Object.entries(COACH_SPECIALTIES).map(([category, specialties]) => ({
+    label: formatCategoryLabel(category),
+    options: specialties.map(specialty => ({
+      value: specialty,
+      label: specialty,
+      category: category
+    }))
+  }));
+
   return (
     <div className="space-y-4 mb-8">
       <FormSectionHeader 
         title="Coaching Specialties" 
         required 
-        tooltip="Describe your specific coaching areas in detail. This helps potential clients understand your expertise."
+        tooltip="Select your areas of expertise to help potential clients find the right match for their needs."
       />
       
       <FormField
         control={control}
         name="specialties"
-        render={({ field }) => (
+        render={({ field: { onChange, value, ...field } }) => (
           <FormItem>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {COACH_SPECIALTIES.map((specialty) => (
-                <div key={specialty} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`specialty-${specialty}`}
-                    checked={field.value?.includes(specialty)}
-                    onCheckedChange={(checked) => {
-                      const currentValue = field.value || [];
-                      if (checked) {
-                        field.onChange([...currentValue, specialty]);
-                      } else {
-                        field.onChange(currentValue.filter(val => val !== specialty));
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor={`specialty-${specialty}`}
-                    className="text-sm font-medium leading-none"
-                  >
-                    {specialty}
-                  </label>
-                </div>
-              ))}
-            </div>
+            <FormControl>
+              <Select
+                {...field}
+                isMulti
+                options={specialtyOptions}
+                styles={selectStyles}
+                value={specialtyOptions
+                  .flatMap(group => group.options)
+                  .filter(option => value?.includes(option.value))
+                }
+                onChange={(selected) => {
+                  onChange(selected ? selected.map(option => option.value) : []);
+                }}
+                placeholder="Select your coaching specialties..."
+                className="w-full"
+                classNamePrefix="coach-specialty-select"
+                formatGroupLabel={formatGroupLabel}
+                noOptionsMessage={() => "No specialties found"}
+              />
+            </FormControl>
             <FormDescription>
-              Select all coaching specialties that apply to your expertise.
+              Choose specialties that best represent your expertise and coaching focus areas.
+              You can select multiple specialties across different categories.
             </FormDescription>
             <FormMessage />
           </FormItem>
         )}
       />
+    </div>
+  );
+}
+
+// Helper function to format category labels
+function formatCategoryLabel(category: string): string {
+  return category
+    .split('_')
+    .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+// Custom group label component
+function formatGroupLabel(group: GroupBase<any>) {
+  return (
+    <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
+      <span className="font-semibold text-sm text-slate-700">
+        {group.label}
+      </span>
     </div>
   );
 } 

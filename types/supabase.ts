@@ -625,7 +625,7 @@ export type Database = {
           allowCustomDuration: boolean
           averageRating: number | null
           calendlyUrl: string | null
-          coachingSpecialties: string[] | null
+          coachingSpecialties: Json
           completionPercentage: number
           createdAt: string
           defaultDuration: number
@@ -635,7 +635,6 @@ export type Database = {
           maximumDuration: number
           minimumDuration: number
           profileStatus: Database["public"]["Enums"]["ProfileStatus"]
-          selectedSpecialties: string[] | null
           totalSessions: number
           ulid: string
           updatedAt: string
@@ -646,7 +645,7 @@ export type Database = {
           allowCustomDuration?: boolean
           averageRating?: number | null
           calendlyUrl?: string | null
-          coachingSpecialties?: string[] | null
+          coachingSpecialties?: Json
           completionPercentage?: number
           createdAt?: string
           defaultDuration?: number
@@ -656,7 +655,6 @@ export type Database = {
           maximumDuration?: number
           minimumDuration?: number
           profileStatus?: Database["public"]["Enums"]["ProfileStatus"]
-          selectedSpecialties?: string[] | null
           totalSessions?: number
           ulid: string
           updatedAt: string
@@ -667,7 +665,7 @@ export type Database = {
           allowCustomDuration?: boolean
           averageRating?: number | null
           calendlyUrl?: string | null
-          coachingSpecialties?: string[] | null
+          coachingSpecialties?: Json
           completionPercentage?: number
           createdAt?: string
           defaultDuration?: number
@@ -677,7 +675,6 @@ export type Database = {
           maximumDuration?: number
           minimumDuration?: number
           profileStatus?: Database["public"]["Enums"]["ProfileStatus"]
-          selectedSpecialties?: string[] | null
           totalSessions?: number
           ulid?: string
           updatedAt?: string

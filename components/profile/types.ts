@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ProfileStatus } from "@/utils/types/coach";
 import { COMMON_LANGUAGES } from "@/lib/constants";
+import { Specialty } from "@/utils/types/coach";
 
 // Domain specialties for coaches
 export const DOMAIN_SPECIALTIES = [
@@ -30,15 +31,6 @@ export const coachProfileFormSchema = z.object({
   minimumDuration: z.number().min(30).max(60).default(30),
   maximumDuration: z.number().min(60).max(120).default(120),
   allowCustomDuration: z.boolean().default(false),
-  
-  // Professional Information
-  languages: z.array(
-    z.string().refine(
-      (val) => COMMON_LANGUAGES.some(lang => lang.code === val),
-      { message: "Please select valid languages" }
-    )
-  ).min(1, "Please select at least one language"),
-  marketExpertise: z.string().optional(),
   
   // Professional Recognitions
   professionalRecognitions: z.array(z.object({
@@ -81,8 +73,7 @@ export interface CoachProfileInitialData {
   maximumDuration?: number;
   allowCustomDuration?: boolean;
   certifications?: string[];
-  languages?: string[];
-  marketExpertise?: string;
+  languages?: string[]; // Keep this for LanguagesSection initialization
   professionalRecognitions?: ProfessionalRecognition[];
 }
 
@@ -104,6 +95,6 @@ export interface CoachProfileFormProps {
   missingFields?: string[];
   canPublish?: boolean;
   userInfo?: UserInfo;
-  onSpecialtiesChange: (specialties: string[]) => void;
-  saveSpecialties: (selectedSpecialties: string[]) => Promise<void>;
+  onSpecialtiesChange: (specialties: Specialty[]) => void;
+  saveSpecialties: (selectedSpecialties: Specialty[]) => Promise<void>;
 } 
