@@ -9,6 +9,7 @@ import {
   fetchUserCapabilities,
   updateUserProfile,
   updateUserLanguages,
+  fetchUserProfile,
   type GeneralFormData
 } from "@/utils/actions/user-profile-actions";
 import {
@@ -171,123 +172,123 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Fetch initial profile data with debouncing
-  const fetchProfileData = useCallback(async (force = false) => {
-    const now = Date.now();
-    
-    // Clear any existing timeout
-    if (fetchTimeoutRef.current) {
-      clearTimeout(fetchTimeoutRef.current);
-      fetchTimeoutRef.current = undefined;
-    }
-
-    // If not forced and last fetch was too recent, debounce
-    if (!force && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
-      return; // Simply return without scheduling another fetch
-    }
-
+  const fetchProfileData = useCallback(async (forceFetch = false) => {
     try {
-      // Cancel any in-flight requests
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      // If last fetch was too recent and not forcing, return early
+      if (!forceFetch && lastFetchTimeRef.current && Date.now() - lastFetchTimeRef.current < 2000) {
+        return;
       }
-      
-      // Create new abort controller for this request
-      abortControllerRef.current = new AbortController();
-      
+
       setIsLoading(true);
       setFetchError(null);
-      lastFetchTimeRef.current = now;
 
-      // Fetch user capabilities first
+      // 1. First fetch user capabilities and domains
       const capabilities = await fetchUserCapabilities();
-      if (!capabilities?.data) {
-        throw new Error("Failed to fetch user capabilities");
+      if (!capabilities.data) {
+        console.error("[USER_CAPABILITIES_ERROR]", {
+          error: capabilities.error,
+          timestamp: new Date().toISOString()
+        });
+        throw capabilities.error;
       }
-      
+
       const userCaps = capabilities.data.capabilities || [];
-      // Only update capabilities if they've changed
+      const domains = capabilities.data.realEstateDomains || [];
+      
+      // Only update capabilities and domains if they've changed
       if (JSON.stringify(userCaps) !== JSON.stringify(userCapabilities)) {
         setUserCapabilities(userCaps);
       }
+      if (JSON.stringify(domains) !== JSON.stringify(realEstateDomains)) {
+        setRealEstateDomains(domains);
+      }
 
-      // Only fetch coach profile if user has COACH capability
+      // 2. If user is not a coach, reset coach-related states and return early
       if (!userCaps.includes('COACH')) {
         setCoachData({});
         setProfileStatus('DRAFT');
         setCompletionPercentage(0);
         setMissingFields([]);
         setCanPublish(false);
+        setSelectedSkills([]);
+        setIndustrySpecialties([]);
+        setRecognitionsData([]);
         setIsLoading(false);
         return;
       }
 
-      // Fetch coach profile data
-      const result = await fetchCoachProfile();
-      
-      // Handle specific error cases
-      if (result.error) {
-        if (result.error.message === 'User is not a coach') {
-          // Not a real error - just means no coach profile yet
-          setCoachData({});
-          setProfileStatus('DRAFT');
-          setCompletionPercentage(0);
-          setMissingFields([]);
-          setCanPublish(false);
-          setIsLoading(false);
-          return;
-        }
-        throw new Error(result.error.message);
+      // 3. Fetch general profile data
+      const generalResult = await fetchUserProfile();
+      if (generalResult.error) {
+        console.error("[GENERAL_PROFILE_ERROR]", {
+          error: generalResult.error,
+          timestamp: new Date().toISOString()
+        });
+        throw generalResult.error;
       }
 
-      // Reset retry count on success
-      setRetryCount(0);
-      
-      if (result.data) {
-        const userData = result.data._rawCoachProfile?.User || {};
-        const coachProfile = result.data._rawCoachProfile || {};
-        
-        // Update skills and specialties
-        setSelectedSkills(coachProfile.skills || []);
-        setIndustrySpecialties(coachProfile.industrySpecialties || []);
-        
-        // Update coach data
-        setCoachData({
-          ...coachProfile,
-          specialties: coachProfile.skills || [],
-          domainSpecialties: coachProfile.industrySpecialties || []
-        });
-        
-        // Update profile status
-        setProfileStatus(coachProfile.status || 'DRAFT');
-        setCompletionPercentage(coachProfile.completionPercentage || 0);
-        setMissingFields(coachProfile.missingFields || []);
-        setCanPublish(coachProfile.canPublish || false);
-        
-        // Update recognitions
-        if (coachProfile.professionalRecognitions) {
-          setRecognitionsData(coachProfile.professionalRecognitions);
-        }
-        
-        // Update general data
+      if (generalResult.data) {
         setGeneralData({
-          displayName: userData.displayName || "",
-          bio: userData.bio || null,
-          primaryMarket: userData.primaryMarket || "",
-          totalYearsRE: userData.totalYearsRE || 0,
-          languages: userData.languages || []
+          displayName: generalResult.data.displayName || "",
+          bio: generalResult.data.bio || null,
+          primaryMarket: generalResult.data.primaryMarket || "",
+          totalYearsRE: generalResult.data.totalYearsRE || 0,
+          languages: generalResult.data.languages || []
         });
       }
+
+      // 4. Fetch coach profile data
+      const coachResult = await fetchCoachProfile();
+      if (coachResult.error && coachResult.error.message !== 'User is not a coach') {
+        console.error("[COACH_PROFILE_ERROR]", {
+          error: coachResult.error,
+          timestamp: new Date().toISOString()
+        });
+        throw coachResult.error;
+      }
+
+      // 5. Update coach profile states
+      if (coachResult.data) {
+        const {
+          coachSkills = [],
+          professionalRecognitions = [],
+          profileStatus: status = 'DRAFT',
+          completionPercentage = 0,
+          missingFields: missing = [],
+          canPublish: publish = false
+        } = coachResult.data;
+
+        setCoachData(coachResult.data);
+        setProfileStatus(status);
+        setCompletionPercentage(completionPercentage);
+        setMissingFields(missing);
+        setCanPublish(publish);
+        setSelectedSkills(coachSkills);
+        setRecognitionsData(professionalRecognitions);
+      } else {
+        // Reset states if no coach data
+        setCoachData({});
+        setProfileStatus('DRAFT');
+        setCompletionPercentage(0);
+        setMissingFields([]);
+        setCanPublish(false);
+        setSelectedSkills([]);
+        setRecognitionsData([]);
+      }
+
+      // Update lastFetchTimeRef correctly
+      lastFetchTimeRef.current = Date.now();
+      setIsLoading(false);
     } catch (error) {
       console.error("[PROFILE_FETCH_ERROR]", {
         error,
-        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
         timestamp: new Date().toISOString()
       });
-      setFetchError(error as Error);
-    } finally {
+      setFetchError(error instanceof Error ? error : new Error('Failed to fetch profile data'));
       setIsLoading(false);
     }
-  }, [userCapabilities]); // Only depend on userCapabilities
+  }, [userCapabilities, realEstateDomains]);
 
   // Initial fetch only
   useEffect(() => {

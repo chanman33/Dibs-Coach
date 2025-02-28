@@ -50,57 +50,66 @@ interface ProfessionalRecognition {
 export const fetchUserProfile = withServerAction<GeneralFormData, void>(
   async (_, { userUlid }) => {
     try {
-      const supabase = await createAuthClient()
+      const supabase = await createAuthClient();
 
-      // Get user data
-      const { data: userData, error: userError } = await supabase
-        .from("User")
+      const { data, error } = await supabase
+        .from('User')
         .select(`
-          id,
           displayName,
           bio,
-          primaryMarket,
           totalYearsRE,
           realEstateDomains,
-          primaryDomain,
+          primaryMarket,
           languages,
           capabilities,
-          coachProfile (*)
+          coachProfile:CoachProfile (*)
         `)
-        .eq("ulid", userUlid)
-        .maybeSingle()
+        .eq('ulid', userUlid)
+        .single();
 
-      // If no user data exists yet, don't treat it as an error
-      if (userError && userError.code !== 'PGRST116') {
-        console.error("[USER_FETCH_ERROR]", { userUlid, error: userError })
+      if (error) {
+        console.error("[USER_FETCH_ERROR]", {
+          userUlid,
+          error,
+          timestamp: new Date().toISOString()
+        });
         return {
-          data: null,
+          data: {
+            displayName: "",
+            bio: null,
+            totalYearsRE: 0,
+            realEstateDomains: [],
+            primaryMarket: "",
+            languages: [],
+            capabilities: [],
+            coachProfile: null
+          },
           error: {
             code: 'DATABASE_ERROR',
             message: 'Failed to fetch user data',
-            details: userError
+            details: error
           }
-        }
+        };
       }
-
-      // Return values with proper defaults
-      const responseData = {
-        displayName: userData?.displayName || "",
-        bio: userData?.bio || null,
-        totalYearsRE: userData?.totalYearsRE ?? 0,
-        realEstateDomains: userData?.realEstateDomains || [],
-        primaryMarket: userData?.primaryMarket || "",
-        languages: userData?.languages || [],
-        capabilities: userData?.capabilities || [],
-        coachProfile: userData?.coachProfile || []
-      };
 
       return {
-        data: responseData,
+        data: {
+          displayName: data.displayName || "",
+          bio: data.bio || null,
+          totalYearsRE: data.totalYearsRE || 0,
+          realEstateDomains: data.realEstateDomains || [],
+          primaryMarket: data.primaryMarket || "",
+          languages: data.languages || [],
+          capabilities: data.capabilities || [],
+          coachProfile: data.coachProfile || null
+        },
         error: null
-      }
+      };
     } catch (error) {
-      console.error("[PROFILE_FETCH_ERROR]", error)
+      console.error("[PROFILE_FETCH_ERROR]", {
+        error,
+        timestamp: new Date().toISOString()
+      });
       return {
         data: {
           displayName: "",
@@ -110,17 +119,17 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
           primaryMarket: "",
           languages: [],
           capabilities: [],
-          coachProfile: []
+          coachProfile: null
         },
         error: {
           code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'An unexpected error occurred',
           details: error
         }
-      }
+      };
     }
   }
-)
+);
 
 export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormData>(
   async (data, { userUlid }) => {
