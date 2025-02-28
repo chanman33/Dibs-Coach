@@ -174,24 +174,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const fetchProfileData = useCallback(async (force = false) => {
     const now = Date.now();
     
-    // If not forced and last fetch was less than debounce time ago, debounce
+    // Clear any existing timeout
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+      fetchTimeoutRef.current = undefined;
+    }
+
+    // If not forced and last fetch was too recent, debounce
     if (!force && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current);
-      }
-      
-      // Return early if we've hit max retries
-      if (retryCount >= MAX_RETRIES) {
-        console.warn("[PROFILE_FETCH_MAX_RETRIES]", {
-          retryCount,
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-      
-      const debouncedFetch = () => void fetchProfileData(true);
-      fetchTimeoutRef.current = setTimeout(debouncedFetch, FETCH_DEBOUNCE_MS);
-      return;
+      return; // Simply return without scheduling another fetch
     }
 
     try {
@@ -209,23 +200,43 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
       // Fetch user capabilities first
       const capabilities = await fetchUserCapabilities();
-      if (capabilities.error) {
-        throw new Error(capabilities.error.message);
+      if (!capabilities?.data) {
+        throw new Error("Failed to fetch user capabilities");
       }
       
-      const userCaps = capabilities.data?.capabilities || [];
-      setUserCapabilities(userCaps);
+      const userCaps = capabilities.data.capabilities || [];
+      // Only update capabilities if they've changed
+      if (JSON.stringify(userCaps) !== JSON.stringify(userCapabilities)) {
+        setUserCapabilities(userCaps);
+      }
 
-      // Fetch coach profile data regardless of capabilities
-      // This ensures we get any existing data even if COACH capability was removed
+      // Only fetch coach profile if user has COACH capability
+      if (!userCaps.includes('COACH')) {
+        setCoachData({});
+        setProfileStatus('DRAFT');
+        setCompletionPercentage(0);
+        setMissingFields([]);
+        setCanPublish(false);
+        setIsLoading(false);
+        return;
+      }
+
+      // Fetch coach profile data
       const result = await fetchCoachProfile();
       
       // Handle specific error cases
       if (result.error) {
-        // Only treat as error if it's not the expected "no profile" case
-        if (result.error.message !== 'User is not a coach') {
-          throw new Error(result.error.message);
+        if (result.error.message === 'User is not a coach') {
+          // Not a real error - just means no coach profile yet
+          setCoachData({});
+          setProfileStatus('DRAFT');
+          setCompletionPercentage(0);
+          setMissingFields([]);
+          setCanPublish(false);
+          setIsLoading(false);
+          return;
         }
+        throw new Error(result.error.message);
       }
 
       // Reset retry count on success
@@ -234,17 +245,16 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       if (result.data) {
         const userData = result.data._rawCoachProfile?.User || {};
         const coachProfile = result.data._rawCoachProfile || {};
-        const skills = coachProfile.skills || [];
         
         // Update skills and specialties
-        setSelectedSkills(skills);
+        setSelectedSkills(coachProfile.skills || []);
         setIndustrySpecialties(coachProfile.industrySpecialties || []);
         
         // Update coach data
         setCoachData({
           ...coachProfile,
-          specialties: skills,
-          domainSpecialties: coachProfile.industrySpecialties
+          specialties: coachProfile.skills || [],
+          domainSpecialties: coachProfile.industrySpecialties || []
         });
         
         // Update profile status
@@ -266,46 +276,23 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           totalYearsRE: userData.totalYearsRE || 0,
           languages: userData.languages || []
         });
-      } else {
-        // Initialize with empty data but don't clear existing skills
-        setCoachData({});
-        setProfileStatus('DRAFT');
-        setCompletionPercentage(0);
-        setMissingFields([]);
-        setCanPublish(false);
       }
     } catch (error) {
       console.error("[PROFILE_FETCH_ERROR]", {
         error,
+        message: error instanceof Error ? error.message : "Unknown error",
         timestamp: new Date().toISOString()
       });
       setFetchError(error as Error);
-      setRetryCount(prev => prev + 1);
     } finally {
       setIsLoading(false);
     }
-  }, [retryCount]); // Only depend on retryCount
+  }, [userCapabilities]); // Only depend on userCapabilities
 
-  // Cleanup timeout on unmount
+  // Initial fetch only
   useEffect(() => {
-    return () => {
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // Initial fetch
-  useEffect(() => {
-    fetchProfileData(true); // Force the initial fetch
-  }, [fetchProfileData]);
-
-  // Refetch profile data when capabilities change
-  useEffect(() => {
-    if (userCapabilities.length > 0) {
-      fetchProfileData(true); // Force fetch when capabilities change
-    }
-  }, [userCapabilities, fetchProfileData]);
+    fetchProfileData(true);
+  }, []); // Empty dependency array for initial fetch only
 
   // Handle skills changes
   const onSkillsChange = (skills: string[]) => {
