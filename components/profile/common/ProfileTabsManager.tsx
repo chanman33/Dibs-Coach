@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Award, Building, Home, ListChecks, User, Briefcase, Globe, Target, Info, List } from "lucide-react";
 import { ProfessionalRecognition, CoachProfileFormValues } from "../types";
@@ -112,30 +112,26 @@ export function ProfileTabsManager({
   const [showTabsDropdown, setShowTabsDropdown] = useState(false);
   const [showSubTabsDropdown, setShowSubTabsDropdown] = useState(false);
 
-  // Define all possible tabs
-  useEffect(() => {
-    // Create domain-specific sub-tabs based on confirmed specialties
-    const domainSubTabs: ProfileSubTab[] = [];
+  // Move the memoization outside useEffect
+  const domainSubTabs = useMemo(() => {
+    console.log("[DOMAIN_SUBTABS_REBUILD]", {
+      confirmedSpecialties,
+      activeTab,
+      activeSubTab,
+      timestamp: new Date().toISOString()
+    });
     
-    // Log the building of domain sub-tabs
-    // console.log("[PROFILE_TABS_MANAGER] Building domain sub-tabs", {
-    //   confirmedSpecialties,
-    //   hasRealtorContent: !!realtorFormContent,
-    //   hasPropertyManagerContent: !!propertyManagerFormContent,
-    //   timestamp: new Date().toISOString()
-    // });
+    const tabs: ProfileSubTab[] = [];
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.REALTOR) && realtorFormContent) {
-      // Add the main Realtor Profile tab
-      domainSubTabs.push({
+      tabs.push({
         id: "realtor",
         label: "Realtor Profile",
         icon: <Home className="h-4 w-4" />,
         content: realtorFormContent
       });
       
-      // Add the Listings tab for Realtors
-      domainSubTabs.push({
+      tabs.push({
         id: "realtor-listings",
         label: "Listings",
         icon: <List className="h-4 w-4" />,
@@ -146,7 +142,6 @@ export function ProfileTabsManager({
                 data,
                 timestamp: new Date().toISOString()
               });
-              // TODO: Implement actual submission logic
               toast.success("Listing created successfully");
               return { data: null };
             }}
@@ -156,7 +151,6 @@ export function ProfileTabsManager({
                 data,
                 timestamp: new Date().toISOString()
               });
-              // TODO: Implement actual update logic
               toast.success("Listing updated successfully");
               return { data: null };
             }}
@@ -169,17 +163,15 @@ export function ProfileTabsManager({
     }
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.INVESTOR) && investorFormContent) {
-      // Add the main Investor Profile tab
-      domainSubTabs.push({
+      tabs.push({
         id: "investor",
         label: "Investor Profile",
         icon: <Building className="h-4 w-4" />,
         content: investorFormContent
       });
       
-      // Add the Listings tab for Investors
       if (investorListingsContent) {
-        domainSubTabs.push({
+        tabs.push({
           id: "investor-listings",
           label: "Investment Properties",
           icon: <List className="h-4 w-4" />,
@@ -189,7 +181,7 @@ export function ProfileTabsManager({
     }
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.MORTGAGE) && mortgageFormContent) {
-      domainSubTabs.push({
+      tabs.push({
         id: "mortgage",
         label: "Mortgage Profile",
         icon: <Building className="h-4 w-4" />,
@@ -198,17 +190,15 @@ export function ProfileTabsManager({
     }
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.PROPERTY_MANAGER) && propertyManagerFormContent) {
-      // Add the main Property Manager Profile tab
-      domainSubTabs.push({
+      tabs.push({
         id: "property-manager",
         label: "Property Manager Profile",
         icon: <Building className="h-4 w-4" />,
         content: propertyManagerFormContent
       });
       
-      // Add the Listings tab for Property Managers
       if (propertyManagerListingsContent) {
-        domainSubTabs.push({
+        tabs.push({
           id: "property-manager-listings",
           label: "Managed Properties",
           icon: <List className="h-4 w-4" />,
@@ -218,7 +208,7 @@ export function ProfileTabsManager({
     }
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.TITLE_ESCROW) && titleEscrowFormContent) {
-      domainSubTabs.push({
+      tabs.push({
         id: "title-escrow",
         label: "Title & Escrow Profile",
         icon: <Building className="h-4 w-4" />,
@@ -227,7 +217,7 @@ export function ProfileTabsManager({
     }
     
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.INSURANCE) && insuranceFormContent) {
-      domainSubTabs.push({
+      tabs.push({
         id: "insurance",
         label: "Insurance Profile",
         icon: <Building className="h-4 w-4" />,
@@ -235,19 +225,16 @@ export function ProfileTabsManager({
       });
     }
 
-    // Add Commercial Profile and Listings tabs
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.COMMERCIAL) && commercialFormContent) {
-      // Add the main Commercial Profile tab
-      domainSubTabs.push({
+      tabs.push({
         id: "commercial",
         label: "Commercial Profile",
         icon: <Building className="h-4 w-4" />,
         content: commercialFormContent
       });
       
-      // Add the Listings tab for Commercial
       if (commercialListingsContent) {
-        domainSubTabs.push({
+        tabs.push({
           id: "commercial-listings",
           label: "Commercial Properties",
           icon: <List className="h-4 w-4" />,
@@ -256,9 +243,8 @@ export function ProfileTabsManager({
       }
     }
 
-    // Add Private Credit Profile tab
     if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.PRIVATE_CREDIT) && privateCreditFormContent) {
-      domainSubTabs.push({
+      tabs.push({
         id: "private-credit",
         label: "Private Credit Profile",
         icon: <Briefcase className="h-4 w-4" />,
@@ -266,13 +252,25 @@ export function ProfileTabsManager({
       });
     }
 
-    // Log the final sub-tabs for debugging
-    // console.log("[PROFILE_TABS_MANAGER] Final domain sub-tabs", {
-    //   domainSubTabs: domainSubTabs.map(tab => tab.id),
-    //   timestamp: new Date().toISOString()
-    // });
+    return tabs;
+  }, [
+    confirmedSpecialties,
+    realtorFormContent,
+    investorFormContent,
+    investorListingsContent,
+    mortgageFormContent,
+    propertyManagerFormContent,
+    propertyManagerListingsContent,
+    titleEscrowFormContent,
+    insuranceFormContent,
+    commercialFormContent,
+    commercialListingsContent,
+    privateCreditFormContent,
+    isSubmitting
+  ]);
 
-    const allTabs: ProfileTab[] = [
+  const allTabs = useMemo(() => {
+    return [
       {
         id: "general",
         label: "General Profile",
@@ -284,7 +282,6 @@ export function ProfileTabsManager({
             isSubmitting={isSubmitting}
           />
         ),
-        // Everyone can see the general tab
       },
       {
         id: "coach",
@@ -339,8 +336,6 @@ export function ProfileTabsManager({
             onClose={() => {}}
             onSubmit={async (data: GoalFormValues) => {
               if (onSubmitGoals) {
-                // Convert GoalFormValues to Goal array if needed
-                // This is a simplified conversion - adjust based on your actual implementation
                 await onSubmitGoals([]);
               }
             }}
@@ -349,58 +344,45 @@ export function ProfileTabsManager({
         requiredCapabilities: ["COACH"],
       }
     ];
+  }, [
+    generalUserInfo,
+    onSubmitGeneral,
+    coachFormContent,
+    domainSubTabs,
+    initialRecognitions,
+    onSubmitRecognitions,
+    initialMarketingInfo,
+    onSubmitMarketingInfo,
+    onSubmitGoals,
+    isSubmitting,
+    selectedSpecialties
+  ]);
 
-    // Filter tabs based on user capabilities and specialties
-    const filteredTabs = allTabs.filter(tab => {
-      // If no required capabilities or specialties, show the tab
+  const filteredTabs = useMemo(() => 
+    allTabs.filter((tab: ProfileTab) => {
       if (!tab.requiredCapabilities && !tab.requiredSpecialties && !tab.requiredConfirmedSpecialties) {
         return true;
       }
 
-      // Check if user has any of the required capabilities
       if (tab.requiredCapabilities && tab.requiredCapabilities.some(cap => userCapabilities.includes(cap))) {
-        // For capability-based tabs (like general, coach, recognitions, etc.), no need to check confirmed specialties
         if (!tab.requiredConfirmedSpecialties) {
           return true;
         }
       }
 
-      // For specialty tabs, check if the specialty is both selected AND confirmed
       if (tab.requiredConfirmedSpecialties && 
-          tab.requiredConfirmedSpecialties.some(spec => confirmedSpecialties.includes(spec))) {
+          tab.requiredConfirmedSpecialties.some((spec: string) => confirmedSpecialties.includes(spec))) {
         return true;
       }
 
       return false;
-    });
+    })
+  , [allTabs, userCapabilities, confirmedSpecialties]);
 
+  // Update available tabs
+  useEffect(() => {
     setAvailableTabs(filteredTabs);
-  }, [
-    userCapabilities,
-    selectedSpecialties,
-    confirmedSpecialties,
-    generalUserInfo,
-    onSubmitGeneral,
-    coachFormContent,
-    realtorFormContent,
-    investorFormContent,
-    investorListingsContent,
-    mortgageFormContent,
-    propertyManagerFormContent,
-    propertyManagerListingsContent,
-    titleEscrowFormContent,
-    insuranceFormContent,
-    commercialFormContent,
-    commercialListingsContent,
-    privateCreditFormContent,
-    initialRecognitions,
-    onSubmitRecognitions,
-    initialMarketingInfo,
-    onSubmitMarketingInfo,
-    initialGoals,
-    onSubmitGoals,
-    isSubmitting,
-  ]);
+  }, [filteredTabs]);
 
   // If active tab is no longer available, reset to general
   useEffect(() => {
@@ -462,6 +444,15 @@ export function ProfileTabsManager({
       await onSubmitCoach(data);
     }
   };
+
+  console.log("[PROFILE_TABS_RENDER]", {
+    activeTab,
+    activeSubTab,
+    availableTabsCount: availableTabs.length,
+    hasSubTabs: (activeTabObject?.subTabs?.length ?? 0) > 0,
+    confirmedSpecialtiesCount: confirmedSpecialties.length,
+    timestamp: new Date().toISOString()
+  });
 
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -527,11 +518,11 @@ export function ProfileTabsManager({
         </TabsList>
       </div>
       
-      {/* Sub-tabs for Coach Profile (only shown when Coach Profile tab is active) */}
+      {/* Mobile view: Dropdown for sub-tabs */}
       {activeTab === "coach" && activeTabObject?.subTabs && activeTabObject.subTabs.length > 0 && (
         <>
           {/* Mobile view: Dropdown for sub-tabs */}
-          <div className="md:hidden mb-4" key={`mobile-subtabs-${confirmedSpecialties.join('-')}`}>
+          <div className="md:hidden mb-4">
             <div className="relative">
               <button
                 onClick={() => setShowSubTabsDropdown(!showSubTabsDropdown)}
@@ -577,7 +568,7 @@ export function ProfileTabsManager({
           </div>
           
           {/* Desktop view: Horizontal sub-tabs */}
-          <div className="hidden md:block mb-6" key={`desktop-subtabs-${confirmedSpecialties.join('-')}`}>
+          <div className="hidden md:block mb-6">
             <div className="flex flex-wrap gap-1 justify-start w-full bg-blue-50 p-2 rounded-md border border-blue-100">
               {activeTabObject.subTabs.map(subTab => (
                 <button

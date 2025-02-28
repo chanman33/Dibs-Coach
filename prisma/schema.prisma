@@ -724,7 +724,7 @@ model CoachProfile {
   ulid                String       @id @db.Char(26)
   userUlid            String       @unique @db.Char(26)
   yearsCoaching        Int?
-  coachingSpecialties Json        @default("[]") @db.JsonB  // Store as [{category: string, specialty: string}]
+  coachSkills         String[]  @default([])
   hourlyRate          Decimal?     @db.Decimal(10, 2)
 
   // Calendly Integration

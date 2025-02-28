@@ -8,6 +8,7 @@ import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ServerActionContext } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { calculateProfileCompletion } from '@/utils/actions/calculateProfileCompletion'
+import { getUserUlidAndRole } from "@/utils/auth"
 
 export interface GeneralFormData {
   displayName: string
@@ -1135,4 +1136,52 @@ export const fetchUserLanguages = withServerAction<UserLanguagesResponse, void>(
       };
     }
   }
-); 
+);
+
+export async function saveCoachSkills({
+  skills
+}: {
+  skills: string[]
+}) {
+  'use server'
+  
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return { data: null, error: { message: 'Not authenticated' } };
+    }
+
+    const supabase = await createAuthClient();
+    const { userUlid } = await getUserUlidAndRole(userId);
+
+    // Update the coach profile with the new skills
+    const { data, error } = await supabase
+      .from('CoachProfile')
+      .update({ 
+        coachSkills: skills,
+        updatedAt: new Date().toISOString()
+      })
+      .eq('userUlid', userUlid)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[SAVE_COACH_SKILLS_ERROR]', {
+        error,
+        userId,
+        skills,
+        timestamp: new Date().toISOString()
+      });
+      return { data: null, error: { message: 'Failed to save skills' } };
+    }
+
+    revalidatePath('/dashboard/profile');
+    return { data: { skills }, error: null };
+  } catch (error) {
+    console.error('[SAVE_COACH_SKILLS_ERROR]', {
+      error,
+      timestamp: new Date().toISOString()
+    });
+    return { data: null, error: { message: 'Failed to save skills' } };
+  }
+} 

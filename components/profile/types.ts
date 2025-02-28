@@ -19,6 +19,7 @@ export const DOMAIN_SPECIALTIES = [
 export const coachProfileFormSchema = z.object({
   // Coach Profile Fields
   specialties: z.array(z.string()).optional(),
+  coachSkills: z.array(z.string()).default([]),
   yearsCoaching: z.number()
     .min(0, "Years must be 0 or greater")
     .int("Years must be a whole number")
@@ -26,6 +27,9 @@ export const coachProfileFormSchema = z.object({
   hourlyRate: z.number()
     .min(100, "Minimum hourly rate is $100")
     .max(3000, "Maximum hourly rate is $3,000"),
+  
+  // Languages
+  languages: z.array(z.string()).optional(),
   
   // Calendly Integration
   calendlyUrl: z.string().url("Invalid Calendly URL").optional(),

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { CoachSpecialtiesSection } from "./CoachSpecialtiesSection";
 import { ProfileCompletion } from "./ProfileCompletion";
 import { Card } from "@/components/ui/card";
 import { ProfileStatus } from "@/utils/types/coach";
@@ -30,6 +29,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FormSectionHeader } from "../common/FormSectionHeader";
+import { COACH_SPECIALTIES, SpecialtyCategory, Specialty } from "@/utils/types/coach";
+import ReactSelect from 'react-select';
+import { selectStyles } from "@/components/ui/select-styles";
+import { GroupBase } from 'react-select';
+
+// Memoize the formatCategoryLabel function outside the component
+const formatCategoryLabel = (category: string): string => {
+  return category
+    .split('_')
+    .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(' ');
+};
 
 const HOURLY_RATES = [
   { value: 100, label: "$100" },
@@ -47,24 +58,22 @@ const HOURLY_RATES = [
   { value: 3000, label: "$3,000" }
 ];
 
-// New focused schema for just the fields this component manages
 const coachBasicInfoSchema = z.object({
   yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater"),
   hourlyRate: z.number().min(0, "Hourly rate must be 0 or greater"),
-  specialties: z.array(z.string()).default([]),
+  coachSkills: z.array(z.string()).default([]),
 });
 
 type CoachBasicInfoValues = z.infer<typeof coachBasicInfoSchema>;
 
-// Update the props interface to be more specific about what this component handles
 export interface CoachProfileFormProps {
   initialData?: {
     yearsCoaching?: number;
     hourlyRate?: number;
-    specialties?: string[];
-    [key: string]: any; // Allow other fields to exist but we don't care about them here
+    coachSkills?: string[];
+    [key: string]: any;
   };
-  onSubmit: (data: CoachProfileFormValues) => Promise<void>; // Keep original type for compatibility
+  onSubmit: (data: CoachProfileFormValues) => Promise<void>;
   isSubmitting?: boolean;
   profileStatus?: ProfileStatus;
   completionPercentage?: number;
@@ -74,6 +83,8 @@ export interface CoachProfileFormProps {
   validationMessages?: Record<string, string>;
   canPublish?: boolean;
   userInfo?: UserInfo;
+  onSkillsChange?: (skills: string[]) => void;
+  saveSkills?: (selectedSkills: string[]) => Promise<void>;
   onSpecialtiesChange?: (specialties: string[]) => void;
   saveSpecialties?: (specialties: string[]) => Promise<void>;
 }
@@ -90,6 +101,8 @@ export function CoachProfileForm({
   validationMessages = {},
   canPublish = false,
   userInfo,
+  onSkillsChange,
+  saveSkills,
   onSpecialtiesChange,
   saveSpecialties,
 }: CoachProfileFormProps) {
@@ -98,21 +111,72 @@ export function CoachProfileForm({
     defaultValues: {
       yearsCoaching: initialData?.yearsCoaching || 0,
       hourlyRate: initialData?.hourlyRate || 100,
-      specialties: initialData?.specialties || [],
+      coachSkills: initialData?.coachSkills || [],
     },
     mode: "onChange",
   });
 
-  // Watch specialties changes
+  // Memoize specialty options
+  const specialtyOptions = useMemo(() => 
+    Object.entries(COACH_SPECIALTIES).map(([category, specialties]) => ({
+      label: formatCategoryLabel(category),
+      options: specialties.map(specialty => ({
+        value: specialty,
+        label: specialty,
+        category: category
+      }))
+    }))
+  , []); // Empty dependency array since COACH_SPECIALTIES is constant
+
+  // Memoize the formatGroupLabel function
+  const memoizedFormatGroupLabel = useCallback((group: GroupBase<any>) => {
+    return (
+      <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
+        <span className="font-semibold text-sm text-slate-700">
+          {group.label}
+        </span>
+      </div>
+    );
+  }, []);
+
+  // Watch skills changes
   useEffect(() => {
-    const subscription = form.watch((value, { name }) => {
-      if (name === "specialties" && onSpecialtiesChange) {
-        const specialties = value.specialties || [];
-        onSpecialtiesChange(specialties.filter((s): s is string => s !== undefined));
+    const subscription = form.watch(async (value, { name }) => {
+      console.log("[COACH_FORM_WATCH]", {
+        changedField: name,
+        newValue: value[name as keyof typeof value],
+        allSkills: value.coachSkills,
+        formState: {
+          isDirty: form.formState.isDirty,
+          isValid: form.formState.isValid
+        },
+        timestamp: new Date().toISOString()
+      });
+
+      if (name === "coachSkills" && onSkillsChange) {
+        const skills = (value.coachSkills || []).filter((s): s is string => typeof s === 'string');
+        console.log("[SKILLS_CHANGE_TRIGGERED]", {
+          skills,
+          timestamp: new Date().toISOString()
+        });
+        onSkillsChange(skills);
+
+        // Immediately save skills when they change
+        if (saveSkills && skills.length > 0) {
+          try {
+            await saveSkills(skills);
+          } catch (error) {
+            console.error("[SAVE_SKILLS_ERROR]", {
+              error,
+              skills,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
       }
     });
     return () => subscription.unsubscribe();
-  }, [form, onSpecialtiesChange]);
+  }, [form, onSkillsChange, saveSkills]);
 
   // Log initial form state
   useEffect(() => {
@@ -133,7 +197,7 @@ export function CoachProfileForm({
         submittedData: {
           yearsCoaching: data.yearsCoaching,
           hourlyRate: data.hourlyRate,
-          specialties: data.specialties,
+          coachSkills: data.coachSkills,
         },
         formState: {
           isDirty: form.formState.isDirty,
@@ -154,32 +218,25 @@ export function CoachProfileForm({
         return;
       }
 
-      console.log("[COACH_BASIC_INFO_CALLING_ONSUBMIT]", {
-        onSubmitExists: !!onSubmit,
-        timestamp: new Date().toISOString()
-      });
-
-      // Merge the new data with initialData to preserve other fields
       const mergedData: CoachProfileFormValues = {
         ...initialData as CoachProfileFormValues,
         yearsCoaching: data.yearsCoaching,
         hourlyRate: data.hourlyRate,
-        specialties: data.specialties,
+        coachSkills: data.coachSkills,
       };
 
+      // First save skills if they've changed
+      if (saveSkills && data.coachSkills) {
+        console.log("[SAVING_SKILLS]", {
+          skills: data.coachSkills,
+          timestamp: new Date().toISOString()
+        });
+        await saveSkills(data.coachSkills);
+      }
+
       await onSubmit(mergedData);
-      
-      // Reset form state after successful submission
       form.reset(data);
       
-      console.log("[COACH_BASIC_INFO_SUBMIT_SUCCESS]", {
-        submittedData: {
-          yearsCoaching: data.yearsCoaching,
-          hourlyRate: data.hourlyRate,
-          specialties: data.specialties,
-        },
-        timestamp: new Date().toISOString()
-      });
       toast.success("Basic info updated successfully");
     } catch (error) {
       console.error("[COACH_BASIC_INFO_SUBMIT_ERROR]", {
@@ -190,33 +247,13 @@ export function CoachProfileForm({
         attemptedData: {
           yearsCoaching: data.yearsCoaching,
           hourlyRate: data.hourlyRate,
-          specialties: data.specialties,
+          coachSkills: data.coachSkills,
         },
         timestamp: new Date().toISOString()
       });
       toast.error("Failed to update basic info");
     }
   };
-
-  // Add logging to track form state changes
-  useEffect(() => {
-    const subscription = form.watch((value, { name, type }) => {
-      console.log("[COACH_BASIC_INFO_FIELD_CHANGE]", {
-        field: name,
-        type,
-        newValue: value[name as keyof typeof value],
-        allFormValues: value,
-        formState: {
-          isDirty: form.formState.isDirty,
-          dirtyFields: Object.keys(form.formState.dirtyFields || {}),
-          isValid: form.formState.isValid,
-          errors: form.formState.errors
-        },
-        timestamp: new Date().toISOString()
-      });
-    });
-    return () => subscription.unsubscribe();
-  }, [form]);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -238,7 +275,6 @@ export function CoachProfileForm({
           }} 
           className="space-y-4 sm:space-y-6"
         >
-          {/* Profile Completion Status */}
           <ProfileCompletion
             completionPercentage={completionPercentage}
             profileStatus={profileStatus || 'DRAFT'}
@@ -320,15 +356,69 @@ export function CoachProfileForm({
             </div>
           </Card>
 
-          {/* Add Coaching Specialties Card */}
+          {/* Coaching Skills Card */}
           <Card className="p-4 sm:p-6 border shadow-sm">
-            <div className="mb-4 sm:mb-6">
-              <h3 className="text-base sm:text-lg font-semibold">Coaching Specialties</h3>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Select the specific areas where you can provide expert coaching and guidance.
-              </p>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <FormSectionHeader 
+                  title="Coaching Skills" 
+                  required 
+                  tooltip="Select the specific areas where you can provide expert coaching and guidance."
+                />
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  Choose skills that best represent your expertise and coaching focus areas.
+                </p>
+              </div>
+
+              <FormField
+                control={form.control}
+                name="coachSkills"
+                render={({ field: { onChange, value, ...field } }) => {
+                  // Memoize the current value to prevent unnecessary re-renders
+                  const currentValue = useMemo(() => 
+                    specialtyOptions
+                      .flatMap(group => group.options)
+                      .filter(option => value?.includes(option.value))
+                  , [value]);
+
+                  // Memoize the onChange handler
+                  const handleChange = useCallback((selected: any) => {
+                    const newValues = selected ? selected.map((option: any) => option.value) : [];
+                    onChange(newValues);
+                  }, [onChange]);
+
+                  return (
+                    <FormItem>
+                      <FormControl>
+                        <ReactSelect
+                          {...field}
+                          isMulti
+                          options={specialtyOptions}
+                          styles={selectStyles}
+                          value={currentValue}
+                          onChange={handleChange}
+                          placeholder="Select your coaching skills..."
+                          className="w-full"
+                          classNamePrefix="coach-skill-select"
+                          formatGroupLabel={memoizedFormatGroupLabel}
+                          noOptionsMessage={() => "No skills found"}
+                          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                          menuPosition="fixed"
+                          isSearchable
+                          isClearable
+                          blurInputOnSelect={false}
+                          closeMenuOnSelect={false}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        You can select multiple skills across different categories.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
+              />
             </div>
-            <CoachSpecialtiesSection control={form.control} />
           </Card>
 
           {/* Submit Button */}

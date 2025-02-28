@@ -625,7 +625,7 @@ export type Database = {
           allowCustomDuration: boolean
           averageRating: number | null
           calendlyUrl: string | null
-          coachingSpecialties: Json
+          coachSkills: string[] | null
           completionPercentage: number
           createdAt: string
           defaultDuration: number
@@ -645,7 +645,7 @@ export type Database = {
           allowCustomDuration?: boolean
           averageRating?: number | null
           calendlyUrl?: string | null
-          coachingSpecialties?: Json
+          coachSkills?: string[] | null
           completionPercentage?: number
           createdAt?: string
           defaultDuration?: number
@@ -665,7 +665,7 @@ export type Database = {
           allowCustomDuration?: boolean
           averageRating?: number | null
           calendlyUrl?: string | null
-          coachingSpecialties?: Json
+          coachSkills?: string[] | null
           completionPercentage?: number
           createdAt?: string
           defaultDuration?: number

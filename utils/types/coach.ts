@@ -8,6 +8,19 @@ export const PROFILE_STATUS = {
 
 export type ProfileStatus = typeof PROFILE_STATUS[keyof typeof PROFILE_STATUS];
 
+export const INDUSTRY_SPECIALTIES = {
+  REALTOR: 'REALTOR',
+  INVESTOR: 'INVESTOR',
+  MORTGAGE: 'MORTGAGE',
+  PROPERTY_MANAGER: 'PROPERTY_MANAGER',
+  TITLE_ESCROW: 'TITLE_ESCROW',
+  INSURANCE: 'INSURANCE',
+  COMMERCIAL: 'COMMERCIAL',
+  PRIVATE_CREDIT: 'PRIVATE_CREDIT'
+} as const;
+
+export type IndustrySpecialty = typeof INDUSTRY_SPECIALTIES[keyof typeof INDUSTRY_SPECIALTIES];
+
 // Define approved specialties type
 export interface ApprovedSpecialties {
   industrySpecialties: string[];
@@ -176,8 +189,7 @@ export interface CoachSpecialtyEntry {
 export const CoachProfileSchema = z.object({
   id: z.number().optional(),
   bio: z.string().min(1, "Bio is required").max(1000, "Bio must be less than 1000 characters"),
-  specialties: z.array(z.string()).optional().default([]),
-  industrySpecialties: z.array(z.string()),
+  coachSkills: z.array(z.string()).optional().default([]),
   yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater").optional(),
   certifications: z.array(z.string()).optional(),
   hourlyRate: z.number().min(0, "Hourly rate must be 0 or greater"),
@@ -196,15 +208,8 @@ export const CoachProfileSchema = z.object({
   testimonials: z.record(z.string(), z.any()),
   calendlyLink: z.string().url().optional(),
   zoomLink: z.string().url().optional(),
-  // Add new fields
   profileStatus: z.enum(Object.values(PROFILE_STATUS) as [string, ...string[]]).default(PROFILE_STATUS.DRAFT),
   completionPercentage: z.number().min(0).max(100).default(0),
-  coachingSpecialties: z.array(
-    z.object({
-      category: z.enum(Object.keys(COACH_SPECIALTIES) as [SpecialtyCategory, ...SpecialtyCategory[]]),
-      specialty: z.string()
-    })
-  ).optional().default([]),
 });
 
 export interface CoachProfileData {

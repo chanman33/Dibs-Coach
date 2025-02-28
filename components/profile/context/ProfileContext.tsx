@@ -12,7 +12,8 @@ import {
   debugDirectSpecialtiesUpdate,
   fetchCoachProfile,
   updateCoachProfile,
-  updateUserLanguages
+  updateUserLanguages,
+  saveCoachSkills
 } from "@/utils/actions/profile-actions";
 
 // Define the context shape
@@ -59,8 +60,9 @@ interface ProfileContextType {
   isLoading: boolean;
   isSubmitting: boolean;
   
-  // User capabilities and specialties
+  // User capabilities and skills
   userCapabilities: string[];
+  selectedSkills: string[];
   selectedSpecialties: string[];
   confirmedSpecialties: string[];
   
@@ -77,10 +79,12 @@ interface ProfileContextType {
   updateRecognitionsData: (data: ProfessionalRecognition[]) => Promise<void>;
   updateMarketingData: (data: any) => Promise<void>;
   updateGoalsData: (data: any) => Promise<void>;
-  
-  // Specialty management
   updateSelectedSpecialties: (specialties: string[]) => void;
-  saveSpecialties: (selectedSpecialties: string[]) => Promise<boolean>;
+  
+  // Skills management
+  onSkillsChange: (skills: string[]) => void;
+  saveSkills: (selectedSkills: string[]) => Promise<boolean>;
+  saveSpecialties: (specialties: string[]) => Promise<boolean>;
   
   // Debug function
   debugServerAction: () => Promise<boolean>;
@@ -91,18 +95,18 @@ const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 
 // Provider component
 export function ProfileProvider({ children }: { children: ReactNode }) {
-  // General profile state
-  const [generalData, setGeneralData] = useState({
+  // General profile data state
+  const [generalData, setGeneralData] = useState<any>({
     displayName: "",
-    bio: null as string | null,
+    bio: null,
     primaryMarket: "",
     totalYearsRE: 0
   });
   
-  // Coach profile state
+  // Coach profile data state
   const [coachData, setCoachData] = useState<CoachProfileInitialData>({});
   
-  // Domain-specific states
+  // Domain-specific data states
   const [realtorData, setRealtorData] = useState<any>(null);
   const [investorData, setInvestorData] = useState<any>(null);
   const [mortgageData, setMortgageData] = useState<any>(null);
@@ -120,7 +124,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // Goals data state
   const [goalsData, setGoalsData] = useState<any>(null);
   
-  // Status information
+  // Status information state
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>("DRAFT");
   const [completionPercentage, setCompletionPercentage] = useState(0);
   const [missingFields, setMissingFields] = useState<string[]>([]);
@@ -133,190 +137,87 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // User capabilities and specialties
+  // User capabilities and skills state
   const [userCapabilities, setUserCapabilities] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
   const [confirmedSpecialties, setConfirmedSpecialties] = useState<string[]>([]);
 
-  // Fetch user capabilities
-  const fetchUserCapabilitiesData = async () => {
+  // Fetch initial profile data
+  const fetchProfileData = async () => {
     try {
-      // Call the server action to fetch user capabilities
-      const response = await fetchUserCapabilities();
-      
-      if (response.error) {
-        console.warn("[FETCH_CAPABILITIES_WARNING]", {
-          message: "Error fetching capabilities, using fallback values",
-          error: response.error
-        });
-        // Set default values even if there's an error
-        setUserCapabilities(response.data?.capabilities || []);
-        setSelectedSpecialties(response.data?.domainSpecialties || []);
-        setConfirmedSpecialties(response.data?.activeDomains || []);
-        return;
-      }
-      
-      if (response.data) {
-        // Set user capabilities
-        setUserCapabilities(response.data.capabilities || []);
-        
-        // Set selected specialties from domain specialties
-        if (response.data.domainSpecialties) {
-          setSelectedSpecialties(response.data.domainSpecialties);
-        }
-        
-        // Set confirmed specialties from active domains
-        if (response.data.activeDomains) {
-          setConfirmedSpecialties(response.data.activeDomains);
-        }
-        
-        console.log("Fetched user capabilities:", response.data.capabilities);
-      }
-    } catch (error) {
-      console.error("[FETCH_CAPABILITIES_ERROR]", error);
-      toast.error("Failed to load user capabilities");
-      
-      // Set empty arrays as fallback
-      setUserCapabilities([]);
-      setSelectedSpecialties([]);
-      setConfirmedSpecialties([]);
-    }
-  };
-
-  // Fetch initial data
-  useEffect(() => {
-    const fetchData = async () => {
       setIsLoading(true);
-      try {
-        // Fetch user capabilities first
-        await fetchUserCapabilitiesData();
-        
-        // Fetch general profile data
-        const generalResult = await fetchUserProfile();
-        if (generalResult.data) {
-          setGeneralData(generalResult.data);
-        }
-        
-        // Fetch coach profile data
-        const coachProfileResult = await fetchCoachProfile();
-        if (coachProfileResult.data) {
-          setCoachData(coachProfileResult.data);
-          // Update completion status from coach profile data
-          updateCompletionStatus(coachProfileResult.data);
-        } else if (coachProfileResult.error) {
-          console.error("[FETCH_COACH_ERROR]", coachProfileResult.error);
-        }
-        
-        // Calculate completion percentage and missing fields
-        // calculateCompletionStatus();
-      } catch (error) {
-        console.error("[FETCH_DATA_ERROR]", error);
-      } finally {
-        setIsLoading(false);
+      
+      // Fetch user capabilities
+      const capabilities = await fetchUserCapabilities();
+      if (capabilities.error) {
+        throw new Error(capabilities.error.message);
       }
-    };
-    
-    fetchData();
-  }, []);
-  
-  // Fetch coach profile data
-  const fetchCoachProfileData = async () => {
-    try {
-      const { fetchCoachProfile } = await import('@/utils/actions/profile-actions');
+      setUserCapabilities(capabilities.data?.capabilities || []);
+      
+      // Fetch coach profile data
       const result = await fetchCoachProfile();
-      
-      console.log("[FETCH_COACH_PROFILE_RESULT]", {
-        success: !result.error,
-        hasData: !!result.data,
-        timestamp: new Date().toISOString()
-      });
-      
       if (result.error) {
-        console.error("[FETCH_COACH_PROFILE_ERROR]", {
-          error: result.error,
-          timestamp: new Date().toISOString()
-        });
-        
-        // Set default values even if there's an error
-        const defaultCoachData = {
-          yearsCoaching: 0,
-          hourlyRate: 0,
-          defaultDuration: 60,
-          minimumDuration: 30,
-          maximumDuration: 120,
-          allowCustomDuration: false,
-          domainSpecialties: [],
-          confirmedSpecialties: []
-        };
-        
-        setCoachData(defaultCoachData);
-        
-        // Try to fetch specialties separately if coach profile fetch failed
-        await fetchUserCapabilitiesData();
-        return;
+        throw new Error(result.error.message);
       }
       
       if (result.data) {
-        // Update coach data state
+        // Update general data
+        setGeneralData({
+          displayName: result.data.displayName || "",
+          bio: result.data.bio || null,
+          primaryMarket: result.data.primaryMarket || "",
+          totalYearsRE: result.data.totalYearsRE || 0
+        });
+        
+        // Update coach data
         setCoachData(result.data);
         
-        // Update specialties from the fetched data
-        if (Array.isArray(result.data.domainSpecialties)) {
-          console.log("[SETTING_DOMAIN_SPECIALTIES]", {
-            specialties: result.data.domainSpecialties,
-            timestamp: new Date().toISOString()
-          });
-          setSelectedSpecialties(result.data.domainSpecialties);
-        }
+        // Update skills
+        setSelectedSkills(result.data.coachSkills || []);
         
-        // Update confirmed specialties if available
-        if (Array.isArray(result.data.confirmedSpecialties)) {
-          console.log("[SETTING_CONFIRMED_SPECIALTIES]", {
-            specialties: result.data.confirmedSpecialties,
-            timestamp: new Date().toISOString()
-          });
-          setConfirmedSpecialties(result.data.confirmedSpecialties);
-        }
-      } else {
-        // Set default values if no data returned
-        const defaultCoachData = {
-          yearsCoaching: 0,
-          hourlyRate: 0,
-          defaultDuration: 60,
-          minimumDuration: 30,
-          maximumDuration: 120,
-          allowCustomDuration: false,
-          domainSpecialties: [],
-          confirmedSpecialties: []
-        };
-        
-        setCoachData(defaultCoachData);
+        // Update status information
+        setProfileStatus(result.data.profileStatus || "DRAFT");
+        setCompletionPercentage(result.data.completionPercentage || 0);
+        setMissingFields(result.data.missingFields || []);
+        setMissingRequiredFields(result.data.missingRequiredFields || []);
+        setOptionalMissingFields(result.data.optionalMissingFields || []);
+        setValidationMessages(result.data.validationMessages || {});
+        setCanPublish(result.data.canPublish || false);
       }
     } catch (error) {
-      console.error("[FETCH_COACH_PROFILE_ERROR]", {
-        error,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Set default values in case of error
-      const defaultCoachData = {
-        yearsCoaching: 0,
-        hourlyRate: 0,
-        defaultDuration: 60,
-        minimumDuration: 30,
-        maximumDuration: 120,
-        allowCustomDuration: false,
-        domainSpecialties: [],
-        confirmedSpecialties: []
-      };
-      
-      setCoachData(defaultCoachData);
-      
-      // Try to fetch specialties separately if coach profile fetch failed
-      await fetchUserCapabilitiesData();
+      console.error("[PROFILE_FETCH_ERROR]", error);
+      toast.error("Failed to load profile data");
+    } finally {
+      setIsLoading(false);
     }
   };
-  
+
+  // Handle skills changes
+  const onSkillsChange = (skills: string[]) => {
+    setSelectedSkills(skills);
+  };
+
+  // Save skills to the server
+  const saveSkills = async (skills: string[]): Promise<boolean> => {
+    try {
+      setIsSubmitting(true);
+      const result = await saveCoachSkills({ skills });
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      setSelectedSkills(skills);
+      toast.success("Skills saved successfully");
+      return true;
+    } catch (error) {
+      console.error("[SAVE_SKILLS_ERROR]", error);
+      toast.error("Failed to save skills");
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Update functions
   const updateGeneralData = async (data: any) => {
     setIsSubmitting(true);
@@ -635,76 +536,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setGoalsData(data);
   };
   
-  // Specialty management
   const updateSelectedSpecialties = (specialties: string[]) => {
     setSelectedSpecialties(specialties);
-  };
-  
-  const saveSpecialties = async (selectedSpecialties: string[]) => {
-    try {
-      setIsLoading(true);
-      
-      console.log("[PROFILE_CONTEXT_SAVE_SPECIALTIES]", {
-        selectedSpecialties,
-        timestamp: new Date().toISOString()
-      });
-      
-      // Validate input
-      if (!Array.isArray(selectedSpecialties)) {
-        console.error("[PROFILE_CONTEXT_SAVE_ERROR]", {
-          error: "Invalid input: specialties must be an array",
-          selectedSpecialties,
-          timestamp: new Date().toISOString()
-        });
-        toast.error("Invalid specialties format");
-        return false;
-      }
-      
-      // Call the server action to update the coach profile specialties
-      const response = await saveCoachSpecialties({ 
-        specialties: selectedSpecialties 
-      });
-      
-      // Check if the response was successful
-      if (response.error) {
-        console.error("[PROFILE_CONTEXT_SAVE_ERROR]", {
-          error: response.error,
-          selectedSpecialties,
-          timestamp: new Date().toISOString()
-        });
-        toast.error(response.error.message || "Failed to save specialties");
-        return false;
-      }
-      
-      // Update the confirmed specialties state with the active domains from the response
-      if (response.data) {
-        console.log("[PROFILE_CONTEXT_SAVE_SUCCESS]", {
-          activeDomains: response.data.activeDomains,
-          selectedSpecialties,
-          timestamp: new Date().toISOString()
-        });
-        
-        setConfirmedSpecialties(response.data.activeDomains || []);
-        toast.success("Specialties saved successfully");
-        
-        // Refresh user capabilities to ensure everything is in sync
-        fetchUserCapabilitiesData();
-        
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error("[PROFILE_CONTEXT_SAVE_SPECIALTIES_ERROR]", {
-        error,
-        selectedSpecialties,
-        timestamp: new Date().toISOString()
-      });
-      toast.error("An error occurred while saving specialties");
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
   };
   
   // Debug function to check if server action is being called correctly
@@ -749,16 +582,16 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         return false;
       }
       
-      // Call the direct debug function with a test specialty
-      const testSpecialties = ["REALTOR", "PROPERTY_MANAGER"];
+      // Call the direct debug function with a test skill
+      const testSkills = ["REALTOR", "PROPERTY_MANAGER"];
       
       console.log("[DEBUG_SERVER_ACTION_CALLING]", {
         userUlid,
-        testSpecialties,
+        testSkills,
         timestamp: new Date().toISOString()
       });
       
-      const response = await debugDirectSpecialtiesUpdate(userUlid, testSpecialties);
+      const response = await debugDirectSpecialtiesUpdate(userUlid, testSkills);
       
       console.log("[DEBUG_SERVER_ACTION_RESPONSE]", {
         response,
@@ -767,12 +600,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       
       if (response.success) {
         toast.success("Debug update successful!");
-        // Update the confirmed specialties state
-        setConfirmedSpecialties(testSpecialties);
-        // Also update selected specialties to match
-        setSelectedSpecialties(testSpecialties);
+        // Update the selected skills state
+        setSelectedSkills(testSkills);
         // Refresh user capabilities
-        fetchUserCapabilitiesData();
+        fetchProfileData();
         return true;
       } else {
         toast.error("Debug update failed: " + (response.error ? JSON.stringify(response.error) : "Unknown error"));
@@ -788,6 +619,29 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
   };
   
+  const saveSpecialties = async (specialties: string[]): Promise<boolean> => {
+    try {
+      setIsSubmitting(true);
+      const result = await saveCoachSpecialties({ specialties });
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      setSelectedSpecialties(specialties);
+      toast.success("Specialties saved successfully");
+      return true;
+    } catch (error) {
+      console.error("[SAVE_SPECIALTIES_ERROR]", error);
+      toast.error("Failed to save specialties");
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfileData();
+  }, []);
+
   // Context value
   const contextValue: ProfileContextType = {
     generalData,
@@ -812,8 +666,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     isLoading,
     isSubmitting,
     userCapabilities,
+    selectedSkills,
     selectedSpecialties,
     confirmedSpecialties,
+    onSkillsChange,
+    saveSkills,
     updateGeneralData,
     updateCoachData,
     updateRealtorData,

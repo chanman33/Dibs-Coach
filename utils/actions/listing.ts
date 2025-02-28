@@ -128,7 +128,7 @@ export const deleteListing = withServerAction<void, { listingUlid: string }>(
         return {
           data: null,
           error: {
-            code: 'DELETE_ERROR',
+            code: 'DATABASE_ERROR',
             message: 'Failed to delete listing'
           }
         }
