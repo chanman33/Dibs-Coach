@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Award, Building, Home, ListChecks, User, Briefcase, Globe, Target, Info, List } from "lucide-react";
-import { ProfessionalRecognition, CoachProfileFormValues } from "../types";
+import { CoachProfileFormValues } from "../types";
+import { ProfessionalRecognition } from "@/utils/types/recognition";
 import GeneralForm from "./GeneralForm";
 import { RecognitionsTab } from "../coach/RecognitionsTab";
 import MarketingInfo from "../coach/MarketingInfo";
@@ -46,10 +47,151 @@ export interface ProfileSubTab {
   content: React.ReactNode;
 }
 
+interface DomainTabsConfig {
+  realtorFormContent?: React.ReactNode;
+  investorFormContent?: React.ReactNode;
+  investorListingsContent?: React.ReactNode;
+  mortgageFormContent?: React.ReactNode;
+  propertyManagerFormContent?: React.ReactNode;
+  propertyManagerListingsContent?: React.ReactNode;
+  titleEscrowFormContent?: React.ReactNode;
+  insuranceFormContent?: React.ReactNode;
+  commercialFormContent?: React.ReactNode;
+  commercialListingsContent?: React.ReactNode;
+  privateCreditFormContent?: React.ReactNode;
+  isSubmitting: boolean;
+}
+
+const buildDomainSubTabs = (industrySpecialties: string[], config: DomainTabsConfig): ProfileSubTab[] => {
+  const tabs: ProfileSubTab[] = [];
+  
+  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.REALTOR) && config.realtorFormContent) {
+    tabs.push({
+      id: "realtor",
+      label: "Realtor Profile",
+      icon: <Home className="h-4 w-4" />,
+      content: config.realtorFormContent
+    });
+    
+    tabs.push({
+      id: "realtor-listings",
+      label: "Listings",
+      icon: <List className="h-4 w-4" />,
+      content: (
+        <ListingsForm 
+          onSubmit={async (data) => {
+            toast.success("Listing created successfully");
+            return { data: null };
+          }}
+          onUpdate={async (ulid, data) => {
+            toast.success("Listing updated successfully");
+            return { data: null };
+          }}
+          activeListings={[]}
+          successfulTransactions={[]}
+          isSubmitting={config.isSubmitting}
+        />
+      )
+    });
+  }
+  
+  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.INVESTOR) && config.investorFormContent) {
+    tabs.push({
+      id: "investor",
+      label: "Investor Profile",
+      icon: <Building className="h-4 w-4" />,
+      content: config.investorFormContent
+    });
+    
+    if (config.investorListingsContent) {
+      tabs.push({
+        id: "investor-listings",
+        label: "Investment Properties",
+        icon: <List className="h-4 w-4" />,
+        content: config.investorListingsContent
+      });
+    }
+  }
+  
+  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.MORTGAGE) && config.mortgageFormContent) {
+    tabs.push({
+      id: "mortgage",
+      label: "Mortgage Profile",
+      icon: <Building className="h-4 w-4" />,
+      content: config.mortgageFormContent
+    });
+  }
+  
+  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.PROPERTY_MANAGER) && config.propertyManagerFormContent) {
+    tabs.push({
+      id: "property-manager",
+      label: "Property Manager Profile",
+      icon: <Building className="h-4 w-4" />,
+      content: config.propertyManagerFormContent
+    });
+    
+    if (config.propertyManagerListingsContent) {
+      tabs.push({
+        id: "property-manager-listings",
+        label: "Managed Properties",
+        icon: <List className="h-4 w-4" />,
+        content: config.propertyManagerListingsContent
+      });
+    }
+  }
+  
+  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.TITLE_ESCROW) && config.titleEscrowFormContent) {
+    tabs.push({
+      id: "title-escrow",
+      label: "Title & Escrow Profile",
+      icon: <Building className="h-4 w-4" />,
+      content: config.titleEscrowFormContent
+    });
+  }
+  
+  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.INSURANCE) && config.insuranceFormContent) {
+    tabs.push({
+      id: "insurance",
+      label: "Insurance Profile",
+      icon: <Building className="h-4 w-4" />,
+      content: config.insuranceFormContent
+    });
+  }
+
+  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.COMMERCIAL) && config.commercialFormContent) {
+    tabs.push({
+      id: "commercial",
+      label: "Commercial Profile",
+      icon: <Building className="h-4 w-4" />,
+      content: config.commercialFormContent
+    });
+    
+    if (config.commercialListingsContent) {
+      tabs.push({
+        id: "commercial-listings",
+        label: "Commercial Properties",
+        icon: <List className="h-4 w-4" />,
+        content: config.commercialListingsContent
+      });
+    }
+  }
+
+  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.PRIVATE_CREDIT) && config.privateCreditFormContent) {
+    tabs.push({
+      id: "private-credit",
+      label: "Private Credit Profile",
+      icon: <Briefcase className="h-4 w-4" />,
+      content: config.privateCreditFormContent
+    });
+  }
+
+  return tabs;
+};
+
 interface ProfileTabsManagerProps {
   userCapabilities: string[];
-  selectedSpecialties: string[];
-  confirmedSpecialties: string[];
+  selectedSkills: string[];
+  industrySpecialties: string[];
   generalUserInfo?: {
     displayName?: string | null;
     bio?: string | null;
@@ -77,12 +219,13 @@ interface ProfileTabsManagerProps {
   initialGoals?: Goal[];
   onSubmitGoals?: (goals: Goal[]) => Promise<void>;
   isSubmitting?: boolean;
+  saveSkills?: (skills: string[]) => Promise<boolean>;
 }
 
-export function ProfileTabsManager({
+export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
   userCapabilities,
-  selectedSpecialties,
-  confirmedSpecialties = [],
+  selectedSkills,
+  industrySpecialties,
   generalUserInfo,
   onSubmitGeneral,
   onSubmitCoach,
@@ -105,190 +248,165 @@ export function ProfileTabsManager({
   initialGoals = [],
   onSubmitGoals,
   isSubmitting = false,
-}: ProfileTabsManagerProps) {
+  saveSkills,
+}) => {
+  // Memoize state to prevent unnecessary re-renders
   const [activeTab, setActiveTab] = useState("general");
   const [activeSubTab, setActiveSubTab] = useState("basic-info");
-  const [availableTabs, setAvailableTabs] = useState<ProfileTab[]>([]);
   const [showTabsDropdown, setShowTabsDropdown] = useState(false);
   const [showSubTabsDropdown, setShowSubTabsDropdown] = useState(false);
 
-  // Move the memoization outside useEffect
-  const domainSubTabs = useMemo(() => {
-    console.log("[DOMAIN_SUBTABS_REBUILD]", {
-      confirmedSpecialties,
-      activeTab,
-      activeSubTab,
-      timestamp: new Date().toISOString()
-    });
-    
-    const tabs: ProfileSubTab[] = [];
-    
-    if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.REALTOR) && realtorFormContent) {
-      tabs.push({
-        id: "realtor",
-        label: "Realtor Profile",
-        icon: <Home className="h-4 w-4" />,
-        content: realtorFormContent
-      });
-      
-      tabs.push({
-        id: "realtor-listings",
-        label: "Listings",
-        icon: <List className="h-4 w-4" />,
-        content: (
-          <ListingsForm 
-            onSubmit={async (data) => {
-              console.log("[LISTINGS_FORM_SUBMIT]", {
-                data,
-                timestamp: new Date().toISOString()
-              });
-              toast.success("Listing created successfully");
-              return { data: null };
-            }}
-            onUpdate={async (ulid, data) => {
-              console.log("[LISTINGS_FORM_UPDATE]", {
-                ulid,
-                data,
-                timestamp: new Date().toISOString()
-              });
-              toast.success("Listing updated successfully");
-              return { data: null };
-            }}
-            activeListings={[]}
-            successfulTransactions={[]}
-            isSubmitting={isSubmitting}
-          />
-        )
-      });
-    }
-    
-    if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.INVESTOR) && investorFormContent) {
-      tabs.push({
-        id: "investor",
-        label: "Investor Profile",
-        icon: <Building className="h-4 w-4" />,
-        content: investorFormContent
-      });
-      
-      if (investorListingsContent) {
-        tabs.push({
-          id: "investor-listings",
-          label: "Investment Properties",
-          icon: <List className="h-4 w-4" />,
-          content: investorListingsContent
-        });
-      }
-    }
-    
-    if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.MORTGAGE) && mortgageFormContent) {
-      tabs.push({
-        id: "mortgage",
-        label: "Mortgage Profile",
-        icon: <Building className="h-4 w-4" />,
-        content: mortgageFormContent
-      });
-    }
-    
-    if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.PROPERTY_MANAGER) && propertyManagerFormContent) {
-      tabs.push({
-        id: "property-manager",
-        label: "Property Manager Profile",
-        icon: <Building className="h-4 w-4" />,
-        content: propertyManagerFormContent
-      });
-      
-      if (propertyManagerListingsContent) {
-        tabs.push({
-          id: "property-manager-listings",
-          label: "Managed Properties",
-          icon: <List className="h-4 w-4" />,
-          content: propertyManagerListingsContent
-        });
-      }
-    }
-    
-    if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.TITLE_ESCROW) && titleEscrowFormContent) {
-      tabs.push({
-        id: "title-escrow",
-        label: "Title & Escrow Profile",
-        icon: <Building className="h-4 w-4" />,
-        content: titleEscrowFormContent
-      });
-    }
-    
-    if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.INSURANCE) && insuranceFormContent) {
-      tabs.push({
-        id: "insurance",
-        label: "Insurance Profile",
-        icon: <Building className="h-4 w-4" />,
-        content: insuranceFormContent
-      });
-    }
+  // Track previous specialties for comparison
+  const prevSpecialtiesRef = useRef<string>(JSON.stringify(industrySpecialties));
 
-    if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.COMMERCIAL) && commercialFormContent) {
-      tabs.push({
-        id: "commercial",
-        label: "Commercial Profile",
-        icon: <Building className="h-4 w-4" />,
-        content: commercialFormContent
-      });
-      
-      if (commercialListingsContent) {
-        tabs.push({
-          id: "commercial-listings",
-          label: "Commercial Properties",
-          icon: <List className="h-4 w-4" />,
-          content: commercialListingsContent
-        });
+  // Memoize domain sub-tabs with proper dependency array
+  const domainSubTabs = useMemo(
+    () => {
+      // Only rebuild if we have industry specialties and are on the coach tab
+      if (!industrySpecialties?.length || activeTab !== 'coach') {
+        return [];
       }
-    }
 
-    if (confirmedSpecialties.includes(INDUSTRY_SPECIALTIES.PRIVATE_CREDIT) && privateCreditFormContent) {
-      tabs.push({
-        id: "private-credit",
-        label: "Private Credit Profile",
-        icon: <Briefcase className="h-4 w-4" />,
-        content: privateCreditFormContent
+      return buildDomainSubTabs(industrySpecialties, {
+        realtorFormContent,
+        investorFormContent,
+        investorListingsContent,
+        mortgageFormContent,
+        propertyManagerFormContent,
+        propertyManagerListingsContent,
+        titleEscrowFormContent,
+        insuranceFormContent,
+        commercialFormContent,
+        commercialListingsContent,
+        privateCreditFormContent,
+        isSubmitting
       });
-    }
+    },
+    // Only depend on the specialties and form contents, not activeTab
+    [
+      industrySpecialties,
+      realtorFormContent,
+      investorFormContent,
+      investorListingsContent,
+      mortgageFormContent,
+      propertyManagerFormContent,
+      propertyManagerListingsContent,
+      titleEscrowFormContent,
+      insuranceFormContent,
+      commercialFormContent,
+      commercialListingsContent,
+      privateCreditFormContent,
+      isSubmitting
+    ]
+  );
 
-    return tabs;
-  }, [
-    confirmedSpecialties,
-    realtorFormContent,
-    investorFormContent,
-    investorListingsContent,
-    mortgageFormContent,
-    propertyManagerFormContent,
-    propertyManagerListingsContent,
-    titleEscrowFormContent,
-    insuranceFormContent,
-    commercialFormContent,
-    commercialListingsContent,
-    privateCreditFormContent,
-    isSubmitting
+  // Memoize all tabs to prevent unnecessary rebuilds
+  const allTabs = useMemo<ProfileTab[]>(() => [
+    {
+      id: "general",
+      label: "General Profile",
+      icon: <User className="h-4 w-4" />,
+      content: (
+        <GeneralForm
+          initialData={generalUserInfo}
+          onSubmit={onSubmitGeneral || (() => {})}
+          isSubmitting={isSubmitting}
+        />
+      ),
+    },
+    {
+      id: "coach",
+      label: "Coach Profile",
+      icon: <Briefcase className="h-4 w-4" />,
+      content: coachFormContent,
+      requiredCapabilities: ["COACH"],
+      subTabs: [] // Will be populated by activeTabObject
+    },
+    {
+      id: "recognitions",
+      label: "Professional Recognitions",
+      icon: <Award className="h-4 w-4" />,
+      content: (
+        <RecognitionsTab 
+          initialRecognitions={initialRecognitions}
+          onSubmit={onSubmitRecognitions}
+          isSubmitting={isSubmitting}
+          selectedSkills={selectedSkills}
+        />
+      ),
+      requiredCapabilities: ["COACH"],
+    },
+    {
+      id: "marketing",
+      label: "Marketing Info",
+      icon: <Globe className="h-4 w-4" />,
+      content: (
+        <MarketingInfo
+          initialData={initialMarketingInfo}
+          onSubmit={onSubmitMarketingInfo}
+          isSubmitting={isSubmitting}
+        />
+      ),
+      requiredCapabilities: ["COACH"],
+    },
+    {
+      id: "goals",
+      label: "Goals & Objectives",
+      icon: <Target className="h-4 w-4" />,
+      content: (
+        <GoalsForm
+          open={true}
+          onClose={() => {}}
+          onSubmit={async (data: GoalFormValues) => {
+            if (onSubmitGoals) {
+              await onSubmitGoals([]);
+            }
+          }}
+        />
+      ),
+      requiredCapabilities: ["COACH"],
+    }
+  ], [
+    generalUserInfo,
+    onSubmitGeneral,
+    coachFormContent,
+    initialRecognitions,
+    onSubmitRecognitions,
+    initialMarketingInfo,
+    onSubmitMarketingInfo,
+    onSubmitGoals,
+    isSubmitting,
+    selectedSkills
   ]);
 
-  const allTabs = useMemo(() => {
-    return [
-      {
-        id: "general",
-        label: "General Profile",
-        icon: <User className="h-4 w-4" />,
-        content: (
-          <GeneralForm
-            initialData={generalUserInfo}
-            onSubmit={onSubmitGeneral || (() => {})}
-            isSubmitting={isSubmitting}
-          />
-        ),
-      },
-      {
-        id: "coach",
-        label: "Coach Profile",
-        icon: <Briefcase className="h-4 w-4" />,
-        content: coachFormContent,
-        requiredCapabilities: ["COACH"],
+  // Reset sub-tab only when specialties are actually different
+  useEffect(() => {
+    if (activeTab === "coach") {
+      const currentSpecialties = JSON.stringify(industrySpecialties);
+      
+      if (prevSpecialtiesRef.current !== currentSpecialties) {
+        setActiveSubTab("basic-info");
+        prevSpecialtiesRef.current = currentSpecialties;
+      }
+    }
+  }, [industrySpecialties, activeTab]);
+
+  // Memoize filtered tabs to prevent unnecessary rebuilds
+  const filteredTabs = useMemo(() => 
+    allTabs.filter(tab => {
+      if (!tab.requiredCapabilities) {
+        return true;
+      }
+      return tab.requiredCapabilities.some(cap => userCapabilities.includes(cap));
+    })
+  , [allTabs, userCapabilities]);
+
+  // Get the active tab object - memoize to prevent unnecessary rebuilds
+  const activeTabObject = useMemo<ProfileTab | undefined>(() => {
+    const tab = filteredTabs.find(tab => tab.id === activeTab);
+    if (tab?.id === 'coach') {
+      return {
+        ...tab,
         subTabs: [
           {
             id: "basic-info",
@@ -298,140 +416,35 @@ export function ProfileTabsManager({
           },
           ...domainSubTabs
         ]
-      },
-      {
-        id: "recognitions",
-        label: "Professional Recognitions",
-        icon: <Award className="h-4 w-4" />,
-        content: (
-          <RecognitionsTab 
-            initialRecognitions={initialRecognitions}
-            onSubmit={onSubmitRecognitions}
-            isSubmitting={isSubmitting}
-            selectedSpecialties={selectedSpecialties}
-          />
-        ),
-        requiredCapabilities: ["COACH"],
-      },
-      {
-        id: "marketing",
-        label: "Marketing Info",
-        icon: <Globe className="h-4 w-4" />,
-        content: (
-          <MarketingInfo
-            initialData={initialMarketingInfo}
-            onSubmit={onSubmitMarketingInfo}
-            isSubmitting={isSubmitting}
-          />
-        ),
-        requiredCapabilities: ["COACH"],
-      },
-      {
-        id: "goals",
-        label: "Goals & Objectives",
-        icon: <Target className="h-4 w-4" />,
-        content: (
-          <GoalsForm
-            open={true}
-            onClose={() => {}}
-            onSubmit={async (data: GoalFormValues) => {
-              if (onSubmitGoals) {
-                await onSubmitGoals([]);
-              }
-            }}
-          />
-        ),
-        requiredCapabilities: ["COACH"],
-      }
-    ];
-  }, [
-    generalUserInfo,
-    onSubmitGeneral,
-    coachFormContent,
-    domainSubTabs,
-    initialRecognitions,
-    onSubmitRecognitions,
-    initialMarketingInfo,
-    onSubmitMarketingInfo,
-    onSubmitGoals,
-    isSubmitting,
-    selectedSpecialties
-  ]);
-
-  const filteredTabs = useMemo(() => 
-    allTabs.filter((tab: ProfileTab) => {
-      if (!tab.requiredCapabilities && !tab.requiredSpecialties && !tab.requiredConfirmedSpecialties) {
-        return true;
-      }
-
-      if (tab.requiredCapabilities && tab.requiredCapabilities.some(cap => userCapabilities.includes(cap))) {
-        if (!tab.requiredConfirmedSpecialties) {
-          return true;
-        }
-      }
-
-      if (tab.requiredConfirmedSpecialties && 
-          tab.requiredConfirmedSpecialties.some((spec: string) => confirmedSpecialties.includes(spec))) {
-        return true;
-      }
-
-      return false;
-    })
-  , [allTabs, userCapabilities, confirmedSpecialties]);
-
-  // Update available tabs
-  useEffect(() => {
-    setAvailableTabs(filteredTabs);
-  }, [filteredTabs]);
-
-  // If active tab is no longer available, reset to general
-  useEffect(() => {
-    if (availableTabs.length > 0 && !availableTabs.some(tab => tab.id === activeTab)) {
-      setActiveTab(availableTabs[0].id);
+      };
     }
-  }, [availableTabs, activeTab]);
+    return tab;
+  }, [filteredTabs, activeTab, coachFormContent, domainSubTabs]);
 
-  // Reset sub-tab when specialties change
-  useEffect(() => {
-    if (activeTab === "coach") {
-      setActiveSubTab("basic-info");
-      // Log the reset to basic-info tab
-      // console.log("[PROFILE_TABS_MANAGER] Specialties changed, resetting to basic-info tab", {
-      //   confirmedSpecialties,
-      //   timestamp: new Date().toISOString()
-      // });
-    }
-  }, [confirmedSpecialties, activeTab]);
-
-  // Function to handle tab selection from dropdown
-  const handleTabSelect = (tabId: string) => {
-    setActiveTab(tabId);
-    setShowTabsDropdown(false);
-    
-    // Reset sub-tab to first one when changing main tab
-    const selectedTab = availableTabs.find(tab => tab.id === tabId);
-    if (selectedTab?.subTabs && selectedTab.subTabs.length > 0) {
-      setActiveSubTab(selectedTab.subTabs[0].id);
-    }
-  };
-
-  // Function to handle sub-tab selection
-  const handleSubTabSelect = (subTabId: string) => {
-    setActiveSubTab(subTabId);
-    setShowSubTabsDropdown(false);
-  };
-
-  // Get the active tab object
-  const activeTabObject = availableTabs.find(tab => tab.id === activeTab);
-  
-  // Get the active sub-tab content if applicable
-  const getActiveContent = () => {
+  // Get the active content based on current tab/subtab
+  const activeContent = useMemo(() => {
     if (activeTab === "coach" && activeTabObject?.subTabs) {
       const activeSubTabObject = activeTabObject.subTabs.find(subTab => subTab.id === activeSubTab);
       return activeSubTabObject?.content || activeTabObject.content;
     }
     return activeTabObject?.content;
-  };
+  }, [activeTab, activeTabObject, activeSubTab]);
+
+  const handleTabSelect = useCallback((tabId: string) => {
+    setActiveTab(tabId);
+    setShowTabsDropdown(false);
+    
+    // Reset sub-tab to first one when changing main tab
+    const selectedTab = filteredTabs.find(tab => tab.id === tabId);
+    if (selectedTab?.subTabs && selectedTab.subTabs.length > 0) {
+      setActiveSubTab(selectedTab.subTabs[0].id);
+    }
+  }, [filteredTabs]);
+
+  const handleSubTabSelect = useCallback((subTabId: string) => {
+    setActiveSubTab(subTabId);
+    setShowSubTabsDropdown(false);
+  }, []);
 
   const handleCoachSubmit = async (data: CoachProfileFormValues) => {
     // Log the coach submit
@@ -445,17 +458,11 @@ export function ProfileTabsManager({
     }
   };
 
-  console.log("[PROFILE_TABS_RENDER]", {
-    activeTab,
-    activeSubTab,
-    availableTabsCount: availableTabs.length,
-    hasSubTabs: (activeTabObject?.subTabs?.length ?? 0) > 0,
-    confirmedSpecialtiesCount: confirmedSpecialties.length,
-    timestamp: new Date().toISOString()
-  });
+  // Remove console.log to prevent unnecessary re-renders
+  // console.log("[PROFILE_TABS_RENDER]", {...});
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+    <Tabs value={activeTab} onValueChange={handleTabSelect} className="w-full">
       {/* Mobile view: Dropdown for tabs */}
       <div className="md:hidden mb-6">
         <div className="relative">
@@ -464,8 +471,8 @@ export function ProfileTabsManager({
             className="flex items-center justify-between w-full p-3 bg-background border rounded-md shadow-sm text-left"
           >
             <div className="flex items-center gap-2">
-              {availableTabs.find(tab => tab.id === activeTab)?.icon}
-              <span>{availableTabs.find(tab => tab.id === activeTab)?.label}</span>
+              {filteredTabs.find(tab => tab.id === activeTab)?.icon}
+              <span>{filteredTabs.find(tab => tab.id === activeTab)?.label}</span>
             </div>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -485,7 +492,7 @@ export function ProfileTabsManager({
           
           {showTabsDropdown && (
             <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg">
-              {availableTabs.map(tab => (
+              {filteredTabs.map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => handleTabSelect(tab.id)}
@@ -505,7 +512,7 @@ export function ProfileTabsManager({
       {/* Desktop view: Horizontal tabs */}
       <div className="hidden md:block">
         <TabsList className="mb-6 flex flex-wrap gap-1 justify-start w-full bg-background border-b pb-0">
-          {availableTabs.map(tab => (
+          {filteredTabs.map(tab => (
             <TabsTrigger 
               key={tab.id} 
               value={tab.id} 
@@ -593,10 +600,10 @@ export function ProfileTabsManager({
       <div className="mt-6">
         {activeTab === "coach" && activeTabObject?.subTabs ? (
           // Render the active sub-tab content for Coach Profile
-          getActiveContent()
+          activeContent
         ) : (
           // Render regular tab content for other tabs
-          availableTabs.map(tab => (
+          filteredTabs.map(tab => (
             <TabsContent key={tab.id} value={tab.id} className="px-0">
               {tab.content}
             </TabsContent>
@@ -605,4 +612,4 @@ export function ProfileTabsManager({
       </div>
     </Tabs>
   );
-} 
+}; 

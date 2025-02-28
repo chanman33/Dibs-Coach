@@ -20,6 +20,13 @@ import {
   InvestorProfileFormValues,
   InvestorProfileInitialData,
 } from "@/utils/types/investor";
+import { z } from "zod";
+import { Textarea } from "@/components/ui/textarea";
+import Select from 'react-select';
+import CreatableSelect from 'react-select/creatable';
+import { selectStyles } from "@/components/ui/select-styles";
+import { GroupBase } from 'react-select';
+import { useMemo, useCallback } from "react";
 
 // Props for the component
 interface InvestorProfileFormProps {
@@ -50,6 +57,7 @@ export function InvestorProfileForm({
       targetMarkets: initialData?.targetMarkets || [],
       certifications: initialData?.certifications || [],
       languages: initialData?.languages || [],
+      bio: initialData?.bio || "",
     },
   });
 
@@ -62,6 +70,33 @@ export function InvestorProfileForm({
       toast.error("Failed to update investor profile");
     }
   };
+
+  // Memoize the formatGroupLabel function
+  const memoizedFormatGroupLabel = useCallback((group: GroupBase<any>) => {
+    return (
+      <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
+        <span className="font-semibold text-sm text-slate-700">
+          {group.label}
+        </span>
+      </div>
+    );
+  }, []);
+
+  // Memoize investment strategy options
+  const investmentStrategyOptions = useMemo(() => 
+    Object.values(InvestmentStrategy).map(type => ({
+      value: type,
+      label: type.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ')
+    }))
+  , []);
+
+  // Memoize property type options
+  const propertyTypeOptions = useMemo(() => 
+    Object.values(PropertyType).map(type => ({
+      value: type,
+      label: type.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ')
+    }))
+  , []);
 
   return (
     <div className="space-y-8">
@@ -127,41 +162,36 @@ export function InvestorProfileForm({
                 <FormField
                   control={form.control}
                   name="investmentStrategies"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Investment Strategies</FormLabel>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                        {Object.entries(InvestmentStrategy).map(([key, value]) => (
-                          <div key={key} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`strategy-${key}`}
-                              checked={field.value?.includes(value)}
-                              onCheckedChange={(checked) => {
-                                const currentValues = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValues, value]);
-                                } else {
-                                  field.onChange(
-                                    currentValues.filter((v) => v !== value)
-                                  );
-                                }
-                              }}
-                            />
-                            <label
-                              htmlFor={`strategy-${key}`}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              {value.replace(/_/g, ' ')}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                      <FormDescription>
-                        Select all investment strategies you employ
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field: { onChange, value, ...field } }) => {
+                    const currentValue = useMemo(() => 
+                      investmentStrategyOptions.filter(option => value?.includes(option.value))
+                    , [value]);
+
+                    return (
+                      <FormItem>
+                        <FormLabel>Investment Strategies</FormLabel>
+                        <FormControl>
+                          <Select
+                            {...field}
+                            isMulti
+                            options={investmentStrategyOptions}
+                            styles={selectStyles}
+                            value={currentValue}
+                            onChange={(selected) => {
+                              onChange(selected ? selected.map((option: any) => option.value) : []);
+                            }}
+                            placeholder="Select investment strategies..."
+                            className="w-full"
+                            classNamePrefix="investment-strategy-select"
+                            formatGroupLabel={memoizedFormatGroupLabel}
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                            menuPosition="fixed"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </div>
 
@@ -241,41 +271,36 @@ export function InvestorProfileForm({
                 <FormField
                   control={form.control}
                   name="preferredPropertyTypes"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Preferred Property Types</FormLabel>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                        {Object.entries(PropertyType).map(([key, value]) => (
-                          <div key={key} className="flex items-center space-x-2">
-                            <Checkbox
-                              id={`property-${key}`}
-                              checked={field.value?.includes(value)}
-                              onCheckedChange={(checked) => {
-                                const currentValues = field.value || [];
-                                if (checked) {
-                                  field.onChange([...currentValues, value]);
-                                } else {
-                                  field.onChange(
-                                    currentValues.filter((v) => v !== value)
-                                  );
-                                }
-                              }}
-                            />
-                            <label
-                              htmlFor={`property-${key}`}
-                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                            >
-                              {value}
-                            </label>
-                          </div>
-                        ))}
-                      </div>
-                      <FormDescription>
-                        Select all property types you invest in
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field: { onChange, value, ...field } }) => {
+                    const currentValue = useMemo(() => 
+                      propertyTypeOptions.filter(option => value?.includes(option.value))
+                    , [value]);
+
+                    return (
+                      <FormItem>
+                        <FormLabel>Preferred Property Types</FormLabel>
+                        <FormControl>
+                          <Select
+                            {...field}
+                            isMulti
+                            options={propertyTypeOptions}
+                            styles={selectStyles}
+                            value={currentValue}
+                            onChange={(selected) => {
+                              onChange(selected ? selected.map((option: any) => option.value) : []);
+                            }}
+                            placeholder="Select property types..."
+                            className="w-full"
+                            classNamePrefix="property-type-select"
+                            formatGroupLabel={memoizedFormatGroupLabel}
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                            menuPosition="fixed"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </div>
 
@@ -428,99 +453,91 @@ export function InvestorProfileForm({
                 <FormField
                   control={form.control}
                   name="certifications"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Certifications</FormLabel>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {field.value?.map((cert: string) => (
-                          <Badge key={cert} variant="secondary" className="flex items-center gap-1">
-                            {cert}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentCerts = field.value || [];
-                                field.onChange(currentCerts.filter((c: string) => c !== cert));
-                              }}
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add a certification"
-                          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              const value = e.currentTarget.value.trim();
-                              if (value && !field.value?.includes(value)) {
-                                const currentCerts = field.value || [];
-                                field.onChange([...currentCerts, value]);
-                                e.currentTarget.value = "";
-                              }
-                            }
-                          }}
-                        />
-                      </div>
-                      <FormDescription>
-                        Professional certifications and credentials
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field: { onChange, value, ...field } }) => {
+                    const currentValue = useMemo(() => 
+                      value?.map(v => ({ value: v, label: v })) || []
+                    , [value]);
+
+                    return (
+                      <FormItem>
+                        <FormLabel>Certifications</FormLabel>
+                        <FormControl>
+                          <CreatableSelect
+                            {...field}
+                            isMulti
+                            options={currentValue}
+                            styles={selectStyles}
+                            value={currentValue}
+                            onChange={(selected) => {
+                              onChange(selected ? selected.map((option: any) => option.value) : []);
+                            }}
+                            placeholder="Enter certifications..."
+                            className="w-full"
+                            classNamePrefix="certification-select"
+                            formatGroupLabel={memoizedFormatGroupLabel}
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                            menuPosition="fixed"
+                            isClearable
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 <FormField
                   control={form.control}
                   name="languages"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Languages</FormLabel>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        {field.value?.map((lang: string) => (
-                          <Badge key={lang} variant="secondary" className="flex items-center gap-1">
-                            {lang}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const currentLangs = field.value || [];
-                                field.onChange(currentLangs.filter((l: string) => l !== lang));
-                              }}
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </Badge>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add a language"
-                          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              const value = e.currentTarget.value.trim();
-                              if (value && !field.value?.includes(value)) {
-                                const currentLangs = field.value || [];
-                                field.onChange([...currentLangs, value]);
-                                e.currentTarget.value = "";
-                              }
-                            }
-                          }}
-                        />
-                      </div>
-                      <FormDescription>
-                        Languages you are proficient in
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field: { onChange, value, ...field } }) => {
+                    const currentValue = useMemo(() => 
+                      value?.map(v => ({ value: v, label: v })) || []
+                    , [value]);
+
+                    return (
+                      <FormItem>
+                        <FormLabel>Languages</FormLabel>
+                        <FormControl>
+                          <CreatableSelect
+                            {...field}
+                            isMulti
+                            options={currentValue}
+                            styles={selectStyles}
+                            value={currentValue}
+                            onChange={(selected) => {
+                              onChange(selected ? selected.map((option: any) => option.value) : []);
+                            }}
+                            placeholder="Enter languages..."
+                            className="w-full"
+                            classNamePrefix="language-select"
+                            formatGroupLabel={memoizedFormatGroupLabel}
+                            menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                            menuPosition="fixed"
+                            isClearable
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </div>
             </div>
           </Card>
+
+          <FormField
+            control={form.control}
+            name="bio"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Bio</FormLabel>
+                <FormControl>
+                  <Textarea {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <div className="flex justify-end mt-8">
             <Button type="submit" size="lg" disabled={isSubmitting}>

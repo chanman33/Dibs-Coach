@@ -32,18 +32,18 @@ import {
 import { toast } from "sonner";
 
 interface RecognitionsTabProps {
-  initialRecognitions?: ProfessionalRecognition[];
+  initialRecognitions: ProfessionalRecognition[];
   onSubmit: (recognitions: ProfessionalRecognition[]) => Promise<void>;
-  isSubmitting?: boolean;
-  selectedSpecialties?: string[];
+  isSubmitting: boolean;
+  selectedSkills: string[];
 }
 
-export function RecognitionsTab({ 
-  initialRecognitions = [], 
+export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
+  initialRecognitions,
   onSubmit,
-  isSubmitting = false,
-  selectedSpecialties = []
-}: RecognitionsTabProps) {
+  isSubmitting,
+  selectedSkills
+}) => {
   const [recognitions, setRecognitions] = useState<ProfessionalRecognition[]>(initialRecognitions);
   const [showForm, setShowForm] = useState(false);
   const [editIndex, setEditIndex] = useState<number | null>(null);
@@ -51,22 +51,32 @@ export function RecognitionsTab({
   const [recognitionValues, setRecognitionValues] = useState<ProfessionalRecognition>({
     title: "",
     type: "AWARD",
-    year: new Date().getFullYear(),
-    organization: null,
+    issuer: "",
+    issueDate: new Date().toISOString(),
+    expiryDate: null,
     description: null,
+    verificationUrl: null,
+    certificateUrl: null,
+    status: "ACTIVE",
     isVisible: true,
-    industryType: null
+    industryType: null,
+    coachProfileUlid: null
   });
 
   const clearForm = () => {
     setRecognitionValues({
       title: "",
       type: "AWARD",
-      year: new Date().getFullYear(),
-      organization: null,
+      issuer: "",
+      issueDate: new Date().toISOString(),
+      expiryDate: null,
       description: null,
+      verificationUrl: null,
+      certificateUrl: null,
+      status: "ACTIVE",
       isVisible: true,
-      industryType: null
+      industryType: null,
+      coachProfileUlid: null
     });
     setEditIndex(null);
     setShowForm(false);
@@ -101,11 +111,16 @@ export function RecognitionsTab({
     setRecognitionValues({
       title: recognition.title,
       type: recognition.type,
-      year: recognition.year,
-      organization: recognition.organization || null,
+      issuer: recognition.issuer || "",
+      issueDate: recognition.issueDate || new Date().toISOString(),
+      expiryDate: recognition.expiryDate || null,
       description: recognition.description || null,
+      verificationUrl: recognition.verificationUrl || null,
+      certificateUrl: recognition.certificateUrl || null,
+      status: recognition.status || "ACTIVE",
       isVisible: recognition.isVisible,
       industryType: recognition.industryType || null,
+      coachProfileUlid: recognition.coachProfileUlid || null,
       ulid: recognition.ulid
     });
     setEditIndex(index);
@@ -217,8 +232,8 @@ export function RecognitionsTab({
                     </div>
                     <div className="flex justify-between items-center mt-1">
                       <div className="text-sm text-muted-foreground">
-                        {recognition.organization && `${recognition.organization} • `}
-                        {recognition.year}
+                        {recognition.issuer && `${recognition.issuer} • `}
+                        {new Date(recognition.issueDate).getFullYear()}
                       </div>
                       <Badge variant={recognition.isVisible ? "outline" : "secondary"} className="text-xs">
                         {recognition.isVisible ? "Visible" : "Hidden"}
@@ -333,30 +348,42 @@ export function RecognitionsTab({
                   </div>
 
                   <div>
-                    <FormLabel>Year</FormLabel>
+                    <FormLabel>Issuer</FormLabel>
                     <Input 
-                      type="number"
-                      min={1950}
-                      max={new Date().getFullYear()}
-                      value={recognitionValues.year}
+                      value={recognitionValues.issuer}
                       onChange={(e) => setRecognitionValues({
                         ...recognitionValues,
-                        year: parseInt(e.target.value) || new Date().getFullYear()
+                        issuer: e.target.value
                       })}
+                      placeholder="e.g., National Association of Realtors"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <FormLabel>Organization</FormLabel>
-                  <Input 
-                    value={recognitionValues.organization || ""}
-                    onChange={(e) => setRecognitionValues({
-                      ...recognitionValues,
-                      organization: e.target.value ? e.target.value : null
-                    })}
-                    placeholder="e.g., National Association of Realtors"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <FormLabel>Issue Date</FormLabel>
+                    <Input 
+                      type="date"
+                      value={recognitionValues.issueDate}
+                      onChange={(e) => setRecognitionValues({
+                        ...recognitionValues,
+                        issueDate: e.target.value
+                      })}
+                    />
+                  </div>
+
+                  <div>
+                    <FormLabel>Expiry Date</FormLabel>
+                    <Input 
+                      type="date"
+                      value={recognitionValues.expiryDate || ""}
+                      onChange={(e) => setRecognitionValues({
+                        ...recognitionValues,
+                        expiryDate: e.target.value ? e.target.value : null
+                      })}
+                    />
+                  </div>
                 </div>
 
                 <div>
@@ -373,9 +400,9 @@ export function RecognitionsTab({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">None (General)</SelectItem>
-                      {selectedSpecialties.map((specialty) => (
-                        <SelectItem key={specialty} value={specialty}>
-                          {specialty}
+                      {selectedSkills.map((skill) => (
+                        <SelectItem key={skill} value={skill}>
+                          {skill}
                         </SelectItem>
                       ))}
                     </SelectContent>

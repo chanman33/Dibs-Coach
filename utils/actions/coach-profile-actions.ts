@@ -1,14 +1,16 @@
 'use server'
 
-import { createAuthClient } from "../auth"
+import { createAuthClient, getUserUlidAndRole } from "../auth"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { revalidatePath } from "next/cache"
 import { PROFILE_STATUS, type ProfileStatus } from "@/utils/types/coach"
 import { calculateProfileCompletion, PUBLICATION_THRESHOLD } from "@/utils/actions/calculateProfileCompletion"
+import { auth } from "@clerk/nextjs/server"
+import { ProfessionalRecognition } from "@/utils/types/recognition"
 
 export interface CoachProfileFormData {
-  specialties: string[];
+  coachSkills: string[];
   yearsCoaching: number;
   hourlyRate: number;
   defaultDuration: number;
@@ -17,23 +19,13 @@ export interface CoachProfileFormData {
   allowCustomDuration: boolean;
   calendlyUrl?: string;
   eventTypeUrl?: string;
-  domainSpecialties?: string[];
+  realEstateDomains?: string[];
   certifications?: string[];
   professionalRecognitions?: ProfessionalRecognition[];
 }
 
-interface ProfessionalRecognition {
-  ulid?: string;
-  title: string;
-  type: "AWARD" | "ACHIEVEMENT";
-  year: number;
-  organization: string | null;
-  description: string | null;
-  isVisible: boolean;
-}
-
 interface CoachProfileResponse {
-  specialties: string[];
+  coachSkills: string[];
   yearsCoaching: number;
   hourlyRate: number;
   defaultDuration: number;
@@ -44,7 +36,7 @@ interface CoachProfileResponse {
   eventTypeUrl: string;
   certifications: string[];
   professionalRecognitions: ProfessionalRecognition[];
-  domainSpecialties: string[];
+  realEstateDomains: string[];
   capabilities: string[];
   _rawCoachProfile: any;
   _rawRealtorProfile: any;
@@ -55,6 +47,8 @@ interface CoachProfileResponse {
   completionPercentage: number;
   canPublish: boolean;
   missingFields: string[];
+  missingRequiredFields: string[];
+  validationMessages: Record<string, string>;
 }
 
 export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
@@ -68,7 +62,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       });
 
       // Fetch coach profile with professional recognitions
-      const { data: coachProfile, error: coachError } = await supabase
+      let { data: coachProfile, error: coachError } = await supabase
         .from("CoachProfile")
         .select(`
           *,
@@ -76,17 +70,43 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
             ulid,
             title,
             type,
-            year,
-            organization,
+            issueDate,
+            issuer,
             description,
             isVisible,
-            industryType
+            industryType,
+            status,
+            verificationUrl,
+            certificateUrl,
+            expiryDate
           )
         `)
         .eq("userUlid", userUlid)
-        .single();
+        .maybeSingle();
 
-      if (coachError) {
+      // If no profile exists, try to create one
+      if (coachError?.code === 'PGRST116') {
+        const { data: newProfile, error: createError } = await createCoachProfileIfNeeded(userUlid);
+        if (createError) {
+          console.error("[COACH_PROFILE_CREATE_ERROR]", {
+            userUlid,
+            error: createError,
+            timestamp: new Date().toISOString()
+          });
+          return {
+            data: null,
+            error: {
+              code: "DATABASE_ERROR",
+              message: "Failed to create coach profile",
+              details: createError
+            }
+          };
+        }
+        if (newProfile) {
+          coachProfile = newProfile;
+          coachError = null;
+        }
+      } else if (coachError) {
         console.error("[COACH_PROFILE_FETCH_ERROR]", {
           userUlid,
           error: coachError,
@@ -113,7 +133,8 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           firstName,
           lastName,
           bio,
-          profileImageUrl
+          profileImageUrl,
+          realEstateDomains
         `)
         .eq("ulid", userUlid)
         .single();
@@ -139,7 +160,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         lastName: userData?.lastName,
         bio: userData?.bio,
         profileImageUrl: userData?.profileImageUrl,
-        coachingSpecialties: coachProfile?.specialties || [],
+        coachingSpecialties: coachProfile?.coachSkills || [],
         hourlyRate: coachProfile?.hourlyRate || null,
         yearsCoaching: coachProfile?.yearsCoaching || null,
         calendlyUrl: coachProfile?.calendlyUrl || null,
@@ -149,7 +170,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       const { percentage, missingFields, canPublish } = calculateProfileCompletion(profileData);
 
       const responseData: CoachProfileResponse = {
-        specialties: coachProfile?.specialties || [],
+        coachSkills: coachProfile?.coachSkills || [],
         yearsCoaching: coachProfile?.yearsCoaching || 0,
         hourlyRate: Number(coachProfile?.hourlyRate) || 0,
         defaultDuration: coachProfile?.defaultDuration || 60,
@@ -160,7 +181,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         eventTypeUrl: coachProfile?.eventTypeUrl || "",
         certifications: [],
         professionalRecognitions: activeRecognitions,
-        domainSpecialties: coachProfile?.domainSpecialties || [],
+        realEstateDomains: userData?.realEstateDomains || [],
         capabilities: [],
         _rawCoachProfile: coachProfile || null,
         _rawRealtorProfile: null,
@@ -170,7 +191,9 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         profileStatus: coachProfile?.profileStatus || "DRAFT",
         completionPercentage: percentage,
         canPublish,
-        missingFields
+        missingFields,
+        missingRequiredFields: [],
+        validationMessages: {}
       };
 
       return { data: responseData, error: null };
@@ -252,7 +275,7 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         lastName: userData.lastName,
         bio: userData.bio,
         profileImageUrl: userData.profileImageUrl,
-        coachingSpecialties: formData.specialties,
+        coachingSpecialties: formData.coachSkills,
         hourlyRate: formData.hourlyRate,
         yearsCoaching: formData.yearsCoaching,
         calendlyUrl: formData.calendlyUrl,
@@ -291,7 +314,7 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
 
       const coachProfileData = {
         userUlid,
-        specialties: formData.specialties,
+        coachSkills: formData.coachSkills,
         yearsCoaching: formData.yearsCoaching,
         hourlyRate: formData.hourlyRate,
         calendlyUrl: formData.calendlyUrl,
@@ -388,7 +411,7 @@ export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse,
             bio,
             profileImageUrl,
             coachProfile:CoachProfile (
-              specialties,
+              coachSkills,
               yearsCoaching,
               hourlyRate,
               calendlyUrl,
@@ -420,7 +443,7 @@ export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse,
           lastName: userData.lastName,
           bio: userData.bio,
           profileImageUrl: userData.profileImageUrl,
-          coachingSpecialties: coachProfile?.specialties || [],
+          coachingSpecialties: coachProfile?.coachSkills || [],
           hourlyRate: coachProfile?.hourlyRate || null,
           yearsCoaching: coachProfile?.yearsCoaching || null,
           calendlyUrl: coachProfile?.calendlyUrl || null,
@@ -485,3 +508,154 @@ export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse,
     }
   }
 ) 
+
+export async function saveCoachSkills({
+  skills
+}: {
+  skills: string[]
+}) {
+  'use server'
+
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return { data: null, error: { message: 'Not authenticated' } };
+    }
+
+    const supabase = await createAuthClient();
+    const { userUlid } = await getUserUlidAndRole(userId);
+
+    // Create or update the coach profile with the new skills
+    const { data, error } = await supabase
+      .from('CoachProfile')
+      .upsert({
+        userUlid,
+        coachSkills: skills,
+        yearsCoaching: 0,
+        hourlyRate: 0,
+        defaultDuration: 60,
+        minimumDuration: 30,
+        maximumDuration: 120,
+        allowCustomDuration: false,
+        profileStatus: 'DRAFT',
+        completionPercentage: 0,
+        updatedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString()
+      }, {
+        onConflict: 'userUlid',
+        ignoreDuplicates: false
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[SAVE_COACH_SKILLS_ERROR]', {
+        error,
+        userId,
+        skills,
+        timestamp: new Date().toISOString()
+      });
+      return { data: null, error: { message: 'Failed to save skills' } };
+    }
+
+    revalidatePath('/dashboard/coach/profile');
+    return { data: { skills }, error: null };
+  } catch (error) {
+    console.error('[SAVE_COACH_SKILLS_ERROR]', {
+      error,
+      timestamp: new Date().toISOString()
+    });
+    return { data: null, error: { message: 'Failed to save skills' } };
+  }
+} 
+
+export async function createCoachProfileIfNeeded(userUlid: string) {
+  'use server'
+
+  try {
+    const supabase = await createAuthClient();
+
+    // First check if user has COACH capability and isCoach flag
+    const { data: userData, error: userError } = await supabase
+      .from('User')
+      .select('isCoach, capabilities')
+      .eq('ulid', userUlid)
+      .single();
+
+    if (userError) {
+      console.error('[CREATE_COACH_PROFILE_USER_ERROR]', {
+        userUlid,
+        error: userError,
+        timestamp: new Date().toISOString()
+      });
+      return { data: null, error: { message: 'Failed to fetch user data' } };
+    }
+
+    // Only proceed if user is a coach
+    if (!userData.isCoach || !userData.capabilities?.includes('COACH')) {
+      return { data: null, error: { message: 'User is not a coach' } };
+    }
+
+    // Check if coach profile already exists
+    const { data: existingProfile, error: profileError } = await supabase
+      .from('CoachProfile')
+      .select('ulid')
+      .eq('userUlid', userUlid)
+      .maybeSingle();
+
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.error('[CREATE_COACH_PROFILE_CHECK_ERROR]', {
+        userUlid,
+        error: profileError,
+        timestamp: new Date().toISOString()
+      });
+      return { data: null, error: { message: 'Failed to check existing profile' } };
+    }
+
+    // If profile already exists, return it
+    if (existingProfile) {
+      return { data: existingProfile, error: null };
+    }
+
+    // Create new coach profile with default values
+    const { data: newProfile, error: createError } = await supabase
+      .from('CoachProfile')
+      .insert({
+        userUlid,
+        coachSkills: [],
+        yearsCoaching: 0,
+        hourlyRate: 0,
+        defaultDuration: 60,
+        minimumDuration: 30,
+        maximumDuration: 120,
+        allowCustomDuration: false,
+        profileStatus: 'DRAFT',
+        completionPercentage: 0,
+        isActive: true,
+        totalSessions: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('[CREATE_COACH_PROFILE_ERROR]', {
+        userUlid,
+        error: createError,
+        timestamp: new Date().toISOString()
+      });
+      return { data: null, error: { message: 'Failed to create coach profile' } };
+    }
+
+    revalidatePath('/dashboard/coach/profile');
+    return { data: newProfile, error: null };
+  } catch (error) {
+    console.error('[CREATE_COACH_PROFILE_ERROR]', {
+      userUlid,
+      error,
+      timestamp: new Date().toISOString()
+    });
+    return { data: null, error: { message: 'Failed to create coach profile' } };
+  }
+} 

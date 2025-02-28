@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle, AlertCircle, EyeOff, ChevronRight } from 'lucide-react'
 import { PROFILE_STATUS, ProfileStatus } from '@/utils/types/coach'
 import { toast } from 'sonner'
-import { updateProfileStatus } from '@/utils/actions/coach-actions'
+import { updateProfileStatus } from '@/utils/actions/coach-profile-actions'
 import { getMissingFieldsMessage } from '@/utils/actions/calculateProfileCompletion'
 
 interface ProfileCompletionProps {

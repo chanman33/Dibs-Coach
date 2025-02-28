@@ -44,6 +44,7 @@ export const investorProfileSchema = z.object({
   targetMarkets: z.array(z.string()).min(1, "At least one target market is required"),
   certifications: z.array(z.string()).optional(),
   languages: z.array(z.string()).optional(),
+  bio: z.string().max(1000, "Bio must be less than 1000 characters").optional(),
 });
 
 // Type for the form values
@@ -65,4 +66,5 @@ export interface InvestorProfileInitialData {
   targetMarkets?: string[];
   certifications?: string[];
   languages?: string[];
+  bio?: string;
 } 

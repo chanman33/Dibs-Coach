@@ -1691,13 +1691,14 @@ export type Database = {
           certifications: string[] | null
           createdAt: string
           description: string | null
+          domains: Database["public"]["Enums"]["RealEstateDomain"][] | null
           industry: Database["public"]["Enums"]["OrgIndustry"] | null
           level: Database["public"]["Enums"]["OrgLevel"]
           licenseNumbers: Json | null
           metadata: Json | null
           name: string
           parentUlid: string | null
-          primaryDomain: Database["public"]["Enums"]["DomainType"] | null
+          primaryDomain: Database["public"]["Enums"]["RealEstateDomain"] | null
           serviceAreas: string[] | null
           specializations: string[] | null
           status: string
@@ -1713,13 +1714,14 @@ export type Database = {
           certifications?: string[] | null
           createdAt?: string
           description?: string | null
+          domains?: Database["public"]["Enums"]["RealEstateDomain"][] | null
           industry?: Database["public"]["Enums"]["OrgIndustry"] | null
           level?: Database["public"]["Enums"]["OrgLevel"]
           licenseNumbers?: Json | null
           metadata?: Json | null
           name: string
           parentUlid?: string | null
-          primaryDomain?: Database["public"]["Enums"]["DomainType"] | null
+          primaryDomain?: Database["public"]["Enums"]["RealEstateDomain"] | null
           serviceAreas?: string[] | null
           specializations?: string[] | null
           status?: string
@@ -1735,13 +1737,14 @@ export type Database = {
           certifications?: string[] | null
           createdAt?: string
           description?: string | null
+          domains?: Database["public"]["Enums"]["RealEstateDomain"][] | null
           industry?: Database["public"]["Enums"]["OrgIndustry"] | null
           level?: Database["public"]["Enums"]["OrgLevel"]
           licenseNumbers?: Json | null
           metadata?: Json | null
           name?: string
           parentUlid?: string | null
-          primaryDomain?: Database["public"]["Enums"]["DomainType"] | null
+          primaryDomain?: Database["public"]["Enums"]["RealEstateDomain"] | null
           serviceAreas?: string[] | null
           specializations?: string[] | null
           status?: string
@@ -3131,14 +3134,17 @@ export type Database = {
           displayName: string | null
           email: string
           firstName: string | null
-          industrySpecialties: string[] | null
           isCoach: boolean
           isMentee: boolean
           languages: Database["public"]["Enums"]["Language"][] | null
           lastName: string | null
           phoneNumber: string | null
+          primaryDomain: Database["public"]["Enums"]["RealEstateDomain"] | null
           primaryMarket: string | null
           profileImageUrl: string | null
+          realEstateDomains:
+            | Database["public"]["Enums"]["RealEstateDomain"][]
+            | null
           status: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId: string | null
           stripeCustomerId: string | null
@@ -3155,14 +3161,17 @@ export type Database = {
           displayName?: string | null
           email: string
           firstName?: string | null
-          industrySpecialties?: string[] | null
           isCoach?: boolean
           isMentee?: boolean
           languages?: Database["public"]["Enums"]["Language"][] | null
           lastName?: string | null
           phoneNumber?: string | null
+          primaryDomain?: Database["public"]["Enums"]["RealEstateDomain"] | null
           primaryMarket?: string | null
           profileImageUrl?: string | null
+          realEstateDomains?:
+            | Database["public"]["Enums"]["RealEstateDomain"][]
+            | null
           status?: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId?: string | null
           stripeCustomerId?: string | null
@@ -3179,14 +3188,17 @@ export type Database = {
           displayName?: string | null
           email?: string
           firstName?: string | null
-          industrySpecialties?: string[] | null
           isCoach?: boolean
           isMentee?: boolean
           languages?: Database["public"]["Enums"]["Language"][] | null
           lastName?: string | null
           phoneNumber?: string | null
+          primaryDomain?: Database["public"]["Enums"]["RealEstateDomain"] | null
           primaryMarket?: string | null
           profileImageUrl?: string | null
+          realEstateDomains?:
+            | Database["public"]["Enums"]["RealEstateDomain"][]
+            | null
           status?: Database["public"]["Enums"]["UserStatus"]
           stripeConnectAccountId?: string | null
           stripeCustomerId?: string | null
@@ -3503,12 +3515,6 @@ export type Database = {
       Currency: "USD" | "EUR" | "GBP"
       DisputeStatus: "OPEN" | "RESOLVED" | "REJECTED"
       DomainStatus: "PENDING" | "ACTIVE" | "INACTIVE" | "SUSPENDED"
-      DomainType:
-        | "REALTOR"
-        | "LOAN_OFFICER"
-        | "TITLE_OFFICER"
-        | "PROPERTY_MANAGER"
-        | "INVESTOR"
       ExpertiseLevel: "BEGINNER" | "INTERMEDIATE" | "ADVANCED" | "EXPERT"
       FurnishedStatus: "Furnished" | "Negotiable" | "Partially" | "Unfurnished"
       GoalStatus: "IN_PROGRESS" | "COMPLETED" | "OVERDUE"
@@ -3710,6 +3716,15 @@ export type Database = {
         | "Land"
         | "ManufacturedInPark"
         | "Residential"
+      RealEstateDomain:
+        | "REALTOR"
+        | "INVESTOR"
+        | "MORTGAGE"
+        | "PROPERTY_MANAGER"
+        | "TITLE_ESCROW"
+        | "INSURANCE"
+        | "COMMERCIAL"
+        | "PRIVATE_CREDIT"
       RecognitionType: "AWARD" | "ACHIEVEMENT"
       RefundStatus: "PENDING" | "COMPLETED" | "FAILED"
       ReviewStatus: "PENDING" | "PUBLISHED" | "HIDDEN"

@@ -5,7 +5,7 @@ import { FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/for
 import Select from "react-select";
 import { COMMON_LANGUAGES } from "@/lib/constants";
 import { selectStyles } from "@/components/ui/select-styles";
-import { updateUserLanguages, fetchUserLanguages } from "@/utils/actions/profile-actions";
+import { updateUserLanguages, fetchUserLanguages } from "@/utils/actions/user-profile-actions";
 import { toast } from "sonner";
 
 interface LanguagesSectionProps {

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ProfileStatus } from "@/utils/types/coach";
 import { COMMON_LANGUAGES } from "@/lib/constants";
 import { Specialty } from "@/utils/types/coach";
+import { ProfessionalRecognition } from "@/utils/types/recognition";
 
 // Domain specialties for coaches
 export const DOMAIN_SPECIALTIES = [
@@ -46,28 +47,23 @@ export const coachProfileFormSchema = z.object({
     ulid: z.string().optional(),
     title: z.string().min(1, "Title is required"),
     type: z.enum(["AWARD", "ACHIEVEMENT"]),
-    organization: z.string().nullable().optional(),
-    description: z.string().nullable().optional(),
-    year: z.number().min(1900, "Year must be valid").max(new Date().getFullYear(), "Year cannot be in the future"),
+    issuer: z.string().min(1, "Issuer is required"),
+    issueDate: z.string().datetime(),
+    expiryDate: z.string().datetime().nullable(),
+    description: z.string().nullable(),
+    verificationUrl: z.string().url().nullable(),
+    certificateUrl: z.string().url().nullable(),
+    status: z.enum(["ACTIVE", "EXPIRED", "REVOKED"]).default("ACTIVE"),
+    industryType: z.string().nullable(),
     isVisible: z.boolean().default(true),
-    industryType: z.string().nullable().optional(),
+    coachProfileUlid: z.string().nullable(),
+    createdAt: z.string().datetime().optional(),
+    updatedAt: z.string().datetime().optional(),
   })).default([]),
 });
 
 // Type for form values
 export type CoachProfileFormValues = z.infer<typeof coachProfileFormSchema>;
-
-// Professional Recognition type
-export interface ProfessionalRecognition {
-  ulid?: string;
-  title: string;
-  type: "AWARD" | "ACHIEVEMENT";
-  year: number;
-  organization: string | null;
-  description: string | null;
-  isVisible: boolean;
-  industryType: string | null;
-}
 
 // Initial data structure
 export interface CoachProfileInitialData {

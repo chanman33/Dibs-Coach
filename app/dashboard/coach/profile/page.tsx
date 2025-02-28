@@ -15,10 +15,11 @@ import { AlertCircle } from "lucide-react";
 import { InvestorListings } from "@/components/profile/industry/investor";
 import { PropertyManagerListings } from "@/components/profile/industry/property-manager";
 import { CommercialListings } from "@/components/profile/industry/commercial";
+import { ProfessionalRecognition } from "@/utils/types/recognition";
 
 // Main profile page content component
 function ProfilePageContent() {
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLocalLoading, setIsLocalLoading] = useState(true);
   const {
     generalData,
     coachData,
@@ -37,9 +38,10 @@ function ProfilePageContent() {
     validationMessages,
     canPublish,
     isSubmitting,
+    isLoading: isContextLoading,
     userCapabilities,
-    selectedSpecialties,
-    confirmedSpecialties,
+    selectedSkills,
+    industrySpecialties,
     updateGeneralData,
     updateCoachData,
     updateRealtorData,
@@ -49,42 +51,44 @@ function ProfilePageContent() {
     updateRecognitionsData,
     updateMarketingData,
     updateGoalsData,
-    updateSelectedSpecialties,
-    saveSpecialties,
-    debugServerAction,
+    onSkillsChange,
+    saveSkills,
     commercialData,
     privateCreditData,
     updateCommercialData,
-    updatePrivateCreditData
+    updatePrivateCreditData,
+    fetchError
   } = useProfileContext();
 
-  // Handle specialty changes from the coach form
-  const handleSpecialtiesChange = (specialties: string[]) => {
-    updateSelectedSpecialties(specialties);
+  // Handle skills changes from the coach form
+  const handleSkillsChange = (skills: string[]) => {
+    onSkillsChange(skills);
   };
 
-  // Add proper dependency array to prevent unnecessary re-renders
   useEffect(() => {
-    if (!isLoading) return; // Skip if already loaded
-    
-    const loadInitialData = async () => {
-      setIsLoading(true);
-      try {
-        // Your existing data loading logic here
-      } catch (error) {
-        console.error('[PROFILE_LOAD_ERROR]', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    if (!isContextLoading) {
+      setIsLocalLoading(false);
+    }
+  }, [isContextLoading]);
 
-    loadInitialData();
-  }, []); // Empty dependency array for initial load only
-
-  if (isLoading) {
+  if (isLocalLoading || isContextLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="w-full px-4 sm:px-6 md:container mx-auto py-4 sm:py-8">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            Failed to load profile data. Please try refreshing the page.
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -99,7 +103,7 @@ function ProfilePageContent() {
 
   // Safely load the Investor Profile Form
   const getInvestorFormContent = () => {
-    if (!selectedSpecialties.includes("INVESTOR")) return null;
+    if (!selectedSkills.includes("INVESTOR")) return null;
     
     try {
       // First check if the module exists
@@ -163,7 +167,7 @@ function ProfilePageContent() {
 
   // Safely load the Mortgage Profile Form
   const getMortgageFormContent = () => {
-    if (!selectedSpecialties.includes("MORTGAGE")) return null;
+    if (!selectedSkills.includes("MORTGAGE")) return null;
     
     try {
       // First check if the module exists
@@ -227,7 +231,7 @@ function ProfilePageContent() {
 
   // Safely load the Property Manager Profile Form
   const getPropertyManagerFormContent = () => {
-    if (!selectedSpecialties.includes("PROPERTY_MANAGER")) return null;
+    if (!selectedSkills.includes("PROPERTY_MANAGER")) return null;
     
     try {
       // First check if the module exists
@@ -291,7 +295,7 @@ function ProfilePageContent() {
 
   // Safely load the Insurance Profile Form
   const getInsuranceFormContent = () => {
-    if (!selectedSpecialties.includes("INSURANCE")) return null;
+    if (!selectedSkills.includes("INSURANCE")) return null;
     
     try {
       // First check if the module exists
@@ -353,7 +357,7 @@ function ProfilePageContent() {
 
   // Safely load the Title Escrow Profile Form
   const getTitleEscrowFormContent = () => {
-    if (!selectedSpecialties.includes("TITLE_ESCROW")) return null;
+    if (!selectedSkills.includes("TITLE_ESCROW")) return null;
     
     try {
       // First check if the module exists
@@ -415,7 +419,7 @@ function ProfilePageContent() {
 
   // Safely load the Commercial Profile Form
   const getCommercialFormContent = () => {
-    if (!selectedSpecialties.includes("COMMERCIAL")) return null;
+    if (!selectedSkills.includes("COMMERCIAL")) return null;
     
     try {
       // First check if the module exists
@@ -479,7 +483,7 @@ function ProfilePageContent() {
 
   // Safely load the Private Credit Profile Form
   const getPrivateCreditFormContent = () => {
-    if (!selectedSpecialties.includes("PRIVATE_CREDIT")) return null;
+    if (!selectedSkills.includes("PRIVATE_CREDIT")) return null;
     
     try {
       // First check if the module exists
@@ -550,8 +554,8 @@ function ProfilePageContent() {
       {/* Tabs manager */}
       <ProfileTabsManager
         userCapabilities={userCapabilities}
-        selectedSpecialties={selectedSpecialties}
-        confirmedSpecialties={confirmedSpecialties}
+        selectedSkills={selectedSkills}
+        industrySpecialties={industrySpecialties}
         generalUserInfo={generalUserInfo}
         onSubmitGeneral={updateGeneralData}
         coachFormContent={
@@ -566,14 +570,12 @@ function ProfilePageContent() {
             optionalMissingFields={optionalMissingFields}
             validationMessages={validationMessages}
             canPublish={canPublish}
-            onSpecialtiesChange={handleSpecialtiesChange}
-            saveSpecialties={async (specialties) => {
-              await saveSpecialties(specialties);
-            }}
+            onSkillsChange={handleSkillsChange}
+            saveSkills={saveSkills}
           />
         }
         realtorFormContent={
-          selectedSpecialties.includes("REALTOR") ? (
+          selectedSkills.includes("REALTOR") ? (
             <RealtorProfileForm
               initialData={realtorData}
               onSubmit={updateRealtorData}
@@ -583,18 +585,18 @@ function ProfilePageContent() {
         }
         investorFormContent={getInvestorFormContent()}
         investorListingsContent={
-          selectedSpecialties.includes("INVESTOR") ? <InvestorListings /> : null
+          selectedSkills.includes("INVESTOR") ? <InvestorListings /> : null
         }
         mortgageFormContent={getMortgageFormContent()}
         propertyManagerFormContent={getPropertyManagerFormContent()}
         propertyManagerListingsContent={
-          selectedSpecialties.includes("PROPERTY_MANAGER") ? <PropertyManagerListings /> : null
+          selectedSkills.includes("PROPERTY_MANAGER") ? <PropertyManagerListings /> : null
         }
         titleEscrowFormContent={getTitleEscrowFormContent()}
         insuranceFormContent={getInsuranceFormContent()}
         commercialFormContent={getCommercialFormContent()}
         commercialListingsContent={
-          selectedSpecialties.includes("COMMERCIAL") ? <CommercialListings /> : null
+          selectedSkills.includes("COMMERCIAL") ? <CommercialListings /> : null
         }
         privateCreditFormContent={getPrivateCreditFormContent()}
         initialRecognitions={recognitionsData}

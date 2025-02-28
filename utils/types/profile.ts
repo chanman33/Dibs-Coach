@@ -18,28 +18,20 @@ export interface ProfileSubTab {
 
 export interface ProfileTabsManagerProps {
   userCapabilities: string[];
+  industrySpecialties: string[];
   selectedSpecialties: string[];
-  confirmedSpecialties: string[];
-  generalUserInfo?: any;
-  onSubmitGeneral?: (data: any) => Promise<void>;
-  onSubmitCoach?: (data: any) => Promise<void>;
-  coachFormContent?: ReactNode;
-  realtorFormContent?: ReactNode;
-  investorFormContent?: ReactNode;
-  investorListingsContent?: ReactNode;
-  mortgageFormContent?: ReactNode;
-  propertyManagerFormContent?: ReactNode;
-  propertyManagerListingsContent?: ReactNode;
-  titleEscrowFormContent?: ReactNode;
-  insuranceFormContent?: ReactNode;
-  commercialFormContent?: ReactNode;
-  commercialListingsContent?: ReactNode;
-  privateCreditFormContent?: ReactNode;
-  initialRecognitions?: any[];
-  onSubmitRecognitions?: (data: any) => Promise<void>;
-  initialMarketingInfo?: any;
-  onSubmitMarketingInfo?: (data: any) => Promise<void>;
-  initialGoals?: any[];
-  onSubmitGoals?: (data: any) => Promise<void>;
-  isSubmitting?: boolean;
+  onSpecialtiesChange: (specialties: string[]) => void;
+  saveSpecialties: () => Promise<void>;
+  isSubmitting: boolean;
+  realtorFormContent?: React.ReactNode;
+  investorFormContent?: React.ReactNode;
+  investorListingsContent?: React.ReactNode;
+  mortgageFormContent?: React.ReactNode;
+  propertyManagerFormContent?: React.ReactNode;
+  propertyManagerListingsContent?: React.ReactNode;
+  titleEscrowFormContent?: React.ReactNode;
+  insuranceFormContent?: React.ReactNode;
+  commercialFormContent?: React.ReactNode;
+  commercialListingsContent?: React.ReactNode;
+  privateCreditFormContent?: React.ReactNode;
 } 

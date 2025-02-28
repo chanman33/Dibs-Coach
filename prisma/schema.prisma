@@ -112,12 +112,15 @@ enum InviteStatus {
 }
 
 // Domain Expertise Enums
-enum DomainType {
+enum RealEstateDomain {
   REALTOR
-  LOAN_OFFICER
-  TITLE_OFFICER
-  PROPERTY_MANAGER
   INVESTOR
+  MORTGAGE
+  PROPERTY_MANAGER
+  TITLE_ESCROW
+  INSURANCE
+  COMMERCIAL
+  PRIVATE_CREDIT
 }
 
 enum DomainStatus {
@@ -612,10 +615,11 @@ model User {
   profileImageUrl      String?
 
   // Industry specialties - direct access for better extensibility
-  industrySpecialties  String[]  @default([])
-  primaryMarket        String?   // User's primary market/location
+  realEstateDomains     RealEstateDomain[]  @default([])
+  primaryDomain         RealEstateDomain?    // Optional primary domain
   totalYearsRE         Int       @default(0) 
   languages            Language[] @default([en]) // Array of language codes, default to English
+  primaryMarket        String?
 
   // Industry Profiles
   realtorProfile          RealtorProfile?
@@ -693,7 +697,8 @@ model User {
   @@index([isCoach])
   @@index([isMentee])
   @@index([status])
-  @@index([industrySpecialties])
+  @@index([realEstateDomains])
+  @@index([primaryDomain])
   @@index([primaryMarket])
   @@map("User")
 }
@@ -770,7 +775,8 @@ model Organization {
   metadata           Json?     @db.JsonB
   
   // Domain-specific fields
-  primaryDomain      DomainType?  // Primary business focus
+  primaryDomain      RealEstateDomain?    // Primary business focus
+  domains            RealEstateDomain[]    // All domains the org operates in
   licenseNumbers     Json?     @db.JsonB  // Store multiple licenses by state/type
   serviceAreas       String[]  // Geographic service areas
   specializations    String[]  // Domain-specific specializations

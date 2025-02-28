@@ -2,7 +2,8 @@
 
 import { createAuthClient } from "../auth"
 import { withServerAction } from "@/utils/middleware/withServerAction"
-import type { ApiResponse } from "@/utils/types"
+import { revalidatePath } from "next/cache"
+import type { RealtorProfile } from "@/utils/types/realtor"
 
 export interface RealtorProfileData {
   displayName: string;
@@ -38,19 +39,44 @@ export interface MarketingInfo {
   }>;
 }
 
-export const fetchRealtorProfile = withServerAction<RealtorProfileData, void>(
+interface RealtorProfileResponse {
+  success: boolean;
+  profile: RealtorProfile | null;
+}
+
+export const fetchRealtorProfile = withServerAction<RealtorProfileResponse, void>(
   async (_, { userUlid }) => {
     try {
       const supabase = await createAuthClient()
-      
+
       const { data: profile, error } = await supabase
         .from('RealtorProfile')
-        .select('*')
+        .select(`
+          *,
+          professionalRecognitions:ProfessionalRecognition (
+            ulid,
+            title,
+            type,
+            issueDate,
+            expiryDate,
+            issuer,
+            description,
+            verificationUrl,
+            certificateUrl,
+            status,
+            industryType,
+            isVisible
+          )
+        `)
         .eq('userUlid', userUlid)
         .single()
 
       if (error) {
-        console.error('[REALTOR_PROFILE_ERROR]', error)
+        console.error('[FETCH_REALTOR_PROFILE_ERROR]', {
+          userUlid,
+          error,
+          timestamp: new Date().toISOString()
+        })
         return {
           data: null,
           error: {
@@ -61,92 +87,105 @@ export const fetchRealtorProfile = withServerAction<RealtorProfileData, void>(
         }
       }
 
-      if (!profile) {
-        return {
-          data: null,
-          error: {
-            code: 'NOT_FOUND',
-            message: 'Realtor profile not found'
-          }
-        }
-      }
-
       return {
         data: {
-          displayName: profile.displayName,
-          bio: profile.bio,
-          yearsExperience: profile.yearsExperience,
-          primaryMarket: profile.primaryMarket,
-          languages: profile.languages,
-          certifications: profile.certifications,
-          propertyTypes: profile.propertyTypes,
-          specializations: profile.specializations,
-          marketingAreas: profile.marketingAreas,
-          testimonials: profile.testimonials,
-          geographicFocus: profile.geographicFocus
+          success: true,
+          profile
         },
         error: null
       }
     } catch (error) {
-      console.error('[REALTOR_PROFILE_ERROR]', error)
+      console.error('[FETCH_REALTOR_PROFILE_ERROR]', {
+        error,
+        timestamp: new Date().toISOString()
+      })
       return {
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'An unexpected error occurred'
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? error.message : String(error)
         }
       }
     }
   }
 )
 
-export const updateRealtorProfile = withServerAction<RealtorProfileData, Partial<RealtorProfileData>>(
-  async (data, { userUlid }) => {
+export const updateRealtorProfile = withServerAction<RealtorProfileResponse, Partial<RealtorProfile>>(
+  async (profileData, { userUlid }) => {
     try {
       const supabase = await createAuthClient()
-      
-      const { data: profile, error } = await supabase
-        .from('RealtorProfile')
-        .update(data)
-        .eq('userUlid', userUlid)
-        .select()
-        .single()
 
-      if (error) {
-        console.error('[UPDATE_REALTOR_PROFILE_ERROR]', error)
+      // Check if profile exists
+      const { data: existingProfile } = await supabase
+        .from('RealtorProfile')
+        .select('ulid')
+        .eq('userUlid', userUlid)
+        .maybeSingle()
+
+      const timestamp = new Date().toISOString()
+
+      let result
+      if (existingProfile) {
+        // Update existing profile
+        result = await supabase
+          .from('RealtorProfile')
+          .update({
+            ...profileData,
+            updatedAt: timestamp
+          })
+          .eq('userUlid', userUlid)
+          .select()
+      } else {
+        // Create new profile
+        result = await supabase
+          .from('RealtorProfile')
+          .insert({
+            ...profileData,
+            userUlid,
+            createdAt: timestamp,
+            updatedAt: timestamp
+          })
+          .select()
+      }
+
+      if (result.error) {
+        console.error('[UPDATE_REALTOR_PROFILE_ERROR]', {
+          userUlid,
+          error: result.error,
+          timestamp
+        })
         return {
           data: null,
           error: {
             code: 'DATABASE_ERROR',
             message: 'Failed to update realtor profile',
-            details: error
+            details: result.error
           }
         }
       }
 
+      revalidatePath('/dashboard/profile')
+      revalidatePath('/dashboard/realtor')
+
       return {
         data: {
-          displayName: profile.displayName,
-          bio: profile.bio,
-          yearsExperience: profile.yearsExperience,
-          primaryMarket: profile.primaryMarket,
-          languages: profile.languages,
-          certifications: profile.certifications,
-          propertyTypes: profile.propertyTypes,
-          specializations: profile.specializations,
-          marketingAreas: profile.marketingAreas,
-          testimonials: profile.testimonials,
-          geographicFocus: profile.geographicFocus
+          success: true,
+          profile: result.data?.[0] || null
         },
         error: null
       }
     } catch (error) {
-      console.error('[UPDATE_REALTOR_PROFILE_ERROR]', error)
+      console.error('[UPDATE_REALTOR_PROFILE_ERROR]', {
+        error,
+        timestamp: new Date().toISOString()
+      })
       return {
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'An unexpected error occurred'
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? error.message : String(error)
         }
       }
     }

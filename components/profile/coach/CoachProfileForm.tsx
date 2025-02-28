@@ -84,7 +84,7 @@ export interface CoachProfileFormProps {
   canPublish?: boolean;
   userInfo?: UserInfo;
   onSkillsChange?: (skills: string[]) => void;
-  saveSkills?: (selectedSkills: string[]) => Promise<void>;
+  saveSkills: (selectedSkills: string[]) => Promise<boolean>;
   onSpecialtiesChange?: (specialties: string[]) => void;
   saveSpecialties?: (specialties: string[]) => Promise<void>;
 }

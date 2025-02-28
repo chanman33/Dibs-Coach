@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { fetchCoachSessions } from '@/utils/actions/sessions'
-import { fetchUserDbId } from '@/utils/actions/profile-actions'
+import { fetchUserDbId } from '@/utils/actions/user-profile-actions'
 import { CoachingCalendar } from '@/components/coaching/CoachingCalendar'
 import { useEffect, useState } from 'react'
 import { useCalendlyConnection } from '@/utils/hooks/useCalendly'

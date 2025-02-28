@@ -1,22 +1,32 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { CoachProfileFormValues, CoachProfileInitialData, ProfessionalRecognition } from "../types";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
+import { CoachProfileFormValues, CoachProfileInitialData } from "../types";
 import { ProfileStatus } from "@/utils/types/coach";
+import { ProfessionalRecognition } from "@/utils/types/recognition";
 import { toast } from "sonner";
 import { 
-  fetchUserProfile, 
-  updateUserProfile, 
-  saveCoachSpecialties, 
-  fetchUserCapabilities, 
-  debugDirectSpecialtiesUpdate,
-  fetchCoachProfile,
-  updateCoachProfile,
+  fetchUserCapabilities,
+  updateUserProfile,
   updateUserLanguages,
-  saveCoachSkills
-} from "@/utils/actions/profile-actions";
+  type GeneralFormData
+} from "@/utils/actions/user-profile-actions";
+import {
+  fetchCoachProfile,
+  saveCoachSkills,
+  updateCoachProfile,
+  type CoachProfileFormData
+} from "@/utils/actions/coach-profile-actions";
 
-// Define the context shape
+// Define the shape of the general data
+interface GeneralData {
+  displayName: string;
+  bio: string | null;
+  primaryMarket: string;
+  totalYearsRE: number;
+  languages: string[];
+}
+
 interface ProfileContextType {
   // General profile data
   generalData: {
@@ -24,6 +34,7 @@ interface ProfileContextType {
     bio: string | null;
     primaryMarket: string;
     totalYearsRE: number;
+    languages: string[];
   };
   
   // Coach profile data
@@ -37,6 +48,7 @@ interface ProfileContextType {
   insuranceData: any;
   commercialData: any;
   privateCreditData: any;
+  titleEscrowData: any;
   
   // Professional recognitions
   recognitionsData: ProfessionalRecognition[];
@@ -60,11 +72,15 @@ interface ProfileContextType {
   isLoading: boolean;
   isSubmitting: boolean;
   
+  // Error states
+  fetchError: Error | null;
+  retryCount: number;
+  
   // User capabilities and skills
   userCapabilities: string[];
   selectedSkills: string[];
-  selectedSpecialties: string[];
-  confirmedSpecialties: string[];
+  realEstateDomains: string[];
+  industrySpecialties: string[];
   
   // Update functions
   updateGeneralData: (data: any) => Promise<void>;
@@ -76,18 +92,16 @@ interface ProfileContextType {
   updateInsuranceData: (data: any) => Promise<void>;
   updateCommercialData: (data: any) => Promise<void>;
   updatePrivateCreditData: (data: any) => Promise<void>;
+  updateTitleEscrowData: (data: any) => Promise<void>;
   updateRecognitionsData: (data: ProfessionalRecognition[]) => Promise<void>;
   updateMarketingData: (data: any) => Promise<void>;
   updateGoalsData: (data: any) => Promise<void>;
-  updateSelectedSpecialties: (specialties: string[]) => void;
+  updateLanguages: (languages: string[]) => Promise<void>;
   
   // Skills management
   onSkillsChange: (skills: string[]) => void;
-  saveSkills: (selectedSkills: string[]) => Promise<boolean>;
-  saveSpecialties: (specialties: string[]) => Promise<boolean>;
-  
-  // Debug function
-  debugServerAction: () => Promise<boolean>;
+  saveSkills: (skills: string[]) => Promise<boolean>;
+  updateSkills: (skills: string[]) => Promise<void>;
 }
 
 // Create the context with a default value
@@ -96,11 +110,12 @@ const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 // Provider component
 export function ProfileProvider({ children }: { children: ReactNode }) {
   // General profile data state
-  const [generalData, setGeneralData] = useState<any>({
+  const [generalData, setGeneralData] = useState<GeneralData>({
     displayName: "",
     bio: null,
     primaryMarket: "",
-    totalYearsRE: 0
+    totalYearsRE: 0,
+    languages: []
   });
   
   // Coach profile data state
@@ -114,6 +129,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [insuranceData, setInsuranceData] = useState<any>(null);
   const [commercialData, setCommercialData] = useState<any>(null);
   const [privateCreditData, setPrivateCreditData] = useState<any>(null);
+  const [titleEscrowData, setTitleEscrowData] = useState<any>(null);
   
   // Professional recognitions state
   const [recognitionsData, setRecognitionsData] = useState<ProfessionalRecognition[]>([]);
@@ -140,58 +156,156 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // User capabilities and skills state
   const [userCapabilities, setUserCapabilities] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([]);
-  const [confirmedSpecialties, setConfirmedSpecialties] = useState<string[]>([]);
+  const [realEstateDomains, setRealEstateDomains] = useState<string[]>([]);
+  const [industrySpecialties, setIndustrySpecialties] = useState<string[]>([]);
 
-  // Fetch initial profile data
-  const fetchProfileData = async () => {
-    try {
-      setIsLoading(true);
+  // Add debounce ref
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const lastFetchTimeRef = useRef<number>(0);
+  const FETCH_DEBOUNCE_MS = 1000; // 1 second debounce
+
+  // Add these after the existing state declarations
+  const [fetchError, setFetchError] = useState<Error | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 3;
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Fetch initial profile data with debouncing
+  const fetchProfileData = useCallback(async (force = false) => {
+    const now = Date.now();
+    
+    // If not forced and last fetch was less than debounce time ago, debounce
+    if (!force && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
       
-      // Fetch user capabilities
+      // Return early if we've hit max retries
+      if (retryCount >= MAX_RETRIES) {
+        console.warn("[PROFILE_FETCH_MAX_RETRIES]", {
+          retryCount,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+      
+      const debouncedFetch = () => void fetchProfileData(true);
+      fetchTimeoutRef.current = setTimeout(debouncedFetch, FETCH_DEBOUNCE_MS);
+      return;
+    }
+
+    try {
+      // Cancel any in-flight requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      
+      // Create new abort controller for this request
+      abortControllerRef.current = new AbortController();
+      
+      setIsLoading(true);
+      setFetchError(null);
+      lastFetchTimeRef.current = now;
+
+      // Fetch user capabilities first
       const capabilities = await fetchUserCapabilities();
       if (capabilities.error) {
         throw new Error(capabilities.error.message);
       }
-      setUserCapabilities(capabilities.data?.capabilities || []);
       
-      // Fetch coach profile data
+      const userCaps = capabilities.data?.capabilities || [];
+      setUserCapabilities(userCaps);
+
+      // Fetch coach profile data regardless of capabilities
+      // This ensures we get any existing data even if COACH capability was removed
       const result = await fetchCoachProfile();
+      
+      // Handle specific error cases
       if (result.error) {
-        throw new Error(result.error.message);
+        // Only treat as error if it's not the expected "no profile" case
+        if (result.error.message !== 'User is not a coach') {
+          throw new Error(result.error.message);
+        }
       }
+
+      // Reset retry count on success
+      setRetryCount(0);
       
       if (result.data) {
-        // Update general data
-        setGeneralData({
-          displayName: result.data.displayName || "",
-          bio: result.data.bio || null,
-          primaryMarket: result.data.primaryMarket || "",
-          totalYearsRE: result.data.totalYearsRE || 0
-        });
+        const userData = result.data._rawCoachProfile?.User || {};
+        const coachProfile = result.data._rawCoachProfile || {};
+        const skills = coachProfile.skills || [];
+        
+        // Update skills and specialties
+        setSelectedSkills(skills);
+        setIndustrySpecialties(coachProfile.industrySpecialties || []);
         
         // Update coach data
-        setCoachData(result.data);
+        setCoachData({
+          ...coachProfile,
+          specialties: skills,
+          domainSpecialties: coachProfile.industrySpecialties
+        });
         
-        // Update skills
-        setSelectedSkills(result.data.coachSkills || []);
+        // Update profile status
+        setProfileStatus(coachProfile.status || 'DRAFT');
+        setCompletionPercentage(coachProfile.completionPercentage || 0);
+        setMissingFields(coachProfile.missingFields || []);
+        setCanPublish(coachProfile.canPublish || false);
         
-        // Update status information
-        setProfileStatus(result.data.profileStatus || "DRAFT");
-        setCompletionPercentage(result.data.completionPercentage || 0);
-        setMissingFields(result.data.missingFields || []);
-        setMissingRequiredFields(result.data.missingRequiredFields || []);
-        setOptionalMissingFields(result.data.optionalMissingFields || []);
-        setValidationMessages(result.data.validationMessages || {});
-        setCanPublish(result.data.canPublish || false);
+        // Update recognitions
+        if (coachProfile.professionalRecognitions) {
+          setRecognitionsData(coachProfile.professionalRecognitions);
+        }
+        
+        // Update general data
+        setGeneralData({
+          displayName: userData.displayName || "",
+          bio: userData.bio || null,
+          primaryMarket: userData.primaryMarket || "",
+          totalYearsRE: userData.totalYearsRE || 0,
+          languages: userData.languages || []
+        });
+      } else {
+        // Initialize with empty data but don't clear existing skills
+        setCoachData({});
+        setProfileStatus('DRAFT');
+        setCompletionPercentage(0);
+        setMissingFields([]);
+        setCanPublish(false);
       }
     } catch (error) {
-      console.error("[PROFILE_FETCH_ERROR]", error);
-      toast.error("Failed to load profile data");
+      console.error("[PROFILE_FETCH_ERROR]", {
+        error,
+        timestamp: new Date().toISOString()
+      });
+      setFetchError(error as Error);
+      setRetryCount(prev => prev + 1);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [retryCount]); // Only depend on retryCount
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchProfileData(true); // Force the initial fetch
+  }, [fetchProfileData]);
+
+  // Refetch profile data when capabilities change
+  useEffect(() => {
+    if (userCapabilities.length > 0) {
+      fetchProfileData(true); // Force fetch when capabilities change
+    }
+  }, [userCapabilities, fetchProfileData]);
 
   // Handle skills changes
   const onSkillsChange = (skills: string[]) => {
@@ -207,6 +321,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         throw new Error(result.error.message);
       }
       setSelectedSkills(skills);
+      await fetchProfileData(true); // Force fetch after saving skills
       toast.success("Skills saved successfully");
       return true;
     } catch (error) {
@@ -224,7 +339,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     try {
       const result = await updateUserProfile(data);
       if (result.data) {
-        setGeneralData(result.data);
+        setGeneralData(prevData => ({
+          ...prevData,
+          ...result.data as GeneralFormData,
+          languages: (result.data as GeneralFormData).languages || prevData.languages
+        }));
         toast.success("General profile updated successfully");
         
         // Fetch updated coach profile to get new completion status
@@ -233,7 +352,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           updateCompletionStatus(coachProfileResult.data);
         }
       } else if (result.error) {
-        toast.error(result.error.message);
+        toast.error(String(result.error));
       }
     } catch (error) {
       console.error("[UPDATE_GENERAL_ERROR]", error);
@@ -273,15 +392,27 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // Remove languages from coach profile data since it's handled separately
       const { languages, ...coachProfileData } = data;
       
+      // Ensure professional recognitions are properly typed
+      const formattedData = {
+        ...coachProfileData,
+        professionalRecognitions: coachProfileData.professionalRecognitions?.map(rec => ({
+          ...rec,
+          issueDate: new Date(rec.issueDate),
+          expiryDate: rec.expiryDate ? new Date(rec.expiryDate) : null,
+          createdAt: rec.createdAt ? new Date(rec.createdAt) : undefined,
+          updatedAt: rec.updatedAt ? new Date(rec.updatedAt) : undefined
+        }))
+      };
+      
       // Update coach profile without languages
-      const result = await updateCoachProfile(coachProfileData);
+      const result = await updateCoachProfile(formattedData);
       if (result.data) {
         const profileData = result.data as CoachProfileInitialData;
         setCoachData(profileData);
         updateCompletionStatus(result.data);
         toast.success("Coach profile updated successfully");
       } else if (result.error) {
-        toast.error(result.error.message);
+        toast.error(String(result.error));
       }
     } catch (error) {
       console.error("[UPDATE_COACH_ERROR]", error);
@@ -319,10 +450,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updateMortgageData = async (data: any) => {
     setIsSubmitting(true);
     try {
-      // Import the action dynamically
-      const { updateMortgageProfile } = await import('@/utils/actions/profile-actions');
-      
-      // Call the server action
+      const { updateMortgageProfile } = await import('@/utils/actions/mortgage-profile-actions');
       const result = await updateMortgageProfile(data);
       
       if (result.error) {
@@ -357,10 +485,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updatePropertyManagerData = async (data: any) => {
     setIsSubmitting(true);
     try {
-      // Import the action dynamically
-      const { updatePropertyManagerProfile } = await import('@/utils/actions/profile-actions');
-      
-      // Call the server action
+      const { updatePropertyManagerProfile } = await import('@/utils/actions/property-manager-profile-actions');
       const result = await updatePropertyManagerProfile(data);
       
       if (result.error) {
@@ -395,10 +520,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updateInsuranceData = async (data: any) => {
     setIsSubmitting(true);
     try {
-      // Import the action dynamically
-      const { updateInsuranceProfile } = await import('@/utils/actions/profile-actions');
-      
-      // Call the server action
+      const { updateInsuranceProfile } = await import('@/utils/actions/insurance-profile-actions');
       const result = await updateInsuranceProfile(data);
       
       if (result.error) {
@@ -433,10 +555,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updateCommercialData = async (data: any) => {
     setIsSubmitting(true);
     try {
-      // Import the action dynamically
-      const { updateCommercialProfile } = await import('@/utils/actions/profile-actions');
-      
-      // Call the server action
+      const { updateCommercialProfile } = await import('@/utils/actions/commercial-profile-actions');
       const result = await updateCommercialProfile(data);
       
       if (result.error) {
@@ -471,10 +590,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updatePrivateCreditData = async (data: any) => {
     setIsSubmitting(true);
     try {
-      // Import the action dynamically
-      const { updatePrivateCreditProfile } = await import('@/utils/actions/profile-actions');
-      
-      // Call the server action
+      const { updatePrivateCreditProfile } = await import('@/utils/actions/private-credit-profile-actions');
       const result = await updatePrivateCreditProfile(data);
       
       if (result.error) {
@@ -501,6 +617,26 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         timestamp: new Date().toISOString()
       });
       toast.error("Failed to update private credit profile");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const updateTitleEscrowData = async (data: any) => {
+    setIsSubmitting(true);
+    try {
+      // TODO: Implement title escrow data update
+      setTitleEscrowData(data);
+      toast.success("Title escrow data updated successfully");
+      
+      // Fetch updated coach profile to get new completion status
+      const coachProfileResult = await fetchCoachProfile();
+      if (coachProfileResult.data) {
+        updateCompletionStatus(coachProfileResult.data);
+      }
+    } catch (error) {
+      console.error("[UPDATE_TITLE_ESCROW_ERROR]", error);
+      toast.error("Failed to update title escrow data");
     } finally {
       setIsSubmitting(false);
     }
@@ -536,8 +672,42 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setGoalsData(data);
   };
   
-  const updateSelectedSpecialties = (specialties: string[]) => {
-    setSelectedSpecialties(specialties);
+  const updateLanguages = async (languages: string[]) => {
+    setIsSubmitting(true);
+    try {
+      const result = await updateUserLanguages({ languages });
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      setGeneralData((prevData: GeneralData) => ({
+        ...prevData,
+        languages
+      }));
+      toast.success("Languages updated successfully");
+    } catch (error) {
+      console.error("[UPDATE_LANGUAGES_ERROR]", error);
+      toast.error("Failed to update languages");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const updateSkills = async (skills: string[]) => {
+    setIsSubmitting(true);
+    try {
+      const result = await saveCoachSkills({ skills });
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      setSelectedSkills(skills);
+      await fetchProfileData(true); // Force fetch after updating skills
+      toast.success("Skills updated successfully");
+    } catch (error) {
+      console.error("[UPDATE_SKILLS_ERROR]", error);
+      toast.error("Failed to update skills");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   // Debug function to check if server action is being called correctly
@@ -546,87 +716,24 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       console.log("[DEBUG_SERVER_ACTION_START]", {
         timestamp: new Date().toISOString()
       });
-      
-      // Get the current user ULID from the URL or fetch it
-      let userUlid = '';
-      
-      try {
-        // First try to get it from the URL
-        const urlParts = window.location.pathname.split('/');
-        userUlid = urlParts[urlParts.length - 2]; // Assuming URL pattern like /dashboard/coach/profile/[ulid]
-        
-        // If not found in URL, try to get it from localStorage
-        if (!userUlid || userUlid === 'profile') {
-          const storedUlid = localStorage.getItem('userUlid');
-          if (storedUlid) {
-            userUlid = storedUlid;
-          }
-        }
-        
-        console.log("[DEBUG_SERVER_ACTION_USER_ULID]", {
-          userUlid,
-          source: userUlid ? 'found' : 'not found',
-          timestamp: new Date().toISOString()
-        });
-        
-        if (!userUlid) {
-          toast.error("Could not determine user ID for debug action");
-          return false;
-        }
-      } catch (error) {
-        console.error("[DEBUG_SERVER_ACTION_ULID_ERROR]", {
-          error,
-          timestamp: new Date().toISOString()
-        });
-        toast.error("Error getting user ID for debug action");
-        return false;
-      }
-      
-      // Call the direct debug function with a test skill
-      const testSkills = ["REALTOR", "PROPERTY_MANAGER"];
-      
-      console.log("[DEBUG_SERVER_ACTION_CALLING]", {
-        userUlid,
-        testSkills,
-        timestamp: new Date().toISOString()
-      });
-      
-      const response = await debugDirectSpecialtiesUpdate(userUlid, testSkills);
-      
-      console.log("[DEBUG_SERVER_ACTION_RESPONSE]", {
-        response,
-        timestamp: new Date().toISOString()
-      });
-      
-      if (response.success) {
-        toast.success("Debug update successful!");
-        // Update the selected skills state
-        setSelectedSkills(testSkills);
-        // Refresh user capabilities
-        fetchProfileData();
-        return true;
-      } else {
-        toast.error("Debug update failed: " + (response.error ? JSON.stringify(response.error) : "Unknown error"));
-        return false;
-      }
+      // Debug functionality removed for production
+      return false;
     } catch (error) {
-      console.error("[DEBUG_SERVER_ACTION_ERROR]", {
-        error,
-        timestamp: new Date().toISOString()
-      });
-      toast.error("Debug action failed with an error!");
+      console.error("[DEBUG_SERVER_ACTION_ERROR]", error);
       return false;
     }
   };
   
+  // Save specialties to the server
   const saveSpecialties = async (specialties: string[]): Promise<boolean> => {
     try {
       setIsSubmitting(true);
-      const result = await saveCoachSpecialties({ specialties });
+      const result = await saveCoachSkills({ skills: specialties });
       if (result.error) {
         throw new Error(result.error.message);
       }
-      setSelectedSpecialties(specialties);
+      setSelectedSkills(specialties);
+      await fetchProfileData(true); // Force fetch after saving specialties
       toast.success("Specialties saved successfully");
       return true;
     } catch (error) {
@@ -638,8 +745,26 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const handleProfileUpdate = async () => {
+    try {
+      setIsLoading(true);
+      // Force fetch after update
+      await fetchProfileData(true);
+    } catch (error) {
+      console.error("[PROFILE_UPDATE_ERROR]", error);
+      toast.error("Failed to update profile");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Add cleanup for abort controller
   useEffect(() => {
-    fetchProfileData();
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
 
   // Context value
@@ -653,6 +778,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     insuranceData,
     commercialData,
     privateCreditData,
+    titleEscrowData,
     recognitionsData,
     marketingData,
     goalsData,
@@ -667,10 +793,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     isSubmitting,
     userCapabilities,
     selectedSkills,
-    selectedSpecialties,
-    confirmedSpecialties,
+    realEstateDomains,
+    industrySpecialties,
     onSkillsChange,
     saveSkills,
+    updateSkills,
     updateGeneralData,
     updateCoachData,
     updateRealtorData,
@@ -680,12 +807,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     updateInsuranceData,
     updateCommercialData,
     updatePrivateCreditData,
+    updateTitleEscrowData,
     updateRecognitionsData,
     updateMarketingData,
     updateGoalsData,
-    updateSelectedSpecialties,
-    saveSpecialties,
-    debugServerAction
+    updateLanguages,
+    fetchError,
+    retryCount
   };
   
   return (

@@ -11,40 +11,60 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { FormSectionHeader } from "../../common/FormSectionHeader";
+import { PropertyType } from "@prisma/client";
+import Select from 'react-select';
+import CreatableSelect from 'react-select/creatable';
+import { selectStyles } from "@/components/ui/select-styles";
+import { GroupBase } from 'react-select';
+import { useMemo, useCallback } from "react";
 
 // Define the schema for the Property Manager profile form
 const propertyManagerProfileSchema = z.object({
-  yearsExperience: z.number().min(0, "Years must be 0 or greater"),
   companyName: z.string().min(1, "Company name is required"),
-  licenseNumber: z.string().min(1, "License number is required"),
-  licenseState: z.string().min(1, "License state is required"),
-  propertyTypes: z.array(z.string()).min(1, "At least one property type is required"),
-  serviceAreas: z.array(z.string()).min(1, "At least one service area is required"),
+  licenseNumber: z.string().optional(),
+  yearsExperience: z.number().min(0).max(100),
+  propertyTypes: z.array(z.nativeEnum(PropertyType)),
   specializations: z.array(z.string()),
-  unitsManaged: z.number().min(0, "Units managed must be 0 or greater").optional(),
-  propertiesManaged: z.number().min(0, "Properties managed must be 0 or greater").optional(),
+  serviceAreas: z.array(z.string()),
+  licensedStates: z.array(z.string()),
+  totalUnitsManaged: z.number().min(0),
+  averageUnitSize: z.number().min(0),
+  totalSquareFeetManaged: z.number().min(0),
+  monthlyTransactions: z.number().min(0),
+  totalPortfolioValue: z.number().min(0),
+  averageOccupancyRate: z.number().min(0).max(100),
+  certifications: z.array(z.string()),
+  languages: z.array(z.string()),
+  bio: z.string().max(1000),
 });
 
 // Type for the form values
-type PropertyManagerProfileFormValues = z.infer<typeof propertyManagerProfileSchema>;
+type PropertyManagerProfileData = z.infer<typeof propertyManagerProfileSchema>;
 
 // Type for the initial data
 interface PropertyManagerProfileInitialData {
   yearsExperience?: number;
   companyName?: string;
   licenseNumber?: string;
-  licenseState?: string;
-  propertyTypes?: string[];
-  serviceAreas?: string[];
+  propertyTypes?: PropertyType[];
   specializations?: string[];
-  unitsManaged?: number;
-  propertiesManaged?: number;
+  serviceAreas?: string[];
+  licensedStates?: string[];
+  totalUnitsManaged?: number;
+  averageUnitSize?: number;
+  totalSquareFeetManaged?: number;
+  monthlyTransactions?: number;
+  totalPortfolioValue?: number;
+  averageOccupancyRate?: number;
+  certifications?: string[];
+  languages?: string[];
+  bio?: string;
 }
 
 // Props for the component
 interface PropertyManagerProfileFormProps {
   initialData?: PropertyManagerProfileInitialData;
-  onSubmit: (values: PropertyManagerProfileFormValues) => Promise<void>;
+  onSubmit: (data: PropertyManagerProfileData) => Promise<void>;
   isSubmitting?: boolean;
 }
 
@@ -53,30 +73,56 @@ export function PropertyManagerProfileForm({
   onSubmit,
   isSubmitting = false,
 }: PropertyManagerProfileFormProps) {
-  const form = useForm<PropertyManagerProfileFormValues>({
+  const form = useForm<PropertyManagerProfileData>({
     resolver: zodResolver(propertyManagerProfileSchema),
     defaultValues: {
-      yearsExperience: initialData?.yearsExperience || 0,
       companyName: initialData?.companyName || "",
       licenseNumber: initialData?.licenseNumber || "",
-      licenseState: initialData?.licenseState || "",
+      yearsExperience: initialData?.yearsExperience || 0,
       propertyTypes: initialData?.propertyTypes || [],
-      serviceAreas: initialData?.serviceAreas || [],
       specializations: initialData?.specializations || [],
-      unitsManaged: initialData?.unitsManaged || 0,
-      propertiesManaged: initialData?.propertiesManaged || 0,
+      serviceAreas: initialData?.serviceAreas || [],
+      licensedStates: initialData?.licensedStates || [],
+      totalUnitsManaged: initialData?.totalUnitsManaged || 0,
+      averageUnitSize: initialData?.averageUnitSize || 0,
+      totalSquareFeetManaged: initialData?.totalSquareFeetManaged || 0,
+      monthlyTransactions: initialData?.monthlyTransactions || 0,
+      totalPortfolioValue: initialData?.totalPortfolioValue || 0,
+      averageOccupancyRate: initialData?.averageOccupancyRate || 0,
+      certifications: initialData?.certifications || [],
+      languages: initialData?.languages || [],
+      bio: initialData?.bio || "",
     },
   });
 
-  const handleSubmit = async (values: PropertyManagerProfileFormValues) => {
+  const handleSubmit = async (data: PropertyManagerProfileData) => {
     try {
-      await onSubmit(values);
+      await onSubmit(data);
       toast.success("Property Manager profile updated successfully");
     } catch (error) {
       console.error("[PROPERTY_MANAGER_PROFILE_SUBMIT_ERROR]", error);
       toast.error("Failed to update property manager profile");
     }
   };
+
+  // Memoize the formatGroupLabel function
+  const memoizedFormatGroupLabel = useCallback((group: GroupBase<any>) => {
+    return (
+      <div className="px-3 py-2 bg-slate-50 border-b border-slate-200">
+        <span className="font-semibold text-sm text-slate-700">
+          {group.label}
+        </span>
+      </div>
+    );
+  }, []);
+
+  // Memoize property type options
+  const propertyTypeOptions = useMemo(() => 
+    Object.values(PropertyType).map(type => ({
+      value: type,
+      label: type.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ')
+    }))
+  , []);
 
   return (
     <div className="space-y-8">
@@ -97,26 +143,6 @@ export function PropertyManagerProfileForm({
               />
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Years of Experience */}
-                <FormField
-                  control={form.control}
-                  name="yearsExperience"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Years of Experience</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          placeholder="0"
-                          {...field}
-                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
                 {/* Company Name */}
                 <FormField
                   control={form.control}
@@ -138,7 +164,7 @@ export function PropertyManagerProfileForm({
                   name="licenseNumber"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>License Number</FormLabel>
+                      <FormLabel>License Number (Optional)</FormLabel>
                       <FormControl>
                         <Input placeholder="Enter your license number" {...field} />
                       </FormControl>
@@ -147,15 +173,20 @@ export function PropertyManagerProfileForm({
                   )}
                 />
 
-                {/* License State */}
+                {/* Years of Experience */}
                 <FormField
                   control={form.control}
-                  name="licenseState"
+                  name="yearsExperience"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>License State</FormLabel>
+                      <FormLabel>Years of Experience</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., CA" {...field} />
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -172,84 +203,119 @@ export function PropertyManagerProfileForm({
               <FormField
                 control={form.control}
                 name="propertyTypes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Property Types</FormLabel>
-                    <FormDescription>
-                      Enter the types of properties you manage (comma-separated)
-                    </FormDescription>
-                    <FormControl>
-                      <Input 
-                        placeholder="e.g., Residential, Commercial, Multi-family, Single-family" 
-                        value={field.value?.join(", ") || ""}
-                        onChange={(e) => {
-                          const propertyTypes = e.target.value
-                            .split(",")
-                            .map(type => type.trim())
-                            .filter(Boolean);
-                          field.onChange(propertyTypes);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field: { onChange, value, ...field } }) => {
+                  const currentValue = useMemo(() => 
+                    propertyTypeOptions.filter(option => value?.includes(option.value))
+                  , [value]);
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Property Types</FormLabel>
+                      <FormDescription>
+                        Enter the types of properties you manage (comma-separated)
+                      </FormDescription>
+                      <FormControl>
+                        <Select
+                          {...field}
+                          isMulti
+                          options={propertyTypeOptions}
+                          styles={selectStyles}
+                          value={currentValue}
+                          onChange={(selected) => {
+                            onChange(selected ? selected.map((option: any) => option.value) : []);
+                          }}
+                          placeholder="Select property types..."
+                          className="w-full"
+                          classNamePrefix="property-type-select"
+                          formatGroupLabel={memoizedFormatGroupLabel}
+                          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                          menuPosition="fixed"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               {/* Service Areas */}
               <FormField
                 control={form.control}
                 name="serviceAreas"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Service Areas</FormLabel>
-                    <FormDescription>
-                      Enter the geographic areas you serve (comma-separated)
-                    </FormDescription>
-                    <FormControl>
-                      <Input 
-                        placeholder="e.g., Los Angeles County, Orange County" 
-                        value={field.value?.join(", ") || ""}
-                        onChange={(e) => {
-                          const areas = e.target.value
-                            .split(",")
-                            .map(area => area.trim())
-                            .filter(Boolean);
-                          field.onChange(areas);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field: { onChange, value, ...field } }) => {
+                  const currentValue = useMemo(() => 
+                    value?.map(v => ({ value: v, label: v })) || []
+                  , [value]);
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Service Areas</FormLabel>
+                      <FormDescription>
+                        Enter the geographic areas you serve (comma-separated)
+                      </FormDescription>
+                      <FormControl>
+                        <CreatableSelect
+                          {...field}
+                          isMulti
+                          options={currentValue}
+                          styles={selectStyles}
+                          value={currentValue}
+                          onChange={(selected) => {
+                            onChange(selected ? selected.map((option: any) => option.value) : []);
+                          }}
+                          placeholder="Enter service areas..."
+                          className="w-full"
+                          classNamePrefix="service-area-select"
+                          formatGroupLabel={memoizedFormatGroupLabel}
+                          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                          menuPosition="fixed"
+                          isClearable
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               {/* Specializations */}
               <FormField
                 control={form.control}
                 name="specializations"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Specializations</FormLabel>
-                    <FormDescription>
-                      Enter your property management specializations (comma-separated)
-                    </FormDescription>
-                    <FormControl>
-                      <Input 
-                        placeholder="e.g., Luxury Properties, Vacation Rentals, HOA Management" 
-                        value={field.value?.join(", ") || ""}
-                        onChange={(e) => {
-                          const specializations = e.target.value
-                            .split(",")
-                            .map(spec => spec.trim())
-                            .filter(Boolean);
-                          field.onChange(specializations);
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+                render={({ field: { onChange, value, ...field } }) => {
+                  const currentValue = useMemo(() => 
+                    value?.map(v => ({ value: v, label: v })) || []
+                  , [value]);
+
+                  return (
+                    <FormItem>
+                      <FormLabel>Specializations</FormLabel>
+                      <FormDescription>
+                        Enter your property management specializations (comma-separated)
+                      </FormDescription>
+                      <FormControl>
+                        <CreatableSelect
+                          {...field}
+                          isMulti
+                          options={currentValue}
+                          styles={selectStyles}
+                          value={currentValue}
+                          onChange={(selected) => {
+                            onChange(selected ? selected.map((option: any) => option.value) : []);
+                          }}
+                          placeholder="Enter specializations..."
+                          className="w-full"
+                          classNamePrefix="specialization-select"
+                          formatGroupLabel={memoizedFormatGroupLabel}
+                          menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
+                          menuPosition="fixed"
+                          isClearable
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  );
+                }}
               />
 
               <FormSectionHeader
@@ -261,7 +327,7 @@ export function PropertyManagerProfileForm({
                 {/* Units Managed */}
                 <FormField
                   control={form.control}
-                  name="unitsManaged"
+                  name="totalUnitsManaged"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Total Units Managed</FormLabel>
@@ -278,13 +344,93 @@ export function PropertyManagerProfileForm({
                   )}
                 />
 
-                {/* Properties Managed */}
+                {/* Average Unit Size */}
                 <FormField
                   control={form.control}
-                  name="propertiesManaged"
+                  name="averageUnitSize"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Total Properties Managed</FormLabel>
+                      <FormLabel>Average Unit Size (sq ft)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Total Square Feet Managed */}
+                <FormField
+                  control={form.control}
+                  name="totalSquareFeetManaged"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Total Square Feet Managed</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Monthly Transactions */}
+                <FormField
+                  control={form.control}
+                  name="monthlyTransactions"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Monthly Transactions</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Total Portfolio Value */}
+                <FormField
+                  control={form.control}
+                  name="totalPortfolioValue"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Total Portfolio Value</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="0"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Average Occupancy Rate */}
+                <FormField
+                  control={form.control}
+                  name="averageOccupancyRate"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Average Occupancy Rate (%)</FormLabel>
                       <FormControl>
                         <Input
                           type="number"
