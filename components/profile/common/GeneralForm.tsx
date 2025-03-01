@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { z } from "zod"
 import { Card } from "@/components/ui/card"
 import { toast } from "sonner"
+import type { ApiResponse } from "@/utils/types/api"
 
 // Validation schema matching database types
 const generalFormSchema = z.object({
@@ -22,7 +23,7 @@ const generalFormSchema = z.object({
 type GeneralFormData = z.infer<typeof generalFormSchema>
 
 interface GeneralFormProps {
-  onSubmit: (data: GeneralFormData) => void
+  onSubmit: (data: GeneralFormData) => Promise<ApiResponse<GeneralFormData>>
   initialData?: {
     // User data
     displayName?: string | null
@@ -43,40 +44,24 @@ export default function GeneralForm({
   isSubmitting = false
 }: GeneralFormProps) {
   const [formData, setFormData] = useState<GeneralFormData>({
-    displayName: "",
-    bio: null,
-    totalYearsRE: 0,
-    primaryMarket: "",
+    displayName: initialData?.displayName || "",
+    bio: initialData?.bio || null,
+    totalYearsRE: initialData?.totalYearsRE ?? 0,
+    primaryMarket: initialData?.primaryMarket || "",
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [touched, setTouched] = useState<{ [key: string]: boolean }>({})
 
   useEffect(() => {
     if (initialData) {
-      // Log initial data
-      // console.log("[GENERAL_FORM_INITIAL_DATA]", {
-      //   initialData,
-      //   totalYearsRE: initialData.totalYearsRE,
-      //   timestamp: new Date().toISOString()
-      // });
-
       setFormData(prev => {
         const newData = {
           ...prev,
-          displayName: initialData.displayName || "",
-          bio: initialData.bio || null,
-          totalYearsRE: initialData.totalYearsRE ?? 0, // Using nullish coalescing
-          primaryMarket: initialData.primaryMarket || "",
+          displayName: initialData.displayName || prev.displayName || "",
+          bio: initialData.bio || prev.bio || null,
+          totalYearsRE: initialData.totalYearsRE ?? prev.totalYearsRE ?? 0,
+          primaryMarket: initialData.primaryMarket || prev.primaryMarket || "",
         };
-
-        // Log state update
-        // console.log("[GENERAL_FORM_STATE_UPDATE]", {
-        //   previousState: prev,
-        //   newState: newData,
-        //   totalYearsRE: newData.totalYearsRE,
-        //   timestamp: new Date().toISOString()
-        // });
-
         return newData;
       })
     }
@@ -84,13 +69,13 @@ export default function GeneralForm({
 
   const validateField = (name: keyof GeneralFormData, value: any) => {
     try {
-      const fieldSchema = generalFormSchema.shape[name]
-      fieldSchema.parse(value)
-      setErrors(prev => ({ ...prev, [name]: undefined }))
+      const fieldSchema = generalFormSchema.shape[name];
+      fieldSchema.parse(value);
+      setErrors(prev => ({ ...prev, [name]: undefined }));
     } catch (error) {
       if (error instanceof z.ZodError) {
-        const message = error.errors[0]?.message
-        setErrors(prev => ({ ...prev, [name]: message }))
+        const message = error.errors[0]?.message;
+        setErrors(prev => ({ ...prev, [name]: message }));
       }
     }
   }
@@ -99,29 +84,16 @@ export default function GeneralForm({
     const { name, value } = e.target
     const newValue = name === "totalYearsRE" ? parseInt(value) || 0 : value
     
-    // Log total years change
-    // if (name === "totalYearsRE") {
-    //   console.log("[TOTAL_YEARS_CHANGE]", {
-    //     oldValue: formData.totalYearsRE,
-    //     newValue: parseInt(value) || 0,
-    //     rawValue: value,
-    //     timestamp: new Date().toISOString()
-    //   });
-    // }
-
     setFormData(prev => ({
       ...prev,
       [name]: newValue,
     }))
 
-    if (touched[name]) {
-      validateField(name as keyof GeneralFormData, newValue)
-    }
+    validateField(name as keyof GeneralFormData, newValue)
   }
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name } = e.target
-    setTouched(prev => ({ ...prev, [name]: true }))
     validateField(name as keyof GeneralFormData, formData[name as keyof GeneralFormData])
   }
 
@@ -129,31 +101,38 @@ export default function GeneralForm({
     e.preventDefault()
     
     try {
-      // Validate all fields
       const validatedData = generalFormSchema.parse(formData)
-      
-      // Clear any existing errors
-      setErrors({})
-      
-      // Submit the form
-      await onSubmit(validatedData)
+      const result = await onSubmit(validatedData)
+
+      if (result?.error) {
+        toast.error(result.error.message || 'Failed to save changes')
+        return
+      }
+
+      toast.success('Changes saved successfully')
     } catch (error) {
       if (error instanceof z.ZodError) {
-        // Convert Zod errors to our form errors format
         const newErrors: FormErrors = {}
         error.errors.forEach(err => {
           if (err.path[0]) {
             newErrors[err.path[0] as keyof GeneralFormData] = err.message
           }
         })
+        
         setErrors(newErrors)
         
-        // Show toast with the first error
-        toast.error(error.errors[0]?.message || "Please check the form for errors")
+        // Show field-specific errors in the form
+        Object.entries(newErrors).forEach(([field, message]) => {
+          const element = document.getElementById(field)
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        })
       } else {
         console.error('[FORM_SUBMIT_ERROR]', {
           error,
           formData,
+          stack: error instanceof Error ? error.stack : undefined,
           timestamp: new Date().toISOString()
         })
         toast.error("Failed to save changes. Please try again.")
@@ -270,7 +249,7 @@ export default function GeneralForm({
           <div className="flex justify-end mt-6 sm:mt-8">
             <Button 
               type="submit" 
-              disabled={isSubmitting || Object.keys(errors).length > 0}
+              disabled={isSubmitting}
               className="px-6"
             >
               {isSubmitting ? (

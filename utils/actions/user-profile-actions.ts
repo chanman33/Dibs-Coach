@@ -147,20 +147,48 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
 
       const supabase = await createAuthClient()
 
-      // Update user data
-      const { error: userError } = await supabase
+      // First verify the user exists
+      const { data: existingUser, error: fetchError } = await supabase
         .from("User")
-        .update({
-          displayName: data.displayName,
-          bio: data.bio,
-          totalYearsRE: data.totalYearsRE,
-          primaryMarket: data.primaryMarket,
-          updatedAt: new Date().toISOString()
-        })
+        .select("ulid")
         .eq("ulid", userUlid)
+        .single();
+
+      if (fetchError || !existingUser) {
+        console.error("[USER_FETCH_ERROR]", { userUlid, error: fetchError });
+        return {
+          data: null,
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found',
+            details: fetchError
+          }
+        };
+      }
+
+      // Update user data with explicit type checking
+      const updateData = {
+        displayName: data.displayName || null,
+        bio: data.bio || null,
+        totalYearsRE: typeof data.totalYearsRE === 'number' ? data.totalYearsRE : 0,
+        primaryMarket: data.primaryMarket || null,
+        updatedAt: new Date().toISOString()
+      };
+
+      const { data: updatedUser, error: userError } = await supabase
+        .from("User")
+        .update(updateData)
+        .eq("ulid", userUlid)
+        .select()
+        .single();
 
       if (userError) {
-        console.error("[USER_UPDATE_ERROR]", { userUlid, error: userError })
+        console.error("[USER_UPDATE_ERROR]", { 
+          userUlid, 
+          error: userError,
+          updateData,
+          timestamp: new Date().toISOString()
+        });
         return {
           data: null,
           error: {
@@ -174,26 +202,27 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
       // Log successful update
       console.log("[USER_PROFILE_UPDATE_SUCCESS]", {
         userUlid,
-        updatedData: data,
-        displayName: data.displayName,
-        bio: data.bio,
-        totalYearsRE: data.totalYearsRE,
-        primaryMarket: data.primaryMarket,
+        updatedUser,
         timestamp: new Date().toISOString()
       });
 
+      // Return the updated data
       return {
         data: {
-          displayName: data.displayName,
-          bio: data.bio,
-          totalYearsRE: data.totalYearsRE,
-          primaryMarket: data.primaryMarket,
-          timestamp: new Date().toISOString()
+          displayName: updatedUser.displayName || "",
+          bio: updatedUser.bio,
+          totalYearsRE: updatedUser.totalYearsRE || 0,
+          primaryMarket: updatedUser.primaryMarket || "",
+          languages: updatedUser.languages || []
         },
         error: null
       }
     } catch (error) {
-      console.error("[PROFILE_UPDATE_ERROR]", error)
+      console.error("[PROFILE_UPDATE_ERROR]", {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       return {
         data: null,
         error: {
