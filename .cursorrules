@@ -137,17 +137,25 @@ database:
       clerk_id: "userId: TEXT (e.g., user_2r0JFaVbINR4TBRNFzcwIsyEXV0)"
       location: "Only stored in User table"
     database:
-      internal_id: "ulid: String @id @db.Char(26) @default(dbgenerated('generate_ulid()'))"
+      internal_id: "ulid: String @id @db.Char(26)"
       foreign_key: "entityUlid: String @db.Char(26) (references Entity.ulid)"
+      generation: 
+        location: "Client-side only"
+        utility: "utils/ulid.ts"
+        rules:
+          - "Never use database-level ULID generation"
+          - "Always generate ULIDs before database operations"
+          - "Use provided ULID utility functions for all generations"
     usage:
       - "Use userId (string) when querying by Clerk ID in User table only"
       - "Use ulid for all database relationships"
       - "Never use Clerk IDs in foreign key relationships"
+      - "Generate all ULIDs client-side before database operations"
   
   # Relationships
   relationships:
     naming:
-      primary_keys: "ulid String @id @db.Char(26) @default(dbgenerated('generate_ulid()'))"
+      primary_keys: "ulid String @id @db.Char(26)"
       foreign_keys: "entityUlid String @db.Char(26) REFERENCES Entity(ulid)"
     constraints:
       - "All foreign keys must reference ULID fields"
@@ -162,7 +170,7 @@ database:
   required_fields:
     id:
       format: "String @id @db.Char(26)"
-      default: "@default(dbgenerated('generate_ulid()'))"
+      generation: "Client-side ULID generation required before insert"
       foreign_key: "String @db.Char(26)"
     timestamps:
       format: "TIMESTAMP WITH TIME ZONE"
@@ -173,6 +181,7 @@ database:
     indexes:
       - "Add @@index([foreignKeyUlid]) for all foreign keys"
       - "Add @unique where appropriate for one-to-one relationships"
+      - "ULID fields automatically indexed by create_ulid_indexes() function"
   
   # Best Practices
   best_practices:
@@ -194,6 +203,12 @@ database:
       - "Include context in error messages"
       - "Handle edge cases appropriately"
       - "Proper error responses in API routes"
+    ulid:
+      - "Always generate ULIDs using provided utility functions"
+      - "Generate ULIDs immediately before database operations"
+      - "Never rely on database-level ULID generation"
+      - "Include error handling for ULID generation failures"
+      - "Log ULID generation and usage in debug contexts"
   
   # Migrations
   migrations:
@@ -524,3 +539,75 @@ documentation:
      * @description Type description
      * @property {type} name - Property description
      */ 
+
+# Database Operations
+database:
+  operations:
+    inserts:
+      required_steps:
+        - "Generate ULID using utility function"
+        - "Prepare insert data with generated ULID"
+        - "Execute insert operation"
+        - "Handle any ULID generation or insert errors"
+      example: |
+        const newUlid = generateUlid();
+        await supabase
+          .from("Table")
+          .insert({
+            ulid: newUlid,
+            // other fields
+          });
+    updates:
+      rules:
+        - "Never update ULID fields"
+        - "Use ULIDs for all where clauses"
+        - "Include updatedAt timestamp"
+    queries:
+      rules:
+        - "Use ULIDs for relationship joins"
+        - "Index ULID columns for performance"
+        - "Use proper ULID comparison functions"
+
+  utilities:
+    location: "utils/ulid.ts"
+    required_functions:
+      - "generateUlid(): Generate new ULID"
+      - "isValidUlid(ulid: string): Validate ULID format"
+      - "extractTimestamp(ulid: string): Extract creation time"
+      - "compareUlids(a: string, b: string): Compare two ULIDs"
+    error_handling:
+      - "Handle generation failures gracefully"
+      - "Validate ULID format before database operations"
+      - "Include proper error messages and logging"
+    
+    usage_examples: |
+      // Generate new ULID
+      const ulid = generateUlid();
+      
+      // Insert with ULID
+      if (isValidUlid(ulid)) {
+        await supabase
+          .from("Table")
+          .insert({
+            ulid,
+            // other fields
+          });
+      }
+      
+      // Query by ULID
+      const { data, error } = await supabase
+        .from("Table")
+        .select()
+        .eq("ulid", targetUlid);
+
+  indexes:
+    automatic:
+      - "All ULID columns automatically indexed by create_ulid_indexes()"
+      - "B-tree indexes for efficient lookups and joins"
+    manual:
+      - "Add additional indexes for specific query patterns"
+      - "Consider composite indexes for common query combinations"
+    maintenance:
+      - "Monitor index usage and performance"
+      - "Reindex when necessary"
+      - "Clean up unused indexes" 

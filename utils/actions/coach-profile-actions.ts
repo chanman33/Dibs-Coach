@@ -8,6 +8,7 @@ import { PROFILE_STATUS, type ProfileStatus } from "@/utils/types/coach"
 import { calculateProfileCompletion, PUBLICATION_THRESHOLD } from "@/utils/actions/calculateProfileCompletion"
 import { auth } from "@clerk/nextjs/server"
 import { ProfessionalRecognition } from "@/utils/types/recognition"
+import { generateUlid, isValidUlid } from "@/utils/ulid"
 
 export interface CoachProfileFormData {
   coachSkills: string[];
@@ -55,15 +56,73 @@ interface CoachProfileResponse {
 export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
   async (_, { userUlid }) => {
     try {
-      const supabase = await createAuthClient();
-
       console.log("[FETCH_COACH_PROFILE_START]", {
         userUlid,
         timestamp: new Date().toISOString()
       });
 
+      const supabase = await createAuthClient();
+
+      // Fetch user data including capabilities and profile info
+      const { data: userData, error: userError } = await supabase
+        .from("User")
+        .select(`
+          capabilities,
+          firstName,
+          lastName,
+          bio,
+          profileImageUrl,
+          realEstateDomains
+        `)
+        .eq("ulid", userUlid)
+        .single();
+
+      if (userError) {
+        console.error("[FETCH_COACH_PROFILE_USER_ERROR]", {
+          userUlid,
+          error: userError,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: {
+            code: "DATABASE_ERROR",
+            message: "Failed to fetch user data",
+            details: userError
+          }
+        };
+      }
+
+      if (!userData?.capabilities?.includes("COACH")) {
+        console.error("[FETCH_COACH_PROFILE_UNAUTHORIZED]", {
+          userUlid,
+          capabilities: userData?.capabilities,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: {
+            code: "UNAUTHORIZED",
+            message: "User does not have coach capability",
+            details: null
+          }
+        };
+      }
+
+      // First try to create profile if it doesn't exist
+      const { data: ensuredProfile, error: ensureError } = await createCoachProfileIfNeeded(userUlid);
+      
+      if (ensureError) {
+        console.error("[ENSURE_COACH_PROFILE_ERROR]", {
+          userUlid,
+          error: ensureError,
+          timestamp: new Date().toISOString()
+        });
+        // Don't return error here, continue to try fetching existing profile
+      }
+
       // Fetch coach profile with professional recognitions
-      let { data: coachProfile, error: coachError } = await supabase
+      const { data: coachProfile, error: coachError } = await supabase
         .from("CoachProfile")
         .select(`
           *,
@@ -85,30 +144,8 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         .eq("userUlid", userUlid)
         .maybeSingle();
 
-      // If no profile exists, try to create one
-      if (coachError?.code === 'PGRST116') {
-        const { data: newProfile, error: createError } = await createCoachProfileIfNeeded(userUlid);
-        if (createError) {
-          console.error("[COACH_PROFILE_CREATE_ERROR]", {
-            userUlid,
-            error: createError,
-            timestamp: new Date().toISOString()
-          });
-          return {
-            data: null,
-            error: {
-              code: "DATABASE_ERROR",
-              message: "Failed to create coach profile",
-              details: createError
-            }
-          };
-        }
-        if (newProfile) {
-          coachProfile = newProfile;
-          coachError = null;
-        }
-      } else if (coachError) {
-        console.error("[COACH_PROFILE_FETCH_ERROR]", {
+      if (coachError) {
+        console.error("[FETCH_COACH_PROFILE_ERROR]", {
           userUlid,
           error: coachError,
           timestamp: new Date().toISOString()
@@ -127,34 +164,6 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       const activeRecognitions = coachProfile?.ProfessionalRecognition?.filter(
         (recognition: any) => recognition.isVisible
       ) || [];
-
-      const { data: userData, error: userError } = await supabase
-        .from("User")
-        .select(`
-          firstName,
-          lastName,
-          bio,
-          profileImageUrl,
-          realEstateDomains
-        `)
-        .eq("ulid", userUlid)
-        .single();
-
-      if (userError) {
-        console.error("[USER_FETCH_ERROR]", {
-          userUlid,
-          error: userError,
-          timestamp: new Date().toISOString()
-        });
-        return {
-          data: null,
-          error: {
-            code: "DATABASE_ERROR",
-            message: "Failed to fetch user data",
-            details: userError
-          }
-        };
-      }
 
       const profileData = {
         firstName: userData?.firstName,
@@ -511,66 +520,6 @@ export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse,
   }
 ) 
 
-export async function saveCoachSkills({
-  skills
-}: {
-  skills: string[]
-}) {
-  'use server'
-
-  try {
-    const { userId } = await auth();
-    if (!userId) {
-      return { data: null, error: { message: 'Not authenticated' } };
-    }
-
-    const supabase = await createAuthClient();
-    const { userUlid } = await getUserUlidAndRole(userId);
-
-    // Create or update the coach profile with the new skills
-    const { data, error } = await supabase
-      .from('CoachProfile')
-      .upsert({
-        userUlid,
-        coachSkills: skills,
-        yearsCoaching: 0,
-        hourlyRate: 0,
-        defaultDuration: 60,
-        minimumDuration: 30,
-        maximumDuration: 120,
-        allowCustomDuration: false,
-        profileStatus: 'DRAFT',
-        completionPercentage: 0,
-        updatedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString()
-      }, {
-        onConflict: 'userUlid',
-        ignoreDuplicates: false
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('[SAVE_COACH_SKILLS_ERROR]', {
-        error,
-        userId,
-        skills,
-        timestamp: new Date().toISOString()
-      });
-      return { data: null, error: { message: 'Failed to save skills' } };
-    }
-
-    revalidatePath('/dashboard/coach/profile');
-    return { data: { skills }, error: null };
-  } catch (error) {
-    console.error('[SAVE_COACH_SKILLS_ERROR]', {
-      error,
-      timestamp: new Date().toISOString()
-    });
-    return { data: null, error: { message: 'Failed to save skills' } };
-  }
-} 
-
 export async function createCoachProfileIfNeeded(userUlid: string) {
   'use server'
 
@@ -619,10 +568,23 @@ export async function createCoachProfileIfNeeded(userUlid: string) {
       return { data: existingProfile, error: null };
     }
 
+    // Generate new ULID for the profile
+    const newUlid = generateUlid();
+    
+    if (!isValidUlid(newUlid)) {
+      console.error('[CREATE_COACH_PROFILE_ULID_ERROR]', {
+        userUlid,
+        newUlid,
+        timestamp: new Date().toISOString()
+      });
+      return { data: null, error: { message: 'Failed to generate valid ULID' } };
+    }
+
     // Create new coach profile with default values
     const { data: newProfile, error: createError } = await supabase
       .from('CoachProfile')
       .insert({
+        ulid: newUlid,
         userUlid,
         coachSkills: [],
         yearsCoaching: null,
@@ -644,6 +606,7 @@ export async function createCoachProfileIfNeeded(userUlid: string) {
     if (createError) {
       console.error('[CREATE_COACH_PROFILE_ERROR]', {
         userUlid,
+        newUlid,
         error: createError,
         timestamp: new Date().toISOString()
       });
@@ -659,5 +622,71 @@ export async function createCoachProfileIfNeeded(userUlid: string) {
       timestamp: new Date().toISOString()
     });
     return { data: null, error: { message: 'Failed to create coach profile' } };
+  }
+} 
+
+export async function saveCoachSkills({
+  skills
+}: {
+  skills: string[]
+}) {
+  'use server'
+
+  try {
+    const { userId } = await auth();
+    if (!userId) {
+      return { data: null, error: { message: 'Not authenticated' } };
+    }
+
+    const supabase = await createAuthClient();
+    const { userUlid } = await getUserUlidAndRole(userId);
+
+    // Get the existing profile
+    const { data: profile, error: profileError } = await supabase
+      .from('CoachProfile')
+      .select('ulid')
+      .eq('userUlid', userUlid)
+      .single();
+
+    if (profileError) {
+      console.error('[SAVE_COACH_SKILLS_ERROR]', {
+        error: profileError,
+        userId,
+        userUlid,
+        timestamp: new Date().toISOString()
+      });
+      return { data: null, error: { message: 'Coach profile not found' } };
+    }
+
+    // Update skills on existing profile
+    const { data, error: updateError } = await supabase
+      .from('CoachProfile')
+      .update({
+        coachSkills: skills,
+        updatedAt: new Date().toISOString()
+      })
+      .eq('ulid', profile.ulid)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('[SAVE_COACH_SKILLS_ERROR]', {
+        error: updateError,
+        userId,
+        userUlid,
+        profileUlid: profile.ulid,
+        timestamp: new Date().toISOString()
+      });
+      return { data: null, error: { message: 'Failed to update skills' } };
+    }
+
+    revalidatePath('/dashboard/coach/profile');
+    return { data: { skills }, error: null };
+  } catch (error) {
+    console.error('[SAVE_COACH_SKILLS_ERROR]', {
+      error,
+      timestamp: new Date().toISOString()
+    });
+    return { data: null, error: { message: 'Failed to save skills' } };
   }
 } 
