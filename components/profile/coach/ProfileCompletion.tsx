@@ -8,7 +8,6 @@ import { CheckCircle, AlertCircle, EyeOff, ChevronRight } from 'lucide-react'
 import { PROFILE_STATUS, ProfileStatus } from '@/utils/types/coach'
 import { toast } from 'sonner'
 import { updateProfileStatus } from '@/utils/actions/coach-profile-actions'
-import { getMissingFieldsMessage } from '@/utils/actions/calculateProfileCompletion'
 
 interface ProfileCompletionProps {
   completionPercentage: number
@@ -30,20 +29,6 @@ export function ProfileCompletion({
   validationMessages,
 }: ProfileCompletionProps) {
   const [isUpdating, setIsUpdating] = useState(false)
-
-  // Log initial props
-  useEffect(() => {
-    // console.log('[PROFILE_COMPLETION_PROPS]', {
-    //   completionPercentage,
-    //   profileStatus,
-    //   canPublish,
-    //   missingFields,
-    //   missingRequiredFields,
-    //   optionalMissingFields,
-    //   validationMessages,
-    //   timestamp: new Date().toISOString()
-    // });
-  }, [completionPercentage, profileStatus, canPublish, missingFields, missingRequiredFields, optionalMissingFields, validationMessages]);
 
   const renderStatusBadge = () => {
     switch (profileStatus) {
@@ -67,99 +52,214 @@ export function ProfileCompletion({
   }
 
   const renderCompletionSteps = () => {
+    console.log("[PROFILE_COMPLETION_RENDER_START]", {
+      completionPercentage,
+      profileStatus,
+      canPublish,
+      missingFields,
+      missingRequiredFields,
+      optionalMissingFields,
+      validationMessages,
+      timestamp: new Date().toISOString()
+    });
+
     const steps = [
       {
         title: 'Basic Information',
         description: 'Personal details and bio',
         fields: ['firstName', 'lastName', 'bio', 'profileImageUrl'],
         requiredFields: ['firstName', 'lastName', 'bio', 'profileImageUrl'],
+        isComplete: (fields: string[]) => {
+          const missing = fields.filter(field => missingFields.includes(field));
+          const invalid = fields.filter(field => validationMessages[field]);
+          const isComplete = missing.length === 0 && invalid.length === 0;
+          
+          console.log(`[STEP_VALIDATION] Basic Information:`, {
+            isComplete,
+            missing,
+            invalid,
+            fields,
+            missingFields,
+            validationMessages,
+            timestamp: new Date().toISOString()
+          });
+          
+          return isComplete;
+        },
+        getErrorMessage: (fields: string[]) => {
+          const missing = fields.filter(field => missingFields.includes(field));
+          const invalid = fields.filter(field => validationMessages[field]);
+          
+          if (invalid.length > 0) {
+            return invalid.map(field => validationMessages[field]).join(' • ');
+          }
+          if (missing.length > 0) {
+            return `Missing required fields: ${missing.join(', ')}`;
+          }
+          return null;
+        }
       },
       {
         title: 'Coaching Details',
         description: 'Expertise and pricing',
         fields: ['coachingSpecialties', 'hourlyRate', 'yearsCoaching'],
-        completed: !missingRequiredFields.some(field => 
-          ['coachingSpecialties', 'hourlyRate'].includes(field)
-        ),
+        requiredFields: ['coachingSpecialties', 'hourlyRate', 'yearsCoaching'],
+        isComplete: (fields: string[]) => {
+          const missing = fields.filter(field => missingFields.includes(field));
+          const invalid = fields.filter(field => validationMessages[field]);
+          const isComplete = missing.length === 0 && invalid.length === 0;
+          
+          console.log(`[STEP_VALIDATION] Coaching Details:`, {
+            isComplete,
+            missing,
+            invalid,
+            fields,
+            missingFields,
+            validationMessages,
+            timestamp: new Date().toISOString()
+          });
+          
+          return isComplete;
+        },
+        getErrorMessage: (fields: string[]) => {
+          const missing = fields.filter(field => missingFields.includes(field));
+          const invalid = fields.filter(field => validationMessages[field]);
+          
+          if (invalid.length > 0) {
+            return invalid.map(field => validationMessages[field]).join(' • ');
+          }
+          if (missing.length > 0) {
+            return `Missing required fields: ${missing.join(', ')}`;
+          }
+          return null;
+        }
       },
       {
         title: 'Scheduling',
         description: 'Availability and booking',
         fields: ['calendlyUrl', 'eventTypeUrl'],
         requiredFields: ['calendlyUrl', 'eventTypeUrl'],
+        isComplete: (fields: string[]) => {
+          const missing = fields.filter(field => missingFields.includes(field));
+          const invalid = fields.filter(field => validationMessages[field]);
+          const isComplete = missing.length === 0 && invalid.length === 0;
+          
+          console.log(`[STEP_VALIDATION] Scheduling:`, {
+            isComplete,
+            missing,
+            invalid,
+            fields,
+            missingFields,
+            validationMessages,
+            timestamp: new Date().toISOString()
+          });
+          
+          return isComplete;
+        },
+        getErrorMessage: (fields: string[]) => {
+          const missing = fields.filter(field => missingFields.includes(field));
+          const invalid = fields.filter(field => validationMessages[field]);
+          
+          if (invalid.length > 0) {
+            return invalid.map(field => validationMessages[field]).join(' • ');
+          }
+          if (missing.length > 0) {
+            return `Missing required fields: ${missing.join(', ')}`;
+          }
+          return null;
+        }
       },
       {
         title: 'Professional Background',
         description: 'Certifications and expertise',
         fields: ['certifications', 'languages'],
-        completed: !optionalMissingFields.some(field => 
-          ['certifications', 'languages'].includes(field)
-        ),
+        requiredFields: [],
         optional: true,
+        isComplete: (fields: string[]) => {
+          const missing = fields.filter(field => optionalMissingFields.includes(field));
+          const invalid = fields.filter(field => validationMessages[field]);
+          const isComplete = !invalid.length;
+          
+          console.log(`[STEP_VALIDATION] Professional Background:`, {
+            isComplete,
+            missing,
+            invalid,
+            fields,
+            optionalMissingFields,
+            validationMessages,
+            timestamp: new Date().toISOString()
+          });
+          
+          return isComplete;
+        },
+        getErrorMessage: (fields: string[]) => {
+          const missing = fields.filter(field => optionalMissingFields.includes(field));
+          const invalid = fields.filter(field => validationMessages[field]);
+          
+          if (invalid.length > 0) {
+            return invalid.map(field => validationMessages[field]).join(' • ');
+          }
+          if (missing.length > 0) {
+            return `Optional fields missing: ${missing.join(', ')}`;
+          }
+          return null;
+        }
       }
-    ]
-
-    // Log completion status for each step
-    steps.forEach(step => {
-      // Get missing required fields for this step
-      const incompleteRequired = missingRequiredFields.filter(field => step.fields.includes(field));
-      const incompleteOptional = optionalMissingFields.filter(field => step.fields.includes(field));
-      
-      // Log detailed completion status
-      // console.log('[STEP_COMPLETION_STATUS]', {
-      //   step: step.title,
-      //   completed: incompleteRequired.length === 0,
-      //   fields: step.fields,
-      //   incompleteRequired,
-      //   incompleteOptional,
-      //   missingRequiredFields, // Add this to see full list
-      //   optional: step.optional,
-      //   timestamp: new Date().toISOString()
-      // });
-    });
+    ];
 
     return (
       <div className="space-y-3">
         {steps.map((step, index) => {
-          // Get missing required fields for this step
-          const incompleteRequired = missingRequiredFields.filter(field => step.fields.includes(field));
-          const incompleteOptional = optionalMissingFields.filter(field => step.fields.includes(field));
+          const stepMissingRequired = step.requiredFields.filter(field => 
+            missingRequiredFields.includes(field)
+          );
+          const stepMissingOptional = step.fields.filter(field => 
+            optionalMissingFields.includes(field)
+          );
           
-          // A step is incomplete if it has any missing required fields OR if it's the Scheduling step with missing fields
-          const hasIncomplete = incompleteRequired.length > 0 || 
-            (step.title === 'Scheduling' && (incompleteRequired.length > 0 || incompleteOptional.length > 0));
+          const isComplete = step.isComplete(step.fields);
+          const errorMessage = step.getErrorMessage(step.fields);
           
-          // Log step render details with more info
-          // console.log('[STEP_RENDER_STATUS]', {
-          //   step: step.title,
-          //   hasIncomplete,
-          //   incompleteRequired,
-          //   incompleteOptional,
-          //   isSchedulingStep: step.title === 'Scheduling',
-          //   fields: step.fields,
-          //   timestamp: new Date().toISOString()
-          // });
+          console.log(`[STEP_RENDER] ${step.title}:`, {
+            isComplete,
+            errorMessage,
+            stepMissingRequired,
+            stepMissingOptional,
+            validationMessages: step.fields.reduce((acc, field) => {
+              if (validationMessages[field]) {
+                acc[field] = validationMessages[field];
+              }
+              return acc;
+            }, {} as Record<string, string>),
+            timestamp: new Date().toISOString()
+          });
           
           return (
             <div 
               key={step.title} 
               className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                !hasIncomplete
+                isComplete
                   ? 'bg-green-50/50' 
                   : step.optional 
                     ? 'bg-blue-50/50 hover:bg-blue-100/80'
-                    : 'bg-gray-50 hover:bg-gray-100/80'
+                    : errorMessage
+                      ? 'bg-red-50/50 hover:bg-red-100/80'
+                      : 'bg-gray-50 hover:bg-gray-100/80'
               }`}
             >
               <div className={`flex h-6 w-6 items-center justify-center rounded-full ${
-                !hasIncomplete
+                isComplete
                   ? 'bg-green-100 text-green-600' 
                   : step.optional
                     ? 'bg-blue-100 text-blue-600'
-                    : 'bg-gray-200 text-gray-600'
+                    : errorMessage
+                      ? 'bg-red-100 text-red-600'
+                      : 'bg-gray-200 text-gray-600'
               }`}>
-                {!hasIncomplete ? (
+                {isComplete ? (
                   <CheckCircle className="h-4 w-4" />
+                ) : errorMessage ? (
+                  <AlertCircle className="h-4 w-4" />
                 ) : (
                   <span className="text-xs font-medium">{index + 1}</span>
                 )}
@@ -167,11 +267,13 @@ export function ProfileCompletion({
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <p className={`text-sm font-medium ${
-                    !hasIncomplete
+                    isComplete
                       ? 'text-green-700' 
                       : step.optional
                         ? 'text-blue-700'
-                        : 'text-gray-700'
+                        : errorMessage
+                          ? 'text-red-700'
+                          : 'text-gray-700'
                   }`}>
                     {step.title}
                   </p>
@@ -181,25 +283,18 @@ export function ProfileCompletion({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  {!hasIncomplete
-                    ? step.description
-                    : step.title === 'Scheduling'
-                      ? [...incompleteRequired, ...incompleteOptional]
-                          .map(field => validationMessages[field])
-                          .filter(Boolean)
-                          .join(' • ')
-                      : incompleteRequired.length > 0
-                        ? incompleteRequired
-                            .map(field => validationMessages[field])
-                            .filter(Boolean)
-                            .join(' • ')
-                        : step.description
-                  }
+                <p className={`text-xs mt-0.5 ${
+                  errorMessage 
+                    ? 'text-red-500'
+                    : 'text-gray-500'
+                }`}>
+                  {errorMessage || step.description}
                 </p>
               </div>
-              {hasIncomplete && (
-                <ChevronRight className="h-4 w-4 text-gray-400" />
+              {!isComplete && (
+                <ChevronRight className={`h-4 w-4 ${
+                  errorMessage ? 'text-red-400' : 'text-gray-400'
+                }`} />
               )}
             </div>
           );
@@ -224,7 +319,6 @@ export function ProfileCompletion({
         </div>
 
         <div className="space-y-6">
-          {/* Progress Bar */}
           <div>
             <div className="flex justify-between text-sm mb-2">
               <span className="text-gray-600">Overall Progress</span>
@@ -236,12 +330,8 @@ export function ProfileCompletion({
             />
           </div>
 
-          {/* Completion Steps */}
-          <div className="bg-white rounded-lg">
-            {renderCompletionSteps()}
-          </div>
+          {renderCompletionSteps()}
 
-          {/* Action Button */}
           {canPublish && profileStatus !== PROFILE_STATUS.PUBLISHED && (
             <Button
               className="w-full"

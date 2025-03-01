@@ -42,6 +42,10 @@ function ProfilePageContent() {
   } = useProfileContext();
 
   const handleProfileSubmit = useCallback(async (data: CoachProfileFormValues) => {
+    console.log("[HANDLE_PROFILE_SUBMIT]", {
+      data,
+      timestamp: new Date().toISOString()
+    });
     await updateCoachData(data);
   }, [updateCoachData]);
 
@@ -74,8 +78,24 @@ function ProfilePageContent() {
     );
   }
 
-  // Cast coachData to ExtendedCoachData to include completion info
-  const extendedCoachData = coachData as ExtendedCoachData;
+  // Ensure we have all the required completion data
+  const extendedCoachData: ExtendedCoachData = {
+    ...coachData,
+    yearsCoaching: coachData?.yearsCoaching ?? undefined,
+    hourlyRate: coachData?.hourlyRate ?? undefined,
+    status: coachData?.status || "DRAFT",
+    completionPercentage: coachData?.completionPercentage || 0,
+    missingFields: coachData?.missingFields || [],
+    missingRequiredFields: coachData?.missingRequiredFields || [],
+    optionalMissingFields: coachData?.optionalMissingFields || [],
+    validationMessages: coachData?.validationMessages || {},
+    canPublish: coachData?.canPublish || false,
+  };
+
+  console.log("[PROFILE_PAGE_RENDER]", {
+    extendedCoachData,
+    timestamp: new Date().toISOString()
+  });
       
   return (
     <ProfileTabsManager

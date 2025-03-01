@@ -249,28 +249,54 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
       // 5. Update coach profile states
       if (coachResult.data) {
+        console.log("[FETCH_PROFILE_DATA_RESPONSE]", {
+          data: coachResult.data,
+          timestamp: new Date().toISOString()
+        });
+
         const {
           coachSkills = [],
           professionalRecognitions = [],
           profileStatus: status = 'DRAFT',
           completionPercentage = 0,
-          missingFields: missing = [],
-          canPublish: publish = false
+          missingFields = [],
+          missingRequiredFields = [],
+          optionalMissingFields = [],
+          validationMessages = {},
+          canPublish = false
         } = coachResult.data;
 
+        // Update all states with validation data
         setCoachData(coachResult.data);
         setProfileStatus(status);
         setCompletionPercentage(completionPercentage);
-        setMissingFields(missing);
-        setCanPublish(publish);
+        setMissingFields(missingFields);
+        setMissingRequiredFields(missingRequiredFields);
+        setOptionalMissingFields(optionalMissingFields);
+        setValidationMessages(validationMessages);
+        setCanPublish(canPublish);
         setSelectedSkills(coachSkills);
         setRecognitionsData(professionalRecognitions);
+
+        console.log("[FETCH_PROFILE_DATA_STATE_UPDATE]", {
+          status,
+          completionPercentage,
+          missingFields,
+          missingRequiredFields,
+          optionalMissingFields,
+          validationMessages,
+          canPublish,
+          timestamp: new Date().toISOString()
+        });
       } else {
         // Reset states if no coach data
         setCoachData({});
         setProfileStatus('DRAFT');
         setCompletionPercentage(0);
         setMissingFields([]);
+        setMissingRequiredFields([]);
+        setOptionalMissingFields([]);
+        setValidationMessages({});
         setCanPublish(false);
         setSelectedSkills([]);
         setRecognitionsData([]);
@@ -353,13 +379,56 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // Update completion status from server response
   const updateCompletionStatus = (data: any) => {
     if (data) {
-      setCompletionPercentage(data.completionPercentage || 0);
-      setMissingFields(data.missingFields || []);
-      setMissingRequiredFields(data.missingRequiredFields || []);
-      setOptionalMissingFields(data.optionalMissingFields || []);
-      setValidationMessages(data.validationMessages || {});
-      setCanPublish(data.canPublish || false);
-      setProfileStatus(data.profileStatus || "DRAFT");
+      console.log("[UPDATE_COMPLETION_STATUS_START]", {
+        currentState: {
+          completionPercentage,
+          missingFields,
+          missingRequiredFields,
+          validationMessages
+        },
+        newData: data,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Ensure we're not losing data by checking for null/undefined
+      const newCompletionPercentage = data.completionPercentage ?? completionPercentage;
+      const newMissingFields = Array.isArray(data.missingFields) ? data.missingFields : missingFields;
+      const newMissingRequiredFields = Array.isArray(data.missingRequiredFields) ? data.missingRequiredFields : missingRequiredFields;
+      const newOptionalMissingFields = Array.isArray(data.optionalMissingFields) ? data.optionalMissingFields : optionalMissingFields;
+      const newValidationMessages = typeof data.validationMessages === 'object' ? data.validationMessages : validationMessages;
+      const newCanPublish = typeof data.canPublish === 'boolean' ? data.canPublish : canPublish;
+      const newProfileStatus = data.profileStatus || profileStatus;
+      
+      // Update states with new values
+      setCompletionPercentage(newCompletionPercentage);
+      setMissingFields(newMissingFields);
+      setMissingRequiredFields(newMissingRequiredFields);
+      setOptionalMissingFields(newOptionalMissingFields);
+      setValidationMessages(newValidationMessages);
+      setCanPublish(newCanPublish);
+      setProfileStatus(newProfileStatus);
+      
+      // Also update these fields in coachData to ensure consistency
+      setCoachData(prevData => {
+        const newData = {
+          ...prevData,
+          completionPercentage: newCompletionPercentage,
+          missingFields: newMissingFields,
+          missingRequiredFields: newMissingRequiredFields,
+          optionalMissingFields: newOptionalMissingFields,
+          validationMessages: newValidationMessages,
+          canPublish: newCanPublish,
+          status: newProfileStatus
+        };
+        
+        console.log("[UPDATE_COMPLETION_STATUS_END]", {
+          prevData,
+          newData,
+          timestamp: new Date().toISOString()
+        });
+        
+        return newData;
+      });
     }
   };
   

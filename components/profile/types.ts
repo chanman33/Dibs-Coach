@@ -67,19 +67,23 @@ export type CoachProfileFormValues = z.infer<typeof coachProfileFormSchema>;
 
 // Initial data structure
 export interface CoachProfileInitialData {
-  specialties?: string[];
-  yearsCoaching?: number;
-  hourlyRate?: number;
-  domainSpecialties?: string[]; // Keep this for display purposes only
-  calendlyUrl?: string;
-  eventTypeUrl?: string;
-  defaultDuration?: number;
-  minimumDuration?: number;
-  maximumDuration?: number;
-  allowCustomDuration?: boolean;
-  certifications?: string[];
-  languages?: string[]; // Keep this for LanguagesSection initialization
-  professionalRecognitions?: ProfessionalRecognition[];
+  firstName?: string | null;
+  lastName?: string | null;
+  bio?: string | null;
+  profileImageUrl?: string | null;
+  coachingSpecialties?: string[] | null;
+  hourlyRate?: number | undefined;
+  yearsCoaching?: number | undefined;
+  calendlyUrl?: string | null;
+  eventTypeUrl?: string | null;
+  // Add completion-related fields
+  status?: ProfileStatus;
+  completionPercentage?: number;
+  missingFields?: string[];
+  missingRequiredFields?: string[];
+  optionalMissingFields?: string[];
+  validationMessages?: Record<string, string>;
+  canPublish?: boolean;
 }
 
 // User info structure
@@ -102,4 +106,17 @@ export interface CoachProfileFormProps {
   userInfo?: UserInfo;
   onSpecialtiesChange: (specialties: Specialty[]) => void;
   saveSpecialties: (selectedSpecialties: Specialty[]) => Promise<boolean>;
+}
+
+export interface CoachProfileResponse {
+  coachSkills: string[];
+  professionalRecognitions: ProfessionalRecognition[];
+  profileStatus: ProfileStatus;
+  completionPercentage: number;
+  missingFields: string[];
+  missingRequiredFields: string[];
+  optionalMissingFields: string[];
+  validationMessages: Record<string, string>;
+  canPublish: boolean;
+  // ... other existing fields ...
 } 

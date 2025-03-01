@@ -93,7 +93,7 @@ export function calculateProfileCompletion(profile: CoachProfileData): {
         missingRequiredFields.push(field);
         // Add validation message for required fields
         if (field === 'bio') {
-          validationMessages[field] = 'Bio must be at least 50 characters long';
+          validationMessages[field] = 'Professional bio must be at least 50 characters to properly describe your expertise';
         } else {
           validationMessages[field] = `${getFieldDisplayName(field)} is required`;
         }
@@ -161,20 +161,26 @@ function isFieldComplete(field: string, value: any): boolean {
   switch (field) {
     case 'firstName':
     case 'lastName':
+      return typeof value === 'string' && value.trim().length > 0;
+    
     case 'bio':
+      return typeof value === 'string' && value.trim().length >= 50;
+    
     case 'profileImageUrl':
     case 'calendlyUrl':
     case 'eventTypeUrl':
       return typeof value === 'string' && value.trim().length > 0;
     
     case 'coachingSpecialties':
-      return Array.isArray(value) && value.length > 0;
+      return Array.isArray(value) && value.length >= 1;
     
     case 'hourlyRate':
+      // Must be explicitly set, not just default value
       return typeof value === 'number' && value >= 100 && value <= 3000;
     
     case 'yearsCoaching':
-      return typeof value === 'number' && value >= 0;
+      // Must be explicitly set, not just default value
+      return typeof value === 'number' && value > 0;
     
     default:
       return false;

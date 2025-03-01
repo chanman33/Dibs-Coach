@@ -315,7 +315,7 @@ export function CoachProfileForm({
                         />
                       </FormControl>
                       <FormDescription>
-                        How many years have you been coaching professionally?
+                        How many years have you been coaching professionally? This may include time spent in leadership roles, training, or other coaching experiences.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

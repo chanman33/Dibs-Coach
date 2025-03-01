@@ -48,6 +48,7 @@ interface CoachProfileResponse {
   canPublish: boolean;
   missingFields: string[];
   missingRequiredFields: string[];
+  optionalMissingFields: string[];
   validationMessages: Record<string, string>;
 }
 
@@ -193,6 +194,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         canPublish,
         missingFields,
         missingRequiredFields: [],
+        optionalMissingFields: [],
         validationMessages: {}
       };
 
@@ -623,8 +625,8 @@ export async function createCoachProfileIfNeeded(userUlid: string) {
       .insert({
         userUlid,
         coachSkills: [],
-        yearsCoaching: 0,
-        hourlyRate: 0,
+        yearsCoaching: null,
+        hourlyRate: null,
         defaultDuration: 60,
         minimumDuration: 30,
         maximumDuration: 120,

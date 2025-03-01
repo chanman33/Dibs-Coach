@@ -30,9 +30,9 @@ export default function Home() {
       <div className="flex flex-col p-2 w-full justify-center items-center">
         <MarketingCards />
       </div>
-      <div className="max-w-[1200px] p-8 mt-[2rem] lg:mt-[6rem] lg:mb-[5rem]">
+      {/* <div className="max-w-[1200px] p-8 mt-[2rem] lg:mt-[6rem] lg:mb-[5rem]">
         <CoachCarousel />
-      </div>
+      </div> */}
       {(config.auth.enabled && config.payments.enabled) && <div>
         <Pricing />
       </div>}

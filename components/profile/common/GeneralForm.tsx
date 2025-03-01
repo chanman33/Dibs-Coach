@@ -5,12 +5,16 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { z } from "zod"
 import { Card } from "@/components/ui/card"
+import { toast } from "sonner"
 
 // Validation schema matching database types
 const generalFormSchema = z.object({
   // User fields
   displayName: z.string().min(1, "Display name is required"),
-  bio: z.string().nullable(),
+  bio: z.string()
+    .min(50, "Bio must be at least 50 characters long")
+    .nullable()
+    .transform(val => val || null),
   totalYearsRE: z.number().min(0, "Years must be 0 or greater"),
   primaryMarket: z.string().min(1, "Primary market is required"),
 })
@@ -29,6 +33,10 @@ interface GeneralFormProps {
   isSubmitting?: boolean
 }
 
+type FormErrors = {
+  [K in keyof GeneralFormData]?: string;
+}
+
 export default function GeneralForm({ 
   onSubmit, 
   initialData,
@@ -40,6 +48,8 @@ export default function GeneralForm({
     totalYearsRE: 0,
     primaryMarket: "",
   })
+  const [errors, setErrors] = useState<FormErrors>({})
+  const [touched, setTouched] = useState<{ [key: string]: boolean }>({})
 
   useEffect(() => {
     if (initialData) {
@@ -72,8 +82,22 @@ export default function GeneralForm({
     }
   }, [initialData])
 
+  const validateField = (name: keyof GeneralFormData, value: any) => {
+    try {
+      const fieldSchema = generalFormSchema.shape[name]
+      fieldSchema.parse(value)
+      setErrors(prev => ({ ...prev, [name]: undefined }))
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        const message = error.errors[0]?.message
+        setErrors(prev => ({ ...prev, [name]: message }))
+      }
+    }
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
+    const newValue = name === "totalYearsRE" ? parseInt(value) || 0 : value
     
     // Log total years change
     // if (name === "totalYearsRE") {
@@ -87,33 +111,53 @@ export default function GeneralForm({
 
     setFormData(prev => ({
       ...prev,
-      [name]: name === "totalYearsRE" ? parseInt(value) || 0 : value,
+      [name]: newValue,
     }))
+
+    if (touched[name]) {
+      validateField(name as keyof GeneralFormData, newValue)
+    }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      // Validate form data
-      const validatedData = generalFormSchema.parse(formData)
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name } = e.target
+    setTouched(prev => ({ ...prev, [name]: true }))
+    validateField(name as keyof GeneralFormData, formData[name as keyof GeneralFormData])
+  }
 
-      // Log form submission details
-      // console.log("[GENERAL_FORM_SUBMIT]", {
-      //   formData,
-      //   validatedData,
-      //   totalYearsRE: validatedData.totalYearsRE,
-      //   timestamp: new Date().toISOString()
-      // });
-      onSubmit(validatedData)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    try {
+      // Validate all fields
+      const validatedData = generalFormSchema.parse(formData)
+      
+      // Clear any existing errors
+      setErrors({})
+      
+      // Submit the form
+      await onSubmit(validatedData)
     } catch (error) {
       if (error instanceof z.ZodError) {
-        console.error('[VALIDATION_ERROR]', {
+        // Convert Zod errors to our form errors format
+        const newErrors: FormErrors = {}
+        error.errors.forEach(err => {
+          if (err.path[0]) {
+            newErrors[err.path[0] as keyof GeneralFormData] = err.message
+          }
+        })
+        setErrors(newErrors)
+        
+        // Show toast with the first error
+        toast.error(error.errors[0]?.message || "Please check the form for errors")
+      } else {
+        console.error('[FORM_SUBMIT_ERROR]', {
           error,
           formData,
           timestamp: new Date().toISOString()
         })
+        toast.error("Failed to save changes. Please try again.")
       }
-      // Handle validation errors here if needed
     }
   }
 
@@ -135,12 +179,16 @@ export default function GeneralForm({
                 id="displayName" 
                 name="displayName" 
                 value={formData.displayName} 
-                onChange={handleChange} 
+                onChange={handleChange}
+                onBlur={handleBlur}
                 required 
                 placeholder="Enter your preferred display name"
                 disabled={isSubmitting}
-                className="mt-1"
+                className={`mt-1 ${errors.displayName ? 'border-red-500' : ''}`}
               />
+              {errors.displayName && (
+                <p className="text-xs text-red-500 mt-1">{errors.displayName}</p>
+              )}
               <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                 This is how your name will appear publicly on your profile.
               </p>
@@ -153,14 +201,25 @@ export default function GeneralForm({
                 name="bio" 
                 value={formData.bio || ''}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 disabled={isSubmitting}
                 placeholder="Write a comprehensive description of your professional background and expertise. This will appear on your profile page."
                 rows={6}
-                className="mt-1"
+                className={`mt-1 ${errors.bio ? 'border-red-500' : ''}`}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                A well-written bio helps potential clients understand your expertise and approach.
-              </p>
+              <div className="flex justify-between items-center mt-1">
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    A well-written bio helps potential clients understand your expertise and approach.
+                  </p>
+                  {errors.bio && (
+                    <p className="text-xs text-red-500">{errors.bio}</p>
+                  )}
+                </div>
+                <p className={`text-xs ${(formData.bio?.length || 0) < 50 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  {(formData.bio?.length || 0)}/50 characters minimum
+                </p>
+              </div>
             </div>
 
             <div>
@@ -172,11 +231,15 @@ export default function GeneralForm({
                 min="0"
                 value={formData.totalYearsRE}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="0"
                 required
                 disabled={isSubmitting}
-                className="mt-1"
+                className={`mt-1 ${errors.totalYearsRE ? 'border-red-500' : ''}`}
               />
+              {errors.totalYearsRE && (
+                <p className="text-xs text-red-500 mt-1">{errors.totalYearsRE}</p>
+              )}
               <p className="text-xs text-muted-foreground mt-1">
                 Your total years of experience in real estate.
               </p>
@@ -189,11 +252,15 @@ export default function GeneralForm({
                 name="primaryMarket"
                 value={formData.primaryMarket}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 placeholder="e.g. Greater Los Angeles Area"
                 required
                 disabled={isSubmitting}
-                className="mt-1"
+                className={`mt-1 ${errors.primaryMarket ? 'border-red-500' : ''}`}
               />
+              {errors.primaryMarket && (
+                <p className="text-xs text-red-500 mt-1">{errors.primaryMarket}</p>
+              )}
               <p className="text-xs text-muted-foreground mt-1">
                 The geographic area where you primarily operate.
               </p>
@@ -203,7 +270,7 @@ export default function GeneralForm({
           <div className="flex justify-end mt-6 sm:mt-8">
             <Button 
               type="submit" 
-              disabled={isSubmitting}
+              disabled={isSubmitting || Object.keys(errors).length > 0}
               className="px-6"
             >
               {isSubmitting ? (
