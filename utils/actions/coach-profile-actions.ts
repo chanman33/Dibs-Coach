@@ -23,6 +23,7 @@ export interface CoachProfileFormData {
   realEstateDomains?: string[];
   certifications?: string[];
   professionalRecognitions?: ProfessionalRecognition[];
+  skipRevalidation?: boolean;
 }
 
 interface CoachProfileResponse {
@@ -245,17 +246,35 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
 
       const supabase = await createAuthClient()
       
+      // Get existing coach profile to check status
+      const { data: existingProfile, error: existingProfileError } = await supabase
+        .from('CoachProfile')
+        .select('profileStatus, ulid')
+        .eq('userUlid', userUlid)
+        .single();
+
+      if (existingProfileError) {
+        console.error('[UPDATE_COACH_PROFILE_ERROR]', {
+          userUlid,
+          error: existingProfileError,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch coach profile',
+            details: { error: existingProfileError }
+          }
+        }
+      }
+
+      // Get user data for profile completion calculation
       const { data: userData, error: userError } = await supabase
         .from('User')
-        .select(`
-          firstName,
-          lastName,
-          bio,
-          profileImageUrl,
-          realtorProfile:RealtorProfile!inner(ulid)
-        `)
+        .select('firstName, lastName, bio, profileImageUrl')
         .eq('ulid', userUlid)
-        .single()
+        .single();
 
       if (userError) {
         console.error('[UPDATE_COACH_USER_ERROR]', {
@@ -273,14 +292,6 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         }
       }
 
-      console.log("[UPDATE_COACH_USER_FETCHED]", {
-        userUlid,
-        userData,
-        timestamp: new Date().toISOString()
-      });
-
-      const realtorProfileUlid = userData.realtorProfile[0].ulid;
-
       const profileData = {
         firstName: userData.firstName,
         lastName: userData.lastName,
@@ -295,28 +306,6 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
       
       const { percentage, missingFields, canPublish } = calculateProfileCompletion(profileData);
       
-      // Check existing profile status
-      const { data: existingProfile, error: existingProfileError } = await supabase
-        .from('CoachProfile')
-        .select('profileStatus')
-        .eq('userUlid', userUlid)
-        .maybeSingle();
-
-      if (existingProfileError) {
-        console.error('[UPDATE_COACH_EXISTING_PROFILE_ERROR]', {
-          userUlid,
-          error: existingProfileError,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      console.log("[UPDATE_COACH_PROFILE_STATUS_CHECK]", {
-        userUlid,
-        existingProfile,
-        canPublish,
-        timestamp: new Date().toISOString()
-      });
-
       // Determine profile status
       let profileStatus: ProfileStatus = PROFILE_STATUS.DRAFT;
       if (canPublish && existingProfile?.profileStatus === PROFILE_STATUS.PUBLISHED) {
@@ -345,17 +334,15 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         timestamp: new Date().toISOString()
       });
 
-      const { error: coachError } = await supabase
+      const { error: updateError } = await supabase
         .from('CoachProfile')
-        .upsert(coachProfileData, {
-          onConflict: 'userUlid'
-        })
-        .select()
+        .update(coachProfileData)
+        .eq('ulid', existingProfile.ulid);
 
-      if (coachError) {
+      if (updateError) {
         console.error('[UPDATE_COACH_PROFILE_ERROR]', {
           userUlid,
-          error: coachError,
+          error: updateError,
           timestamp: new Date().toISOString()
         });
         return {
@@ -363,17 +350,16 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           error: {
             code: 'DATABASE_ERROR',
             message: 'Failed to update coach profile',
-            details: { error: coachError }
+            details: { error: updateError }
           }
         }
       }
 
-      console.log("[UPDATE_COACH_PROFILE_SUCCESS]", {
-        userUlid,
-        timestamp: new Date().toISOString()
-      });
+      // Only revalidate if this is not part of a larger form submission
+      if (!formData.skipRevalidation) {
+        revalidatePath('/dashboard/coach/profile');
+      }
 
-      revalidatePath('/dashboard/coach/profile')
       return { 
         data: { 
           success: true,

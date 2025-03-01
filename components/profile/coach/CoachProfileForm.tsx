@@ -66,6 +66,11 @@ const coachBasicInfoSchema = z.object({
 
 type CoachBasicInfoValues = z.infer<typeof coachBasicInfoSchema>;
 
+// Add this type extension before the CoachProfileFormProps interface
+type ExtendedCoachProfileFormValues = CoachProfileFormValues & {
+  skipRevalidation?: boolean;
+};
+
 export interface CoachProfileFormProps {
   initialData?: {
     yearsCoaching?: number;
@@ -73,7 +78,7 @@ export interface CoachProfileFormProps {
     coachSkills?: string[];
     [key: string]: any;
   };
-  onSubmit: (data: CoachProfileFormValues) => Promise<void>;
+  onSubmit: (data: ExtendedCoachProfileFormValues) => Promise<void>;
   isSubmitting?: boolean;
   profileStatus?: ProfileStatus;
   completionPercentage?: number;
@@ -160,23 +165,10 @@ export function CoachProfileForm({
           timestamp: new Date().toISOString()
         });
         onSkillsChange(skills);
-
-        // Immediately save skills when they change
-        if (saveSkills && skills.length > 0) {
-          try {
-            await saveSkills(skills);
-          } catch (error) {
-            console.error("[SAVE_SKILLS_ERROR]", {
-              error,
-              skills,
-              timestamp: new Date().toISOString()
-            });
-          }
-        }
       }
     });
     return () => subscription.unsubscribe();
-  }, [form, onSkillsChange, saveSkills]);
+  }, [form, onSkillsChange]);
 
   // Log initial form state
   useEffect(() => {
@@ -218,21 +210,13 @@ export function CoachProfileForm({
         return;
       }
 
-      const mergedData: CoachProfileFormValues = {
-        ...initialData as CoachProfileFormValues,
+      const mergedData: ExtendedCoachProfileFormValues = {
+        ...initialData as ExtendedCoachProfileFormValues,
         yearsCoaching: data.yearsCoaching,
         hourlyRate: data.hourlyRate,
         coachSkills: data.coachSkills,
+        skipRevalidation: true
       };
-
-      // First save skills if they've changed
-      if (saveSkills && data.coachSkills) {
-        console.log("[SAVING_SKILLS]", {
-          skills: data.coachSkills,
-          timestamp: new Date().toISOString()
-        });
-        await saveSkills(data.coachSkills);
-      }
 
       await onSubmit(mergedData);
       form.reset(data);
@@ -404,6 +388,7 @@ export function CoachProfileForm({
                           noOptionsMessage={() => "No skills found"}
                           menuPortalTarget={typeof document !== 'undefined' ? document.body : null}
                           menuPosition="fixed"
+                          menuPlacement="top"
                           isSearchable
                           isClearable
                           blurInputOnSelect={false}
