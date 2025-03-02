@@ -7,6 +7,7 @@ import { z } from "zod"
 import { Card } from "@/components/ui/card"
 import { toast } from "sonner"
 import type { ApiResponse } from "@/utils/types/api"
+import type { GeneralFormData } from "@/utils/actions/user-profile-actions"
 
 // Validation schema matching database types
 const generalFormSchema = z.object({
@@ -18,9 +19,8 @@ const generalFormSchema = z.object({
     .transform(val => val || null),
   totalYearsRE: z.number().min(0, "Years must be 0 or greater"),
   primaryMarket: z.string().min(1, "Primary market is required"),
+  languages: z.array(z.string()).optional()
 })
-
-type GeneralFormData = z.infer<typeof generalFormSchema>
 
 interface GeneralFormProps {
   onSubmit: (data: GeneralFormData) => Promise<ApiResponse<GeneralFormData>>
@@ -30,6 +30,7 @@ interface GeneralFormProps {
     bio?: string | null
     totalYearsRE?: number
     primaryMarket?: string | null
+    languages?: string[]
   }
   isSubmitting?: boolean
 }
@@ -48,6 +49,7 @@ export default function GeneralForm({
     bio: initialData?.bio || null,
     totalYearsRE: initialData?.totalYearsRE ?? 0,
     primaryMarket: initialData?.primaryMarket || "",
+    languages: initialData?.languages || [],
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [touched, setTouched] = useState<{ [key: string]: boolean }>({})
@@ -61,6 +63,7 @@ export default function GeneralForm({
           bio: initialData.bio || prev.bio || null,
           totalYearsRE: initialData.totalYearsRE ?? prev.totalYearsRE ?? 0,
           primaryMarket: initialData.primaryMarket || prev.primaryMarket || "",
+          languages: initialData.languages || prev.languages || [],
         };
         return newData;
       })

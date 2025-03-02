@@ -13,19 +13,10 @@ import GoalsForm from "./GoalsForm";
 import { Goal, GoalFormValues } from "@/utils/types/goals";
 import ListingsForm from "../industry/realtor/ListingsForm";
 import { toast } from "sonner";
-
-export const INDUSTRY_SPECIALTIES = {
-  REALTOR: "REALTOR",
-  INVESTOR: "INVESTOR",
-  MORTGAGE: "MORTGAGE",
-  PROPERTY_MANAGER: "PROPERTY_MANAGER",
-  TITLE_ESCROW: "TITLE_ESCROW",
-  INSURANCE: "INSURANCE",
-  COMMERCIAL: "COMMERCIAL",
-  PRIVATE_CREDIT: "PRIVATE_CREDIT",
-};
-
-export type IndustrySpecialty = keyof typeof INDUSTRY_SPECIALTIES;
+import { type ApiResponse } from "@/utils/types/api";
+import { type GeneralFormData } from "@/utils/actions/user-profile-actions";
+import { isEqual } from "lodash";
+import { REAL_ESTATE_DOMAINS, type RealEstateDomain } from "@/utils/types/coach";
 
 // Define the tab interface
 export interface ProfileTab {
@@ -59,149 +50,25 @@ interface DomainTabsConfig {
   commercialFormContent?: React.ReactNode;
   commercialListingsContent?: React.ReactNode;
   privateCreditFormContent?: React.ReactNode;
+  creditListingsContent?: React.ReactNode;
   isSubmitting: boolean;
 }
-
-const buildDomainSubTabs = (industrySpecialties: string[], config: DomainTabsConfig): ProfileSubTab[] => {
-  const tabs: ProfileSubTab[] = [];
-  
-  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.REALTOR) && config.realtorFormContent) {
-    tabs.push({
-      id: "realtor",
-      label: "Realtor Profile",
-      icon: <Home className="h-4 w-4" />,
-      content: config.realtorFormContent
-    });
-    
-    tabs.push({
-      id: "realtor-listings",
-      label: "Listings",
-      icon: <List className="h-4 w-4" />,
-      content: (
-        <ListingsForm 
-          onSubmit={async (data) => {
-            toast.success("Listing created successfully");
-            return { data: null };
-          }}
-          onUpdate={async (ulid, data) => {
-            toast.success("Listing updated successfully");
-            return { data: null };
-          }}
-          activeListings={[]}
-          successfulTransactions={[]}
-          isSubmitting={config.isSubmitting}
-        />
-      )
-    });
-  }
-  
-  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.INVESTOR) && config.investorFormContent) {
-    tabs.push({
-      id: "investor",
-      label: "Investor Profile",
-      icon: <Building className="h-4 w-4" />,
-      content: config.investorFormContent
-    });
-    
-    if (config.investorListingsContent) {
-      tabs.push({
-        id: "investor-listings",
-        label: "Investment Properties",
-        icon: <List className="h-4 w-4" />,
-        content: config.investorListingsContent
-      });
-    }
-  }
-  
-  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.MORTGAGE) && config.mortgageFormContent) {
-    tabs.push({
-      id: "mortgage",
-      label: "Mortgage Profile",
-      icon: <Building className="h-4 w-4" />,
-      content: config.mortgageFormContent
-    });
-  }
-  
-  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.PROPERTY_MANAGER) && config.propertyManagerFormContent) {
-    tabs.push({
-      id: "property-manager",
-      label: "Property Manager Profile",
-      icon: <Building className="h-4 w-4" />,
-      content: config.propertyManagerFormContent
-    });
-    
-    if (config.propertyManagerListingsContent) {
-      tabs.push({
-        id: "property-manager-listings",
-        label: "Managed Properties",
-        icon: <List className="h-4 w-4" />,
-        content: config.propertyManagerListingsContent
-      });
-    }
-  }
-  
-  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.TITLE_ESCROW) && config.titleEscrowFormContent) {
-    tabs.push({
-      id: "title-escrow",
-      label: "Title & Escrow Profile",
-      icon: <Building className="h-4 w-4" />,
-      content: config.titleEscrowFormContent
-    });
-  }
-  
-  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.INSURANCE) && config.insuranceFormContent) {
-    tabs.push({
-      id: "insurance",
-      label: "Insurance Profile",
-      icon: <Building className="h-4 w-4" />,
-      content: config.insuranceFormContent
-    });
-  }
-
-  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.COMMERCIAL) && config.commercialFormContent) {
-    tabs.push({
-      id: "commercial",
-      label: "Commercial Profile",
-      icon: <Building className="h-4 w-4" />,
-      content: config.commercialFormContent
-    });
-    
-    if (config.commercialListingsContent) {
-      tabs.push({
-        id: "commercial-listings",
-        label: "Commercial Properties",
-        icon: <List className="h-4 w-4" />,
-        content: config.commercialListingsContent
-      });
-    }
-  }
-
-  if (industrySpecialties.includes(INDUSTRY_SPECIALTIES.PRIVATE_CREDIT) && config.privateCreditFormContent) {
-    tabs.push({
-      id: "private-credit",
-      label: "Private Credit Profile",
-      icon: <Briefcase className="h-4 w-4" />,
-      content: config.privateCreditFormContent
-    });
-  }
-
-  return tabs;
-};
 
 interface ProfileTabsManagerProps {
   userCapabilities: string[];
   selectedSkills: string[];
-  industrySpecialties: string[];
+  realEstateDomains: RealEstateDomain[];
   generalUserInfo?: {
     displayName?: string | null;
     bio?: string | null;
     totalYearsRE?: number;
-    primaryMarket?: string | null;
+    primaryMarket?: string;
   };
-  onSubmitGeneral?: (data: any) => Promise<void>;
+  onSubmitGeneral?: (data: GeneralFormData) => Promise<ApiResponse<GeneralFormData>>;
   onSubmitCoach?: (data: CoachProfileFormValues) => Promise<void>;
   coachFormContent: React.ReactNode;
   realtorFormContent?: React.ReactNode;
+  realtorListingsContent?: React.ReactNode;
   investorFormContent?: React.ReactNode;
   investorListingsContent?: React.ReactNode;
   mortgageFormContent?: React.ReactNode;
@@ -212,6 +79,7 @@ interface ProfileTabsManagerProps {
   commercialFormContent?: React.ReactNode;
   commercialListingsContent?: React.ReactNode;
   privateCreditFormContent?: React.ReactNode;
+  creditListingsContent?: React.ReactNode;
   initialRecognitions?: ProfessionalRecognition[];
   onSubmitRecognitions: (recognitions: ProfessionalRecognition[]) => Promise<void>;
   initialMarketingInfo?: MarketingInfoType;
@@ -225,12 +93,13 @@ interface ProfileTabsManagerProps {
 export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
   userCapabilities,
   selectedSkills,
-  industrySpecialties,
+  realEstateDomains,
   generalUserInfo,
   onSubmitGeneral,
   onSubmitCoach,
   coachFormContent,
   realtorFormContent,
+  realtorListingsContent,
   investorFormContent,
   investorListingsContent,
   mortgageFormContent,
@@ -241,6 +110,7 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
   commercialFormContent,
   commercialListingsContent,
   privateCreditFormContent,
+  creditListingsContent,
   initialRecognitions = [],
   onSubmitRecognitions,
   initialMarketingInfo,
@@ -257,48 +127,216 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
   const [showSubTabsDropdown, setShowSubTabsDropdown] = useState(false);
 
   // Track previous specialties for comparison
-  const prevSpecialtiesRef = useRef<string>(JSON.stringify(industrySpecialties));
+  const prevSpecialtiesRef = useRef<string>(JSON.stringify(realEstateDomains));
 
-  // Memoize domain sub-tabs with proper dependency array
-  const domainSubTabs = useMemo(
-    () => {
-      // Only rebuild if we have industry specialties and are on the coach tab
-      if (!industrySpecialties?.length || activeTab !== 'coach') {
-        return [];
-      }
+  const buildDomainSubTabs = useCallback((
+    realEstateDomains: RealEstateDomain[] | undefined,
+    realtorListingsContent: React.ReactNode,
+    realtorFormContent: React.ReactNode,
+    propertyManagerFormContent: React.ReactNode,
+    propertyManagerListingsContent: React.ReactNode,
+    investorFormContent: React.ReactNode,
+    investorListingsContent: React.ReactNode,
+    mortgageFormContent: React.ReactNode,
+    titleEscrowFormContent: React.ReactNode,
+    insuranceFormContent: React.ReactNode,
+    commercialFormContent: React.ReactNode,
+    commercialListingsContent: React.ReactNode,
+    privateCreditFormContent: React.ReactNode,
+    creditListingsContent: React.ReactNode
+  ): ProfileSubTab[] => {
+    console.log("[BUILD_DOMAIN_SUBTABS_START]", {
+      realEstateDomains,
+      timestamp: new Date().toISOString(),
+      source: 'client'
+    });
 
-      return buildDomainSubTabs(industrySpecialties, {
-        realtorFormContent,
-        investorFormContent,
-        investorListingsContent,
-        mortgageFormContent,
-        propertyManagerFormContent,
-        propertyManagerListingsContent,
-        titleEscrowFormContent,
-        insuranceFormContent,
-        commercialFormContent,
-        commercialListingsContent,
-        privateCreditFormContent,
-        isSubmitting
+    const subTabs: ProfileSubTab[] = [];
+
+    // Log initial state
+    console.log("[BUILD_DOMAIN_SUBTABS_STATE]", {
+      hasRealEstateDomains: Boolean(realEstateDomains?.length),
+      domains: realEstateDomains,
+      timestamp: new Date().toISOString(),
+      source: 'client'
+    });
+
+    // Add realtor tabs if user has realtor domain
+    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.REALTOR)) {
+      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_REALTOR]", {
+        timestamp: new Date().toISOString(),
+        source: 'client'
       });
-    },
-    // Only depend on the specialties and form contents, not activeTab
-    [
-      industrySpecialties,
-      realtorFormContent,
-      investorFormContent,
-      investorListingsContent,
-      mortgageFormContent,
-      propertyManagerFormContent,
-      propertyManagerListingsContent,
-      titleEscrowFormContent,
-      insuranceFormContent,
-      commercialFormContent,
-      commercialListingsContent,
-      privateCreditFormContent,
-      isSubmitting
-    ]
-  );
+      subTabs.push(
+        {
+          id: "realtor-info",
+          label: "Realtor Info",
+          icon: <Home className="h-4 w-4" />,
+          content: realtorFormContent,
+        },
+        {
+          id: "realtor-listings",
+          label: "Listings",
+          icon: <List className="h-4 w-4" />,
+          content: realtorListingsContent,
+        }
+      );
+    }
+
+    // Add investor tabs if user has investor domain
+    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.INVESTOR)) {
+      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_INVESTOR]", {
+        timestamp: new Date().toISOString(),
+        source: 'client'
+      });
+      subTabs.push(
+        {
+          id: "investor-info",
+          label: "Investor Info",
+          icon: <Building className="h-4 w-4" />,
+          content: investorFormContent,
+        },
+        {
+          id: "investor-listings",
+          label: "Investments",
+          icon: <ListChecks className="h-4 w-4" />,
+          content: investorListingsContent,
+        }
+      );
+    }
+
+    // Add mortgage tabs if user has mortgage domain
+    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.MORTGAGE)) {
+      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_MORTGAGE]", {
+        timestamp: new Date().toISOString(),
+        source: 'client'
+      });
+      subTabs.push({
+        id: "mortgage-info",
+        label: "Mortgage Info",
+        icon: <Building className="h-4 w-4" />,
+        content: mortgageFormContent,
+      });
+    }
+
+    // Add property manager tabs if user has property manager domain
+    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.PROPERTY_MANAGER)) {
+      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_PROPERTY_MANAGER]", {
+        timestamp: new Date().toISOString(),
+        source: 'client'
+      });
+      subTabs.push(
+        {
+          id: "property-manager-info",
+          label: "Property Manager Info",
+          icon: <Building className="h-4 w-4" />,
+          content: propertyManagerFormContent,
+        },
+        {
+          id: "property-manager-listings",
+          label: "Properties",
+          icon: <ListChecks className="h-4 w-4" />,
+          content: propertyManagerListingsContent,
+        }
+      );
+    }
+
+    // Add title/escrow tabs if user has title/escrow domain
+    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.TITLE_ESCROW)) {
+      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_TITLE_ESCROW]", {
+        timestamp: new Date().toISOString(),
+        source: 'client'
+      });
+      subTabs.push({
+        id: "title-escrow-info",
+        label: "Title/Escrow Info",
+        icon: <Building className="h-4 w-4" />,
+        content: titleEscrowFormContent,
+      });
+    }
+
+    // Add insurance tabs if user has insurance domain
+    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.INSURANCE)) {
+      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_INSURANCE]", {
+        timestamp: new Date().toISOString(),
+        source: 'client'
+      });
+      subTabs.push({
+        id: "insurance-info",
+        label: "Insurance Info",
+        icon: <Building className="h-4 w-4" />,
+        content: insuranceFormContent,
+      });
+    }
+
+    // Add commercial tabs if user has commercial domain
+    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.COMMERCIAL)) {
+      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_COMMERCIAL]", {
+        timestamp: new Date().toISOString(),
+        source: 'client'
+      });
+      subTabs.push(
+        {
+          id: "commercial-info",
+          label: "Commercial Info",
+          icon: <Building className="h-4 w-4" />,
+          content: commercialFormContent,
+        },
+        {
+          id: "commercial-listings",
+          label: "Commercial Properties",
+          icon: <ListChecks className="h-4 w-4" />,
+          content: commercialListingsContent,
+        }
+      );
+    }
+
+    // Add private credit tabs if user has private credit domain
+    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.PRIVATE_CREDIT)) {
+      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_PRIVATE_CREDIT]", {
+        timestamp: new Date().toISOString(),
+        source: 'client'
+      });
+      subTabs.push(
+        {
+          id: "private-credit-info",
+          label: "Private Credit Info",
+          icon: <Building className="h-4 w-4" />,
+          content: privateCreditFormContent,
+        },
+        {
+          id: "credit-listings",
+          label: "Credit Track Record",
+          icon: <ListChecks className="h-4 w-4" />,
+          content: creditListingsContent,
+        }
+      );
+    }
+
+    // Log final tabs
+    console.log("[BUILD_DOMAIN_SUBTABS_COMPLETE]", {
+      generatedTabIds: subTabs.map(tab => tab.id),
+      totalTabs: subTabs.length,
+      timestamp: new Date().toISOString(),
+      source: 'client'
+    });
+
+    return subTabs;
+  }, [
+    realtorFormContent,
+    realtorListingsContent,
+    investorFormContent,
+    investorListingsContent,
+    mortgageFormContent,
+    propertyManagerFormContent,
+    propertyManagerListingsContent,
+    titleEscrowFormContent,
+    insuranceFormContent,
+    commercialFormContent,
+    commercialListingsContent,
+    privateCreditFormContent,
+    creditListingsContent
+  ]);
 
   // Memoize all tabs to prevent unnecessary rebuilds
   const allTabs = useMemo<ProfileTab[]>(() => [
@@ -309,7 +347,7 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
       content: (
         <GeneralForm
           initialData={generalUserInfo}
-          onSubmit={onSubmitGeneral || (() => {})}
+          onSubmit={onSubmitGeneral || (async () => ({ data: null, error: null }))}
           isSubmitting={isSubmitting}
         />
       ),
@@ -382,14 +420,29 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
   // Reset sub-tab only when specialties are actually different
   useEffect(() => {
     if (activeTab === "coach") {
-      const currentSpecialties = JSON.stringify(industrySpecialties);
-      
+      console.log("[PROFILE_TABS_SPECIALTIES_CHECK]", {
+        previousSpecialties: JSON.parse(prevSpecialtiesRef.current || '[]'),
+        currentSpecialties: realEstateDomains,
+        hasChanged: !isEqual(JSON.parse(prevSpecialtiesRef.current || '[]'), realEstateDomains),
+        timestamp: new Date().toISOString(),
+        source: 'client'
+      });
+
+      const currentSpecialties = JSON.stringify(realEstateDomains);
       if (prevSpecialtiesRef.current !== currentSpecialties) {
+        console.log("[PROFILE_TABS_RESETTING_SUBTAB]", {
+          from: activeSubTab,
+          to: "basic-info",
+          previousSpecialties: JSON.parse(prevSpecialtiesRef.current || '[]'),
+          newSpecialties: realEstateDomains,
+          timestamp: new Date().toISOString(),
+          source: 'client'
+        });
         setActiveSubTab("basic-info");
         prevSpecialtiesRef.current = currentSpecialties;
       }
     }
-  }, [industrySpecialties, activeTab]);
+  }, [activeTab, realEstateDomains, activeSubTab]);
 
   // Memoize filtered tabs to prevent unnecessary rebuilds
   const filteredTabs = useMemo(() => 
@@ -403,8 +456,20 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
 
   // Get the active tab object - memoize to prevent unnecessary rebuilds
   const activeTabObject = useMemo<ProfileTab | undefined>(() => {
+    console.log("[PROFILE_TABS_BUILDING_ACTIVE_TAB]", {
+      activeTab,
+      hasRealEstateDomains: Boolean(realEstateDomains?.length),
+      domains: realEstateDomains,
+      timestamp: new Date().toISOString(),
+      source: 'client'
+    });
+
     const tab = filteredTabs.find(tab => tab.id === activeTab);
     if (tab?.id === 'coach') {
+      console.log("[PROFILE_TABS_BUILDING_COACH_SUBTABS]", {
+        timestamp: new Date().toISOString(),
+        source: 'client'
+      });
       return {
         ...tab,
         subTabs: [
@@ -414,12 +479,12 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
             icon: <Info className="h-4 w-4" />,
             content: coachFormContent
           },
-          ...domainSubTabs
+          ...buildDomainSubTabs(realEstateDomains, realtorListingsContent, realtorFormContent, propertyManagerFormContent, propertyManagerListingsContent, investorFormContent, investorListingsContent, mortgageFormContent, titleEscrowFormContent, insuranceFormContent, commercialFormContent, commercialListingsContent, privateCreditFormContent, creditListingsContent)
         ]
       };
     }
     return tab;
-  }, [filteredTabs, activeTab, coachFormContent, domainSubTabs]);
+  }, [filteredTabs, activeTab, coachFormContent, realEstateDomains, realtorListingsContent, realtorFormContent, propertyManagerFormContent, propertyManagerListingsContent, investorFormContent, investorListingsContent, mortgageFormContent, titleEscrowFormContent, insuranceFormContent, commercialFormContent, commercialListingsContent, privateCreditFormContent, creditListingsContent, buildDomainSubTabs]);
 
   // Get the active content based on current tab/subtab
   const activeContent = useMemo(() => {
@@ -431,6 +496,14 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
   }, [activeTab, activeTabObject, activeSubTab]);
 
   const handleTabSelect = useCallback((tabId: string) => {
+    console.log("[PROFILE_TABS_TAB_SELECTED]", {
+      previousTab: activeTab,
+      newTab: tabId,
+      hasRealEstateDomains: Boolean(realEstateDomains?.length),
+      domains: realEstateDomains,
+      timestamp: new Date().toISOString(),
+      source: 'client'
+    });
     setActiveTab(tabId);
     setShowTabsDropdown(false);
     
@@ -439,7 +512,7 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
     if (selectedTab?.subTabs && selectedTab.subTabs.length > 0) {
       setActiveSubTab(selectedTab.subTabs[0].id);
     }
-  }, [filteredTabs]);
+  }, [filteredTabs, realEstateDomains, activeTab]);
 
   const handleSubTabSelect = useCallback((subTabId: string) => {
     setActiveSubTab(subTabId);
@@ -457,6 +530,68 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
       await onSubmitCoach(data);
     }
   };
+
+  // Add logging for tab state changes
+  useEffect(() => {
+    if (activeTab === "coach") {
+      console.log("[PROFILE_TABS_SPECIALTIES_CHECK]", {
+        previousSpecialties: JSON.parse(prevSpecialtiesRef.current || '[]'),
+        currentSpecialties: realEstateDomains,
+        hasChanged: !isEqual(JSON.parse(prevSpecialtiesRef.current || '[]'), realEstateDomains),
+        timestamp: new Date().toISOString(),
+        source: 'client'
+      });
+
+      const currentSpecialties = JSON.stringify(realEstateDomains);
+      if (prevSpecialtiesRef.current !== currentSpecialties) {
+        console.log("[PROFILE_TABS_RESETTING_SUBTAB]", {
+          from: activeSubTab,
+          to: "basic-info",
+          previousSpecialties: JSON.parse(prevSpecialtiesRef.current || '[]'),
+          newSpecialties: realEstateDomains,
+          timestamp: new Date().toISOString(),
+          source: 'client'
+        });
+        setActiveSubTab("basic-info");
+        prevSpecialtiesRef.current = currentSpecialties;
+      }
+    }
+  }, [activeTab, realEstateDomains, activeSubTab]);
+
+  // Add logging for tab visibility
+  useEffect(() => {
+    console.log("[PROFILE_TABS_VISIBILITY_UPDATE]", {
+      activeTab,
+      activeSubTab,
+      visibleTabs: allTabs.filter(tab => 
+        !tab.requiredCapabilities || 
+        tab.requiredCapabilities.every(cap => userCapabilities?.includes(cap))
+      ).map(tab => tab.id),
+      userCapabilities,
+      timestamp: new Date().toISOString(),
+      source: 'client'
+    });
+  }, [activeTab, activeSubTab, userCapabilities, allTabs]);
+
+  // Add logging for realEstateDomains prop changes
+  useEffect(() => {
+    console.log("[PROFILE_TABS_DOMAINS_RECEIVED]", {
+      domains: realEstateDomains,
+      timestamp: new Date().toISOString(),
+      source: 'client'
+    });
+  }, [realEstateDomains]);
+
+  // At the start of the component
+  useEffect(() => {
+    console.log("[PROFILE_TABS_PROPS_RECEIVED]", {
+      realEstateDomains,
+      userCapabilities,
+      timestamp: new Date().toISOString(),
+      source: 'client',
+      componentId: 'ProfileTabsManager'
+    });
+  }, [realEstateDomains, userCapabilities]);
 
   // Remove console.log to prevent unnecessary re-renders
   // console.log("[PROFILE_TABS_RENDER]", {...});

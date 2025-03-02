@@ -6,10 +6,23 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useCallback } from "react";
 import type { CoachProfileFormValues, CoachProfileInitialData } from "@/components/profile/types";
-import type { ProfileStatus } from "@/utils/types/coach";
+import type { ProfileStatus, RealEstateDomain } from "@/utils/types/coach";
 import { ProfileTabsManager } from "@/components/profile/common/ProfileTabsManager";
 import type { Goal, GoalFormValues } from "@/utils/types/goals";
 import type { GeneralFormData } from "@/utils/actions/user-profile-actions";
+import ListingsForm from "@/components/profile/industry/realtor/ListingsForm";
+import { RealtorProfileForm } from "@/components/profile/industry/realtor/RealtorProfileForm";
+import { PropertyManagerProfileForm } from "@/components/profile/industry/property-manager/PropertyManagerProfileForm";
+import { PropertyManagerListings } from "@/components/profile/industry/property-manager/PropertyManagerListings";
+import { InvestorProfileForm } from "@/components/profile/industry/investor/InvestorProfileForm";
+import { InvestorListings } from "@/components/profile/industry/investor/InvestorListings";
+import { MortgageProfileForm } from "@/components/profile/industry/mortgage/MortgageProfileForm";
+import { TitleEscrowProfileForm } from "@/components/profile/industry/title-escrow/TitleEscrowProfileForm";
+import { InsuranceProfileForm } from "@/components/profile/industry/insurance/InsuranceProfileForm";
+import { CommercialProfileForm } from "@/components/profile/industry/commercial/CommercialProfileForm";
+import { CommercialListings } from "@/components/profile/industry/commercial/CommercialListings";
+import { PrivateCreditProfileForm } from "@/components/profile/industry/private-credit/PrivateCreditProfileForm";
+import { CreditListings } from "@/components/profile/industry/private-credit/CreditListings";
 
 // Extended type for coach data that includes profile completion info
 interface ExtendedCoachData extends CoachProfileInitialData {
@@ -39,6 +52,26 @@ function ProfilePageContent() {
     updateGoalsData,
     onSkillsChange,
     saveSkills,
+    activeListings,
+    successfulTransactions,
+    onSubmitListing,
+    onUpdateListing,
+    realtorData,
+    propertyManagerData,
+    updateRealtorData,
+    updatePropertyManagerData,
+    investorData,
+    updateInvestorData,
+    mortgageData,
+    updateMortgageData,
+    titleEscrowData,
+    updateTitleEscrowData,
+    insuranceData,
+    updateInsuranceData,
+    commercialData,
+    updateCommercialData,
+    privateCreditData,
+    updatePrivateCreditData,
   } = useProfileContext();
 
   const handleProfileSubmit = useCallback(async (data: CoachProfileFormValues) => {
@@ -50,7 +83,8 @@ function ProfilePageContent() {
   }, [updateCoachData]);
 
   const handleGeneralSubmit = useCallback(async (data: GeneralFormData) => {
-    await updateGeneralData(data);
+    const result = await updateGeneralData(data);
+    return { data: result.data ?? null, error: result.error ?? null };
   }, [updateGeneralData]);
 
   const handleGoalsSubmit = useCallback(async (goals: Goal[]) => {
@@ -96,12 +130,19 @@ function ProfilePageContent() {
     extendedCoachData,
     timestamp: new Date().toISOString()
   });
+
+  console.log("[PROFILE_PAGE_DOMAINS_PASS]", {
+    domainsToPass: realEstateDomains,
+    timestamp: new Date().toISOString(),
+    source: 'client',
+    componentId: 'ProfilePage'
+  });
       
   return (
     <ProfileTabsManager
       userCapabilities={userCapabilities}
       selectedSkills={selectedSkills}
-      industrySpecialties={realEstateDomains}
+      realEstateDomains={realEstateDomains}
       generalUserInfo={generalData}
       onSubmitGeneral={handleGeneralSubmit}
       onSubmitCoach={handleProfileSubmit}
@@ -120,6 +161,85 @@ function ProfilePageContent() {
           onSkillsChange={onSkillsChange}
           saveSkills={saveSkills}
         />
+      }
+      realtorFormContent={
+        <RealtorProfileForm
+          initialData={realtorData}
+          onSubmit={updateRealtorData}
+          isSubmitting={isSubmitting}
+        />
+      }
+      realtorListingsContent={
+        <ListingsForm
+          onSubmit={onSubmitListing}
+          onUpdate={onUpdateListing}
+          activeListings={activeListings}
+          successfulTransactions={successfulTransactions}
+          isSubmitting={isSubmitting}
+        />
+      }
+      propertyManagerFormContent={
+        <PropertyManagerProfileForm
+          initialData={propertyManagerData}
+          onSubmit={updatePropertyManagerData}
+          isSubmitting={isSubmitting}
+        />
+      }
+      propertyManagerListingsContent={
+        <PropertyManagerListings
+          isSubmitting={isSubmitting}
+        />
+      }
+      investorFormContent={
+        <InvestorProfileForm
+          initialData={investorData}
+          onSubmit={updateInvestorData}
+          isSubmitting={isSubmitting}
+        />
+      }
+      investorListingsContent={
+        <InvestorListings />
+      }
+      mortgageFormContent={
+        <MortgageProfileForm
+          initialData={mortgageData}
+          onSubmit={updateMortgageData}
+          isSubmitting={isSubmitting}
+        />
+      }
+      titleEscrowFormContent={
+        <TitleEscrowProfileForm
+          initialData={titleEscrowData}
+          onSubmit={updateTitleEscrowData}
+          isSubmitting={isSubmitting}
+        />
+      }
+      insuranceFormContent={
+        <InsuranceProfileForm
+          initialData={insuranceData}
+          onSubmit={updateInsuranceData}
+          isSubmitting={isSubmitting}
+        />
+      }
+      commercialFormContent={
+        <CommercialProfileForm
+          initialData={commercialData}
+          onSubmit={updateCommercialData}
+          isSubmitting={isSubmitting}
+        />
+      }
+      commercialListingsContent={
+        <CommercialListings />
+      }
+      privateCreditFormContent={
+        <PrivateCreditProfileForm
+          initialData={privateCreditData}
+          onSubmit={updatePrivateCreditData}
+          isSubmitting={isSubmitting}
+        />
+      }
+      creditListingsContent={
+        <CreditListings />
       }
       initialRecognitions={recognitionsData}
       onSubmitRecognitions={async (recognitions) => {

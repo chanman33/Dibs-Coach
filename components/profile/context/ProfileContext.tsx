@@ -18,6 +18,9 @@ import {
   updateCoachProfile,
   type CoachProfileFormData
 } from "@/utils/actions/coach-profile-actions";
+import { type ApiResponse } from "@/utils/types/api";
+import { type RealEstateDomain } from "@/utils/types/coach";
+import { type ListingWithRealtor, type CreateListing } from "@/utils/types/listing";
 
 // Define the shape of the general data
 interface GeneralData {
@@ -80,11 +83,14 @@ interface ProfileContextType {
   // User capabilities and skills
   userCapabilities: string[];
   selectedSkills: string[];
-  realEstateDomains: string[];
-  industrySpecialties: string[];
+  realEstateDomains: RealEstateDomain[];
+  
+  // Listings data
+  activeListings: ListingWithRealtor[];
+  successfulTransactions: ListingWithRealtor[];
   
   // Update functions
-  updateGeneralData: (data: any) => Promise<void>;
+  updateGeneralData: (data: GeneralFormData) => Promise<ApiResponse<GeneralFormData>>;
   updateCoachData: (data: CoachProfileFormValues) => Promise<void>;
   updateRealtorData: (data: any) => Promise<void>;
   updateInvestorData: (data: any) => Promise<void>;
@@ -103,6 +109,10 @@ interface ProfileContextType {
   onSkillsChange: (skills: string[]) => void;
   saveSkills: (skills: string[]) => Promise<boolean>;
   updateSkills: (skills: string[]) => Promise<void>;
+  
+  // Listings handlers
+  onSubmitListing: (data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null }>;
+  onUpdateListing: (ulid: string, data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null }>;
 }
 
 // Create the context with a default value
@@ -157,8 +167,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // User capabilities and skills state
   const [userCapabilities, setUserCapabilities] = useState<string[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [realEstateDomains, setRealEstateDomains] = useState<string[]>([]);
-  const [industrySpecialties, setIndustrySpecialties] = useState<string[]>([]);
+  const [realEstateDomains, setRealEstateDomains] = useState<RealEstateDomain[]>([]);
 
   // Add debounce ref
   const fetchTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
@@ -170,6 +179,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [retryCount, setRetryCount] = useState(0);
   const MAX_RETRIES = 3;
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Listings state
+  const [activeListings, setActiveListings] = useState<ListingWithRealtor[]>([]);
+  const [successfulTransactions, setSuccessfulTransactions] = useState<ListingWithRealtor[]>([]);
 
   // Fetch initial profile data with debouncing
   const fetchProfileData = useCallback(async (forceFetch = false) => {
@@ -195,23 +208,47 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       const userCaps = capabilities.data.capabilities || [];
       const domains = capabilities.data.realEstateDomains || [];
       
+      console.log("[PROFILE_CONTEXT_DOMAINS_UPDATE]", {
+        currentDomains: realEstateDomains,
+        newDomains: domains,
+        hasChanged: JSON.stringify(domains) !== JSON.stringify(realEstateDomains),
+        timestamp: new Date().toISOString()
+      });
+
       // Only update capabilities and domains if they've changed
       if (JSON.stringify(userCaps) !== JSON.stringify(userCapabilities)) {
         setUserCapabilities(userCaps);
       }
       if (JSON.stringify(domains) !== JSON.stringify(realEstateDomains)) {
-        setRealEstateDomains(domains);
+        console.log("[PROFILE_CONTEXT_DOMAINS_CHANGED]", {
+          from: realEstateDomains,
+          to: domains,
+          timestamp: new Date().toISOString()
+        });
+        setRealEstateDomains(domains as RealEstateDomain[]);
       }
+
+      // When domains are set in context
+      console.log("[PROFILE_CONTEXT_DOMAINS_SET]", {
+        domains,
+        timestamp: new Date().toISOString(),
+        source: 'client',
+        stack: new Error().stack
+      });
 
       // 2. If user is not a coach, reset coach-related states and return early
       if (!userCaps.includes('COACH')) {
+        console.log("[PROFILE_CONTEXT_RESET_NON_COACH]", {
+          userCaps,
+          timestamp: new Date().toISOString()
+        });
         setCoachData({});
         setProfileStatus('DRAFT');
         setCompletionPercentage(0);
         setMissingFields([]);
         setCanPublish(false);
         setSelectedSkills([]);
-        setIndustrySpecialties([]);
+        setRealEstateDomains([]);
         setRecognitionsData([]);
         setIsLoading(false);
         return;
@@ -348,7 +385,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   };
 
   // Update functions
-  const updateGeneralData = async (data: any) => {
+  const updateGeneralData = async (data: GeneralFormData): Promise<ApiResponse<GeneralFormData>> => {
     setIsSubmitting(true);
     try {
       const result = await updateUserProfile(data);
@@ -368,9 +405,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       } else if (result.error) {
         toast.error(String(result.error));
       }
+      return result;
     } catch (error) {
       console.error("[UPDATE_GENERAL_ERROR]", error);
       toast.error("Failed to update general profile");
+      return { data: null, error: { code: 'INTERNAL_ERROR', message: 'Failed to update general profile' } };
     } finally {
       setIsSubmitting(false);
     }
@@ -824,6 +863,44 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Listings handlers
+  const onSubmitListing = useCallback(async (data: CreateListing) => {
+    try {
+      setIsSubmitting(true);
+      // TODO: Implement listing submission
+      console.log("[SUBMIT_LISTING]", {
+        data,
+        timestamp: new Date().toISOString()
+      });
+      return { data: null, error: null };
+    } catch (error) {
+      console.error("[SUBMIT_LISTING_ERROR]", error);
+      toast.error("Failed to submit listing");
+      return { data: null, error: "Failed to submit listing" };
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, []);
+
+  const onUpdateListing = useCallback(async (ulid: string, data: CreateListing) => {
+    try {
+      setIsSubmitting(true);
+      // TODO: Implement listing update
+      console.log("[UPDATE_LISTING]", {
+        ulid,
+        data,
+        timestamp: new Date().toISOString()
+      });
+      return { data: null, error: null };
+    } catch (error) {
+      console.error("[UPDATE_LISTING_ERROR]", error);
+      toast.error("Failed to update listing");
+      return { data: null, error: "Failed to update listing" };
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, []);
+
   // Context value
   const contextValue: ProfileContextType = {
     generalData,
@@ -851,7 +928,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     userCapabilities,
     selectedSkills,
     realEstateDomains,
-    industrySpecialties,
     onSkillsChange,
     saveSkills,
     updateSkills,
@@ -870,7 +946,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     updateGoalsData,
     updateLanguages,
     fetchError,
-    retryCount
+    retryCount,
+    activeListings,
+    successfulTransactions,
+    onSubmitListing,
+    onUpdateListing
   };
   
   return (

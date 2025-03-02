@@ -343,6 +343,12 @@ export interface UserCapabilitiesResponse {
 export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, void>(
   async (_, { userUlid }) => {
     try {
+      console.log("[FETCH_USER_CAPABILITIES_START]", {
+        userUlid,
+        timestamp: new Date().toISOString(),
+        source: 'server'
+      });
+
       const supabase = await createAuthClient();
 
       // Get user capabilities
@@ -357,7 +363,12 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
         .single();
 
       if (userError) {
-        console.error("[CAPABILITIES_FETCH_ERROR]", { userUlid, error: userError });
+        console.error("[CAPABILITIES_FETCH_ERROR]", { 
+          userUlid, 
+          error: userError,
+          timestamp: new Date().toISOString(),
+          source: 'server'
+        });
         return {
           data: null,
           error: {
@@ -368,8 +379,28 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
         };
       }
 
+      // Log raw data from database
+      console.log("[FETCH_USER_CAPABILITIES_RAW_DATA]", {
+        userUlid,
+        rawCapabilities: userData.capabilities,
+        rawRealEstateDomains: userData.realEstateDomains,
+        rawPrimaryDomain: userData.primaryDomain,
+        timestamp: new Date().toISOString(),
+        source: 'server'
+      });
+
       // Use the realEstateDomains as both domain specialties and active domains
       const realEstateDomains = userData.realEstateDomains || [];
+
+      // Log processed data before returning
+      console.log("[FETCH_USER_CAPABILITIES_PROCESSED]", {
+        userUlid,
+        processedCapabilities: userData.capabilities || [],
+        processedRealEstateDomains: realEstateDomains,
+        processedPrimaryDomain: userData.primaryDomain,
+        timestamp: new Date().toISOString(),
+        source: 'server'
+      });
 
       return {
         data: {
@@ -380,7 +411,13 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
         error: null
       };
     } catch (error) {
-      console.error("[CAPABILITIES_FETCH_ERROR]", error);
+      console.error("[CAPABILITIES_FETCH_ERROR]", {
+        userUlid,
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString(),
+        source: 'server'
+      });
       return {
         data: {
           capabilities: [],

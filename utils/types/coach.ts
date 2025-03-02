@@ -9,7 +9,7 @@ export const PROFILE_STATUS = {
 
 export type ProfileStatus = typeof PROFILE_STATUS[keyof typeof PROFILE_STATUS];
 
-export const INDUSTRY_SPECIALTIES = {
+export const REAL_ESTATE_DOMAINS = {
   REALTOR: 'REALTOR',
   INVESTOR: 'INVESTOR',
   MORTGAGE: 'MORTGAGE',
@@ -20,7 +20,7 @@ export const INDUSTRY_SPECIALTIES = {
   PRIVATE_CREDIT: 'PRIVATE_CREDIT'
 } as const;
 
-export type IndustrySpecialty = typeof INDUSTRY_SPECIALTIES[keyof typeof INDUSTRY_SPECIALTIES];
+export type RealEstateDomain = typeof REAL_ESTATE_DOMAINS[keyof typeof REAL_ESTATE_DOMAINS];
 
 // Define approved specialties type
 export interface ApprovedSpecialties {
