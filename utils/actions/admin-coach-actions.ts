@@ -49,13 +49,31 @@ export const updateCoachProfileStatus = withServerAction<{ success: boolean }, z
 
       const { coachUlid, status } = UpdateProfileStatusSchema.parse(data)
       const supabase = await createAuthClient()
+
+      // If trying to publish, check if profile is complete
+      if (status === PROFILE_STATUS.PUBLISHED) {
+        const { data: profile } = await supabase
+          .from('CoachProfile')
+          .select('completionPercentage')
+          .eq('userUlid', coachUlid)
+          .single()
+
+        if (!profile || profile.completionPercentage < 100) {
+          return {
+            data: null,
+            error: {
+              code: 'VALIDATION_ERROR',
+              message: 'Profile must be complete before publishing'
+            }
+          }
+        }
+      }
       
       // Update the coach profile status
       const { error: updateError } = await supabase
         .from('CoachProfile')
         .update({
-          // Temporarily comment out profileStatus until migration is applied
-          // profileStatus: status,
+          profileStatus: status,
           updatedAt: new Date().toISOString()
         })
         .eq('userUlid', coachUlid)
@@ -66,11 +84,8 @@ export const updateCoachProfileStatus = withServerAction<{ success: boolean }, z
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Error updating coach profile status. The profileStatus column might not exist yet - please apply the migration.',
-            details: { 
-              error: updateError,
-              tip: "Execute the SQL in prisma/migrations/add_profile_status_to_coach_profile.sql to add the missing column."
-            }
+            message: 'Error updating coach profile status',
+            details: { error: updateError }
           }
         }
       }

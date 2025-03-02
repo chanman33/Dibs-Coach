@@ -35,10 +35,14 @@ export default function CoachManagementClient({
     try {
       const result = await updateCoachProfileStatus({ coachUlid: coachId, status: newStatus })
       if (result.error) {
-        toast.error(result.error.message)
+        if (result.error.code === 'VALIDATION_ERROR') {
+          toast.error(result.error.message)
+        } else {
+          toast.error('Failed to update profile status')
+        }
         return
       }
-      toast.success('Profile status updated successfully')
+      toast.success(`Profile status updated to ${newStatus.toLowerCase()} successfully`)
     } catch (error) {
       console.error('[UPDATE_STATUS_ERROR]', error)
       toast.error('Failed to update profile status')
