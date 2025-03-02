@@ -3655,7 +3655,7 @@ export type Database = {
         | "MEZZANINE"
         | "PREFERRED_EQUITY"
         | "OTHER"
-      ProfileStatus: "DRAFT" | "REVIEW" | "PUBLISHED"
+      ProfileStatus: "DRAFT" | "PUBLISHED" | "ARCHIVED"
       PropertyCondition:
         | "Excellent"
         | "Good"

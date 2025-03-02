@@ -33,24 +33,24 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { updateCoachSpecialties } from '@/utils/actions/admin-coach-actions'
 import { toast } from 'sonner'
 
-// Available industry specialties
-const INDUSTRY_SPECIALTIES = [
+// Available real estate domains
+const REAL_ESTATE_DOMAINS = [
   'REALTOR',
-  'LOAN_OFFICER',
   'INVESTOR',
+  'MORTGAGE',
   'PROPERTY_MANAGER',
   'TITLE_ESCROW',
   'INSURANCE',
   'COMMERCIAL',
   'PRIVATE_CREDIT'
-]
+] as const;
 
 interface CoachProfile {
   userUlid: string
   firstName: string
   lastName: string
   profileStatus: ProfileStatus
-  industrySpecialties: string[]
+  realEstateDomains: string[]
   completionPercentage: number
   hourlyRate: number
   updatedAt: string
@@ -63,31 +63,31 @@ interface CoachProfilesTableProps {
 
 export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTableProps) {
   const [selectedCoach, setSelectedCoach] = useState<CoachProfile | null>(null)
-  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>([])
+  const [selectedDomains, setSelectedDomains] = useState<string[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
-  const handleOpenSpecialties = (coach: CoachProfile) => {
+  const handleOpenDomains = (coach: CoachProfile) => {
     setSelectedCoach(coach)
-    setSelectedSpecialties(coach.industrySpecialties || [])
+    setSelectedDomains(coach.realEstateDomains || [])
     setIsDialogOpen(true)
   }
 
-  const handleSpecialtyChange = (specialty: string) => {
-    setSelectedSpecialties(current => {
-      if (current.includes(specialty)) {
-        return current.filter(s => s !== specialty)
+  const handleDomainChange = (domain: string) => {
+    setSelectedDomains(current => {
+      if (current.includes(domain)) {
+        return current.filter(d => d !== domain)
       }
-      return [...current, specialty]
+      return [...current, domain]
     })
   }
 
-  const handleSaveSpecialties = async () => {
+  const handleSaveDomains = async () => {
     if (!selectedCoach) return
 
     try {
       const result = await updateCoachSpecialties({
         coachUlid: selectedCoach.userUlid,
-        specialties: selectedSpecialties
+        specialties: selectedDomains
       })
 
       if (result.error) {
@@ -95,11 +95,11 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
         return
       }
 
-      toast.success('Specialties updated successfully')
+      toast.success('Real estate domains updated successfully')
       setIsDialogOpen(false)
     } catch (error) {
-      console.error('[SAVE_SPECIALTIES_ERROR]', error)
-      toast.error('Failed to update specialties')
+      console.error('[SAVE_DOMAINS_ERROR]', error)
+      toast.error('Failed to update domains')
     }
   }
 
@@ -110,7 +110,7 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Specialties</TableHead>
+            <TableHead>Real Estate Domains</TableHead>
             <TableHead>Completion</TableHead>
             <TableHead>Rate</TableHead>
             <TableHead>Last Updated</TableHead>
@@ -124,15 +124,19 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
                 {profile.firstName} {profile.lastName}
               </TableCell>
               <TableCell>
-                <Badge variant={profile.profileStatus === 'PUBLISHED' ? 'default' : 'secondary'}>
+                <Badge variant={
+                  profile.profileStatus === 'PUBLISHED' ? 'default' : 
+                  profile.profileStatus === 'ARCHIVED' ? 'destructive' : 
+                  'secondary'
+                }>
                   {profile.profileStatus}
                 </Badge>
               </TableCell>
               <TableCell>
                 <div className="flex gap-1 flex-wrap max-w-[200px]">
-                  {profile.industrySpecialties?.map((specialty) => (
-                    <Badge key={specialty} variant="outline">
-                      {specialty}
+                  {profile.realEstateDomains?.map((domain) => (
+                    <Badge key={domain} variant="outline">
+                      {domain}
                     </Badge>
                   ))}
                 </div>
@@ -149,17 +153,28 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleOpenSpecialties(profile)}>
+                    <DropdownMenuItem onClick={() => handleOpenDomains(profile)}>
                       <Tags className="mr-2 h-4 w-4" />
-                      Edit Specialties
+                      Edit Domains
                     </DropdownMenuItem>
-                    {profile.profileStatus === 'DRAFT' ? (
+                    {profile.profileStatus === 'DRAFT' && (
                       <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'PUBLISHED')}>
                         Publish Profile
                       </DropdownMenuItem>
-                    ) : (
+                    )}
+                    {profile.profileStatus === 'PUBLISHED' && (
+                      <>
+                        <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'DRAFT')}>
+                          Unpublish Profile
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'ARCHIVED')}>
+                          Archive Profile
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {profile.profileStatus === 'ARCHIVED' && (
                       <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'DRAFT')}>
-                        Unpublish Profile
+                        Restore Profile
                       </DropdownMenuItem>
                     )}
                   </DropdownMenuContent>
@@ -173,25 +188,31 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Industry Specialties</DialogTitle>
+            <DialogTitle>Edit Real Estate Domains</DialogTitle>
             <DialogDescription>
-              Select the industry specialties for {selectedCoach?.firstName} {selectedCoach?.lastName}
+              Select the real estate domains for {selectedCoach?.firstName} {selectedCoach?.lastName}
             </DialogDescription>
           </DialogHeader>
           <ScrollArea className="h-[300px] px-4">
             <div className="space-y-4">
-              {INDUSTRY_SPECIALTIES.map((specialty) => (
-                <div key={specialty} className="flex items-center space-x-2">
+              {REAL_ESTATE_DOMAINS.map((domain) => (
+                <div key={domain} className="flex items-center space-x-2">
                   <Checkbox
-                    id={specialty}
-                    checked={selectedSpecialties.includes(specialty)}
-                    onCheckedChange={() => handleSpecialtyChange(specialty)}
+                    id={domain}
+                    checked={selectedDomains.includes(domain)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedDomains(prev => [...prev, domain])
+                      } else {
+                        setSelectedDomains(prev => prev.filter(d => d !== domain))
+                      }
+                    }}
                   />
                   <label
-                    htmlFor={specialty}
+                    htmlFor={domain}
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    {specialty.replace(/_/g, ' ')}
+                    {domain.replace(/_/g, ' ')}
                   </label>
                 </div>
               ))}
@@ -201,7 +222,7 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveSpecialties}>
+            <Button onClick={handleSaveDomains}>
               Save Changes
             </Button>
           </div>

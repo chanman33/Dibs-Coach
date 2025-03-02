@@ -14,7 +14,7 @@ interface CoachProfile {
   firstName: string
   lastName: string
   profileStatus: ProfileStatus
-  industrySpecialties: string[]
+  realEstateDomains: string[]
   completionPercentage: number
   hourlyRate: number
   updatedAt: string

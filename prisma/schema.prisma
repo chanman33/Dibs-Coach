@@ -587,8 +587,8 @@ enum PrivateCreditLoanType {
 // Profile status enum
 enum ProfileStatus {
   DRAFT     // Profile is incomplete or being edited
-  REVIEW    // Profile is complete and awaiting review
-  PUBLISHED // Profile is approved and publicly visible
+  PUBLISHED // Profile is publicly visible
+  ARCHIVED // Profile is hidden
 }
 
 // Models

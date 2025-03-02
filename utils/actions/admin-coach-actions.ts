@@ -12,7 +12,8 @@ const UpdateProfileStatusSchema = z.object({
   coachUlid: z.string().min(1, 'Coach ID is required'),
   status: z.enum([
     PROFILE_STATUS.DRAFT,
-    PROFILE_STATUS.PUBLISHED
+    PROFILE_STATUS.PUBLISHED,
+    PROFILE_STATUS.ARCHIVED
   ])
 })
 
@@ -26,7 +27,7 @@ interface CoachProfileData {
   profileImageUrl: string | null
   profileStatus: ProfileStatus
   completionPercentage: number
-  industrySpecialties: string[]
+  realEstateDomains: string[]
   hourlyRate: number | null
   createdAt: string
   updatedAt: string
@@ -135,12 +136,13 @@ export const fetchCoachProfiles = withServerAction<CoachProfileData[]>(
           lastName,
           email,
           profileImageUrl,
-          industrySpecialties,
+          realEstateDomains,
           CoachProfile (
             ulid,
-            coachingSpecialties,
+            coachSkills,
             hourlyRate,
             completionPercentage,
+            profileStatus,
             createdAt,
             updatedAt
           )
@@ -170,9 +172,9 @@ export const fetchCoachProfiles = withServerAction<CoachProfileData[]>(
           lastName: user.lastName || '',
           email: user.email || '',
           profileImageUrl: user.profileImageUrl,
-          profileStatus: PROFILE_STATUS.DRAFT,
+          profileStatus: profile?.profileStatus || PROFILE_STATUS.DRAFT,
           completionPercentage: profile?.completionPercentage || 0,
-          industrySpecialties: user.industrySpecialties || [],
+          realEstateDomains: user.realEstateDomains || [],
           hourlyRate: profile?.hourlyRate || null,
           createdAt: profile?.createdAt || '',
           updatedAt: profile?.updatedAt || ''
@@ -221,11 +223,13 @@ export const fetchCoachProfile = withServerAction<CoachProfileData, string>(
           lastName,
           email,
           profileImageUrl,
+          realEstateDomains,
           CoachProfile (
             ulid,
-            coachingSpecialties,
+            coachSkills,
             hourlyRate,
             completionPercentage,
+            profileStatus,
             createdAt,
             updatedAt
           )
@@ -254,9 +258,9 @@ export const fetchCoachProfile = withServerAction<CoachProfileData, string>(
         lastName: data.lastName || '',
         email: data.email || '',
         profileImageUrl: data.profileImageUrl,
-        profileStatus: PROFILE_STATUS.DRAFT,
+        profileStatus: profile?.profileStatus || PROFILE_STATUS.DRAFT,
         completionPercentage: profile?.completionPercentage || 0,
-        industrySpecialties: profile?.coachingSpecialties || [],
+        realEstateDomains: data.realEstateDomains || [],
         hourlyRate: profile?.hourlyRate || null,
         createdAt: profile?.createdAt || '',
         updatedAt: profile?.updatedAt || ''
@@ -300,7 +304,7 @@ export async function updateCoachSpecialties({
     const { data, error } = await supabase
       .from('User')
       .update({ 
-        industrySpecialties: specialties,
+        realEstateDomains: specialties,
         updatedAt: new Date().toISOString()
       })
       .eq('ulid', coachUlid)
@@ -309,13 +313,13 @@ export async function updateCoachSpecialties({
 
     if (error) {
       console.error('[UPDATE_SPECIALTIES_ERROR]', error)
-      return { data: null, error: { message: 'Failed to update specialties' } }
+      return { data: null, error: { message: 'Failed to update domains' } }
     }
 
     revalidatePath('/dashboard/system/coach-mgmt')
     return { data, error: null }
   } catch (error) {
     console.error('[UPDATE_SPECIALTIES_ERROR]', error)
-    return { data: null, error: { message: 'Failed to update specialties' } }
+    return { data: null, error: { message: 'Failed to update domains' } }
   }
 } 
