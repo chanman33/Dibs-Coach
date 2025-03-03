@@ -50,17 +50,6 @@ export function UserProfile() {
         return null;
     }
 
-    // Determine role from pathname
-    const getRole = () => {
-        if (pathname.includes('/dashboard/admin')) return 'admin'
-        if (pathname.includes('/dashboard/coach')) return 'coach'
-        if (pathname.includes('/dashboard/mentee')) return 'mentee'
-        return 'mentee' // default to mentee if no role found
-    }
-
-    const role = getRole()
-    const profilePath = `/dashboard/${role}/profile`
-    const settingsPath = `/dashboard/settings`
 
     return (
         <DropdownMenu>
@@ -80,13 +69,7 @@ export function UserProfile() {
                             <span>Dashboard</span>
                         </DropdownMenuItem>
                     </Link>
-                    <Link href={profilePath}>
-                        <DropdownMenuItem>
-                            <UserCircle className="mr-2 h-4 w-4" />
-                            <span>Profile</span>
-                        </DropdownMenuItem>
-                    </Link>
-                    <Link href={settingsPath}>
+                    <Link href="/dashboard/settings">
                         <DropdownMenuItem>
                             <Settings className="mr-2 h-4 w-4" />
                             <span>Settings</span>

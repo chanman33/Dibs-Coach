@@ -5,8 +5,9 @@ import { useUser } from "@clerk/nextjs"
 import { CoachSidebar } from "../coach/_components/coach-sidebar"
 import { MenteeSidebar } from "../mentee/_components/mentee-sidebar"
 import { useEffect, useState } from "react"
-import { SYSTEM_ROLES, type SystemRole, type UserRoleContext } from "@/utils/roles/roles"
+import { SYSTEM_ROLES, type SystemRole, type UserRoleContext, USER_CAPABILITIES } from "@/utils/roles/roles"
 import { Loader2 } from "lucide-react"
+import { fetchUserCapabilities } from "@/utils/actions/user-actions"
 
 export default function SettingsLayout({ children }: { children: ReactNode }) {
   const { user } = useUser()
@@ -17,12 +18,29 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function fetchUserRoles() {
+    async function fetchRoles() {
       if (user?.id) {
         try {
-          const response = await fetch(`/api/user/role?userId=${user.id}`)
-          const data = await response.json()
-          setRoleContext(data.roleData)
+          console.log("[FETCHING_ROLES] Fetching roles for user:", user.id)
+          const result = await fetchUserCapabilities()
+          console.log("[ROLE_DATA_RECEIVED]", result)
+          
+          if (result.error) {
+            throw result.error
+          }
+
+          if (result.data) {
+            // Filter capabilities to only include valid role capabilities
+            const validCapabilities = result.data.capabilities.filter(
+              (cap): cap is keyof typeof USER_CAPABILITIES => 
+                cap === 'COACH' || cap === 'MENTEE'
+            )
+
+            setRoleContext(prev => ({
+              ...prev,
+              capabilities: validCapabilities
+            }))
+          }
         } catch (error) {
           console.error("[ROLE_FETCH_ERROR]", error)
           setRoleContext({
@@ -34,7 +52,7 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
       }
     }
 
-    fetchUserRoles()
+    fetchRoles()
   }, [user?.id])
 
   if (loading) {
@@ -51,18 +69,16 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
   }
 
   const renderSidebar = () => {
-    // Check for system roles first
-    if (roleContext.systemRole === SYSTEM_ROLES.SYSTEM_OWNER || 
-        roleContext.systemRole === SYSTEM_ROLES.SYSTEM_MODERATOR) {
-      return <MenteeSidebar />
-    }
-
-    // Check for coach capability
+    console.log("[RENDER_SIDEBAR] Current roleContext:", roleContext)
+    
+    // If user has COACH capability, show coach sidebar regardless of other capabilities
     if (roleContext.capabilities.includes('COACH')) {
+      console.log("[RENDER_SIDEBAR] Rendering CoachSidebar")
       return <CoachSidebar />
     }
 
-    // Default to mentee sidebar
+    // Default to mentee sidebar for all other cases
+    console.log("[RENDER_SIDEBAR] Rendering MenteeSidebar")
     return <MenteeSidebar />
   }
 

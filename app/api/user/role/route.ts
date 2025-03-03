@@ -20,10 +20,17 @@ export async function GET(req: NextRequest) {
     // Get or create user in database
     const user = await ensureUserExists();
     
-    if (!user?.ulid) {
+    // Type guard function
+    const hasIdentifier = (user: any): user is { ulid: string } | { id: number } => {
+      return 'ulid' in user || 'id' in user;
+    };
+
+    if (!hasIdentifier(user)) {
       console.error("[GET_USER_ROLES] Error ensuring user exists");
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+
+    const userIdentifier = 'ulid' in user ? user.ulid : user.id;
 
     const roleContext = await getUserRoleContext(userId, { isInitialSignup });
     
@@ -78,10 +85,17 @@ export async function POST(req: NextRequest) {
     // Get or create user in database
     const user = await ensureUserExists();
     
-    if (!user?.ulid) {
+    // Type guard function
+    const hasIdentifier = (user: any): user is { ulid: string } | { id: number } => {
+      return 'ulid' in user || 'id' in user;
+    };
+
+    if (!hasIdentifier(user)) {
       console.error("[UPDATE_USER_ROLES] Error ensuring user exists");
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+
+    const userIdentifier = 'ulid' in user ? user.ulid : user.id;
 
     const supabase = createAuthClient();
 
@@ -93,7 +107,7 @@ export async function POST(req: NextRequest) {
         capabilities,
         updatedAt: new Date().toISOString()
       })
-      .eq("ulid", user.ulid);
+      .eq("ulid", userIdentifier);
 
     if (updateError) {
       console.error("[UPDATE_USER_ROLES] Error:", updateError);
