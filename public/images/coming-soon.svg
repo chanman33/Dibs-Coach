@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="256" cy="256" r="248" fill="#f3f4f6" stroke="#e5e7eb" stroke-width="4"/>
+  
+  <!-- Gear Elements -->
+  <g transform="translate(256 256)">
+    <!-- Large Gear -->
+    <path d="M-80-80 L80-80 L80 80 L-80 80 Z" fill="#6366f1" opacity="0.2"/>
+    <circle cx="0" cy="0" r="60" fill="#6366f1" opacity="0.3"/>
+    <circle cx="0" cy="0" r="40" fill="#6366f1"/>
+    
+    <!-- Small Gears -->
+    <g transform="translate(-100 -100)">
+      <circle cx="0" cy="0" r="20" fill="#6366f1" opacity="0.6"/>
+      <circle cx="0" cy="0" r="12" fill="#6366f1"/>
+    </g>
+    <g transform="translate(100 100)">
+      <circle cx="0" cy="0" r="25" fill="#6366f1" opacity="0.6"/>
+      <circle cx="0" cy="0" r="15" fill="#6366f1"/>
+    </g>
+  </g>
+  
+  <!-- Decorative Lines -->
+  <path d="M128 256 L176 256" stroke="#6366f1" stroke-width="4" stroke-linecap="round"/>
+  <path d="M336 256 L384 256" stroke="#6366f1" stroke-width="4" stroke-linecap="round"/>
+  <path d="M256 128 L256 176" stroke="#6366f1" stroke-width="4" stroke-linecap="round"/>
+  <path d="M256 336 L256 384" stroke="#6366f1" stroke-width="4" stroke-linecap="round"/>
+</svg> 

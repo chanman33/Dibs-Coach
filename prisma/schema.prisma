@@ -19,8 +19,6 @@ enum UserRole {
 enum UserCapability {
   COACH    // Can provide coaching services
   MENTEE   // Can receive coaching services
-  COMMERCIAL // Commercial real estate services
-  PRIVATE_CREDIT // Private credit lending services
 }
 
 enum UserStatus {

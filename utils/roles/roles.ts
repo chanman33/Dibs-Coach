@@ -2,9 +2,7 @@
 export const SYSTEM_ROLES = {
   SYSTEM_OWNER: 'SYSTEM_OWNER',
   SYSTEM_MODERATOR: 'SYSTEM_MODERATOR',
-  USER: 'USER',
-  COACH: 'COACH',
-  MENTEE: 'MENTEE'
+  USER: 'USER'
 } as const;
 
 export type SystemRole = keyof typeof SYSTEM_ROLES;
@@ -139,7 +137,7 @@ export const ROLE_PERMISSIONS: Record<SystemRole, readonly Permission[]> = {
     PERMISSIONS.BOOK_SESSIONS,
     PERMISSIONS.VIEW_HISTORY,
     PERMISSIONS.MANAGE_PROFILE,
-  ],
+  ]
 } as const;
 
 // Organization role permission mappings
@@ -302,9 +300,4 @@ export function isValidCapability(capability: string): capability is UserCapabil
 
 export function isValidPermission(permission: string): permission is Permission {
   return Object.values(PERMISSIONS).includes(permission as Permission);
-}
-
-export const ROLES = {
-  COACH: USER_CAPABILITIES.COACH,
-  MENTEE: USER_CAPABILITIES.MENTEE,
-} as const; 
+} 
