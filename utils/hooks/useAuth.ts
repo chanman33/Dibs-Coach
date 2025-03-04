@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { createAuthClient } from '@/utils/auth/auth-client';
+import { createClientAuthClient } from '@/utils/auth/client-auth';
 import type { Ulid } from '@/utils/types/auth';
 import { SystemRole, UserCapability } from '@/utils/roles/roles';
 
@@ -28,7 +28,7 @@ export function useAuth(): UseAuthReturn {
       if (!isLoaded || !isSignedIn || !user?.id) return;
 
       try {
-        const supabase = await createAuthClient();
+        const supabase = createClientAuthClient();
         const { data, error: dbError } = await supabase
           .from('User')
           .select('ulid, systemRole, capabilities')
@@ -43,7 +43,11 @@ export function useAuth(): UseAuthReturn {
           setCapabilities(data.capabilities || []);
         }
       } catch (err) {
-        console.error('[AUTH_ERROR] Failed to fetch user data:', err);
+        console.error('[AUTH_ERROR]', {
+          code: err instanceof Error ? err.name : 'UNKNOWN',
+          message: err instanceof Error ? err.message : 'Failed to fetch user data',
+          context: { userId: user.id, timestamp: new Date().toISOString() }
+        });
         setError(err instanceof Error ? err : new Error('Failed to fetch user data'));
       }
     }

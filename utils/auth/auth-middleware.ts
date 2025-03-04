@@ -1,6 +1,7 @@
+import { getAuth } from '@clerk/nextjs/server'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { AuthContext, AuthOptions, ForbiddenError, UnauthorizedError } from '../types/auth'
+import { createAuthClient } from './auth-client'
 import { hasSystemRole, hasOrgRole, hasPermission, hasCapability } from '../roles/roles'
 
 const metrics = new Map<string, {
@@ -10,62 +11,109 @@ const metrics = new Map<string, {
   latency: number[]
 }>()
 
-export function createAuthMiddleware(options: AuthOptions) {
-  return async (context: AuthContext) => {
-    const startTime = Date.now()
+/**
+ * Middleware configuration for auth and role verification
+ */
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+}
 
+/**
+ * Enhanced middleware that combines Clerk auth with role verification
+ */
+export default async function middleware(req: NextRequest) {
+  const { userId } = await getAuth(req)
+
+  // Handle public routes
+  if (isPublicRoute(req.nextUrl.pathname)) {
+    return NextResponse.next()
+  }
+
+  // Require authentication
+  if (!userId) {
+    return redirectToSignIn(req)
+  }
+
+  // For protected routes, verify roles if needed
+  if (isProtectedRoute(req.nextUrl.pathname)) {
     try {
-      // System role check
-      if (options.requiredSystemRole && 
-          !hasSystemRole(context.systemRole, options.requiredSystemRole)) {
-        throw new ForbiddenError('Insufficient system role')
+      const supabase = createAuthClient()
+      const { data: user, error } = await supabase
+        .from('User')
+        .select('systemRole, capabilities')
+        .eq('userId', userId)
+        .single()
+
+      if (error || !user) {
+        console.error('[AUTH_ERROR]', {
+          code: 'ROLE_VERIFICATION_ERROR',
+          message: error?.message || 'User not found',
+          context: { userId, path: req.nextUrl.pathname },
+          timestamp: new Date().toISOString()
+        })
+        return redirectToError(req, 'unauthorized')
       }
 
-      // Organization checks
-      if (options.requireOrganization && !context.orgRole) {
-        throw new ForbiddenError('Organization membership required')
+      // Check role requirements
+      if (!hasRequiredRole(req.nextUrl.pathname, user.systemRole, user.capabilities || [])) {
+        return redirectToError(req, 'forbidden')
       }
-
-      if (options.requiredOrgRole && options.requiredOrgLevel) {
-        if (!context.orgRole || !context.orgLevel) {
-          throw new ForbiddenError('Organization role required')
-        }
-
-        if (!hasOrgRole(context.orgRole, options.requiredOrgRole, 
-                       context.orgLevel, options.requiredOrgLevel)) {
-          throw new ForbiddenError('Insufficient organization role')
-        }
-      }
-
-      // Permission checks
-      if (options.requiredPermissions?.length) {
-        const hasRequired = options.requireAll
-          ? options.requiredPermissions.every(p => hasPermission(context, p))
-          : options.requiredPermissions.some(p => hasPermission(context, p))
-
-        if (!hasRequired) {
-          throw new ForbiddenError('Insufficient permissions')
-        }
-      }
-
-      // Capability checks
-      if (options.requiredCapabilities?.length) {
-        const hasRequired = options.requireAll
-          ? options.requiredCapabilities.every(c => hasCapability(context, c))
-          : options.requiredCapabilities.some(c => hasCapability(context, c))
-
-        if (!hasRequired) {
-          throw new ForbiddenError('Required capabilities not found')
-        }
-      }
-
-      return context
-    } finally {
-      // Track metrics
-      const duration = Date.now() - startTime
-      updateMetrics('auth_middleware', { duration })
+    } catch (error) {
+      console.error('[AUTH_ERROR]', {
+        code: 'MIDDLEWARE_ERROR',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        context: { userId, path: req.nextUrl.pathname },
+        timestamp: new Date().toISOString()
+      })
+      return redirectToError(req, 'server_error')
     }
   }
+
+  return NextResponse.next()
+}
+
+// Helper functions
+function isPublicRoute(path: string): boolean {
+  return [
+    '/',
+    '/sign-in',
+    '/sign-up',
+    '/api/webhooks',
+  ].some(route => path.startsWith(route))
+}
+
+function isProtectedRoute(path: string): boolean {
+  return [
+    '/dashboard',
+    '/admin',
+    '/settings'
+  ].some(route => path.startsWith(route))
+}
+
+function redirectToSignIn(req: NextRequest) {
+  return NextResponse.redirect(new URL('/sign-in', req.url))
+}
+
+function redirectToError(req: NextRequest, code: string) {
+  return NextResponse.redirect(new URL(`/error?code=${code}`, req.url))
+}
+
+function hasRequiredRole(path: string, systemRole: string, capabilities: string[]): boolean {
+  // Add your role verification logic here based on path patterns
+  // Example:
+  if (path.startsWith('/admin')) {
+    return systemRole === 'SYSTEM_OWNER' || systemRole === 'SYSTEM_MODERATOR'
+  }
+  return true
 }
 
 function updateMetrics(operation: string, data: { duration: number, error?: Error }) {

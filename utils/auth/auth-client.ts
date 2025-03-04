@@ -1,28 +1,17 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
-import { cookies } from 'next/headers'
-import { Database } from '@/types/supabase'
+import { createClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/supabase'
 
-export async function createAuthClient() {
-  const cookieStore = await cookies()
-  
-  return createServerClient<Database>(
+/**
+ * Creates a Supabase client for database operations only.
+ * Auth is handled by Clerk, so we don't need Supabase's auth features.
+ */
+export function createAuthClient() {
+  return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll()
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing user sessions.
-          }
-        }
+      auth: {
+        persistSession: false // Disable Supabase auth since we use Clerk
       }
     }
   )

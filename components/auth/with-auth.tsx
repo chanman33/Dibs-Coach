@@ -1,46 +1,55 @@
 'use client';
 
-import { ReactNode } from 'react';
-import { useAuthContext } from './providers';
-import NotAuthorized from './not-authorized';
-import { AuthOptions } from '@/utils/types/auth';
-import { isAuthorized } from '@/utils/auth/auth-utils';
+import { useAuth } from '@clerk/nextjs'
+import { useRouter } from 'next/navigation'
+import { useAuthContext } from './providers'
+import type { SystemRole, UserCapability } from '@/utils/roles/roles'
 
-interface WithAuthProps {
-  children: ReactNode;
-  options?: AuthOptions;
-  fallback?: ReactNode;
-  loading?: ReactNode;
+interface WithAuthOptions {
+  requiredSystemRole?: SystemRole
+  requiredCapabilities?: UserCapability[]
+  requireAll?: boolean
 }
 
-/**
- * Higher-order component for protecting routes and components with authentication and authorization
- */
-export function WithAuth({ 
-  children, 
-  options = {}, 
-  fallback, 
-  loading 
-}: WithAuthProps) {
-  const { isLoading, isSignedIn } = useAuthContext();
+export function WithAuth<P extends object>(
+  Component: React.ComponentType<P>,
+  options: WithAuthOptions = {}
+) {
+  return function ProtectedComponent(props: P) {
+    const { isLoaded, isSignedIn } = useAuth()
+    const router = useRouter()
+    const authContext = useAuthContext()
 
-  if (isLoading) {
-    return loading || null;
-  }
-
-  if (!isSignedIn) {
-    return fallback || <NotAuthorized message="Please sign in to access this content" />;
-  }
-
-  // Server-side authorization is handled in layout.tsx
-  // This is just for client-side components
-  const checkAuth = async () => {
-    const { authorized, message } = await isAuthorized(options);
-    if (!authorized) {
-      return fallback || <NotAuthorized message={message} />;
+    if (!isLoaded) {
+      return <div>Loading...</div>
     }
-    return children;
-  };
 
-  return checkAuth();
+    if (!isSignedIn) {
+      router.push('/sign-in')
+      return null
+    }
+
+    // Check system role if required
+    if (options.requiredSystemRole && 
+        authContext.systemRole !== options.requiredSystemRole) {
+      router.push('/not-authorized')
+      return null
+    }
+
+    // Check capabilities if required
+    if (options.requiredCapabilities?.length) {
+      const hasRequired = options.requireAll
+        ? options.requiredCapabilities.every(cap => 
+            authContext.capabilities.includes(cap))
+        : options.requiredCapabilities.some(cap => 
+            authContext.capabilities.includes(cap))
+
+      if (!hasRequired) {
+        router.push('/not-authorized')
+        return null
+      }
+    }
+
+    return <Component {...props} />
+  }
 } 

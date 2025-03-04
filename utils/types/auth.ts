@@ -75,20 +75,6 @@ export class UserNotFoundError extends Error {
   }
 }
 
-export class UnauthorizedError extends Error {
-  constructor(message = 'Authentication required') {
-    super(message);
-    this.name = 'UnauthorizedError';
-  }
-}
-
-export class ForbiddenError extends Error {
-  constructor(message = 'Insufficient permissions') {
-    super(message);
-    this.name = 'ForbiddenError';
-  }
-}
-
 export interface AuthContext {
   userId: string;          // Clerk ID
   userUlid: string;       // Database ID
@@ -102,25 +88,7 @@ export interface AuthContext {
   };
 }
 
-export const authContextSchema = z.object({
-  userId: z.string(),
-  userUlid: z.string(),
-  systemRole: z.enum(['SYSTEM_OWNER', 'SYSTEM_MODERATOR', 'USER']),
-  capabilities: z.array(z.enum(['COACH', 'MENTEE'])),
-  orgRole: z.enum([
-    'GLOBAL_OWNER', 'GLOBAL_DIRECTOR', 'GLOBAL_MANAGER',
-    'REGIONAL_OWNER', 'REGIONAL_DIRECTOR', 'REGIONAL_MANAGER',
-    'LOCAL_OWNER', 'LOCAL_DIRECTOR', 'LOCAL_MANAGER',
-    'OWNER', 'DIRECTOR', 'MANAGER', 'MEMBER', 'GUEST'
-  ]).optional(),
-  orgLevel: z.enum(['GLOBAL', 'REGIONAL', 'LOCAL', 'BRANCH']).optional(),
-  subscription: z.object({
-    status: z.string(),
-    planId: z.string()
-  }).optional()
-});
-
-export type AuthOptions = {
+export interface AuthOptions {
   requiredSystemRole?: SystemRole;
   requiredOrgRole?: OrgRole;
   requiredOrgLevel?: OrgLevel;
@@ -128,4 +96,31 @@ export type AuthOptions = {
   requiredCapabilities?: UserCapability[];
   requireAll?: boolean;
   requireOrganization?: boolean;
-}; 
+}
+
+export const authContextSchema = z.object({
+  userId: z.string(),
+  userUlid: z.string(),
+  systemRole: z.string(), // Will be validated against SystemRole
+  capabilities: z.array(z.string()), // Will be validated against UserCapability
+  orgRole: z.string().optional(), // Will be validated against OrgRole
+  orgLevel: z.string().optional(), // Will be validated against OrgLevel
+  subscription: z.object({
+    status: z.string(),
+    planId: z.string()
+  }).optional()
+});
+
+export class UnauthorizedError extends Error {
+  constructor(message = 'Unauthorized access') {
+    super(message)
+    this.name = 'UnauthorizedError'
+  }
+}
+
+export class ForbiddenError extends Error {
+  constructor(message = 'Insufficient permissions') {
+    super(message);
+    this.name = 'ForbiddenError';
+  }
+} 

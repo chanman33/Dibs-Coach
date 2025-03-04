@@ -1,108 +1,98 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
-import { SYSTEM_ROLES, USER_CAPABILITIES, hasCapability, type UserRoleContext } from './utils/roles/roles'
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
-import { getAuthContext } from './utils/auth/auth-context'
-import { createAuthMiddleware } from './utils/auth/auth-middleware'
-import { handleAuthError } from "./utils/auth/auth-utils";
-import { getRequiredCapabilities } from "./utils/auth/auth-utils";
-import { getRequiredRole } from "./utils/auth/auth-utils";
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import { NextResponse } from 'next/server'
+import { createAuthClient } from '@/utils/auth/auth-client'
 
-// Import config and define its type
-type AppConfig = {
-  auth: {
-    enabled: boolean;
-  };
-  payments: {
-    enabled: boolean;
-  };
-  roles: {
-    enabled: boolean;
-  };
-};
-
-const config: AppConfig = require('./config').default;
-
-// Public marketing routes that don't require auth
-const PUBLIC_ROUTES = [
+// Define route matchers
+const isPublicRoute = createRouteMatcher([
   '/',
-  '/about',
-  '/contact',
-  '/pricing',
-  '/blog',
-  '/api/auth/webhook',
-  '/api/calendly/webhooks'
-] as const;
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+  '/api/webhooks(.*)',
+  '/api/auth/(.*)'
+])
 
-// Protected routes that require auth
-const PROTECTED_ROUTES = [
+const isProtectedRoute = createRouteMatcher([
   '/dashboard(.*)',
-  '/settings(.*)',
-  '/profile(.*)',
-  '/apply-coach(.*)'
-] as const;
+  '/settings(.*)'
+])
 
-// Role-specific route patterns
-const COACH_ROUTES = ['/dashboard/coach(.*)'] as const;
-const MENTEE_ROUTES = ['/dashboard/mentee(.*)'] as const;
-const ADMIN_ROUTES = ['/dashboard/admin(.*)'] as const;
+const isAdminRoute = createRouteMatcher([
+  '/admin(.*)'
+])
 
-// Note: We keep SHARED_TOOL_ROUTES for direct access, though it should be rare
-const SHARED_TOOL_ROUTES = ['/dashboard/tools(.*)'] as const;
+const isCoachRoute = createRouteMatcher([
+  '/coach(.*)'
+])
 
-let clerkMiddleware: any, createRouteMatcher: any;
-
-if (config.auth.enabled) {
+export default clerkMiddleware(async (auth, req) => {
   try {
-    ({ clerkMiddleware, createRouteMatcher } = require("@clerk/nextjs/server"));
+    // Public routes are always accessible
+    if (isPublicRoute(req)) {
+      return NextResponse.next()
+    }
+
+    // Get auth state
+    const authState = await auth()
+
+    // Protected routes require authentication
+    if (isProtectedRoute(req) && !authState.userId) {
+      return NextResponse.redirect(new URL('/sign-in', req.url))
+    }
+
+    // For admin and coach routes, verify roles in Supabase
+    if (isAdminRoute(req) || isCoachRoute(req)) {
+      if (!authState.userId) {
+        return NextResponse.redirect(new URL('/sign-in', req.url))
+      }
+
+      const supabase = createAuthClient()
+      const { data: user, error } = await supabase
+        .from('User')
+        .select('systemRole, capabilities')
+        .eq('userId', authState.userId)
+        .single()
+
+      if (error || !user) {
+        console.error('[AUTH_ERROR]', {
+          code: 'ROLE_VERIFICATION_ERROR',
+          message: error?.message || 'User not found',
+          context: { userId: authState.userId, path: req.nextUrl.pathname },
+          timestamp: new Date().toISOString()
+        })
+        return NextResponse.redirect(new URL('/not-authorized', req.url))
+      }
+
+      // Verify admin access
+      if (isAdminRoute(req) && 
+          user.systemRole !== 'SYSTEM_OWNER' && 
+          user.systemRole !== 'SYSTEM_MODERATOR') {
+        return NextResponse.redirect(new URL('/not-authorized', req.url))
+      }
+
+      // Verify coach access
+      if (isCoachRoute(req) && 
+          !user.capabilities?.includes('COACH')) {
+        return NextResponse.redirect(new URL('/not-authorized', req.url))
+      }
+    }
+
+    return NextResponse.next()
   } catch (error) {
-    console.warn("Clerk modules not available. Auth will be disabled.");
-    config.auth.enabled = false;
+    console.error('[AUTH_ERROR]', {
+      code: 'MIDDLEWARE_ERROR',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      context: { path: req.nextUrl.pathname },
+      timestamp: new Date().toISOString()
+    })
+    return NextResponse.redirect(new URL('/error?code=server_error', req.url))
   }
-}
+})
 
-const isPublicRoute = (pathname: string) =>
-  PUBLIC_ROUTES.some(route => pathname.startsWith(route));
-
-const isProtectedRoute = (pathname: string) =>
-  PROTECTED_ROUTES.some(route => pathname.match(route));
-
-export default function middleware(req: NextRequest) {
-  if (!config.auth.enabled) return NextResponse.next()
-
-  return clerkMiddleware(async (auth: any) => {
-    const pathname = req.nextUrl.pathname
-
-    if (isPublicRoute(pathname)) return NextResponse.next()
-    if (!auth?.userId && isProtectedRoute(pathname)) {
-      return auth.redirectToSignIn()
-    }
-
-    try {
-      const context = await getAuthContext()
-      
-      // Route-specific middleware
-      await createAuthMiddleware({
-        requiredSystemRole: getRequiredRole(pathname),
-        requiredCapabilities: getRequiredCapabilities(pathname)
-      })(context)
-
-      // Add context to headers
-      const headers = new Headers(req.headers)
-      headers.set('x-auth-context', JSON.stringify(context))
-
-      return NextResponse.next({ headers })
-    } catch (error) {
-      return handleAuthError(error as Error, req)
-    }
-  })(req)
-}
-
-// Export middleware config
-export const middlewareConfig = {
+export const config = {
   matcher: [
-    // Match all paths except static assets and api routes that don't need auth
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
-};
+    // Skip Next.js internals and all static files
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    // Include API routes
+    '/(api|trpc)(.*)'
+  ]
+}
