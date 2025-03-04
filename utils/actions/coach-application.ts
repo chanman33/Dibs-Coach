@@ -8,25 +8,43 @@ import { z } from 'zod'
 import { ulidSchema } from '@/utils/types/auth'
 import { COACH_APPLICATION_STATUS, REAL_ESTATE_DOMAINS, type CoachApplicationStatus, type RealEstateDomain } from '@/utils/types/coach'
 import { generateUlid } from '@/utils/ulid'
-import type { ApplicationData } from '@/utils/types/coach-application'
+import type { ApplicationResponse } from '@/utils/types/coach-application'
 import { revalidatePath } from "next/cache";
 import { addUserCapability } from "@/utils/permissions";
 import type { ServerActionContext } from "@/utils/middleware/withServerAction";
 import { cookies } from 'next/headers';
+import type { Database } from '@/types/supabase';
+import { CoachApplicationStatus as PrismaCoachApplicationStatus } from '@prisma/client';
+import { coachApplicationFormSchema, type CoachApplicationFormData } from '@/utils/types/coach-application'
+
+// Define the status type to match database
+type ApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DRAFT';
 
 // Validation schemas
 const CoachApplicationSchema = z.object({
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-  email: z.string().email('Invalid email format'),
-  phoneNumber: z.string().min(10, 'Phone number is required'),
-  linkedIn: z.string().url().optional(),
-  primarySocialMedia: z.string().url().optional(),
-  yearsOfExperience: z.string().min(1, 'Years of experience is required'),
-  expertise: z.string().min(1, 'Expertise is required'),
-  additionalInfo: z.string().optional(),
-  resumeUrl: z.string().url().optional(),
-  industrySpecialties: z.array(z.string()).optional()
+  ulid: z.string().length(26).optional(),
+  applicantUlid: z.string().length(26),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
+  phoneNumber: z.string().nullable(),
+  yearsOfExperience: z.number(),
+  superPower: z.string(),
+  aboutYou: z.string().nullable(),
+  realEstateDomains: z.array(z.string()).default([]),
+  primaryDomain: z.string().nullable(),
+  resumeUrl: z.string().nullable(),
+  linkedIn: z.string().nullable(),
+  primarySocialMedia: z.string().nullable(),
+  reviewerUlid: z.string().length(26).nullable(),
+  reviewDate: z.string().datetime().nullable(),
+  reviewNotes: z.string().nullable(),
+  isDraft: z.boolean().default(false),
+  lastSavedAt: z.string().datetime().nullable(),
+  draftData: z.any().nullable(),
+  draftVersion: z.number().default(1),
+  createdAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime().optional()
 })
 
 const ApplicationReviewSchema = z.object({
@@ -37,37 +55,7 @@ const ApplicationReviewSchema = z.object({
 })
 
 // Response types
-type CoachApplication = z.infer<typeof CoachApplicationSchema>
-
-type ApplicationResponse = {
-  ulid: string;
-  status: CoachApplicationStatus;
-  applicant: {
-    ulid: string;
-    firstName: string | null;
-    lastName: string | null;
-    email: string;
-    phoneNumber: string | null;
-    profileImageUrl: string | null;
-  } | null;
-  reviewer: {
-    ulid: string;
-    firstName: string | null;
-    lastName: string | null;
-  } | null;
-  yearsOfExperience: number;
-  superPower: string;
-  realEstateDomains: RealEstateDomain[];
-  primaryDomain: RealEstateDomain;
-  resumeUrl: string | null;
-  linkedIn: string | null;
-  primarySocialMedia: string | null;
-  aboutYou: string | null;
-  notes: string | null;
-  reviewDate: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+type CoachApplication = Database['public']['Tables']['CoachApplication']['Row'];
 
 // Add type definition for raw application data
 type RawApplicationData = {
@@ -103,130 +91,166 @@ type RawApplicationData = {
 // Database types
 // interface ApplicationData { ... } // Remove this entire interface
 
+async function validateCoachApplicationData(formData: FormData) {
+  let resumeUrl: string | undefined;
+
+  // Handle resume file upload if provided
+  const resumeFile = formData.get('resume') as File;
+  if (resumeFile && resumeFile.size > 0) {
+    const supabase = await createAuthClient();
+    // Generate a unique filename
+    const timestamp = new Date().getTime();
+    const filename = `${timestamp}_${resumeFile.name}`;
+    
+    // Upload file to Supabase storage
+    const { data: uploadData, error: uploadError } = await supabase
+      .storage
+      .from('resumes')
+      .upload(filename, resumeFile, {
+        contentType: 'application/pdf',
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('[RESUME_UPLOAD_ERROR]', uploadError);
+      throw new Error('Failed to upload resume');
+    }
+
+    // Get the public URL for the uploaded file
+    const { data: urlData } = await supabase
+      .storage
+      .from('resumes')
+      .getPublicUrl(filename);
+
+    resumeUrl = urlData.publicUrl;
+  }
+
+  // Convert FormData to object, handling optional fields
+  const data = {
+    firstName: formData.get('firstName') as string,
+    lastName: formData.get('lastName') as string,
+    email: formData.get('email') as string,
+    phoneNumber: formData.get('phoneNumber') as string,
+    yearsOfExperience: parseInt(formData.get('yearsOfExperience') as string),
+    superPower: formData.get('superPower') as string,
+    realEstateDomains: JSON.parse(formData.get('realEstateDomains') as string),
+    primaryDomain: formData.get('primaryDomain') as string,
+    resume: resumeFile,
+    linkedIn: formData.get('linkedIn') as string || null,
+    primarySocialMedia: formData.get('primarySocialMedia') as string || null,
+    aboutYou: formData.get('aboutYou') as string || null
+  };
+
+  // Validate input data using form schema
+  const validatedFormData = coachApplicationFormSchema.parse(data);
+
+  // Return both validated form data and resume URL
+  return {
+    ...validatedFormData,
+    resumeUrl
+  };
+}
+
 // Submit coach application
 export const submitCoachApplication = withServerAction<ApplicationResponse>(
   async (formData: FormData, { userUlid }) => {
     try {
+      const validatedData = await validateCoachApplicationData(formData);
       const supabase = await createAuthClient();
-      let resumeUrl: string | undefined;
 
-      // Handle resume file upload if provided
-      const resumeFile = formData.get('resume') as File;
-      if (resumeFile && resumeFile.size > 0) {
-        // Generate a unique filename
-        const timestamp = new Date().getTime();
-        const filename = `${userUlid}_${timestamp}_${resumeFile.name}`;
-        
-        // Upload file to Supabase storage
-        const { data: uploadData, error: uploadError } = await supabase
-          .storage
-          .from('resumes')
-          .upload(filename, resumeFile, {
-            contentType: 'application/pdf',
-            upsert: true
-          });
-
-        if (uploadError) {
-          console.error('[RESUME_UPLOAD_ERROR]', uploadError);
-          throw new Error('Failed to upload resume');
-        }
-
-        // Get the public URL for the uploaded file
-        const { data: urlData } = await supabase
-          .storage
-          .from('resumes')
-          .getPublicUrl(filename);
-
-        resumeUrl = urlData.publicUrl;
-      }
-
-      // Parse industry specialties from JSON string if provided
-      let industrySpecialties: string[] = [];
-      const industrySpecialtiesStr = formData.get('industrySpecialties');
-      if (industrySpecialtiesStr) {
-        try {
-          industrySpecialties = JSON.parse(industrySpecialtiesStr as string);
-        } catch (error) {
-          console.error('[INDUSTRY_SPECIALTIES_PARSE_ERROR]', error);
-          // Continue with empty array if parsing fails
-        }
-      }
-
-      // Convert FormData to object, handling optional fields
-      const data = {
-        firstName: formData.get('firstName') as string,
-        lastName: formData.get('lastName') as string,
-        email: formData.get('email') as string,
-        phoneNumber: formData.get('phoneNumber') as string,
-        yearsOfExperience: parseInt(formData.get('yearsOfExperience') as string),
-        superPower: formData.get('superPower') as string,
-        realEstateDomains: JSON.parse(formData.get('realEstateDomains') as string),
-        primaryDomain: formData.get('primaryDomain') as RealEstateDomain,
-        resumeUrl: resumeUrl, // Use the uploaded file URL
-        linkedIn: formData.get('linkedIn') as string | null,
-        primarySocialMedia: formData.get('primarySocialMedia') as string | null,
-        aboutYou: formData.get('aboutYou') as string | null,
-        notes: formData.get('notes') as string | null,
-        reviewDate: formData.get('reviewDate') as string | null,
+      const applicationData = {
+        ulid: generateUlid(),
+        applicantUlid: userUlid,
+        status: 'PENDING' as const,
+        yearsOfExperience: validatedData.yearsOfExperience,
+        superPower: validatedData.superPower,
+        realEstateDomains: validatedData.realEstateDomains,
+        primaryDomain: validatedData.primaryDomain,
+        resumeUrl: validatedData.resumeUrl || null,
+        linkedIn: validatedData.linkedIn,
+        primarySocialMedia: validatedData.primarySocialMedia,
+        aboutYou: validatedData.aboutYou,
+        isDraft: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
-      // Validate input data
-      const validatedData = CoachApplicationSchema.parse(data);
-
-      // Create application record
-      const { data: application, error: applicationError } = await supabase
+      const { data: application, error } = await supabase
         .from('CoachApplication')
-        .insert(validatedData)
+        .insert(applicationData)
         .select(`
           ulid,
           status,
-          experience,
-          specialties,
-          industrySpecialties,
-          notes,
-          applicationDate,
-          reviewDate,
+          yearsOfExperience,
+          superPower,
+          realEstateDomains,
+          primaryDomain,
+          resumeUrl,
+          linkedIn,
+          primarySocialMedia,
+          aboutYou,
           createdAt,
           updatedAt,
-          applicant:applicantUlid (
-            ulid,
+          applicant:User!CoachApplication_applicantUlid_fkey (
             firstName,
             lastName,
-            email
-          ),
-          reviewer:reviewerUlid (
-            ulid,
-            firstName,
-            lastName
+            email,
+            phoneNumber
           )
         `)
-        .single() as { data: ApplicationData | null, error: any };
+        .single();
 
-      if (applicationError) {
-        console.error('[COACH_APPLICATION_ERROR]', { userUlid, error: applicationError });
+      if (error) {
+        console.error('[COACH_APPLICATION_ERROR]', error);
         return {
           data: null,
           error: {
-            code: "INTERNAL_ERROR",
-            message: "Failed to submit application",
-          },
+            code: 'DATABASE_ERROR' as const,
+            message: 'Failed to submit application'
+          }
         };
       }
 
       return {
-        data: application,
+        data: {
+          ulid: application.ulid,
+          status: application.status as CoachApplicationStatus,
+          firstName: application.applicant?.firstName ?? null,
+          lastName: application.applicant?.lastName ?? null,
+          phoneNumber: application.applicant?.phoneNumber ?? null,
+          yearsOfExperience: application.yearsOfExperience,
+          superPower: application.superPower,
+          aboutYou: application.aboutYou ?? null,
+          realEstateDomains: (application.realEstateDomains ?? []) as RealEstateDomain[],
+          primaryDomain: application.primaryDomain as RealEstateDomain,
+          resumeUrl: application.resumeUrl ?? null,
+          linkedIn: application.linkedIn ?? null,
+          primarySocialMedia: application.primarySocialMedia ?? null,
+          isDraft: application.status === ('DRAFT' as CoachApplicationStatus),
+          createdAt: application.createdAt,
+          updatedAt: application.updatedAt
+        },
         error: null
       };
+
     } catch (error) {
       console.error('[COACH_APPLICATION_ERROR]', error);
+      if (error instanceof z.ZodError) {
+        return {
+          data: null,
+          error: {
+            code: 'VALIDATION_ERROR' as const,
+            message: 'Invalid form data',
+            details: error.flatten()
+          }
+        };
+      }
       return {
         data: null,
         error: {
-          code: "INTERNAL_ERROR",
-          message: "Failed to submit application",
-        },
+          code: 'INTERNAL_ERROR' as const,
+          message: 'An unexpected error occurred'
+        }
       };
     }
   }
@@ -270,7 +294,7 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
           )
         `)
         .eq('applicantUlid', userUlid)
-        .single() as { data: ApplicationData | null, error: any }
+        .single() as { data: ApplicationResponse | null, error: any }
 
       // If no application found, return null data without error
       if (!application) {
@@ -359,7 +383,7 @@ export const reviewCoachApplication = withServerAction<ApplicationResponse>(
       const { error: updateError } = await supabase
         .from('CoachApplication')
         .update({
-          status: data.status.toUpperCase(),
+          status: data.status.toUpperCase() as 'PENDING' | 'APPROVED' | 'REJECTED',
           reviewerUlid: userUlid,
           reviewDate: new Date().toISOString(),
           notes: data.notes,
@@ -388,8 +412,9 @@ export const reviewCoachApplication = withServerAction<ApplicationResponse>(
         const { error: profileError } = await supabase
           .from('CoachProfile')
           .insert({
+            ulid: generateUlid(),
             userUlid: application.applicantUlid,
-            approvedSpecialties: data.approvedSpecialties || [],
+            coachSkills: data.approvedSpecialties || [],
             profileStatus: 'DRAFT',
             completionPercentage: 0,
             createdAt: new Date().toISOString(),
@@ -574,7 +599,7 @@ export const getResumePresignedUrl = withServerAction<string>(
 );
 
 // Get all coach applications for system review
-export const getAllCoachApplications = withServerAction<ApplicationData[]>(
+export const getAllCoachApplications = withServerAction<ApplicationResponse[]>(
   async (_, { systemRole }) => {
     try {
       console.log('[GET_ALL_APPLICATIONS_START]', {
@@ -584,21 +609,16 @@ export const getAllCoachApplications = withServerAction<ApplicationData[]>(
 
       // Validate admin role
       if (systemRole !== SYSTEM_ROLES.SYSTEM_OWNER && systemRole !== SYSTEM_ROLES.SYSTEM_MODERATOR) {
-        console.error('[GET_ALL_APPLICATIONS_ERROR]', {
-          error: 'Unauthorized access',
-          systemRole,
-          requiredRoles: [SYSTEM_ROLES.SYSTEM_OWNER, SYSTEM_ROLES.SYSTEM_MODERATOR]
-        });
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
             message: 'Only system owners and moderators can view all coach applications'
           }
-        }
+        };
       }
 
-      const supabase = await createAuthClient()
+      const supabase = await createAuthClient();
 
       console.log('[GET_ALL_APPLICATIONS_QUERY_START]', {
         timestamp: new Date().toISOString()
@@ -609,226 +629,64 @@ export const getAllCoachApplications = withServerAction<ApplicationData[]>(
         .select(`
           ulid,
           status,
-          experience,
-          specialties,
-          industrySpecialties,
-          notes,
-          applicationDate,
-          reviewDate,
-          createdAt,
-          updatedAt,
+          yearsOfExperience,
+          superPower,
+          realEstateDomains,
+          primaryDomain,
           resumeUrl,
           linkedIn,
           primarySocialMedia,
-          additionalInfo,
+          aboutYou,
+          createdAt,
+          updatedAt,
           applicant:User!CoachApplication_applicantUlid_fkey (
-            ulid,
             firstName,
             lastName,
-            email,
-            phoneNumber,
-            profileImageUrl
-          ),
-          reviewer:User!CoachApplication_reviewerUlid_fkey (
-            ulid,
-            firstName,
-            lastName,
-            email
+            phoneNumber
           )
         `)
-        .order('createdAt', { ascending: false }) as { data: RawApplicationData[] | null, error: any };
-
-      console.log('[GET_ALL_APPLICATIONS_QUERY_COMPLETE]', {
-        success: !applicationsError,
-        count: applications?.length || 0,
-        hasError: !!applicationsError,
-        timestamp: new Date().toISOString()
-      });
 
       if (applicationsError) {
-        console.error('[GET_ALL_APPLICATIONS_ERROR]', {
-          error: applicationsError,
-          message: 'Database query failed'
-        });
+        console.error('[GET_ALL_APPLICATIONS_ERROR]', applicationsError);
         return {
           data: null,
           error: {
-            code: 'FETCH_ERROR',
+            code: 'INTERNAL_ERROR',
             message: 'Failed to fetch applications'
           }
-        }
+        };
       }
-
-      if (!applications) {
-        console.log('[GET_ALL_APPLICATIONS_NO_DATA]', {
-          timestamp: new Date().toISOString()
-        });
-        return {
-          data: [],
-          error: null
-        }
-      }
-
-      // Transform and validate the data
-      const transformedApplications = applications
-        .map((app: RawApplicationData) => {
-          // Log raw application data for debugging
-          console.log('[TRANSFORM_APPLICATION_START]', {
-            applicationId: app.ulid,
-            hasApplicant: !!app.applicant,
-            rawData: {
-              status: app.status,
-              yearsOfExperience: app.yearsOfExperience,
-              superPower: app.superPower,
-              realEstateDomainsLength: app.realEstateDomains?.length,
-              hasNotes: !!app.notes,
-              hasAboutYou: !!app.aboutYou,
-              hasApplicantData: app.applicant ? {
-                firstName: !!app.applicant.firstName,
-                lastName: !!app.applicant.lastName,
-                email: !!app.applicant.email,
-                phoneNumber: !!app.applicant.phoneNumber
-              } : null
-            }
-          });
-
-          // Validate status
-          const status = app.status?.toUpperCase()
-          if (!(status in COACH_APPLICATION_STATUS)) {
-            console.error(`[TRANSFORM_APPLICATION_ERROR] Invalid status: ${status} for application ${app.ulid}`);
-            return null
-          }
-
-          // Validate required fields
-          if (!app.applicant) {
-            console.error(`[TRANSFORM_APPLICATION_ERROR] Missing applicant data for application ${app.ulid}`);
-            return null;
-          }
-
-          // Ensure all required fields are present
-          const applicationData: ApplicationData = {
-            ulid: app.ulid,
-            status: app.status as CoachApplicationStatus,
-            yearsOfExperience: app.yearsOfExperience,
-            superPower: app.superPower,
-            realEstateDomains: app.realEstateDomains.filter((domain): domain is RealEstateDomain => 
-              Object.values(REAL_ESTATE_DOMAINS).includes(domain as RealEstateDomain)
-            ),
-            primaryDomain: app.primaryDomain as RealEstateDomain,
-            notes: app.notes,
-            reviewDate: app.reviewDate,
-            createdAt: app.createdAt,
-            updatedAt: app.updatedAt,
-            resumeUrl: app.resumeUrl,
-            linkedIn: app.linkedIn,
-            primarySocialMedia: app.primarySocialMedia,
-            aboutYou: app.aboutYou,
-            applicant: app.applicant ? {
-              ulid: app.applicant.ulid,
-              firstName: app.applicant.firstName || '',
-              lastName: app.applicant.lastName || '',
-              email: app.applicant.email,
-              phoneNumber: app.applicant.phoneNumber,
-              profileImageUrl: app.applicant.profileImageUrl
-            } : null,
-            reviewer: app.reviewer ? {
-              ulid: app.reviewer.ulid,
-              firstName: app.reviewer.firstName || '',
-              lastName: app.reviewer.lastName || ''
-            } : null
-          };
-
-          // Log transformed data
-          console.log('[TRANSFORM_APPLICATION_SUCCESS]', {
-            applicationId: app.ulid,
-            transformedData: {
-              hasApplicantInfo: !!applicationData.applicant,
-              applicantDetails: applicationData.applicant && {
-                hasFirstName: !!applicationData.applicant.firstName,
-                hasLastName: !!applicationData.applicant.lastName,
-                hasEmail: !!applicationData.applicant.email,
-                hasPhone: !!applicationData.applicant.phoneNumber
-              },
-              hasRealEstateDomains: applicationData.realEstateDomains.length > 0,
-              hasYearsOfExperience: !!applicationData.yearsOfExperience
-            }
-          });
-
-          return applicationData;
-        })
-        .filter((app): app is ApplicationData => app !== null);
-
-      console.log('[GET_ALL_APPLICATIONS_SUCCESS]', {
-        originalCount: applications.length,
-        transformedCount: transformedApplications.length,
-        sampleApplication: transformedApplications[0] ? {
-          ulid: transformedApplications[0].ulid,
-          hasApplicant: !!transformedApplications[0].applicant,
-          applicantFields: transformedApplications[0].applicant ? {
-            firstName: !!transformedApplications[0].applicant.firstName,
-            lastName: !!transformedApplications[0].applicant.lastName,
-            email: !!transformedApplications[0].applicant.email,
-            phoneNumber: !!transformedApplications[0].applicant.phoneNumber
-          } : null,
-          hasRealEstateDomains: transformedApplications[0].realEstateDomains.length > 0,
-          hasYearsOfExperience: !!transformedApplications[0].yearsOfExperience
-        } : 'No applications',
-        timestamp: new Date().toISOString()
-      });
 
       return {
-        data: transformedApplications,
+        data: applications?.map(app => ({
+          ulid: app.ulid,
+          status: app.status as CoachApplicationStatus,
+          firstName: app.applicant?.firstName ?? null,
+          lastName: app.applicant?.lastName ?? null,
+          phoneNumber: app.applicant?.phoneNumber ?? null,
+          yearsOfExperience: app.yearsOfExperience,
+          superPower: app.superPower,
+          aboutYou: app.aboutYou ?? null,
+          realEstateDomains: (app.realEstateDomains ?? []) as RealEstateDomain[],
+          primaryDomain: app.primaryDomain as RealEstateDomain,
+          resumeUrl: app.resumeUrl ?? null,
+          linkedIn: app.linkedIn ?? null,
+          primarySocialMedia: app.primarySocialMedia ?? null,
+          isDraft: app.status === ('DRAFT' as CoachApplicationStatus),
+          createdAt: app.createdAt,
+          updatedAt: app.updatedAt
+        })) ?? null,
         error: null
-      }
+      };
     } catch (error) {
-      console.error('[GET_ALL_APPLICATIONS_ERROR]', {
-        error,
-        message: 'Unexpected error occurred',
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
-      });
+      console.error('[GET_ALL_APPLICATIONS_ERROR]', error);
       return {
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
-          details: error instanceof Error ? { message: error.message } : undefined
+          message: 'Failed to fetch applications'
         }
-      }
+      };
     }
-  },
-  { requiredSystemRole: SYSTEM_ROLES.SYSTEM_OWNER }
-)
-
-// Transform raw data to ApplicationData
-const transformRawData = (raw: RawApplicationData): ApplicationData => ({
-  ulid: raw.ulid,
-  status: raw.status as CoachApplicationStatus,
-  yearsOfExperience: raw.yearsOfExperience,
-  superPower: raw.superPower,
-  realEstateDomains: raw.realEstateDomains.filter((domain): domain is RealEstateDomain => 
-    Object.values(REAL_ESTATE_DOMAINS).includes(domain as RealEstateDomain)
-  ),
-  primaryDomain: raw.primaryDomain as RealEstateDomain,
-  notes: raw.notes,
-  reviewDate: raw.reviewDate,
-  createdAt: raw.createdAt,
-  updatedAt: raw.updatedAt,
-  resumeUrl: raw.resumeUrl,
-  linkedIn: raw.linkedIn,
-  primarySocialMedia: raw.primarySocialMedia,
-  aboutYou: raw.aboutYou,
-  applicant: raw.applicant ? {
-    ulid: raw.applicant.ulid,
-    firstName: raw.applicant.firstName,
-    lastName: raw.applicant.lastName,
-    email: raw.applicant.email,
-    phoneNumber: raw.applicant.phoneNumber,
-    profileImageUrl: raw.applicant.profileImageUrl
-  } : null,
-  reviewer: raw.reviewer ? {
-    ulid: raw.reviewer.ulid,
-    firstName: raw.reviewer.firstName,
-    lastName: raw.reviewer.lastName
-  } : null
-}); 
+  }
+);

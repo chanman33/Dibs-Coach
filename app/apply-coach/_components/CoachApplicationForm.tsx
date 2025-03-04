@@ -56,8 +56,9 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
   );
   const router = useRouter();
   
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm<CoachApplicationFormData>({
+  const { register, handleSubmit, formState: { errors, isSubmitting }, setValue, trigger } = useForm<CoachApplicationFormData>({
     resolver: zodResolver(coachApplicationFormSchema),
+    mode: 'onBlur',
     defaultValues: {
       firstName: userData?.firstName || '',
       lastName: userData?.lastName || '',
@@ -76,6 +77,12 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
 
   const handleFormSubmit = async (data: CoachApplicationFormData, isDraft: boolean = false) => {
     try {
+      const isValid = await trigger();
+      if (!isValid) {
+        toast.error('Please fill in all required fields correctly');
+        return;
+      }
+
       setLoading(true);
 
       const formData = new FormData();
@@ -101,7 +108,6 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
         formData.append('primarySocialMedia', data.primarySocialMedia);
       }
 
-      // Add application status and ID if updating
       formData.append('status', isDraft ? 'draft' : 'pending');
       if (existingApplication?.ulid) {
         formData.append('applicationId', existingApplication.ulid);
@@ -205,6 +211,9 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
                 readOnly
                 className="bg-gray-50"
               />
+              {errors.firstName && (
+                <p className="text-sm text-red-500">{errors.firstName.message}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="lastName">Last Name</Label>
@@ -214,6 +223,9 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
                 readOnly
                 className="bg-gray-50"
               />
+              {errors.lastName && (
+                <p className="text-sm text-red-500">{errors.lastName.message}</p>
+              )}
             </div>
           </div>
 
@@ -225,14 +237,20 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
               readOnly
               className="bg-gray-50"
             />
+            {errors.email && (
+              <p className="text-sm text-red-500">{errors.email.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phoneNumber">Phone Number *</Label>
+            <Label htmlFor="phoneNumber" className="flex items-center">
+              Phone Number <span className="text-red-500 ml-1">*</span>
+            </Label>
             <Input
               id="phoneNumber"
-              {...register('phoneNumber', { required: 'Phone number is required' })}
+              {...register('phoneNumber')}
               className={errors.phoneNumber ? 'border-red-500' : ''}
+              aria-invalid={errors.phoneNumber ? 'true' : 'false'}
             />
             {errors.phoneNumber && (
               <p className="text-sm text-red-500">{errors.phoneNumber.message}</p>
@@ -240,7 +258,9 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="resume">Resume *</Label>
+            <Label htmlFor="resume" className="flex items-center">
+              Resume <span className="text-red-500 ml-1">*</span>
+            </Label>
             <FileUpload
               id="resume"
               accept=".pdf"
@@ -248,6 +268,7 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
               onFileSelect={(file) => setValue('resume', file)}
               error={errors.resume?.message}
             />
+            <p className="text-xs text-gray-500">Upload your resume (PDF format, max 10MB)</p>
           </div>
 
           <div className="space-y-2">
@@ -255,24 +276,24 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
             <Input
               id="linkedIn"
               {...register('linkedIn')}
+              className={errors.linkedIn ? 'border-red-500' : ''}
             />
+            {errors.linkedIn && (
+              <p className="text-sm text-red-500">{errors.linkedIn.message}</p>
+            )}
+            <p className="text-xs text-gray-500">Optional: Add your LinkedIn profile URL</p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="primarySocialMedia">Primary Social Media</Label>
-            <Input
-              id="primarySocialMedia"
-              {...register('primarySocialMedia')}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="yearsOfExperience">Years of Professional Experience *</Label>
+            <Label htmlFor="yearsOfExperience" className="flex items-center">
+              Years of Professional Experience <span className="text-red-500 ml-1">*</span>
+            </Label>
             <Input
               id="yearsOfExperience"
               type="number"
-              {...register('yearsOfExperience', { required: 'Years of experience is required' })}
+              {...register('yearsOfExperience')}
               className={errors.yearsOfExperience ? 'border-red-500' : ''}
+              aria-invalid={errors.yearsOfExperience ? 'true' : 'false'}
             />
             {errors.yearsOfExperience && (
               <p className="text-sm text-red-500">{errors.yearsOfExperience.message}</p>
@@ -280,20 +301,26 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="superPower">What's Your Super Power? *</Label>
+            <Label htmlFor="superPower" className="flex items-center">
+              What's Your Super Power? <span className="text-red-500 ml-1">*</span>
+            </Label>
             <Textarea
               id="superPower"
-              {...register('superPower', { required: 'Super power is required' })}
+              {...register('superPower')}
               className={errors.superPower ? 'border-red-500' : ''}
+              aria-invalid={errors.superPower ? 'true' : 'false'}
             />
             {errors.superPower && (
               <p className="text-sm text-red-500">{errors.superPower.message}</p>
             )}
+            <p className="text-xs text-gray-500">Tell us what makes you unique as a coach</p>
           </div>
 
           <div className="space-y-4">
-            <Label>Real Estate Domains</Label>
-            <p className="text-sm text-gray-500">Select your areas of expertise in real estate. You must select at least one domain.</p>
+            <Label className="flex items-center">
+              Real Estate Domains <span className="text-red-500 ml-1">*</span>
+            </Label>
+            <p className="text-sm text-gray-500">Select your areas of expertise in real estate (at least one required)</p>
             <div className="grid grid-cols-2 gap-4">
               {Object.values(REAL_ESTATE_DOMAINS).map((domain) => (
                 <div key={domain} className="flex items-center space-x-2">
@@ -306,16 +333,17 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
                         : selectedDomains.filter((d) => d !== domain);
                       setSelectedDomains(newDomains);
                       setValue('realEstateDomains', newDomains);
+                      trigger('realEstateDomains');
                       
-                      // If this was the primary domain and it's being unchecked, reset primary domain
                       if (!checked && primaryDomain === domain) {
                         setPrimaryDomain(null);
                         setValue('primaryDomain', undefined as any);
+                        trigger('primaryDomain');
                       }
-                      // If this is the first domain being selected, make it the primary domain
                       if (checked && newDomains.length === 1) {
                         setPrimaryDomain(domain);
                         setValue('primaryDomain', domain);
+                        trigger('primaryDomain');
                       }
                     }}
                   />
@@ -331,8 +359,10 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
           </div>
 
           <div className="space-y-4">
-            <Label>Primary Domain</Label>
-            <p className="text-sm text-gray-500">Select your primary area of expertise.</p>
+            <Label className="flex items-center">
+              Primary Domain <span className="text-red-500 ml-1">*</span>
+            </Label>
+            <p className="text-sm text-gray-500">Select your primary area of expertise</p>
             <div className="grid grid-cols-2 gap-4">
               {selectedDomains.map((domain) => (
                 <div key={domain} className="flex items-center space-x-2">
@@ -344,6 +374,7 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
                     onChange={() => {
                       setPrimaryDomain(domain);
                       setValue('primaryDomain', domain);
+                      trigger('primaryDomain');
                     }}
                     className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
                   />
@@ -359,11 +390,14 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="aboutYou">Anything else we should know about you? *</Label>
+            <Label htmlFor="aboutYou" className="flex items-center">
+              Anything else we should know about you? <span className="text-red-500 ml-1">*</span>
+            </Label>
             <Textarea
               id="aboutYou"
-              {...register('aboutYou', { required: 'This field is required' })}
+              {...register('aboutYou')}
               className={errors.aboutYou ? 'border-red-500' : ''}
+              aria-invalid={errors.aboutYou ? 'true' : 'false'}
             />
             {errors.aboutYou && (
               <p className="text-sm text-red-500">{errors.aboutYou.message}</p>
@@ -375,12 +409,16 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
               type="button"
               variant="outline"
               onClick={handleSubmit((data) => handleFormSubmit(data, true))}
-              disabled={loading || submitted}
+              disabled={loading || submitted || isSubmitting}
             >
               Save as Draft
             </Button>
-            <Button type="submit" disabled={loading || submitted}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            <Button 
+              type="submit" 
+              disabled={loading || submitted || isSubmitting}
+              className="relative"
+            >
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Submit Application
             </Button>
           </div>

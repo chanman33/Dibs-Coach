@@ -1,5 +1,15 @@
 import { z } from "zod"
-import { CoachApplicationStatus, REAL_ESTATE_DOMAINS, type RealEstateDomain } from "./coach"
+import { REAL_ESTATE_DOMAINS, type RealEstateDomain } from "./coach"
+
+// Define the status enum to match Prisma
+export const COACH_APPLICATION_STATUS = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  DRAFT: 'DRAFT'
+} as const;
+
+export type CoachApplicationStatus = typeof COACH_APPLICATION_STATUS[keyof typeof COACH_APPLICATION_STATUS];
 
 // Base schema for form submission
 export const coachApplicationFormSchema = z.object({
@@ -21,16 +31,16 @@ export const coachApplicationFormSchema = z.object({
 // Type for form data
 export type CoachApplicationFormData = z.infer<typeof coachApplicationFormSchema>;
 
-// Schema for database
+// Schema for database operations
 export const CoachApplicationSchema = z.object({
-  ulid: z.string(),
-  status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'DRAFT']),
+  ulid: z.string().length(26),
+  status: z.enum(Object.values(COACH_APPLICATION_STATUS) as [string, ...string[]]),
   yearsOfExperience: z.number(),
   superPower: z.string(),
   realEstateDomains: z.array(z.enum(Object.values(REAL_ESTATE_DOMAINS) as [string, ...string[]])),
   primaryDomain: z.enum(Object.values(REAL_ESTATE_DOMAINS) as [string, ...string[]]),
   notes: z.string().nullable(),
-  reviewerUlid: z.string().nullable(),
+  reviewerUlid: z.string().length(26).nullable(),
   reviewDate: z.string().datetime().nullable(),
   resumeUrl: z.string().nullable(),
   linkedIn: z.string().nullable(),
@@ -39,7 +49,7 @@ export const CoachApplicationSchema = z.object({
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   applicant: z.object({
-    ulid: z.string(),
+    ulid: z.string().length(26),
     firstName: z.string().nullable(),
     lastName: z.string().nullable(),
     email: z.string(),
@@ -47,7 +57,7 @@ export const CoachApplicationSchema = z.object({
     profileImageUrl: z.string().nullable(),
   }).nullable(),
   reviewer: z.object({
-    ulid: z.string(),
+    ulid: z.string().length(26),
     firstName: z.string().nullable(),
     lastName: z.string().nullable(),
   }).nullable(),
@@ -57,41 +67,31 @@ export type CoachApplication = z.infer<typeof CoachApplicationSchema>;
 
 // Review Application Input Schema
 export const ReviewApplicationInputSchema = z.object({
-  applicationUlid: z.string(),
-  status: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'DRAFT']),
+  applicationUlid: z.string().length(26),
+  status: z.enum(Object.values(COACH_APPLICATION_STATUS) as [string, ...string[]]),
   notes: z.string().optional()
 });
 
 export type ReviewApplicationInput = z.infer<typeof ReviewApplicationInputSchema>;
 
-export type ApplicationData = {
+// Response type for API
+export type ApplicationResponse = {
   ulid: string;
   status: CoachApplicationStatus;
+  firstName: string | null;
+  lastName: string | null;
+  phoneNumber: string | null;
   yearsOfExperience: number;
   superPower: string;
+  aboutYou: string | null;
   realEstateDomains: RealEstateDomain[];
-  primaryDomain: RealEstateDomain;
-  notes: string | null;
-  reviewDate: string | null;
-  createdAt: string;
-  updatedAt: string;
+  primaryDomain: RealEstateDomain | null;
   resumeUrl: string | null;
   linkedIn: string | null;
   primarySocialMedia: string | null;
-  aboutYou: string | null;
-  applicant: {
-    ulid: string;
-    firstName: string | null;
-    lastName: string | null;
-    email: string;
-    phoneNumber: string | null;
-    profileImageUrl: string | null;
-  } | null;
-  reviewer: {
-    ulid: string;
-    firstName: string | null;
-    lastName: string | null;
-  } | null;
+  isDraft: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type ApiResponse<T> = {
@@ -101,6 +101,4 @@ export type ApiResponse<T> = {
     message: string;
     details?: Record<string, any>;
   } | null;
-};
-
-export type ReviewStatusType = CoachApplicationStatus; 
+}; 
