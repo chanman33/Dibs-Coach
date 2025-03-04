@@ -6,6 +6,7 @@ import { createContext, useContext } from 'react';
 import { useAuth } from '@/utils/hooks/useAuth';
 import config from '@/config';
 import type { Ulid } from '@/utils/types/auth';
+import { SystemRole, UserCapability } from '@/utils/roles/roles';
 
 // Auth Context
 interface AuthContextType {
@@ -13,6 +14,8 @@ interface AuthContextType {
   isSignedIn: boolean | null;
   userId: string | null;
   userUlid: Ulid | null;
+  systemRole: SystemRole | null;
+  capabilities: UserCapability[];
   error: Error | null;
 }
 
@@ -33,7 +36,18 @@ function ClerkWrapper({ children }: { children: ReactNode }) {
   if (!config.auth.enabled) {
     return <>{children}</>;
   }
-  return <ClerkProvider dynamic>{children}</ClerkProvider>;
+  return (
+    <ClerkProvider
+      appearance={{
+        elements: {
+          formButtonPrimary: 'bg-primary hover:bg-primary/90',
+          footerActionLink: 'text-primary hover:text-primary/90',
+        },
+      }}
+    >
+      {children}
+    </ClerkProvider>
+  );
 }
 
 // Combined Auth Provider

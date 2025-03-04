@@ -63,7 +63,17 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     )
 
   } catch (error) {
-    console.error("[DASHBOARD_ERROR] Auth context error:", error)
+    // Don't treat NEXT_REDIRECT as an error
+    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+      throw error; // Re-throw redirect to let Next.js handle it
+    }
+    
+    console.error("[DASHBOARD_ERROR] Auth context error:", {
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+      name: error instanceof Error ? error.name : 'UnknownError',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
     
     // Handle missing user case
     if (error instanceof UserNotFoundError) {

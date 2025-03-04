@@ -1,46 +1,76 @@
 import { auth } from "@clerk/nextjs/server";
-import { SYSTEM_ROLES, USER_CAPABILITIES, hasCapability, hasSystemRole, type UserRoleContext } from "@/utils/roles/roles";
 import { redirect } from "next/navigation";
-import { ensureUserExists } from "@/utils/auth";
+import { getAuthContext } from "@/utils/auth";
+import { SYSTEM_ROLES, USER_CAPABILITIES } from "@/utils/roles/roles";
+import { createAuthClient } from "@/utils/auth";
+import { UserNotFoundError } from "@/utils/auth/auth-context";
 
 export default async function DashboardPage() {
-  const { userId } = await auth();
-  if (!userId) {
-    redirect("/sign-in");
-  }
-
-  let user;
   try {
-    // This will throw if user doesn't exist yet
-    user = await ensureUserExists(userId);
+    const authContext = await getAuthContext();
 
-    // Create proper UserRoleContext from user data
-    const userContext: UserRoleContext = {
-      systemRole: user.systemRole,
-      capabilities: user.capabilities || [],
-    };
+    // Define routing priority and rules
+    const routingRules = [
+      {
+        check: () => authContext.systemRole === SYSTEM_ROLES.SYSTEM_OWNER,
+        route: "/dashboard/system"
+      },
+      {
+        check: () => authContext.capabilities.includes(USER_CAPABILITIES.COACH),
+        route: "/dashboard/coach"
+      },
+      {
+        check: () => authContext.capabilities.includes(USER_CAPABILITIES.MENTEE),
+        route: "/dashboard/mentee"
+      }
+    ];
+
+    // Find first matching route
+    const route = routingRules.find(rule => rule.check())?.route;
     
-    // Route to role-specific dashboard
-    if (hasSystemRole(userContext.systemRole, SYSTEM_ROLES.SYSTEM_OWNER)) {
-      redirect("/dashboard/system");
-    } 
-    
-    if (hasCapability(userContext, USER_CAPABILITIES.COACH)) {
-      redirect("/dashboard/coach");
-    } 
-    
-    if (hasCapability(userContext, USER_CAPABILITIES.MENTEE)) {
+    if (!route) {
+      // Log the issue before attempting to fix
+      console.warn('[DASHBOARD_WARNING] User has no valid capabilities:', {
+        userId: authContext.userId,
+        systemRole: authContext.systemRole,
+        capabilities: authContext.capabilities,
+        timestamp: new Date().toISOString()
+      });
+
+      // Attempt to fix the user's capabilities
+      const supabase = await createAuthClient();
+      const { error: updateError } = await supabase
+        .from('User')
+        .update({
+          capabilities: [USER_CAPABILITIES.MENTEE],
+          updatedAt: new Date().toISOString()
+        })
+        .eq('userId', authContext.userId);
+
+      if (updateError) {
+        console.error('[DASHBOARD_ERROR] Failed to update user capabilities:', {
+          error: updateError,
+          userId: authContext.userId,
+          timestamp: new Date().toISOString()
+        });
+        throw updateError; // Let the error boundary handle this
+      }
+
+      // Redirect to mentee dashboard after fixing capabilities
       redirect("/dashboard/mentee");
     }
 
-    // No valid role found - redirect to onboarding
-    redirect("/onboarding/role");
+    // Redirect to the appropriate dashboard
+    redirect(route);
 
   } catch (error) {
-    console.error('[DASHBOARD_ERROR] Error setting up user:', error);
-    
-    // If user doesn't exist yet, show the setup page
-    if (error instanceof Error && error.message.includes('User not found')) {
+    // Don't treat redirects as errors
+    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+      throw error; // Re-throw redirect to let Next.js handle it
+    }
+
+    // Handle UserNotFoundError specially
+    if (error instanceof UserNotFoundError) {
       return (
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center space-y-4">
@@ -52,7 +82,17 @@ export default async function DashboardPage() {
       );
     }
     
-    // For other errors, redirect to error page
-    redirect("/error?code=setup_failed");
+    // Log other errors properly
+    console.error('[DASHBOARD_ERROR]', {
+      message: error instanceof Error ? error.message : 'Unknown error occurred',
+      name: error instanceof Error ? error.name : 'UnknownError',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
+
+    // Redirect to error page with context
+    redirect(`/error?code=dashboard_error&reason=${encodeURIComponent(
+      error instanceof Error ? error.message : 'Unknown error occurred'
+    )}`);
   }
 } 

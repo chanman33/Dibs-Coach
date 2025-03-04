@@ -1,5 +1,5 @@
 // Auth context exports
-export { getAuthContext, useAuthContext } from './auth-context'
+export { getAuthContext, useAuthContext, UserNotFoundError } from './auth-context'
 
 // Auth client exports
 export { createAuthClient } from './auth-client'
@@ -22,11 +22,20 @@ import { AuthContext } from '../types/auth'
 // Import what we need for the functions
 import { getAuthContext } from './auth-context'
 import { createAuthClient } from './auth-client'
+import { generateUlid } from '../ulid'
+import { SYSTEM_ROLES, USER_CAPABILITIES } from '../roles/roles'
+import { currentUser } from '@clerk/nextjs/server'
 
 // User management functions
 export async function ensureUserExists(userId: string): Promise<AuthContext> {
   const supabase = await createAuthClient()
   
+  // Get user details from Clerk
+  const user = await currentUser()
+  if (!user) {
+    throw new Error('No authenticated user found')
+  }
+
   // First try to find the existing user
   const { data: existingUser, error: lookupError } = await supabase
     .from('User')
@@ -53,20 +62,63 @@ export async function ensureUserExists(userId: string): Promise<AuthContext> {
     .eq('userId', userId)
     .single()
     
-  if (lookupError) {
-    if (lookupError.code === 'PGRST116') {
-      // User doesn't exist - they need to complete signup
-      throw new Error('User not found - please complete the signup process')
-    }
+  if (lookupError && lookupError.code !== 'PGRST116') {
     console.error('[AUTH_ERROR] Error looking up user:', lookupError)
     throw lookupError
   }
   
+  // If user doesn't exist, create them with default role and capabilities
   if (!existingUser) {
-    throw new Error('User not found - please complete the signup process')
+    const newUserUlid = generateUlid()
+    const { data: newUser, error: createError } = await supabase
+      .from('User')
+      .insert({
+        ulid: newUserUlid,
+        userId: userId,
+        email: user.emailAddresses[0]?.emailAddress || 'pending@example.com',
+        systemRole: SYSTEM_ROLES.USER,
+        capabilities: [USER_CAPABILITIES.MENTEE],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      })
+      .select(`        ulid,
+        userId,
+        systemRole,
+        capabilities,
+        organizationMember:OrganizationMember (
+          role,
+          scope,
+          organization:organizationUlid (
+            level,
+            status
+          )
+        ),
+        subscription:Subscription (
+          status,
+          plan:planUlid (
+            planId
+          )
+        )
+      `)
+      .single()
+
+    if (createError) {
+      console.error('[AUTH_ERROR] Error creating user:', createError)
+      throw createError
+    }
+
+    return {
+      userId: newUser.userId,
+      userUlid: newUser.ulid,
+      systemRole: newUser.systemRole,
+      capabilities: newUser.capabilities || [USER_CAPABILITIES.MENTEE],
+      orgRole: undefined,
+      orgLevel: undefined,
+      subscription: undefined
+    }
   }
 
-  // Return user data
+  // Return existing user data
   return {
     userId: existingUser.userId,
     userUlid: existingUser.ulid,

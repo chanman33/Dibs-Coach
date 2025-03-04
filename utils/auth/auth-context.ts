@@ -71,7 +71,7 @@ export const getAuthContext = cache(async (): Promise<AuthContext> => {
       userId,
       systemRole,
       capabilities,
-      organizationMember:OrganizationMember!inner (
+      organizationMember:OrganizationMember (
         role,
         scope,
         organization:organizationUlid (
@@ -79,7 +79,7 @@ export const getAuthContext = cache(async (): Promise<AuthContext> => {
           status
         )
       ),
-      subscription:Subscription!inner (
+      subscription:Subscription (
         status,
         plan:planUlid (
           planId

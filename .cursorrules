@@ -53,6 +53,91 @@ core:
 # Authentication Implementation
 auth:
   architecture:
+    current_patterns:
+      directory_structure:
+        - "utils/auth/": "Core auth utilities and context"
+        - "utils/roles/": "Role and capability management"
+        - "utils/hooks/": "Auth-related hooks"
+        - "components/auth/": "Auth UI components"
+        - "app/api/auth/": "Auth-related API routes"
+      
+      forbidden_patterns:
+        - "Direct clerk imports outside server components"
+        - "Standalone auth.ts files"
+        - "Direct role checks without utility functions"
+        - "Multiple auth hook implementations"
+        - "Duplicate provider implementations"
+    
+    file_structure:
+      auth_core:
+        - location: "utils/auth/auth-context.ts"
+          purpose: "Single source of truth for auth state"
+          exports: ["getAuthContext", "AuthContext type"]
+        - location: "utils/auth/auth-middleware.ts"
+          purpose: "Route and API protection"
+          exports: ["createAuthMiddleware"]
+        - location: "utils/auth/auth-client.ts"
+          purpose: "Supabase client creation"
+          exports: ["createAuthClient"]
+      
+      roles:
+        - location: "utils/roles/roles.ts"
+          purpose: "Role and capability definitions"
+          exports: ["SYSTEM_ROLES", "USER_CAPABILITIES", "types"]
+        - location: "utils/roles/checkUserRole.ts"
+          purpose: "Server-side role verification"
+          exports: ["getUserRoleContext", "hasPermission"]
+      
+      hooks:
+        - location: "utils/hooks/useAuth.ts"
+          purpose: "Client-side auth state"
+          exports: ["useAuth"]
+          forbidden: "No alternative implementations"
+      
+      components:
+        - location: "components/auth/with-auth.tsx"
+          purpose: "Component protection"
+          exports: ["WithAuth"]
+          replaces: ["with-role.tsx", "other auth wrappers"]
+        - location: "components/auth/providers.tsx"
+          purpose: "Auth context provider"
+          exports: ["AuthProviders", "useAuthContext"]
+      
+      api:
+        - location: "app/api/auth/after-signup/"
+          purpose: "User creation flow"
+        - location: "app/api/auth/recover/"
+          purpose: "Account recovery"
+    
+    usage_guidelines:
+      server_side:
+        - "Always use getUserRoleContext for role checks"
+        - "Use createAuthClient for database access"
+        - "Handle errors with proper logging"
+      
+      client_side:
+        - "Use WithAuth for component protection"
+        - "Use useAuth for state access"
+        - "Never create alternative implementations"
+      
+      data_flow:
+        - "Clerk -> auth-context -> roles -> capabilities"
+        - "Single source of truth for auth state"
+        - "Consistent error handling patterns"
+      
+      error_handling:
+        format: |
+          console.error('[AUTH_ERROR]', {
+            code: error.code,
+            message: error.message,
+            context: { userId, path, timestamp }
+          })
+        
+        types:
+          - "UnauthorizedError: Not signed in"
+          - "ForbiddenError: Insufficient permissions"
+          - "ValidationError: Invalid data"
+
     core_files:
       auth_context:
         location: "utils/auth/auth-context.ts"

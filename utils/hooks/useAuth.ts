@@ -1,54 +1,63 @@
 'use client';
 
-import { useAuth as useClerkAuth } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import type { Ulid } from "@/utils/types/auth";
+import { useState, useEffect } from 'react';
+import { useUser } from '@clerk/nextjs';
+import { createAuthClient } from '@/utils/auth/auth-client';
+import type { Ulid } from '@/utils/types/auth';
+import { SystemRole, UserCapability } from '@/utils/roles/roles';
 
 interface UseAuthReturn {
   isLoading: boolean;
   isSignedIn: boolean | null;
   userId: string | null;
   userUlid: Ulid | null;
+  systemRole: SystemRole | null;
+  capabilities: UserCapability[];
   error: Error | null;
 }
 
 export function useAuth(): UseAuthReturn {
-  const { isLoaded, isSignedIn, userId } = useClerkAuth();
+  const { isLoaded, isSignedIn, user } = useUser();
   const [userUlid, setUserUlid] = useState<Ulid | null>(null);
+  const [systemRole, setSystemRole] = useState<SystemRole | null>(null);
+  const [capabilities, setCapabilities] = useState<UserCapability[]>([]);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    async function fetchUserUlid() {
-      if (!userId) {
-        setUserUlid(null);
-        return;
-      }
+    async function fetchUserData() {
+      if (!isLoaded || !isSignedIn || !user?.id) return;
 
       try {
-        const supabase = createClientComponentClient();
-        const { data, error } = await supabase
+        const supabase = await createAuthClient();
+        const { data, error: dbError } = await supabase
           .from('User')
-          .select('ulid')
-          .eq('userId', userId)
+          .select('ulid, systemRole, capabilities')
+          .eq('userId', user.id)
           .single();
 
-        if (error) throw error;
-        if (data?.ulid) setUserUlid(data.ulid as Ulid);
-      } catch (e) {
-        console.error('[AUTH_ERROR] Failed to fetch user ULID:', e);
-        setError(e instanceof Error ? e : new Error('Failed to fetch user ULID'));
+        if (dbError) throw dbError;
+
+        if (data) {
+          setUserUlid(data.ulid);
+          setSystemRole(data.systemRole);
+          setCapabilities(data.capabilities || []);
+        }
+      } catch (err) {
+        console.error('[AUTH_ERROR] Failed to fetch user data:', err);
+        setError(err instanceof Error ? err : new Error('Failed to fetch user data'));
       }
     }
 
-    fetchUserUlid();
-  }, [userId]);
+    fetchUserData();
+  }, [isLoaded, isSignedIn, user?.id]);
 
   return {
     isLoading: !isLoaded,
-    isSignedIn: isSignedIn ?? null,
-    userId: userId ?? null,
+    isSignedIn: isSignedIn || false,
+    userId: user?.id || null,
     userUlid,
+    systemRole,
+    capabilities,
     error,
   };
 }
