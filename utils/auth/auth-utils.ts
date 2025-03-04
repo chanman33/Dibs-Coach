@@ -1,55 +1,60 @@
-import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server"
-import { createAuthClient } from './auth-client'
-import config from "../../config"
-import { UnauthorizedError } from '../types/auth'
-import { getAuthContext } from './auth-context'
-import { createAuthMiddleware } from './auth-middleware'
-import { AuthOptions } from '../types/auth'
-import { SystemRole, UserCapability, SYSTEM_ROLES, USER_CAPABILITIES } from '../roles/roles'
+import { auth } from '@clerk/nextjs/server'
+import type { SystemRole, UserCapability } from '../roles/roles'
 
-export interface AuthorizationResult {
-  authorized: boolean
-  message?: string
-}
-
-// Route-based role requirements
-export function getRequiredRole(pathname: string): SystemRole | undefined {
-  if (pathname.match(/\/dashboard\/admin(.*)/)) return SYSTEM_ROLES.SYSTEM_OWNER
-  if (pathname.match(/\/dashboard\/coach(.*)/)) return SYSTEM_ROLES.USER
-  if (pathname.match(/\/dashboard\/mentee(.*)/)) return SYSTEM_ROLES.USER
-  return undefined
-}
-
-// Route-based capability requirements
-export function getRequiredCapabilities(pathname: string): UserCapability[] {
-  if (pathname.match(/\/dashboard\/coach(.*)/)) return [USER_CAPABILITIES.COACH]
-  if (pathname.match(/\/dashboard\/mentee(.*)/)) return [USER_CAPABILITIES.MENTEE]
-  return []
-}
-
-// Handle auth errors in middleware
-export function handleAuthError(error: Error, req: Request) {
-  console.error('[AUTH_ERROR]', error)
-  const url = new URL('/not-authorized', req.url)
-  return Response.redirect(url)
+export interface AuthResult {
+  authenticated: boolean
+  userId?: string | null
+  message: string
 }
 
 /**
- * Check if the current user is authorized based on the provided options
+ * Verifies if the current user is authenticated
  */
-export async function isAuthorized(options: AuthOptions = {}): Promise<AuthorizationResult> {
+export async function verifyAuth(): Promise<AuthResult> {
   try {
-    const context = await getAuthContext()
-    const middleware = createAuthMiddleware(options)
-    await middleware(context)
-    
+    const { userId } = await auth()
+    if (!userId) {
+      return {
+        authenticated: false,
+        message: 'Authentication required'
+      }
+    }
+
     return {
-      authorized: true
+      authenticated: true,
+      userId,
+      message: 'Authenticated'
     }
   } catch (error) {
+    console.error('[AUTH_ERROR]', {
+      code: 'AUTH_VERIFICATION_ERROR',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    })
     return {
-      authorized: false,
-      message: error instanceof Error ? error.message : 'Authorization failed'
+      authenticated: false,
+      message: 'Authentication failed'
     }
   }
+}
+
+/**
+ * Get the current user's ID if authenticated
+ */
+export async function getCurrentUserId(): Promise<string | null> {
+  const { userId } = await auth()
+  return userId
+}
+
+/**
+ * Handle auth errors in middleware
+ */
+export function handleAuthError(error: Error, req: Request) {
+  console.error('[AUTH_ERROR]', {
+    code: 'AUTH_ERROR',
+    message: error.message,
+    timestamp: new Date().toISOString()
+  })
+  const url = new URL('/sign-in', req.url)
+  return Response.redirect(url)
 } 
