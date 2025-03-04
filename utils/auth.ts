@@ -79,82 +79,98 @@ export async function ensureUserExists() {
       id: 1,
       userId: MOCK_USER.id,
       systemRole: "USER",
-      capabilities: ["MENTEE"], // Default capability for development
+      capabilities: ["MENTEE"],
     };
   }
   
-  const { userId } = await clerkAuth()
+  const { userId } = await clerkAuth();
   if (!userId) {
-    throw new Error('Not authenticated')
+    throw new Error('Not authenticated');
   }
 
-  const supabase = await createAuthClient()
-
-  // Check if user exists by userId or email
-  const user = await currentUser()
+  const supabase = await createAuthClient();
+  const user = await currentUser();
+  
   if (!user) {
-    throw new Error('User data not available')
+    throw new Error('User data not available');
   }
 
-  const { data: existingUser, error: checkError } = await supabase
+  // First try to find by userId (most specific)
+  let { data: existingUser, error: userIdError } = await supabase
     .from("User")
     .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, capabilities")
-    .or(`userId.eq."${userId}",email.eq."${user.emailAddresses[0]?.emailAddress}"`)
-    .single()
+    .eq('userId', userId)
+    .single();
 
-  if (checkError && checkError.code !== 'PGRST116') {
-    throw checkError
-  }
+  // If not found by userId, try email as fallback
+  if (!existingUser && user.emailAddresses[0]?.emailAddress) {
+    const { data: emailUser, error: emailError } = await supabase
+      .from("User")
+      .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, capabilities")
+      .eq('email', user.emailAddresses[0].emailAddress)
+      .single();
 
-  // If user exists, update their Clerk ID if needed and return
-  if (existingUser) {
-    // If user exists with different Clerk ID, update it
-    if (existingUser.userId !== userId) {
-      const { data: updatedUser, error: updateError } = await supabase
-        .from("User")
-        .update({ 
-          userId,
-          updatedAt: new Date().toISOString()
-        })
-        .eq('ulid', existingUser.ulid)
-        .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, capabilities")
-        .single()
-
-      if (updateError) {
-        throw updateError
-      }
-      return updatedUser
+    if (emailUser) {
+      existingUser = emailUser;
     }
-    return existingUser
   }
 
-  // If user doesn't exist, create them
+  // If user exists but has different Clerk ID, update it
+  if (existingUser && existingUser.userId !== userId) {
+    const { data: updatedUser, error: updateError } = await supabase
+      .from("User")
+      .update({ 
+        userId,
+        updatedAt: new Date().toISOString()
+      })
+      .eq('ulid', existingUser.ulid)
+      .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, capabilities")
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+    return updatedUser;
+  }
+
+  // If user exists, return them
+  if (existingUser) {
+    return existingUser;
+  }
+
+  // If user doesn't exist, create them with upsert to prevent duplicates
   const { data: newUser, error: createError } = await supabase
     .from("User")
-    .insert({
+    .upsert({
       ulid: generateUlid(),
       userId: user.id,
       email: user.emailAddresses[0]?.emailAddress,
       firstName: user.firstName,
       lastName: user.lastName,
-      displayName: user.firstName && user.lastName ? `${user.firstName} ${user.lastName}`.trim() : user.emailAddresses[0]?.emailAddress?.split('@')[0],
+      displayName: user.firstName && user.lastName ? 
+        `${user.firstName} ${user.lastName}`.trim() : 
+        user.emailAddresses[0]?.emailAddress?.split('@')[0],
       profileImageUrl: user.imageUrl,
       systemRole: SYSTEM_ROLES.USER,
-      memberStatus: 'active',
-      capabilities: [USER_CAPABILITIES.MENTEE], // Set initial capabilities
+      capabilities: [USER_CAPABILITIES.MENTEE],
       isCoach: false,
       isMentee: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
+    }, {
+      // Use email as conflict detection
+      onConflict: 'email',
+      // Update these fields if there's a conflict
+      ignoreDuplicates: false
     })
     .select("ulid, userId, email, firstName, lastName, displayName, profileImageUrl, systemRole, capabilities")
-    .single()
+    .single();
 
   if (createError) {
-    throw createError
+    throw createError;
   }
 
-  return newUser
+  return newUser;
 }
 
 // Update user data
