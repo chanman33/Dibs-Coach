@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import GeneralForm from "../../../../components/profile/common/GeneralForm"
 import GoalsForm from "../../../../components/profile/common/GoalsForm"
@@ -13,6 +12,8 @@ import { Badge } from "@/components/ui/badge"
 import { Loader2 } from "lucide-react"
 import type { ApplicationData } from "@/utils/types/coach-application"
 import type { GoalFormValues } from "@/utils/types/goals"
+import type { GeneralFormData } from "@/utils/actions/user-profile-actions"
+import type { ApiResponse, ApiError } from "@/utils/types/api"
 import { toast } from "sonner"
 
 interface ProfileData {
@@ -82,24 +83,27 @@ export default function AgentProfilePage() {
     fetchData()
   }, [])
 
-  const handleGeneralSubmit = async (formData: any) => {
+  const handleGeneralSubmit = async (formData: GeneralFormData): Promise<ApiResponse<GeneralFormData>> => {
     setIsSubmitting(true)
     try {
-      const { error } = await updateRealtorProfile({
+      const response = await updateRealtorProfile({
         user: {
           displayName: formData.displayName,
           bio: formData.bio
         },
         realtorProfile: {
-          yearsExperience: formData.yearsExperience,
+          yearsExperience: formData.totalYearsRE,
           primaryMarket: formData.primaryMarket
         }
       })
       
-      if (error) {
-        console.error('[SUBMIT_PROFILE_ERROR]', error)
-        toast.error(error || 'Failed to update profile')
-        return
+      if (response.error) {
+        console.error('[SUBMIT_PROFILE_ERROR]', {
+          error: response.error,
+          timestamp: new Date().toISOString()
+        })
+        toast.error(response.error.message || 'Failed to update profile')
+        return { data: null, error: response.error }
       }
 
       // Update local state to avoid refetch
@@ -112,21 +116,30 @@ export default function AgentProfilePage() {
         },
         realtorProfile: {
           ...prev.realtorProfile,
-          yearsExperience: formData.yearsExperience,
+          yearsExperience: formData.totalYearsRE,
           primaryMarket: formData.primaryMarket
         }
       } : null)
 
       toast.success('Profile updated successfully')
+      return { data: formData, error: null }
     } catch (error) {
-      console.error('[SUBMIT_PROFILE_ERROR]', error)
-      toast.error('Failed to update profile')
+      console.error('[SUBMIT_PROFILE_ERROR]', {
+        error,
+        timestamp: new Date().toISOString()
+      })
+      const apiError: ApiError = {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to update profile'
+      }
+      toast.error(apiError.message)
+      return { data: null, error: apiError }
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  const handleGoalsSubmit = async (formData: GoalFormValues): Promise<void> => {
+  const handleGoalsSubmit = async (formData: GoalFormValues) => {
     console.log('goals form submitted:', formData)
   }
 
@@ -167,91 +180,75 @@ export default function AgentProfilePage() {
         </TabsList>
 
         <TabsContent value="general">
-          <Card>
-            <CardHeader>
-              <CardTitle>General Information</CardTitle>
-              {isLoading ? (
-                <div className="mt-2 text-sm text-muted-foreground animate-pulse">
-                  Loading profile...
-                </div>
-              ) : profileData?.user && (
-                <div className="mt-2 text-sm text-muted-foreground">
-                  {profileData.user.firstName} {profileData.user.lastName}
-                </div>
-              )}
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <GeneralForm 
-                  onSubmit={handleGeneralSubmit} 
-                  isSubmitting={isSubmitting}
-                  initialData={{
-                    displayName: profileData?.user.displayName || "",
-                    bio: profileData?.user.bio || "",
-                    yearsExperience: profileData?.realtorProfile.yearsExperience || 0,
-                    primaryMarket: profileData?.realtorProfile.primaryMarket || "",
-                  }}
-                />
-              )}
-            </CardContent>
-          </Card>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <GeneralForm 
+              onSubmit={handleGeneralSubmit} 
+              isSubmitting={isSubmitting}
+              initialData={{
+                displayName: profileData?.user.displayName || "",
+                bio: profileData?.user.bio || "",
+                totalYearsRE: profileData?.realtorProfile.yearsExperience || 0,
+                primaryMarket: profileData?.realtorProfile.primaryMarket || "",
+                languages: []
+              }}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="goals">
-          <Card>
-            <CardHeader>
-              <CardTitle>Career Goals</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <GoalsForm open={true} onClose={() => {}} />
-              <div className="mt-6 p-4 border rounded-lg bg-muted/50">
-                <h3 className="text-lg font-semibold mb-2">Interested in Becoming a Coach?</h3>
-                {isLoading ? (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="space-y-6">
+            <GoalsForm 
+              open={true} 
+              onClose={() => {}} 
+              onSubmit={handleGoalsSubmit}
+            />
+            <div className="mt-6 p-4 border rounded-lg bg-muted/50">
+              <h3 className="text-lg font-semibold mb-2">Interested in Becoming a Coach?</h3>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : application ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Application Status:</span>
+                    <Badge className={getStatusColor(application.status)}>
+                      {application.status}
+                    </Badge>
                   </div>
-                ) : application ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">Application Status:</span>
-                      <Badge className={getStatusColor(application.status)}>
-                        {application.status}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {getStatusMessage(application.status)}
-                    </p>
-                    {application.status === 'REJECTED' && (
-                      <Button
-                        onClick={() => router.push('/apply-coach')}
-                        variant="default"
-                        className="w-full sm:w-auto mt-2"
-                      >
-                        Apply Again
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Share your real estate expertise and help others succeed in their journey. Apply to become a coach today.
-                    </p>
+                  <p className="text-sm text-muted-foreground">
+                    {getStatusMessage(application.status)}
+                  </p>
+                  {application.status === 'REJECTED' && (
                     <Button
                       onClick={() => router.push('/apply-coach')}
                       variant="default"
-                      className="w-full sm:w-auto"
+                      className="w-full sm:w-auto mt-2"
                     >
-                      Apply to Become a Coach
+                      Apply Again
                     </Button>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Share your real estate expertise and help others succeed in their journey. Apply to become a coach today.
+                  </p>
+                  <Button
+                    onClick={() => router.push('/apply-coach')}
+                    variant="default"
+                    className="w-full sm:w-auto"
+                  >
+                    Apply to Become a Coach
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
