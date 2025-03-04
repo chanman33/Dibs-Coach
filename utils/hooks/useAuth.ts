@@ -1,67 +1,39 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { createClientAuthClient } from '@/utils/auth/client-auth';
+import { useAuthContext } from '@/components/auth/providers';
+import type { SystemRole, UserCapability } from '@/utils/roles/roles';
 import type { Ulid } from '@/utils/types/auth';
-import { SystemRole, UserCapability } from '@/utils/roles/roles';
 
 interface UseAuthReturn {
+  // Clerk auth state
   isLoading: boolean;
   isSignedIn: boolean | null;
   userId: string | null;
+  
+  // Role context state
   userUlid: Ulid | null;
-  systemRole: SystemRole | null;
+  systemRole: SystemRole;
   capabilities: UserCapability[];
-  error: Error | null;
 }
 
+/**
+ * Combined hook for auth state and role context
+ * Provides type-safe access to both Clerk auth and role data
+ */
 export function useAuth(): UseAuthReturn {
   const { isLoaded, isSignedIn, user } = useUser();
-  const [userUlid, setUserUlid] = useState<Ulid | null>(null);
-  const [systemRole, setSystemRole] = useState<SystemRole | null>(null);
-  const [capabilities, setCapabilities] = useState<UserCapability[]>([]);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    async function fetchUserData() {
-      if (!isLoaded || !isSignedIn || !user?.id) return;
-
-      try {
-        const supabase = createClientAuthClient();
-        const { data, error: dbError } = await supabase
-          .from('User')
-          .select('ulid, systemRole, capabilities')
-          .eq('userId', user.id)
-          .single();
-
-        if (dbError) throw dbError;
-
-        if (data) {
-          setUserUlid(data.ulid);
-          setSystemRole(data.systemRole);
-          setCapabilities(data.capabilities || []);
-        }
-      } catch (err) {
-        console.error('[AUTH_ERROR]', {
-          code: err instanceof Error ? err.name : 'UNKNOWN',
-          message: err instanceof Error ? err.message : 'Failed to fetch user data',
-          context: { userId: user.id, timestamp: new Date().toISOString() }
-        });
-        setError(err instanceof Error ? err : new Error('Failed to fetch user data'));
-      }
-    }
-
-    fetchUserData();
-  }, [isLoaded, isSignedIn, user?.id]);
+  const authContext = useAuthContext();
 
   return {
+    // Clerk auth state
     isLoading: !isLoaded,
     isSignedIn: isSignedIn || false,
     userId: user?.id || null,
-    userUlid,
-    systemRole,
-    capabilities,
-    error,
+    
+    // Role context state
+    userUlid: authContext.userUlid,
+    systemRole: authContext.systemRole,
+    capabilities: authContext.capabilities,
   };
 }

@@ -1,9 +1,15 @@
 import { auth } from '@clerk/nextjs/server'
 import type { SystemRole, UserCapability } from '../roles/roles'
+import { getUserRoleContext } from '../roles/checkUserRole'
 
 export interface AuthResult {
   authenticated: boolean
   userId?: string | null
+  message: string
+}
+
+export interface AuthorizationResult {
+  authorized: boolean
   message: string
 }
 
@@ -34,6 +40,45 @@ export async function verifyAuth(): Promise<AuthResult> {
     return {
       authenticated: false,
       message: 'Authentication failed'
+    }
+  }
+}
+
+/**
+ * Verifies if the current user is authorized (authenticated and has required role/capabilities)
+ */
+export async function isAuthorized(): Promise<AuthorizationResult> {
+  try {
+    const authResult = await verifyAuth()
+    if (!authResult.authenticated || !authResult.userId) {
+      return {
+        authorized: false,
+        message: authResult.message
+      }
+    }
+
+    // Get user's role context
+    const roleContext = await getUserRoleContext(authResult.userId)
+    if (!roleContext) {
+      return {
+        authorized: false,
+        message: 'User role not found'
+      }
+    }
+
+    return {
+      authorized: true,
+      message: 'User is authorized'
+    }
+  } catch (error) {
+    console.error('[AUTH_ERROR]', {
+      code: 'AUTHORIZATION_ERROR',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString()
+    })
+    return {
+      authorized: false,
+      message: 'Authorization check failed'
     }
   }
 }

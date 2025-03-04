@@ -17,7 +17,7 @@ import { toast } from "sonner"
 import type { Goal } from "@/utils/types/goals"
 import { format, isAfter } from "date-fns"
 
-export default function MenteeDashboardPage() {
+function MenteeDashboardContent() {
   const [goals, setGoals] = useState<Goal[]>([])
   const [currentGoalIndex, setCurrentGoalIndex] = useState(0)
   const [nextSession, setNextSession] = useState<TransformedSession | null>(null)
@@ -232,91 +232,99 @@ export default function MenteeDashboardPage() {
   }
 
   return (
-    <WithAuth options={{ requiredCapabilities: [USER_CAPABILITIES.MENTEE] }}>
-      <Suspense fallback={
-        <div className="flex items-center justify-center min-h-screen">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      }>
-        <div className="container mx-auto p-6 space-y-8">
-          <h1 className="text-3xl font-bold">Welcome to Your Dashboard</h1>
-          
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {/* Quick Actions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>Common tasks and actions</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Link href="/dashboard/mentee/browse-coaches">
-                  <Button variant="outline" className="w-full justify-start">
-                    <Users className="mr-2 h-4 w-4" />
-                    Browse Coaches
-                  </Button>
-                </Link>
-                <Link href="/dashboard/mentee/goals">
-                  <Button variant="outline" className="w-full justify-start">
-                    <Target className="mr-2 h-4 w-4" />
-                    Set Goals
-                  </Button>
-                </Link>
-                <Link href="/dashboard/mentee/schedule">
-                  <Button variant="outline" className="w-full justify-start">
-                    <Calendar className="mr-2 h-4 w-4" />
-                    Schedule Session
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+    <div className="container mx-auto p-6 space-y-8">
+      <h1 className="text-3xl font-bold">Welcome to Your Dashboard</h1>
+      
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Quick Actions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Common tasks and actions</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Link href="/dashboard/mentee/browse-coaches">
+              <Button variant="outline" className="w-full justify-start">
+                <Users className="mr-2 h-4 w-4" />
+                Browse Coaches
+              </Button>
+            </Link>
+            <Link href="/dashboard/mentee/goals">
+              <Button variant="outline" className="w-full justify-start">
+                <Target className="mr-2 h-4 w-4" />
+                Set Goals
+              </Button>
+            </Link>
+            <Link href="/dashboard/mentee/schedule">
+              <Button variant="outline" className="w-full justify-start">
+                <Calendar className="mr-2 h-4 w-4" />
+                Schedule Session
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
-            {/* Progress Overview */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Progress Overview</CardTitle>
-                <CardDescription>Your learning journey</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Sessions Completed</p>
-                    <p className="text-2xl font-bold">0</p>
-                  </div>
-                  <Clock className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium">Goals Achieved</p>
-                    <p className="text-2xl font-bold">0</p>
-                  </div>
-                  <Trophy className="h-8 w-8 text-muted-foreground" />
-                </div>
-              </CardContent>
-            </Card>
+        {/* Progress Overview */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Progress Overview</CardTitle>
+            <CardDescription>Your learning journey</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Sessions Completed</p>
+                <p className="text-2xl font-bold">0</p>
+              </div>
+              <Clock className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Goals Achieved</p>
+                <p className="text-2xl font-bold">0</p>
+              </div>
+              <Trophy className="h-8 w-8 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Upcoming Sessions */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Upcoming Sessions</CardTitle>
-                <CardDescription>Your scheduled coaching sessions</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-6">
-                  <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    No upcoming sessions scheduled
-                  </p>
-                  <Link href="/dashboard/mentee/schedule">
-                    <Button variant="outline" className="mt-4">
-                      Schedule a Session
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </Suspense>
-    </WithAuth>
+        {/* Upcoming Sessions */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Upcoming Sessions</CardTitle>
+            <CardDescription>Your scheduled coaching sessions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-6">
+              <Calendar className="mx-auto h-12 w-12 text-muted-foreground" />
+              <p className="mt-4 text-sm text-muted-foreground">
+                No upcoming sessions scheduled
+              </p>
+              <Link href="/dashboard/mentee/schedule">
+                <Button variant="outline" className="mt-4">
+                  Schedule a Session
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+// Create the protected component using WithAuth HOC
+const ProtectedMenteeDashboard = WithAuth(MenteeDashboardContent);
+
+// Export the protected component wrapped in Suspense
+export default function MenteeDashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    }>
+      <ProtectedMenteeDashboard />
+    </Suspense>
   )
 } 

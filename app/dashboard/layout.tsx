@@ -4,7 +4,6 @@ import { getAuthContext } from "@/utils/auth"
 import NotAuthorized from "@/components/auth/not-authorized"
 import DashboardTopNav from "./_components/dashboard-top-nav"
 import config from '@/config'
-import { isAuthorized } from "@/utils/auth"
 import { UserNotFoundError } from "@/utils/auth/auth-context"
 
 async function recoverUser(userId: string): Promise<boolean> {
@@ -49,9 +48,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       )
     }
 
-    const { authorized, message } = await isAuthorized()
-    if (!authorized) {
-      return <NotAuthorized message={message} />
+    // Basic auth check - just ensure we have a user with role context
+    if (!authContext.systemRole || !authContext.capabilities?.length) {
+      return <NotAuthorized message="User role not found" />
     }
 
     return (

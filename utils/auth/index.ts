@@ -1,22 +1,20 @@
 // Auth context exports
-export { getAuthContext, useAuthContext, UserNotFoundError } from './auth-context'
+export { getAuthContext } from './auth-context'
+export { UserNotFoundError } from './auth-context'
 
 // Auth client exports
 export { createAuthClient } from './auth-client'
 
-// Auth middleware exports
-export { createAuthMiddleware } from './auth-middleware'
-
 // Auth utilities exports
-export { 
+export {
+  verifyAuth,
   isAuthorized,
-  getRequiredRole,
-  getRequiredCapabilities,
+  getCurrentUserId,
   handleAuthError
 } from './auth-utils'
 
 // Re-export types
-export type { AuthorizationResult } from './auth-utils'
+export type { AuthResult, AuthorizationResult } from './auth-utils'
 import { AuthContext } from '../types/auth'
 
 // Import what we need for the functions
