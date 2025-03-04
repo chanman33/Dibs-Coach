@@ -20,6 +20,18 @@ export const REAL_ESTATE_DOMAINS = {
   PRIVATE_CREDIT: 'PRIVATE_CREDIT'
 } as const;
 
+// Add domain activation configuration
+export const ACTIVE_DOMAINS = {
+  [REAL_ESTATE_DOMAINS.REALTOR]: true,
+  [REAL_ESTATE_DOMAINS.INVESTOR]: false,
+  [REAL_ESTATE_DOMAINS.MORTGAGE]: false,
+  [REAL_ESTATE_DOMAINS.PROPERTY_MANAGER]: false,
+  [REAL_ESTATE_DOMAINS.TITLE_ESCROW]: false,
+  [REAL_ESTATE_DOMAINS.INSURANCE]: false,
+  [REAL_ESTATE_DOMAINS.COMMERCIAL]: false,
+  [REAL_ESTATE_DOMAINS.PRIVATE_CREDIT]: false,
+} as const;
+
 export type RealEstateDomain = typeof REAL_ESTATE_DOMAINS[keyof typeof REAL_ESTATE_DOMAINS];
 
 // Define approved specialties type

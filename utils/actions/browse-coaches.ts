@@ -3,6 +3,7 @@
 import { createAuthClient } from '@/utils/auth'
 import { BrowseCoachData } from '@/utils/types/browse-coaches'
 import { withServerAction } from '@/utils/middleware/withServerAction'
+import { ACTIVE_DOMAINS, REAL_ESTATE_DOMAINS } from '@/utils/types/coach'
 
 interface DbCoach {
   ulid: string
@@ -149,8 +150,29 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
         return { data: [], error: null };
       }
       
+      // Filter coaches based on active domains
+      const activeDomainsArray = Object.entries(ACTIVE_DOMAINS)
+        .filter(([_, isActive]) => isActive)
+        .map(([domain]) => domain);
+
+      const filteredCoachProfiles = coachProfilesData.filter(profile => {
+        // Check if the coach has any specialties in active domains
+        return profile.coachingSpecialties.some((specialty: string) => 
+          activeDomainsArray.some(domain => 
+            specialty.toUpperCase().includes(domain)
+          )
+        );
+      });
+
+      console.log('[BROWSE_COACHES_FILTERED_PROFILES]', {
+        totalProfiles: coachProfilesData.length,
+        activeProfiles: filteredCoachProfiles.length,
+        activeDomainsArray,
+        timestamp: new Date().toISOString()
+      });
+      
       // Combine user data with coach profile data
-      const combinedData = coachProfilesData.map(profile => {
+      const combinedData = filteredCoachProfiles.map(profile => {
         const user = coachUsers.find(u => u.ulid === profile.userUlid);
         if (!user) return null;
         

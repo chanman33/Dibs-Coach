@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Award, Building, Home, ListChecks, User, Briefcase, Globe, Target, Info, List } from "lucide-react";
+import { Award, Building, Home, ListChecks, User, Briefcase, Globe, Target, Info, List, Building2 } from "lucide-react";
 import { CoachProfileFormValues } from "../types";
 import { ProfessionalRecognition } from "@/utils/types/recognition";
 import GeneralForm from "./GeneralForm";
@@ -16,7 +16,8 @@ import { toast } from "sonner";
 import { type ApiResponse } from "@/utils/types/api";
 import { type GeneralFormData } from "@/utils/actions/user-profile-actions";
 import { isEqual } from "lodash";
-import { REAL_ESTATE_DOMAINS, type RealEstateDomain } from "@/utils/types/coach";
+import { REAL_ESTATE_DOMAINS, type RealEstateDomain, ACTIVE_DOMAINS } from "@/utils/types/coach";
+import { ComingSoon } from './ComingSoon';
 
 // Define the tab interface
 export interface ProfileTab {
@@ -161,164 +162,139 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
       source: 'client'
     });
 
-    // Add realtor tabs if user has realtor domain
-    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.REALTOR)) {
+    // Add realtor tabs if user has realtor domain and it's active
+    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.REALTOR) && ACTIVE_DOMAINS[REAL_ESTATE_DOMAINS.REALTOR]) {
       console.log("[BUILD_DOMAIN_SUBTABS_ADDING_REALTOR]", {
         timestamp: new Date().toISOString(),
         source: 'client'
       });
       subTabs.push(
         {
-          id: "realtor-info",
-          label: "Realtor Info",
+          id: 'realtor-profile',
+          label: 'Realtor Profile',
+          icon: <User className="h-4 w-4" />,
+          content: realtorFormContent
+        },
+        {
+          id: 'realtor-listings',
+          label: 'Residential Listings',
           icon: <Home className="h-4 w-4" />,
-          content: realtorFormContent,
-        },
-        {
-          id: "realtor-listings",
-          label: "Listings",
-          icon: <List className="h-4 w-4" />,
-          content: realtorListingsContent,
+          content: realtorListingsContent
         }
       );
     }
 
-    // Add investor tabs if user has investor domain
+    // For other domains, check if user has the domain and show either the content or coming soon
     if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.INVESTOR)) {
-      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_INVESTOR]", {
-        timestamp: new Date().toISOString(),
-        source: 'client'
-      });
       subTabs.push(
         {
-          id: "investor-info",
-          label: "Investor Info",
-          icon: <Building className="h-4 w-4" />,
-          content: investorFormContent,
+          id: 'investor-profile',
+          label: 'Investor Profile',
+          icon: <User className="h-4 w-4" />,
+          content: ACTIVE_DOMAINS[REAL_ESTATE_DOMAINS.INVESTOR] 
+            ? investorFormContent 
+            : <ComingSoon 
+                title="Investor Profile Coming Soon" 
+                description="We're currently building out our investor coaching ecosystem. Your profile will be activated soon!" 
+              />
         },
         {
-          id: "investor-listings",
-          label: "Investments",
-          icon: <ListChecks className="h-4 w-4" />,
-          content: investorListingsContent,
+          id: 'investor-listings',
+          label: 'Investment Portfolio',
+          icon: <Building2 className="h-4 w-4" />,
+          content: ACTIVE_DOMAINS[REAL_ESTATE_DOMAINS.INVESTOR]
+            ? investorListingsContent
+            : <ComingSoon 
+                title="Investment Portfolio Coming Soon"
+                description="Investment property listings will be available when we launch our investor ecosystem."
+              />
         }
       );
     }
 
-    // Add mortgage tabs if user has mortgage domain
+    // Add other domains with similar pattern
     if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.MORTGAGE)) {
-      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_MORTGAGE]", {
-        timestamp: new Date().toISOString(),
-        source: 'client'
-      });
       subTabs.push({
-        id: "mortgage-info",
-        label: "Mortgage Info",
-        icon: <Building className="h-4 w-4" />,
-        content: mortgageFormContent,
+        id: 'mortgage-profile',
+        label: 'Mortgage Officer Profile',
+        icon: <User className="h-4 w-4" />,
+        content: ACTIVE_DOMAINS[REAL_ESTATE_DOMAINS.MORTGAGE]
+          ? mortgageFormContent
+          : <ComingSoon 
+              title="Mortgage Officer Profile Coming Soon"
+              description="We're expanding our platform to include mortgage professionals. Stay tuned!"
+            />
       });
     }
 
-    // Add property manager tabs if user has property manager domain
-    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.PROPERTY_MANAGER)) {
-      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_PROPERTY_MANAGER]", {
-        timestamp: new Date().toISOString(),
-        source: 'client'
-      });
-      subTabs.push(
-        {
-          id: "property-manager-info",
-          label: "Property Manager Info",
-          icon: <Building className="h-4 w-4" />,
-          content: propertyManagerFormContent,
-        },
-        {
-          id: "property-manager-listings",
-          label: "Properties",
-          icon: <ListChecks className="h-4 w-4" />,
-          content: propertyManagerListingsContent,
+    // Add remaining domains with coming soon placeholders
+    const remainingDomains = [
+      {
+        domain: REAL_ESTATE_DOMAINS.PROPERTY_MANAGER,
+        formContent: propertyManagerFormContent,
+        listingsContent: propertyManagerListingsContent,
+        title: "Property Manager",
+        profileLabel: "Property Manager Profile",
+        listingsLabel: "Property Portfolio",
+      },
+      {
+        domain: REAL_ESTATE_DOMAINS.TITLE_ESCROW,
+        formContent: titleEscrowFormContent,
+        title: "Title & Escrow",
+        profileLabel: "Title & Escrow Profile",
+      },
+      {
+        domain: REAL_ESTATE_DOMAINS.INSURANCE,
+        formContent: insuranceFormContent,
+        title: "Insurance",
+        profileLabel: "Insurance Agent Profile",
+      },
+      {
+        domain: REAL_ESTATE_DOMAINS.COMMERCIAL,
+        formContent: commercialFormContent,
+        listingsContent: commercialListingsContent,
+        title: "Commercial",
+        profileLabel: "Commercial Broker Profile",
+        listingsLabel: "Commercial Portfolio",
+      },
+      {
+        domain: REAL_ESTATE_DOMAINS.PRIVATE_CREDIT,
+        formContent: privateCreditFormContent,
+        listingsContent: creditListingsContent,
+        title: "Private Credit",
+        profileLabel: "Private Lender Profile",
+        listingsLabel: "Lending Portfolio",
+      },
+    ];
+
+    remainingDomains.forEach(({ domain, formContent, listingsContent, title, profileLabel, listingsLabel }) => {
+      if (realEstateDomains?.includes(domain)) {
+        subTabs.push({
+          id: `${domain.toLowerCase()}-profile`,
+          label: profileLabel || `${title} Profile`,
+          icon: <User className="h-4 w-4" />,
+          content: ACTIVE_DOMAINS[domain]
+            ? formContent
+            : <ComingSoon 
+                title={`${title} Profile Coming Soon`}
+                description={`We're expanding our platform to include ${title.toLowerCase()} professionals. Stay tuned!`}
+              />
+        });
+
+        if (listingsContent) {
+          subTabs.push({
+            id: `${domain.toLowerCase()}-listings`,
+            label: listingsLabel || `${title} Portfolio`,
+            icon: <Building2 className="h-4 w-4" />,
+            content: ACTIVE_DOMAINS[domain]
+              ? listingsContent
+              : <ComingSoon 
+                  title={`${title} Portfolio Coming Soon`}
+                  description={`${title} listings will be available when we launch this ecosystem.`}
+                />
+          });
         }
-      );
-    }
-
-    // Add title/escrow tabs if user has title/escrow domain
-    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.TITLE_ESCROW)) {
-      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_TITLE_ESCROW]", {
-        timestamp: new Date().toISOString(),
-        source: 'client'
-      });
-      subTabs.push({
-        id: "title-escrow-info",
-        label: "Title/Escrow Info",
-        icon: <Building className="h-4 w-4" />,
-        content: titleEscrowFormContent,
-      });
-    }
-
-    // Add insurance tabs if user has insurance domain
-    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.INSURANCE)) {
-      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_INSURANCE]", {
-        timestamp: new Date().toISOString(),
-        source: 'client'
-      });
-      subTabs.push({
-        id: "insurance-info",
-        label: "Insurance Info",
-        icon: <Building className="h-4 w-4" />,
-        content: insuranceFormContent,
-      });
-    }
-
-    // Add commercial tabs if user has commercial domain
-    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.COMMERCIAL)) {
-      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_COMMERCIAL]", {
-        timestamp: new Date().toISOString(),
-        source: 'client'
-      });
-      subTabs.push(
-        {
-          id: "commercial-info",
-          label: "Commercial Info",
-          icon: <Building className="h-4 w-4" />,
-          content: commercialFormContent,
-        },
-        {
-          id: "commercial-listings",
-          label: "Commercial Properties",
-          icon: <ListChecks className="h-4 w-4" />,
-          content: commercialListingsContent,
-        }
-      );
-    }
-
-    // Add private credit tabs if user has private credit domain
-    if (realEstateDomains?.includes(REAL_ESTATE_DOMAINS.PRIVATE_CREDIT)) {
-      console.log("[BUILD_DOMAIN_SUBTABS_ADDING_PRIVATE_CREDIT]", {
-        timestamp: new Date().toISOString(),
-        source: 'client'
-      });
-      subTabs.push(
-        {
-          id: "private-credit-info",
-          label: "Private Credit Info",
-          icon: <Building className="h-4 w-4" />,
-          content: privateCreditFormContent,
-        },
-        {
-          id: "credit-listings",
-          label: "Credit Track Record",
-          icon: <ListChecks className="h-4 w-4" />,
-          content: creditListingsContent,
-        }
-      );
-    }
-
-    // Log final tabs
-    console.log("[BUILD_DOMAIN_SUBTABS_COMPLETE]", {
-      generatedTabIds: subTabs.map(tab => tab.id),
-      totalTabs: subTabs.length,
-      timestamp: new Date().toISOString(),
-      source: 'client'
+      }
     });
 
     return subTabs;
