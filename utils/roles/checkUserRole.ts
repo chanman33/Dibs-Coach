@@ -41,8 +41,15 @@ export async function getUserRoleContext(userId: string, context: { isInitialSig
   const startTime = Date.now();
   let userUlid: string | undefined;
 
+  console.log('[GET_USER_ROLES] Starting role context check:', {
+    userId,
+    isInitialSignup: context.isInitialSignup,
+    timestamp: new Date().toISOString()
+  });
+
   // If roles are disabled, return default role for development
   if (!config.roles.enabled) {
+    console.log('[GET_USER_ROLES] Roles disabled, returning default context');
     logMetrics({
       startTime,
       attempts: 0,
@@ -70,6 +77,8 @@ export async function getUserRoleContext(userId: string, context: { isInitialSig
   );
 
   try {
+    console.log('[GET_USER_ROLES] Querying database for user:', userId);
+    
     const { data, error } = await supabase
       .from("User")
       .select("ulid, systemRole, capabilities")
@@ -77,6 +86,13 @@ export async function getUserRoleContext(userId: string, context: { isInitialSig
       .single();
 
     if (error) {
+      console.error('[GET_USER_ROLES] Database query error:', {
+        error,
+        userId,
+        errorCode: error.code,
+        timestamp: new Date().toISOString()
+      });
+      
       if (error.code === 'PGRST116') {
         console.log(`[GET_USER_ROLES] New user detected: ${userId}`);
         logMetrics({
@@ -92,6 +108,13 @@ export async function getUserRoleContext(userId: string, context: { isInitialSig
     }
 
     userUlid = data?.ulid;
+    console.log('[GET_USER_ROLES] User data retrieved:', {
+      userId,
+      userUlid,
+      systemRole: data.systemRole,
+      capabilities: data.capabilities,
+      timestamp: new Date().toISOString()
+    });
 
     // Success case
     logMetrics({
@@ -108,7 +131,8 @@ export async function getUserRoleContext(userId: string, context: { isInitialSig
       console.warn("[GET_USER_ROLES] Invalid system role, using default:", {
         userId,
         userUlid,
-        systemRole
+        systemRole,
+        timestamp: new Date().toISOString()
       });
       return {
         systemRole: SYSTEM_ROLES.USER,
@@ -121,6 +145,14 @@ export async function getUserRoleContext(userId: string, context: { isInitialSig
       ? data.capabilities.filter(c => Object.values(USER_CAPABILITIES).includes(c))
       : [USER_CAPABILITIES.MENTEE];
 
+    console.log('[GET_USER_ROLES] Final role context:', {
+      userId,
+      userUlid,
+      systemRole,
+      capabilities,
+      timestamp: new Date().toISOString()
+    });
+
     return {
       systemRole,
       capabilities
@@ -131,7 +163,9 @@ export async function getUserRoleContext(userId: string, context: { isInitialSig
       userId,
       userUlid,
       error: error instanceof Error ? error.message : 'Unknown error',
-      duration: `${Date.now() - startTime}ms`
+      stack: error instanceof Error ? error.stack : undefined,
+      duration: `${Date.now() - startTime}ms`,
+      timestamp: new Date().toISOString()
     });
 
     // Return default role context on error

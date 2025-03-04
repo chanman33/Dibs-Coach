@@ -15,11 +15,24 @@ export default function MenteeLayout({
   const router = useRouter()
   const authContext = useAuthContext()
 
+  // Add debug logging for auth context
+  console.log('[MENTEE_LAYOUT] Auth context in client:', {
+    capabilities: authContext.capabilities,
+    hasMenteeCapability: authContext.capabilities.includes(USER_CAPABILITIES.MENTEE),
+    timestamp: new Date().toISOString()
+  });
+
   // Check for MENTEE capability
   if (!authContext.capabilities.includes(USER_CAPABILITIES.MENTEE)) {
+    console.log('[MENTEE_LAYOUT] Access denied - missing MENTEE capability:', {
+      capabilities: authContext.capabilities,
+      requiredCapability: USER_CAPABILITIES.MENTEE,
+      timestamp: new Date().toISOString()
+    });
     return <NotAuthorized message="You must be a mentee to access this area" />
   }
 
+  console.log('[MENTEE_LAYOUT] Access granted - MENTEE capability found');
   return (
     <div className="flex h-screen">
       <MenteeSidebar />

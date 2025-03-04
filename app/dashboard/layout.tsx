@@ -31,14 +31,27 @@ async function recoverUser(userId: string): Promise<boolean> {
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   try {
+    // Add debug logging before auth check
+    console.log('[DASHBOARD_LAYOUT] Starting auth context check');
+    
     // Single auth check that will throw UserNotFoundError if needed
     const authContext = await getAuthContext()
     
+    // Log auth context details
+    console.log('[DASHBOARD_LAYOUT] Auth context retrieved:', {
+      userId: authContext.userId,
+      systemRole: authContext.systemRole,
+      capabilities: authContext.capabilities,
+      timestamp: new Date().toISOString()
+    });
+
     if (!authContext.userId && config.auth.enabled) {
+      console.log('[DASHBOARD_LAYOUT] No userId found with auth enabled');
       redirect('/sign-in')
     }
 
     if (!config.roles.enabled) {
+      console.log('[DASHBOARD_LAYOUT] Roles disabled, rendering without role check');
       return (
         <div className="grid min-h-screen w-full">
           <DashboardTopNav>
@@ -50,9 +63,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
     // Basic auth check - just ensure we have a user with role context
     if (!authContext.systemRole || !authContext.capabilities?.length) {
+      console.log('[DASHBOARD_LAYOUT] Missing role context:', {
+        systemRole: authContext.systemRole,
+        capabilities: authContext.capabilities
+      });
       return <NotAuthorized message="User role not found" />
     }
 
+    console.log('[DASHBOARD_LAYOUT] Role check passed, rendering dashboard');
     return (
       <div className="grid min-h-screen w-full">
         <DashboardTopNav>
