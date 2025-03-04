@@ -1,20 +1,20 @@
-import { auth } from "@clerk/nextjs/server";
 import AIAgent from "@/components/ai-agent/AI-Agent";
-import { ensureUserExists } from "@/utils/auth";
-import { redirect } from "next/navigation";
+import { getAuthContext } from "@/utils/auth/auth-context";
+import { hasPermission } from "@/utils/roles/checkUserRole";
 import { USER_CAPABILITIES } from "@/utils/roles/roles";
+import { redirect } from "next/navigation";
 import React from "react";
 
 export default async function MenteeAIAgentPage() {
-  const { userId } = await auth();
-  
-  if (!userId) {
+  // Get auth context which includes user info, role and capabilities
+  const authContext = await getAuthContext();
+
+  if (!authContext) {
     redirect("/sign-in");
   }
 
-  const user = await ensureUserExists();
-  
-  if (!user?.capabilities?.includes(USER_CAPABILITIES.MENTEE)) {
+  // Verify user has MENTEE capability
+  if (!hasPermission(authContext, USER_CAPABILITIES.MENTEE)) {
     redirect("/dashboard");
   }
 
@@ -22,8 +22,8 @@ export default async function MenteeAIAgentPage() {
     <div className="container mx-auto py-8">
       <h1 className="mb-8 text-3xl font-bold">Real Estate GPT</h1>
       <AIAgent 
-        userId={userId} 
-        userUlid={user.ulid}
+        userId={authContext.userId}
+        userUlid={authContext.userUlid}
         threadCategory="GENERAL"
       />
     </div>
