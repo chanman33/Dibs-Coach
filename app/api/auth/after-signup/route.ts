@@ -14,10 +14,9 @@ export async function POST(req: Request) {
     
     return NextResponse.json({ 
       user: {
-        ulid: user.ulid,
         userId: user.userId,
-        email: user.email,
-        role: user.role
+        systemRole: user.systemRole,
+        capabilities: user.capabilities
       } 
     });
   } catch (error: any) {

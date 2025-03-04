@@ -1,0 +1,144 @@
+import { auth as clerkAuth, currentUser } from "@clerk/nextjs/server"
+import { createAuthClient } from './auth-client'
+import config from "../../config"
+import { UnauthorizedError } from '../types/auth'
+
+// Mock user for development
+const MOCK_USER = {
+  id: "mock_user_id",
+  firstName: "Dev",
+  lastName: "User",
+  imageUrl: "",
+  email: "dev@example.com",
+}
+
+export async function getAuthUser() {
+  if (!config.auth.enabled) {
+    return MOCK_USER
+  }
+  
+  const user = await currentUser()
+  if (!user) {
+    throw new UnauthorizedError()
+  }
+  
+  return user
+}
+
+export async function getAuthUserId() {
+  if (!config.auth.enabled) {
+    return MOCK_USER.id
+  }
+  
+  const { userId } = await clerkAuth()
+  if (!userId) {
+    throw new UnauthorizedError()
+  }
+  
+  return userId
+}
+
+// Update user profile data
+export async function updateUser({
+  userId,
+  email,
+  firstName,
+  lastName,
+  profileImageUrl,
+}: {
+  userId: string
+  email?: string
+  firstName?: string
+  lastName?: string
+  profileImageUrl?: string
+}) {
+  const supabase = await createAuthClient()
+
+  // Get user's ULID first
+  const { data: user } = await supabase
+    .from('User')
+    .select('ulid')
+    .eq('userId', userId)
+    .single()
+
+  if (!user) {
+    throw new Error('User not found')
+  }
+
+  const updates = {
+    ...(email && { email }),
+    ...(firstName && { firstName }),
+    ...(lastName && { lastName }),
+    ...(profileImageUrl && { profileImageUrl }),
+    ...(firstName || lastName) && {
+      displayName: `${firstName || ''} ${lastName || ''}`.trim()
+    },
+    updatedAt: new Date().toISOString(),
+  }
+
+  const { data, error } = await supabase
+    .from('User')
+    .update(updates)
+    .eq('ulid', user.ulid)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[USER_UPDATE_ERROR]', error)
+    throw error
+  }
+
+  return data
+}
+
+// ID conversion utilities with caching
+const idCache = new Map<string, string>()
+
+export async function getUlidFromClerkId(clerkUserId: string): Promise<string> {
+  // Check cache first
+  const cached = idCache.get(`clerk:${clerkUserId}`)
+  if (cached) return cached
+
+  const supabase = await createAuthClient()
+  const { data: user } = await supabase
+    .from('User')
+    .select('ulid')
+    .eq('userId', clerkUserId)
+    .single()
+    
+  if (!user?.ulid) {
+    throw new Error('User not found')
+  }
+
+  // Cache the result
+  idCache.set(`clerk:${clerkUserId}`, user.ulid)
+  idCache.set(`ulid:${user.ulid}`, clerkUserId)
+  
+  return user.ulid
+}
+
+export async function getClerkIdFromUlid(ulid: string): Promise<string> {
+  // Check cache first
+  const cached = idCache.get(`ulid:${ulid}`)
+  if (cached) return cached
+
+  const supabase = await createAuthClient()
+  const { data: user } = await supabase
+    .from('User')
+    .select('userId')
+    .eq('ulid', ulid)
+    .single()
+    
+  if (!user?.userId) {
+    throw new Error('User not found')
+  }
+
+  // Cache the result
+  idCache.set(`ulid:${ulid}`, user.userId)
+  idCache.set(`clerk:${user.userId}`, ulid)
+  
+  return user.userId
+}
+
+// Clear cache periodically (every hour)
+setInterval(() => idCache.clear(), 60 * 60 * 1000)

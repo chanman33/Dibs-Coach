@@ -1,5 +1,5 @@
 import { auth } from "@clerk/nextjs/server"
-import { createAuthClient } from "@/utils/auth"
+import { createAuthClient } from '@/utils/auth/auth-client'
 import { 
   SystemRole,
   OrgRole,
@@ -15,8 +15,8 @@ import {
   isValidOrgRole,
   isValidOrgLevel
 } from "@/utils/roles/roles"
-import { ApiResponse, ApiError } from "@/utils/types/api"
 import { generateUlid } from '@/utils/ulid'
+import { ApiResponse } from '@/utils/types/api'
 
 export interface ServerActionContext {
   userId: string           // Clerk ID
@@ -33,20 +33,20 @@ interface ServerActionOptions {
   requiredPermissions?: Permission[]
   requiredCapabilities?: UserCapability[]
   requireAll?: boolean
-  requireOrganization?: boolean // Whether the action requires an organization context
+  requireOrganization?: boolean
 }
 
 interface OrganizationData {
-  role: string;
-  scope: string;
-  customPermissions?: Permission[];
-  organizationUlid: string;
+  role: string
+  scope: string
+  customPermissions?: Permission[]
+  organizationUlid: string
   organization: {
-    ulid: string;
-    level: string;
-    status: string;
-    type: string;
-  };
+    ulid: string
+    level: string
+    status: string
+    type: string
+  }
 }
 
 type ServerAction<T, P = any> = (
@@ -55,26 +55,9 @@ type ServerAction<T, P = any> = (
 ) => Promise<ApiResponse<T>>
 
 /**
- * Ensures ULIDs are present in data for Supabase operations
+ * Server action wrapper that handles authentication and authorization.
+ * Uses cached auth context and unified middleware for protection.
  */
-const ensureUlids = (data: any): any => {
-  if (!data) return data
-
-  // Handle array of records
-  if (Array.isArray(data)) {
-    return data.map(item => ({
-      ...item,
-      ulid: item.ulid || generateUlid()
-    }))
-  }
-
-  // Handle single record
-  return {
-    ...data,
-    ulid: data.ulid || generateUlid()
-  }
-}
-
 export function withServerAction<T, P = any>(
   action: ServerAction<T, P>,
   options: ServerActionOptions = {}

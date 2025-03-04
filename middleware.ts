@@ -3,6 +3,11 @@ import type { NextRequest } from "next/server";
 import { SYSTEM_ROLES, USER_CAPABILITIES, hasCapability, type UserRoleContext } from './utils/roles/roles'
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
+import { getAuthContext } from './utils/auth/auth-context'
+import { createAuthMiddleware } from './utils/auth/auth-middleware'
+import { handleAuthError } from "./utils/auth/auth-utils";
+import { getRequiredCapabilities } from "./utils/auth/auth-utils";
+import { getRequiredRole } from "./utils/auth/auth-utils";
 
 // Import config and define its type
 type AppConfig = {
@@ -64,100 +69,34 @@ const isProtectedRoute = (pathname: string) =>
   PROTECTED_ROUTES.some(route => pathname.match(route));
 
 export default function middleware(req: NextRequest) {
-  if (!config.auth.enabled) {
-    return NextResponse.next();
-  }
+  if (!config.auth.enabled) return NextResponse.next()
 
   return clerkMiddleware(async (auth: any) => {
-    const resolvedAuth = await auth();
-    const pathname = req.nextUrl.pathname;
+    const pathname = req.nextUrl.pathname
 
-    // Always allow public routes
-    if (isPublicRoute(pathname)) {
-      return NextResponse.next();
+    if (isPublicRoute(pathname)) return NextResponse.next()
+    if (!auth?.userId && isProtectedRoute(pathname)) {
+      return auth.redirectToSignIn()
     }
 
-    // Handle unauthenticated users trying to access protected routes
-    if (!resolvedAuth.userId && isProtectedRoute(pathname)) {
-      return resolvedAuth.redirectToSignIn();
+    try {
+      const context = await getAuthContext()
+      
+      // Route-specific middleware
+      await createAuthMiddleware({
+        requiredSystemRole: getRequiredRole(pathname),
+        requiredCapabilities: getRequiredCapabilities(pathname)
+      })(context)
+
+      // Add context to headers
+      const headers = new Headers(req.headers)
+      headers.set('x-auth-context', JSON.stringify(context))
+
+      return NextResponse.next({ headers })
+    } catch (error) {
+      return handleAuthError(error as Error, req)
     }
-
-    // If user is authenticated and trying to access protected routes
-    if (resolvedAuth.userId && isProtectedRoute(pathname)) {
-      const cookieStore = await cookies();
-      const supabase = createServerClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_KEY!,
-        {
-          cookies: {
-            get(name: string) {
-              return cookieStore.get(name)?.value;
-            },
-          },
-        }
-      );
-
-      // Check if user exists in database
-      const { data: user, error } = await supabase
-        .from('User')
-        .select('ulid, role, capabilities')
-        .eq('userId', resolvedAuth.userId)
-        .single();
-
-      // If there's an error or user doesn't exist, redirect to error page
-      if (error || !user) {
-        console.error('[AUTH_ERROR] User not found in database:', resolvedAuth.userId);
-        return NextResponse.redirect(new URL('/error?code=user_not_found', req.url));
-      }
-
-      const { role, ulid } = user;
-
-      // Handle role-specific route access
-      if (ADMIN_ROUTES.some(route => pathname.match(route)) && role !== SYSTEM_ROLES.SYSTEM_MODERATOR) {
-        return new NextResponse('Access denied. Admin role required.', { status: 403 });
-      }
-
-      if (COACH_ROUTES.some(route => pathname.match(route)) && 
-          !hasCapability({ systemRole: role, capabilities: user.capabilities || [] } as UserRoleContext, USER_CAPABILITIES.COACH)) {
-        return new NextResponse('Access denied. Coach capability required.', { status: 403 });
-      }
-
-      if (MENTEE_ROUTES.some(route => pathname.match(route)) && 
-          !hasCapability({ systemRole: role, capabilities: user.capabilities || [] } as UserRoleContext, USER_CAPABILITIES.MENTEE)) {
-        return new NextResponse('Access denied. Mentee capability required.', { status: 403 });
-      }
-
-      // Handle shared tool routes - allow access for both coaches and mentees
-      // This covers both direct /dashboard/tools/* access and role-specific /dashboard/{role}/tools/* access
-      if (SHARED_TOOL_ROUTES.some(route => pathname.match(route)) || pathname.match(/\/dashboard\/(coach|mentee)\/tools\/.*/)) {
-        const hasToolAccess = hasCapability({ systemRole: role, capabilities: user.capabilities || [] } as UserRoleContext, USER_CAPABILITIES.COACH) || 
-                             hasCapability({ systemRole: role, capabilities: user.capabilities || [] } as UserRoleContext, USER_CAPABILITIES.MENTEE) ||
-                             role === SYSTEM_ROLES.SYSTEM_MODERATOR;
-        if (!hasToolAccess) {
-          return new NextResponse('Access denied. Coach or Mentee capability required.', { status: 403 });
-        }
-      }
-
-      // Add role and user identifiers to headers for downstream use
-      const requestHeaders = new Headers(req.headers);
-      requestHeaders.set('x-user-role', role);
-      requestHeaders.set('x-user-id', resolvedAuth.userId);
-      requestHeaders.set('x-user-ulid', ulid);
-
-      return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      });
-    }
-
-    // If authenticated user tries to access auth pages, redirect to dashboard
-    if (resolvedAuth.userId && (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up'))) {
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-
-    return NextResponse.next();
-  })(req);
+  })(req)
 }
 
 // Export middleware config

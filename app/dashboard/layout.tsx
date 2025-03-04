@@ -1,11 +1,11 @@
 import { ReactNode } from "react"
 import { redirect } from "next/navigation"
 import { getAuthUser } from "@/utils/auth"
-import NotAuthorized from "@/components/not-authorized"
+import NotAuthorized from "@/components/auth/not-authorized"
 import DashboardTopNav from "./_components/dashboard-top-nav"
 import config from '@/config';
 import { ensureUserExists } from "@/utils/auth"
-import { isAuthorized } from "@/utils/data/user/isAuthorized"
+import { isAuthorized } from "@/utils/auth/auth-utils"
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const user = await getAuthUser()
@@ -45,7 +45,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   const { authorized, message } = await isAuthorized()
   if (!authorized) {
-    return <NotAuthorized />
+    return <NotAuthorized message={message} />
   }
 
   return (

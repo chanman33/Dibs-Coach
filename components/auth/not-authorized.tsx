@@ -3,7 +3,11 @@ import { LockIcon } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
-export default function Unauthorized() {
+interface NotAuthorizedProps {
+  message?: string
+}
+
+export default function NotAuthorized({ message }: NotAuthorizedProps) {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-background to-secondary/20">
       <Card className="w-full max-w-md">
@@ -20,7 +24,7 @@ export default function Unauthorized() {
         </CardHeader>
         <CardContent className="space-y-4 text-center">
           <p className="text-lg text-muted-foreground">
-            You don't have access to this page
+            {message || "You don't have access to this page"}
           </p>
           <p className="text-sm text-muted-foreground">
             Please try reaching out to your administrator if you believe this is an error.

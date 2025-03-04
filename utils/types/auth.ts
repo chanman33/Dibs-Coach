@@ -1,4 +1,15 @@
 import { z } from 'zod'
+import {
+  ORG_LEVELS,
+  ORG_ROLES,
+  OrgLevel,
+  OrgRole,
+  Permission,
+  SYSTEM_ROLES,
+  USER_CAPABILITIES,
+  type SystemRole,
+  type UserCapability
+} from "../roles/roles";
 
 // ID Types
 export const clerkUserIdSchema = z.string()
@@ -62,4 +73,54 @@ export class UserNotFoundError extends Error {
     super(`User not found: ${JSON.stringify(params)}`)
     this.name = 'UserNotFoundError'
   }
-} 
+}
+
+export class UnauthorizedError extends Error {
+  constructor(message = 'Authentication required') {
+    super(message);
+    this.name = 'UnauthorizedError';
+  }
+}
+
+export class ForbiddenError extends Error {
+  constructor(message = 'Insufficient permissions') {
+    super(message);
+    this.name = 'ForbiddenError';
+  }
+}
+
+export interface AuthContext {
+  userId: string;          // Clerk ID
+  userUlid: string;       // Database ID
+  systemRole: SystemRole;
+  capabilities: UserCapability[];
+  orgRole?: OrgRole;
+  orgLevel?: OrgLevel;
+  subscription?: {
+    status: string;
+    planId: string;
+  };
+}
+
+export const authContextSchema = z.object({
+  userId: z.string(),
+  userUlid: z.string(),
+  systemRole: z.enum(Object.values(SYSTEM_ROLES) as [string, ...string[]]),
+  capabilities: z.array(z.enum(Object.values(USER_CAPABILITIES) as [string, ...string[]])),
+  orgRole: z.enum(Object.values(ORG_ROLES) as [string, ...string[]]).optional(),
+  orgLevel: z.enum(Object.values(ORG_LEVELS) as [string, ...string[]]).optional(),
+  subscription: z.object({
+    status: z.string(),
+    planId: z.string()
+  }).optional()
+});
+
+export type AuthOptions = {
+  requiredSystemRole?: SystemRole;
+  requiredOrgRole?: OrgRole;
+  requiredOrgLevel?: OrgLevel;
+  requiredPermissions?: Permission[];
+  requiredCapabilities?: UserCapability[];
+  requireAll?: boolean;
+  requireOrganization?: boolean;
+}; 
