@@ -6,12 +6,13 @@ import { ApiResponse } from '@/utils/types/api'
 import { SYSTEM_ROLES, USER_CAPABILITIES } from '@/utils/roles/roles'
 import { z } from 'zod'
 import { ulidSchema } from '@/utils/types/auth'
-import { COACH_APPLICATION_STATUS, CoachApplicationStatus } from '@/utils/types/coach'
+import { COACH_APPLICATION_STATUS, REAL_ESTATE_DOMAINS, type CoachApplicationStatus, type RealEstateDomain } from '@/utils/types/coach'
 import { generateUlid } from '@/utils/ulid'
 import type { ApplicationData } from '@/utils/types/coach-application'
 import { revalidatePath } from "next/cache";
 import { addUserCapability } from "@/utils/permissions";
 import type { ServerActionContext } from "@/utils/middleware/withServerAction";
+import { cookies } from 'next/headers';
 
 // Validation schemas
 const CoachApplicationSchema = z.object({
@@ -46,17 +47,23 @@ type ApplicationResponse = {
     firstName: string | null;
     lastName: string | null;
     email: string;
+    phoneNumber: string | null;
+    profileImageUrl: string | null;
   } | null;
   reviewer: {
     ulid: string;
     firstName: string | null;
     lastName: string | null;
   } | null;
-  experience: string;
-  specialties: string[];
-  industrySpecialties: string[];
+  yearsOfExperience: number;
+  superPower: string;
+  realEstateDomains: RealEstateDomain[];
+  primaryDomain: RealEstateDomain;
+  resumeUrl: string | null;
+  linkedIn: string | null;
+  primarySocialMedia: string | null;
+  aboutYou: string | null;
   notes: string | null;
-  applicationDate: string;
   reviewDate: string | null;
   createdAt: string;
   updatedAt: string;
@@ -66,18 +73,18 @@ type ApplicationResponse = {
 type RawApplicationData = {
   ulid: string;
   status: string;
-  experience: string;
-  specialties: string[];
-  industrySpecialties: string[];
+  yearsOfExperience: number;
+  superPower: string;
+  realEstateDomains: string[];
+  primaryDomain: string;
   notes: string | null;
-  applicationDate: string;
   reviewDate: string | null;
   createdAt: string;
   updatedAt: string;
   resumeUrl: string | null;
   linkedIn: string | null;
   primarySocialMedia: string | null;
-  additionalInfo: string | null;
+  aboutYou: string | null;
   applicant: {
     ulid: string;
     firstName: string | null;
@@ -90,7 +97,6 @@ type RawApplicationData = {
     ulid: string;
     firstName: string | null;
     lastName: string | null;
-    email: string;
   } | null;
 };
 
@@ -152,14 +158,18 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
         lastName: formData.get('lastName') as string,
         email: formData.get('email') as string,
         phoneNumber: formData.get('phoneNumber') as string,
-        yearsOfExperience: formData.get('yearsOfExperience') as string,
-        expertise: formData.get('expertise') as string,
-        // Handle optional fields - convert null to undefined
-        linkedIn: formData.get('linkedIn') || undefined,
-        primarySocialMedia: formData.get('primarySocialMedia') || undefined,
-        additionalInfo: formData.get('additionalInfo') || undefined,
+        yearsOfExperience: parseInt(formData.get('yearsOfExperience') as string),
+        superPower: formData.get('superPower') as string,
+        realEstateDomains: JSON.parse(formData.get('realEstateDomains') as string),
+        primaryDomain: formData.get('primaryDomain') as RealEstateDomain,
         resumeUrl: resumeUrl, // Use the uploaded file URL
-        industrySpecialties: industrySpecialties.length > 0 ? industrySpecialties : undefined
+        linkedIn: formData.get('linkedIn') as string | null,
+        primarySocialMedia: formData.get('primarySocialMedia') as string | null,
+        aboutYou: formData.get('aboutYou') as string | null,
+        notes: formData.get('notes') as string | null,
+        reviewDate: formData.get('reviewDate') as string | null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
 
       // Validate input data
@@ -168,21 +178,7 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
       // Create application record
       const { data: application, error: applicationError } = await supabase
         .from('CoachApplication')
-        .insert({
-          ulid: generateUlid(),
-          applicantUlid: userUlid,
-          status: 'PENDING',
-          experience: validatedData.yearsOfExperience,
-          specialties: [validatedData.expertise],
-          industrySpecialties: validatedData.industrySpecialties || [],
-          resumeUrl: validatedData.resumeUrl,
-          linkedIn: validatedData.linkedIn,
-          primarySocialMedia: validatedData.primarySocialMedia,
-          notes: validatedData.additionalInfo,
-          applicationDate: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        })
+        .insert(validatedData)
         .select(`
           ulid,
           status,
@@ -247,27 +243,34 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
         .select(`
           ulid,
           status,
-          experience,
-          specialties,
+          yearsOfExperience,
+          superPower,
+          realEstateDomains,
+          primaryDomain,
           notes,
-          applicationDate,
           reviewDate,
           createdAt,
           updatedAt,
-          applicant:applicantUlid (
+          resumeUrl,
+          linkedIn,
+          primarySocialMedia,
+          aboutYou,
+          applicant:User!CoachApplication_applicantUlid_fkey (
             ulid,
             firstName,
             lastName,
-            email
+            email,
+            phoneNumber,
+            profileImageUrl
           ),
-          reviewer:reviewerUlid (
+          reviewer:User!CoachApplication_reviewerUlid_fkey (
             ulid,
             firstName,
             lastName
           )
         `)
         .eq('applicantUlid', userUlid)
-        .maybeSingle() as { data: ApplicationData | null, error: any }
+        .single() as { data: ApplicationData | null, error: any }
 
       // If no application found, return null data without error
       if (!application) {
@@ -675,9 +678,11 @@ export const getAllCoachApplications = withServerAction<ApplicationData[]>(
             hasApplicant: !!app.applicant,
             rawData: {
               status: app.status,
-              experience: app.experience,
-              specialtiesLength: app.specialties?.length,
+              yearsOfExperience: app.yearsOfExperience,
+              superPower: app.superPower,
+              realEstateDomainsLength: app.realEstateDomains?.length,
               hasNotes: !!app.notes,
+              hasAboutYou: !!app.aboutYou,
               hasApplicantData: app.applicant ? {
                 firstName: !!app.applicant.firstName,
                 lastName: !!app.applicant.lastName,
@@ -703,31 +708,33 @@ export const getAllCoachApplications = withServerAction<ApplicationData[]>(
           // Ensure all required fields are present
           const applicationData: ApplicationData = {
             ulid: app.ulid,
-            status: status as CoachApplicationStatus,
-            experience: app.experience || '0',
-            specialties: Array.isArray(app.specialties) ? app.specialties : [],
-            industrySpecialties: Array.isArray(app.industrySpecialties) ? app.industrySpecialties : [],
+            status: app.status as CoachApplicationStatus,
+            yearsOfExperience: app.yearsOfExperience,
+            superPower: app.superPower,
+            realEstateDomains: app.realEstateDomains.filter((domain): domain is RealEstateDomain => 
+              Object.values(REAL_ESTATE_DOMAINS).includes(domain as RealEstateDomain)
+            ),
+            primaryDomain: app.primaryDomain as RealEstateDomain,
             notes: app.notes,
-            applicationDate: app.applicationDate || app.createdAt,
             reviewDate: app.reviewDate,
             createdAt: app.createdAt,
             updatedAt: app.updatedAt,
             resumeUrl: app.resumeUrl,
             linkedIn: app.linkedIn,
             primarySocialMedia: app.primarySocialMedia,
-            additionalInfo: app.additionalInfo,
-            applicant: {
+            aboutYou: app.aboutYou,
+            applicant: app.applicant ? {
               ulid: app.applicant.ulid,
               firstName: app.applicant.firstName || '',
               lastName: app.applicant.lastName || '',
               email: app.applicant.email,
               phoneNumber: app.applicant.phoneNumber,
               profileImageUrl: app.applicant.profileImageUrl
-            },
+            } : null,
             reviewer: app.reviewer ? {
               ulid: app.reviewer.ulid,
               firstName: app.reviewer.firstName || '',
-              lastName: app.reviewer.lastName || '',
+              lastName: app.reviewer.lastName || ''
             } : null
           };
 
@@ -742,8 +749,8 @@ export const getAllCoachApplications = withServerAction<ApplicationData[]>(
                 hasEmail: !!applicationData.applicant.email,
                 hasPhone: !!applicationData.applicant.phoneNumber
               },
-              hasSpecialties: applicationData.specialties.length > 0,
-              hasExperience: !!applicationData.experience
+              hasRealEstateDomains: applicationData.realEstateDomains.length > 0,
+              hasYearsOfExperience: !!applicationData.yearsOfExperience
             }
           });
 
@@ -763,8 +770,8 @@ export const getAllCoachApplications = withServerAction<ApplicationData[]>(
             email: !!transformedApplications[0].applicant.email,
             phoneNumber: !!transformedApplications[0].applicant.phoneNumber
           } : null,
-          hasSpecialties: transformedApplications[0].specialties.length > 0,
-          hasExperience: !!transformedApplications[0].experience
+          hasRealEstateDomains: transformedApplications[0].realEstateDomains.length > 0,
+          hasYearsOfExperience: !!transformedApplications[0].yearsOfExperience
         } : 'No applications',
         timestamp: new Date().toISOString()
       });
@@ -791,4 +798,37 @@ export const getAllCoachApplications = withServerAction<ApplicationData[]>(
     }
   },
   { requiredSystemRole: SYSTEM_ROLES.SYSTEM_OWNER }
-) 
+)
+
+// Transform raw data to ApplicationData
+const transformRawData = (raw: RawApplicationData): ApplicationData => ({
+  ulid: raw.ulid,
+  status: raw.status as CoachApplicationStatus,
+  yearsOfExperience: raw.yearsOfExperience,
+  superPower: raw.superPower,
+  realEstateDomains: raw.realEstateDomains.filter((domain): domain is RealEstateDomain => 
+    Object.values(REAL_ESTATE_DOMAINS).includes(domain as RealEstateDomain)
+  ),
+  primaryDomain: raw.primaryDomain as RealEstateDomain,
+  notes: raw.notes,
+  reviewDate: raw.reviewDate,
+  createdAt: raw.createdAt,
+  updatedAt: raw.updatedAt,
+  resumeUrl: raw.resumeUrl,
+  linkedIn: raw.linkedIn,
+  primarySocialMedia: raw.primarySocialMedia,
+  aboutYou: raw.aboutYou,
+  applicant: raw.applicant ? {
+    ulid: raw.applicant.ulid,
+    firstName: raw.applicant.firstName,
+    lastName: raw.applicant.lastName,
+    email: raw.applicant.email,
+    phoneNumber: raw.applicant.phoneNumber,
+    profileImageUrl: raw.applicant.profileImageUrl
+  } : null,
+  reviewer: raw.reviewer ? {
+    ulid: raw.reviewer.ulid,
+    firstName: raw.reviewer.firstName,
+    lastName: raw.reviewer.lastName
+  } : null
+}); 

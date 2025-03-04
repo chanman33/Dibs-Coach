@@ -464,70 +464,79 @@ export type Database = {
       }
       CoachApplication: {
         Row: {
-          additionalInfo: string | null
+          aboutYou: string | null
           applicantUlid: string
-          applicationDate: string
           createdAt: string
           draftData: Json | null
           draftVersion: number
-          experience: string
-          industrySpecialties: string[] | null
+          firstName: string | null
           isDraft: boolean
+          lastName: string | null
           lastSavedAt: string | null
           linkedIn: string | null
-          notes: string | null
+          phoneNumber: string | null
+          primaryDomain: string | null
           primarySocialMedia: string | null
+          realEstateDomains: string[] | null
           resumeUrl: string | null
           reviewDate: string | null
           reviewerUlid: string | null
-          specialties: string[] | null
+          reviewNotes: string | null
           status: Database["public"]["Enums"]["CoachApplicationStatus"]
+          superPower: string
           ulid: string
           updatedAt: string
+          yearsOfExperience: number
         }
         Insert: {
-          additionalInfo?: string | null
+          aboutYou?: string | null
           applicantUlid: string
-          applicationDate?: string
           createdAt?: string
           draftData?: Json | null
           draftVersion?: number
-          experience: string
-          industrySpecialties?: string[] | null
+          firstName?: string | null
           isDraft?: boolean
+          lastName?: string | null
           lastSavedAt?: string | null
           linkedIn?: string | null
-          notes?: string | null
+          phoneNumber?: string | null
+          primaryDomain?: string | null
           primarySocialMedia?: string | null
+          realEstateDomains?: string[] | null
           resumeUrl?: string | null
           reviewDate?: string | null
           reviewerUlid?: string | null
-          specialties?: string[] | null
+          reviewNotes?: string | null
           status?: Database["public"]["Enums"]["CoachApplicationStatus"]
+          superPower: string
           ulid: string
           updatedAt: string
+          yearsOfExperience: number
         }
         Update: {
-          additionalInfo?: string | null
+          aboutYou?: string | null
           applicantUlid?: string
-          applicationDate?: string
           createdAt?: string
           draftData?: Json | null
           draftVersion?: number
-          experience?: string
-          industrySpecialties?: string[] | null
+          firstName?: string | null
           isDraft?: boolean
+          lastName?: string | null
           lastSavedAt?: string | null
           linkedIn?: string | null
-          notes?: string | null
+          phoneNumber?: string | null
+          primaryDomain?: string | null
           primarySocialMedia?: string | null
+          realEstateDomains?: string[] | null
           resumeUrl?: string | null
           reviewDate?: string | null
           reviewerUlid?: string | null
-          specialties?: string[] | null
+          reviewNotes?: string | null
           status?: Database["public"]["Enums"]["CoachApplicationStatus"]
+          superPower?: string
           ulid?: string
           updatedAt?: string
+          yearsOfExperience?: number
         }
         Relationships: [
           {
@@ -3253,229 +3262,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      armor: {
-        Args: {
-          "": string
-        }
-        Returns: string
-      }
-      array_distinct: {
-        Args: {
-          "": unknown
-        }
-        Returns: unknown
-      }
-      citext:
-        | {
-            Args: {
-              "": boolean
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              "": string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              "": unknown
-            }
-            Returns: string
-          }
-      citext_hash: {
-        Args: {
-          "": string
-        }
-        Returns: number
-      }
-      citextin: {
-        Args: {
-          "": unknown
-        }
-        Returns: string
-      }
-      citextout: {
-        Args: {
-          "": string
-        }
-        Returns: unknown
-      }
-      citextrecv: {
-        Args: {
-          "": unknown
-        }
-        Returns: string
-      }
-      citextsend: {
-        Args: {
-          "": string
-        }
-        Returns: string
-      }
-      compare_ulids: {
-        Args: {
-          ulid1: string
-          ulid2: string
-        }
-        Returns: number
-      }
-      create_tsvector_index: {
-        Args: {
-          table_name: string
-          column_name: string
-        }
-        Returns: undefined
-      }
-      create_ulid_indexes: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      dearmor: {
-        Args: {
-          "": string
-        }
-        Returns: string
-      }
-      gen_random_bytes: {
-        Args: {
-          "": number
-        }
-        Returns: string
-      }
-      gen_random_uuid: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      gen_salt: {
-        Args: {
-          "": string
-        }
-        Returns: string
-      }
-      gtrgm_compress: {
-        Args: {
-          "": unknown
-        }
-        Returns: unknown
-      }
-      gtrgm_decompress: {
-        Args: {
-          "": unknown
-        }
-        Returns: unknown
-      }
-      gtrgm_in: {
-        Args: {
-          "": unknown
-        }
-        Returns: unknown
-      }
-      gtrgm_options: {
-        Args: {
-          "": unknown
-        }
-        Returns: undefined
-      }
-      gtrgm_out: {
-        Args: {
-          "": unknown
-        }
-        Returns: unknown
-      }
-      pgp_armor_headers: {
-        Args: {
-          "": string
-        }
-        Returns: Record<string, unknown>[]
-      }
-      pgp_key_id: {
-        Args: {
-          "": string
-        }
-        Returns: string
-      }
-      set_limit: {
-        Args: {
-          "": number
-        }
-        Returns: number
-      }
-      show_limit: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      show_trgm: {
-        Args: {
-          "": string
-        }
-        Returns: string[]
-      }
-      ulid_to_timestamp: {
-        Args: {
-          ulid: string
-        }
-        Returns: string
-      }
-      unaccent: {
-        Args: {
-          "": string
-        }
-        Returns: string
-      }
-      unaccent_init: {
-        Args: {
-          "": unknown
-        }
-        Returns: unknown
-      }
-      uuid_generate_v1: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      uuid_generate_v1mc: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      uuid_generate_v3: {
-        Args: {
-          namespace: string
-          name: string
-        }
-        Returns: string
-      }
-      uuid_generate_v4: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      uuid_generate_v5: {
-        Args: {
-          namespace: string
-          name: string
-        }
-        Returns: string
-      }
-      uuid_nil: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      uuid_ns_dns: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      uuid_ns_oid: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      uuid_ns_url: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      uuid_ns_x500: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      [_ in never]: never
     }
     Enums: {
       AchievementType: "MILESTONE" | "PERFORMANCE" | "LEARNING"
@@ -3748,7 +3535,7 @@ export type Database = {
         | "TITLE_EXAMINER"
         | "UNDERWRITER"
         | "OTHER"
-      UserCapability: "COACH" | "MENTEE" | "COMMERCIAL" | "PRIVATE_CREDIT"
+      UserCapability: "COACH" | "MENTEE"
       UserRole: "SYSTEM_OWNER" | "SYSTEM_MODERATOR" | "USER"
       UserStatus: "ACTIVE" | "INACTIVE" | "SUSPENDED"
       VerificationStatus: "PENDING" | "APPROVED" | "REJECTED" | "EXPIRED"

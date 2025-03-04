@@ -52,15 +52,21 @@ export default async function ApplyCoachPage() {
 
   // Format application data for the form if it exists
   const formattedApplication = application ? {
-    id: application.ulid,
+    ulid: application.ulid,
     status: application.status,
-    experience: application.experience,
-    specialties: application.specialties,
-    resumeUrl: null,
-    linkedIn: null,
-    primarySocialMedia: null,
-    additionalInfo: application.notes
+    yearsOfExperience: application.yearsOfExperience,
+    superPower: application.superPower,
+    realEstateDomains: application.realEstateDomains,
+    primaryDomain: application.primaryDomain,
+    resumeUrl: application.resumeUrl,
+    linkedIn: application.linkedIn,
+    primarySocialMedia: application.primarySocialMedia,
+    aboutYou: application.aboutYou,
+    reviewNotes: application.notes,
+    reviewDate: application.reviewDate,
+    reviewer: application.reviewer
   } : undefined;
+
 
   // Format user data for the form
   const userInfo = userData ? {

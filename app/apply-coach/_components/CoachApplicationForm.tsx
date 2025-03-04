@@ -9,55 +9,55 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { submitCoachApplication } from '@/utils/actions/coach-application';
-import { COACH_APPLICATION_STATUS } from '@/utils/types/coach';
+import { COACH_APPLICATION_STATUS, REAL_ESTATE_DOMAINS, type RealEstateDomain } from '@/utils/types/coach';
+import { type CoachApplicationFormData, coachApplicationFormSchema } from '@/utils/types/coach-application';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { FileUpload } from '@/components/ui/file-upload';
 import { Checkbox } from '@/components/ui/checkbox';
-import { INDUSTRY_SPECIALTIES } from '@/components/profile/common/ProfileTabsManager';
-
-interface CoachApplicationFormData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phoneNumber: string;
-  resume: File | null;
-  linkedIn: string;
-  primarySocialMedia: string;
-  yearsOfExperience: string;
-  expertise: string;
-  additionalInfo: string;
-  industrySpecialties: string[];
-}
+import { zodResolver } from '@hookform/resolvers/zod';
 
 interface CoachApplicationFormProps {
   existingApplication?: {
-    id: string;
+    ulid: string;
     status: typeof COACH_APPLICATION_STATUS[keyof typeof COACH_APPLICATION_STATUS];
-    experience: string;
-    specialties: string[];
-    industrySpecialties?: string[];
+    yearsOfExperience: number;
+    superPower: string;
+    realEstateDomains: RealEstateDomain[];
+    primaryDomain: RealEstateDomain;
     resumeUrl: string | null;
     linkedIn: string | null;
     primarySocialMedia: string | null;
-    additionalInfo: string | null;
+    aboutYou: string | null;
+    reviewNotes?: string | null;
+    reviewDate?: string | null;
+    reviewer?: {
+      ulid: string;
+      firstName: string | null;
+      lastName: string | null;
+    } | null;
   };
   userData?: {
     firstName: string;
     lastName: string;
     email: string;
-    phoneNumber?: string;
+    phoneNumber?: string | null;
   };
 }
 
 export default function CoachApplicationForm({ existingApplication, userData }: CoachApplicationFormProps) {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>(
-    existingApplication?.industrySpecialties || []
+  const [selectedDomains, setSelectedDomains] = useState<RealEstateDomain[]>(
+    existingApplication?.realEstateDomains || []
+  );
+  const [primaryDomain, setPrimaryDomain] = useState<RealEstateDomain | null>(
+    existingApplication?.primaryDomain || null
   );
   const router = useRouter();
+  
   const { register, handleSubmit, formState: { errors }, setValue } = useForm<CoachApplicationFormData>({
+    resolver: zodResolver(coachApplicationFormSchema),
     defaultValues: {
       firstName: userData?.firstName || '',
       lastName: userData?.lastName || '',
@@ -66,80 +66,63 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
       resume: null,
       linkedIn: existingApplication?.linkedIn || '',
       primarySocialMedia: existingApplication?.primarySocialMedia || '',
-      yearsOfExperience: existingApplication?.experience || '',
-      expertise: existingApplication?.specialties?.join(', ') || '',
-      additionalInfo: existingApplication?.additionalInfo || '',
-      industrySpecialties: existingApplication?.industrySpecialties || []
+      yearsOfExperience: existingApplication?.yearsOfExperience || 0,
+      superPower: existingApplication?.superPower || '',
+      aboutYou: existingApplication?.aboutYou || '',
+      realEstateDomains: existingApplication?.realEstateDomains || [],
+      primaryDomain: existingApplication?.primaryDomain
     }
   });
 
-  // Handle specialty selection
-  const handleSpecialtyChange = (specialty: string, isChecked: boolean) => {
-    let updatedSpecialties: string[];
-    
-    if (isChecked) {
-      updatedSpecialties = [...selectedSpecialties, specialty];
-    } else {
-      updatedSpecialties = selectedSpecialties.filter(s => s !== specialty);
-    }
-    
-    setSelectedSpecialties(updatedSpecialties);
-    setValue('industrySpecialties', updatedSpecialties);
-  };
-
-  const onSubmit = async (data: CoachApplicationFormData, isDraft: boolean = false) => {
-    setLoading(true);
+  const handleFormSubmit = async (data: CoachApplicationFormData, isDraft: boolean = false) => {
     try {
+      setLoading(true);
+
       const formData = new FormData();
-      
-      // Add form fields
       formData.append('firstName', data.firstName);
       formData.append('lastName', data.lastName);
       formData.append('email', data.email);
       formData.append('phoneNumber', data.phoneNumber);
-      formData.append('yearsOfExperience', data.yearsOfExperience);
-      formData.append('expertise', data.expertise);
-      
-      // Add industry specialties
-      if (data.industrySpecialties && data.industrySpecialties.length > 0) {
-        formData.append('industrySpecialties', JSON.stringify(data.industrySpecialties));
-      }
-      
-      // Add optional fields
+      formData.append('yearsOfExperience', String(data.yearsOfExperience));
+      formData.append('superPower', data.superPower);
+      formData.append('aboutYou', data.aboutYou);
+      formData.append('realEstateDomains', JSON.stringify(data.realEstateDomains));
+      formData.append('primaryDomain', data.primaryDomain);
+
       if (data.resume) {
         formData.append('resume', data.resume);
       }
+
       if (data.linkedIn) {
         formData.append('linkedIn', data.linkedIn);
       }
+
       if (data.primarySocialMedia) {
         formData.append('primarySocialMedia', data.primarySocialMedia);
-      }
-      if (data.additionalInfo) {
-        formData.append('additionalInfo', data.additionalInfo);
       }
 
       // Add application status and ID if updating
       formData.append('status', isDraft ? 'draft' : 'pending');
-      if (existingApplication?.id) {
-        formData.append('applicationId', existingApplication.id);
+      if (existingApplication?.ulid) {
+        formData.append('applicationId', existingApplication.ulid);
       }
 
-      await submitCoachApplication(formData);
-      toast.success(isDraft ? 'Draft saved successfully' : 'Application submitted successfully');
-      if (!isDraft) {
-        setSubmitted(true);
+      const response = await submitCoachApplication(formData);
+
+      if (response.error) {
+        toast.error(response.error.message || 'Failed to submit application');
+        return;
       }
+
+      setSubmitted(true);
+      toast.success('Application submitted successfully!');
+      router.push('/dashboard');
     } catch (error) {
-      console.error('[COACH_APPLICATION_ERROR]', error);
-      toast.error(isDraft ? 'Failed to save draft' : 'Failed to submit application');
+      console.error('Error submitting application:', error);
+      toast.error('Failed to submit application. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleReturnToDashboard = () => {
-    router.push('/dashboard');
   };
 
   if (submitted) {
@@ -159,7 +142,7 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
               We will notify you once a decision has been made.
             </p>
             <Button 
-              onClick={handleReturnToDashboard}
+              onClick={() => router.push('/dashboard')}
               className="w-full mt-4"
             >
               Return to Dashboard
@@ -185,7 +168,7 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
               </p>
             </div>
             <Button 
-              onClick={handleReturnToDashboard}
+              onClick={() => router.push('/dashboard')}
               className="w-full mt-4"
             >
               Return to Dashboard
@@ -212,7 +195,7 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
         </div>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit((data) => onSubmit(data, false))} className="space-y-6">
+        <form onSubmit={handleSubmit((data) => handleFormSubmit(data, false))} className="space-y-8">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="firstName">First Name</Label>
@@ -287,89 +270,118 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
             <Label htmlFor="yearsOfExperience">Years of Professional Experience *</Label>
             <Input
               id="yearsOfExperience"
+              type="number"
               {...register('yearsOfExperience', { required: 'Years of experience is required' })}
               className={errors.yearsOfExperience ? 'border-red-500' : ''}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="expertise">Areas of Expertise (What's Your Super Power?) *</Label>
-            <Textarea
-              id="expertise"
-              {...register('expertise', { required: 'Areas of expertise are required' })}
-              className={errors.expertise ? 'border-red-500' : ''}
-            />
-          </div>
-
-          {/* Industry Specialties Section */}
-          <div className="space-y-4">
-            <div>
-              <Label>Industry Specialties *</Label>
-              <p className="text-sm text-gray-500 mt-1">
-                Select the industries where you have expertise and can provide coaching.
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-              {Object.entries(INDUSTRY_SPECIALTIES).map(([key, value]) => (
-                <div key={key} className="flex items-center space-x-2">
-                  <Checkbox 
-                    id={`specialty-${key}`}
-                    checked={selectedSpecialties.includes(value)}
-                    onCheckedChange={(checked) => 
-                      handleSpecialtyChange(value, checked as boolean)
-                    }
-                  />
-                  <Label htmlFor={`specialty-${key}`} className="font-normal">
-                    {key.replace(/_/g, ' ')}
-                  </Label>
-                </div>
-              ))}
-            </div>
-            {selectedSpecialties.length === 0 && (
-              <p className="text-sm text-red-500">Please select at least one industry specialty</p>
+            {errors.yearsOfExperience && (
+              <p className="text-sm text-red-500">{errors.yearsOfExperience.message}</p>
             )}
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="additionalInfo">Anything else we should know about you? *</Label>
+            <Label htmlFor="superPower">What's Your Super Power? *</Label>
             <Textarea
-              id="additionalInfo"
-              {...register('additionalInfo', { required: 'This field is required' })}
-              className={errors.additionalInfo ? 'border-red-500' : ''}
+              id="superPower"
+              {...register('superPower', { required: 'Super power is required' })}
+              className={errors.superPower ? 'border-red-500' : ''}
             />
+            {errors.superPower && (
+              <p className="text-sm text-red-500">{errors.superPower.message}</p>
+            )}
           </div>
 
-          <div className="flex gap-4">
-            <Button 
-              type="button" 
+          <div className="space-y-4">
+            <Label>Real Estate Domains</Label>
+            <p className="text-sm text-gray-500">Select your areas of expertise in real estate. You must select at least one domain.</p>
+            <div className="grid grid-cols-2 gap-4">
+              {Object.values(REAL_ESTATE_DOMAINS).map((domain) => (
+                <div key={domain} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={domain}
+                    checked={selectedDomains.includes(domain)}
+                    onCheckedChange={(checked) => {
+                      const newDomains = checked
+                        ? [...selectedDomains, domain]
+                        : selectedDomains.filter((d) => d !== domain);
+                      setSelectedDomains(newDomains);
+                      setValue('realEstateDomains', newDomains);
+                      
+                      // If this was the primary domain and it's being unchecked, reset primary domain
+                      if (!checked && primaryDomain === domain) {
+                        setPrimaryDomain(null);
+                        setValue('primaryDomain', undefined as any);
+                      }
+                      // If this is the first domain being selected, make it the primary domain
+                      if (checked && newDomains.length === 1) {
+                        setPrimaryDomain(domain);
+                        setValue('primaryDomain', domain);
+                      }
+                    }}
+                  />
+                  <Label htmlFor={domain}>
+                    {domain.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ')}
+                  </Label>
+                </div>
+              ))}
+            </div>
+            {errors.realEstateDomains && (
+              <p className="text-sm text-red-500">{errors.realEstateDomains.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <Label>Primary Domain</Label>
+            <p className="text-sm text-gray-500">Select your primary area of expertise.</p>
+            <div className="grid grid-cols-2 gap-4">
+              {selectedDomains.map((domain) => (
+                <div key={domain} className="flex items-center space-x-2">
+                  <input
+                    type="radio"
+                    id={`primary-${domain}`}
+                    name="primaryDomain"
+                    checked={primaryDomain === domain}
+                    onChange={() => {
+                      setPrimaryDomain(domain);
+                      setValue('primaryDomain', domain);
+                    }}
+                    className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Label htmlFor={`primary-${domain}`}>
+                    {domain.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ')}
+                  </Label>
+                </div>
+              ))}
+            </div>
+            {errors.primaryDomain && (
+              <p className="text-sm text-red-500">{errors.primaryDomain.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="aboutYou">Anything else we should know about you? *</Label>
+            <Textarea
+              id="aboutYou"
+              {...register('aboutYou', { required: 'This field is required' })}
+              className={errors.aboutYou ? 'border-red-500' : ''}
+            />
+            {errors.aboutYou && (
+              <p className="text-sm text-red-500">{errors.aboutYou.message}</p>
+            )}
+          </div>
+
+          <div className="flex justify-end space-x-4">
+            <Button
+              type="button"
               variant="outline"
-              onClick={() => handleSubmit((data) => onSubmit(data, true))()}
-              disabled={loading}
-              className="flex-1"
+              onClick={handleSubmit((data) => handleFormSubmit(data, true))}
+              disabled={loading || submitted}
             >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                'Save Draft'
-              )}
+              Save as Draft
             </Button>
-            <Button 
-              type="submit" 
-              className="flex-1" 
-              disabled={loading || selectedSpecialties.length === 0}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                'Submit Application'
-              )}
+            <Button type="submit" disabled={loading || submitted}>
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Submit Application
             </Button>
           </div>
         </form>

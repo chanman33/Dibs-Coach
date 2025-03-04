@@ -23,8 +23,18 @@ import {
   Clock
 } from 'lucide-react';
 import { type ApplicationData, type ApiResponse } from '@/utils/types/coach-application';
-import { COACH_APPLICATION_STATUS, type CoachApplicationStatus } from '@/utils/types/coach';
-import { getCoachApplication, reviewCoachApplication, getResumePresignedUrl, getAllCoachApplications } from '@/utils/actions/coach-application';
+import { 
+  COACH_APPLICATION_STATUS, 
+  type CoachApplicationStatus,
+  REAL_ESTATE_DOMAINS,
+  type RealEstateDomain
+} from '@/utils/types/coach';
+import { 
+  getCoachApplication, 
+  reviewCoachApplication, 
+  getResumePresignedUrl, 
+  getAllCoachApplications 
+} from '@/utils/actions/coach-application';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -42,7 +52,6 @@ import { format } from 'date-fns';
 import clsx from 'clsx';
 import { useToast } from '@/components/ui/use-toast';
 import { cn } from '@/lib/utils';
-import { INDUSTRY_SPECIALTIES } from '@/components/profile/common/ProfileTabsManager';
 
 type StatusFilter = CoachApplicationStatus | 'ALL';
 
@@ -50,7 +59,7 @@ const ITEMS_PER_PAGE = 10;
 
 interface ApplicationResponse {
   ulid: string;
-  status: typeof COACH_APPLICATION_STATUS[keyof typeof COACH_APPLICATION_STATUS];
+  status: CoachApplicationStatus;
   applicant: {
     ulid: string;
     firstName: string | null;
@@ -64,20 +73,25 @@ interface ApplicationResponse {
     firstName: string | null;
     lastName: string | null;
   } | null;
-  experience: string;
-  specialties: string[];
-  industrySpecialties: string[];
-  approvedSpecialties: string[];
+  yearsOfExperience: number;
+  superPower: string;
+  realEstateDomains: RealEstateDomain[];
+  primaryDomain: RealEstateDomain;
   notes: string | null;
-  applicationDate: string;
   reviewDate: string | null;
   createdAt: string;
   updatedAt: string;
   resumeUrl: string | null;
   linkedIn: string | null;
   primarySocialMedia: string | null;
-  additionalInfo: string | null;
+  aboutYou: string | null;
 }
+
+const transformSpecialties = (specialties: string[]): RealEstateDomain[] => {
+  return specialties.filter((specialty): specialty is RealEstateDomain => 
+    Object.values(REAL_ESTATE_DOMAINS).includes(specialty as RealEstateDomain)
+  );
+};
 
 export default function CoachApplicationsPage() {
   const [applications, setApplications] = useState<ApplicationResponse[]>([]);
@@ -142,7 +156,11 @@ export default function CoachApplicationsPage() {
         )
         .map(app => ({
           ...app,
-          approvedSpecialties: app.industrySpecialties || [],
+          yearsOfExperience: app.yearsOfExperience,
+          superPower: app.superPower,
+          realEstateDomains: app.realEstateDomains,
+          primaryDomain: app.primaryDomain,
+          aboutYou: app.aboutYou,
           applicant: {
             ulid: app.applicant.ulid,
             firstName: app.applicant.firstName,
@@ -177,7 +195,7 @@ export default function CoachApplicationsPage() {
   const handleViewApplication = (application: ApplicationResponse) => {
     setSelectedApplication(application);
     setIsModalOpen(true);
-    setSelectedSpecialties(application.approvedSpecialties || []);
+    setSelectedSpecialties(application.realEstateDomains.map(domain => domain.replace(/_/g, ' ')));
     setReviewNotes(application.notes || '');
     
     // Reset resume URL
@@ -209,14 +227,16 @@ export default function CoachApplicationsPage() {
     }
   };
 
-  const handleReview = async (applicationUlid: string, status: 'pending' | 'approved' | 'rejected') => {
+  const handleReview = async (applicationUlid: string, status: CoachApplicationStatus) => {
     setIsSubmitting(true);
     try {
       const result = await reviewCoachApplication({
         applicationUlid,
         status,
         notes: reviewNotes,
-        approvedSpecialties: status === 'approved' ? selectedSpecialties : undefined
+        approvedSpecialties: status === COACH_APPLICATION_STATUS.APPROVED ? selectedSpecialties.filter((s): s is RealEstateDomain => 
+          Object.values(REAL_ESTATE_DOMAINS).includes(s as RealEstateDomain)
+        ) : undefined
       });
 
       if (result.error) {
@@ -290,44 +310,22 @@ export default function CoachApplicationsPage() {
   // Handle bulk actions
   const handleBulkAction = async (status: CoachApplicationStatus) => {
     try {
-      setProcessingIds(selectedApplications);
+      const selectedApplications = applications.filter(app => selectedIds.includes(app.ulid));
       
-      // Process applications in sequence
-      for (const applicationUlid of selectedApplications) {
-        const result = await reviewCoachApplication({
-          applicationUlid,
-          status,
-          notes: reviewNotes
-        });
-
-        if (result.error) {
-          throw new Error(result.error.message);
-        }
+      for (const app of selectedApplications) {
+        setProcessingIds(prev => [...prev, app.ulid]);
+        await handleReview(app.ulid, status);
+        setProcessingIds(prev => prev.filter(id => id !== app.ulid));
       }
-
-      // Update local state
-      setApplications(prev =>
-        prev.map(app =>
-          selectedApplications.includes(app.ulid)
-            ? { ...app, status, notes: reviewNotes, reviewDate: new Date().toISOString() }
-            : app
-        )
-      );
-
-      setSelectedApplications([]);
-      toast({
-        title: 'Success',
-        description: `${selectedApplications.length} applications ${status.toLowerCase()} successfully`
-      });
+      
+      setSelectedIds([]);
     } catch (error) {
-      console.error('[BULK_REVIEW_ERROR]', error);
+      console.error('[BULK_ACTION_ERROR]', error);
       toast({
         title: 'Error',
-        description: error instanceof Error ? error.message : 'Failed to process bulk action',
+        description: 'Failed to process bulk action',
         variant: 'destructive'
       });
-    } finally {
-      setProcessingIds([]);
     }
   };
 
@@ -482,7 +480,7 @@ export default function CoachApplicationsPage() {
                         <div className="grid grid-cols-3 gap-4">
                           <div>
                             <p className="text-sm text-muted-foreground">Experience</p>
-                            <p className="font-medium">{application.experience} years</p>
+                            <p className="font-medium">{application.yearsOfExperience} years</p>
                           </div>
                           <div>
                             <p className="text-sm text-muted-foreground">Applied</p>
@@ -491,35 +489,24 @@ export default function CoachApplicationsPage() {
                             </p>
                           </div>
                           <div>
-                            <p className="text-sm text-muted-foreground">Specialties</p>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {application.specialties.slice(0, 2).map((specialty, index) => (
-                                <Badge key={index} variant="outline" className="text-xs">
-                                  {specialty}
-                                </Badge>
-                              ))}
-                              {application.specialties.length > 2 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{application.specialties.length - 2}
-                                </Badge>
-                              )}
-                            </div>
+                            <p className="text-sm text-muted-foreground">Super Power</p>
+                            <p className="font-medium">{application.superPower}</p>
                           </div>
                         </div>
                         
-                        {/* Add Industry Specialties */}
-                        {application.industrySpecialties && application.industrySpecialties.length > 0 && (
+                        {/* Real Estate Domains */}
+                        {application.realEstateDomains && application.realEstateDomains.length > 0 && (
                           <div className="mt-3">
-                            <p className="text-sm text-muted-foreground">Industry Specialties</p>
+                            <p className="text-sm text-muted-foreground">Real Estate Domains</p>
                             <div className="flex flex-wrap gap-1 mt-1">
-                              {application.industrySpecialties.slice(0, 3).map((specialty, index) => (
+                              {application.realEstateDomains.slice(0, 3).map((domain, index) => (
                                 <Badge key={index} variant="secondary" className="text-xs">
-                                  {specialty.replace(/_/g, ' ')}
+                                  {domain.replace(/_/g, ' ')}
                                 </Badge>
                               ))}
-                              {application.industrySpecialties.length > 3 && (
+                              {application.realEstateDomains.length > 3 && (
                                 <Badge variant="secondary" className="text-xs">
-                                  +{application.industrySpecialties.length - 3}
+                                  +{application.realEstateDomains.length - 3}
                                 </Badge>
                               )}
                             </div>
@@ -603,7 +590,7 @@ export default function CoachApplicationsPage() {
                       )}
                       <div>
                         <Label className="text-gray-500">Years of Experience</Label>
-                        <p className="font-medium">{selectedApplication.experience} years</p>
+                        <p className="font-medium">{selectedApplication.yearsOfExperience} years</p>
                       </div>
                     </div>
                   </div>
@@ -657,35 +644,31 @@ export default function CoachApplicationsPage() {
                 {/* Right Column */}
                 <div className="space-y-6">
                   <div>
-                    <h3 className="text-lg font-semibold mb-4">Areas of Expertise</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedApplication.specialties.map((specialty, index) => (
-                        <Badge key={index} variant="secondary">
-                          {specialty}
-                        </Badge>
-                      ))}
-                    </div>
+                    <h3 className="text-lg font-semibold mb-4">Super Power</h3>
+                    <p className="text-gray-700 whitespace-pre-wrap">
+                      {selectedApplication.superPower}
+                    </p>
                   </div>
                   
-                  {/* Add Industry Specialties Section */}
-                  {selectedApplication.industrySpecialties && selectedApplication.industrySpecialties.length > 0 && (
+                  {/* Real Estate Domains Section */}
+                  {selectedApplication.realEstateDomains && selectedApplication.realEstateDomains.length > 0 && (
                     <div>
-                      <h3 className="text-lg font-semibold mb-4">Industry Specialties</h3>
+                      <h3 className="text-lg font-semibold mb-4">Real Estate Domains</h3>
                       <div className="flex flex-wrap gap-2">
-                        {selectedApplication.industrySpecialties.map((specialty, index) => (
+                        {selectedApplication.realEstateDomains.map((domain, index) => (
                           <Badge key={index} variant="outline">
-                            {specialty.replace(/_/g, ' ')}
+                            {domain.replace(/_/g, ' ')}
                           </Badge>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {selectedApplication.additionalInfo && (
+                  {selectedApplication.aboutYou && (
                     <div>
-                      <h3 className="text-lg font-semibold mb-4">Additional Information</h3>
+                      <h3 className="text-lg font-semibold mb-4">About You</h3>
                       <p className="text-gray-700 whitespace-pre-wrap">
-                        {selectedApplication.additionalInfo}
+                        {selectedApplication.aboutYou}
                       </p>
                     </div>
                   )}
@@ -700,7 +683,7 @@ export default function CoachApplicationsPage() {
                       />
                       <div className="flex gap-4">
                         <Button
-                          onClick={() => handleReview(selectedApplication.ulid, 'approved')}
+                          onClick={() => handleReview(selectedApplication.ulid, COACH_APPLICATION_STATUS.APPROVED)}
                           disabled={processingIds.includes(selectedApplication.ulid)}
                           className="flex-1"
                         >
@@ -712,7 +695,7 @@ export default function CoachApplicationsPage() {
                           Approve
                         </Button>
                         <Button
-                          onClick={() => handleReview(selectedApplication.ulid, 'rejected')}
+                          onClick={() => handleReview(selectedApplication.ulid, COACH_APPLICATION_STATUS.REJECTED)}
                           disabled={processingIds.includes(selectedApplication.ulid)}
                           variant="destructive"
                           className="flex-1"
@@ -770,144 +753,69 @@ export default function CoachApplicationsPage() {
 
       {/* Review Dialog */}
       <Dialog open={isReviewDialogOpen} onOpenChange={setIsReviewDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Review Coach Application</DialogTitle>
+            <DialogTitle>Review Application</DialogTitle>
             <DialogDescription>
-              Review the application details and select which specialties to approve.
+              Review and approve or reject this coach application.
             </DialogDescription>
           </DialogHeader>
 
           {selectedApplication && (
-            <div className="space-y-6">
-              {/* Application Details */}
-              <div className="grid gap-4">
-                <div>
-                  <h3 className="font-medium mb-2">Applicant Information</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Name</Label>
-                      <p className="mt-1">
-                        {selectedApplication.applicant?.firstName} {selectedApplication.applicant?.lastName}
-                      </p>
-                    </div>
-                    <div>
-                      <Label>Email</Label>
-                      <p className="mt-1">{selectedApplication.applicant?.email}</p>
-                    </div>
-                  </div>
-                </div>
+            <div className="space-y-4">
+              <div>
+                <Label>Review Notes</Label>
+                <Textarea
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  placeholder="Add any notes about this application..."
+                  className="mt-2"
+                />
+              </div>
 
-                <div>
-                  <h3 className="font-medium mb-2">Experience & Expertise</h3>
-                  <div className="grid gap-2">
-                    <div>
-                      <Label>Years of Experience</Label>
-                      <p className="mt-1">{selectedApplication.experience}</p>
+              {/* Specialties Selection */}
+              <div>
+                <Label>Approved Specialties</Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Select the specialties to approve for this coach
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  {Object.entries(REAL_ESTATE_DOMAINS).map(([key, value]) => (
+                    <div key={value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={value}
+                        checked={selectedSpecialties.includes(value)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedSpecialties([...selectedSpecialties, value]);
+                          } else {
+                            setSelectedSpecialties(selectedSpecialties.filter((s) => s !== value));
+                          }
+                        }}
+                      />
+                      <Label htmlFor={value}>{key.replace(/_/g, ' ')}</Label>
                     </div>
-                    <div>
-                      <Label>Areas of Expertise</Label>
-                      <p className="mt-1">{selectedApplication.specialties.join(', ')}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Industry Specialties Selection */}
-                <div>
-                  <h3 className="font-medium mb-2">Industry Specialties</h3>
-                  <p className="text-sm text-gray-500 mb-4">
-                    Select which specialties to approve for this coach.
-                  </p>
-                  <div className="grid grid-cols-2 gap-4">
-                    {Object.entries(INDUSTRY_SPECIALTIES).map(([key, value]) => (
-                      <div key={key} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`specialty-${key}`}
-                          checked={selectedSpecialties.includes(value)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedSpecialties([...selectedSpecialties, value]);
-                            } else {
-                              setSelectedSpecialties(selectedSpecialties.filter(s => s !== value));
-                            }
-                          }}
-                        />
-                        <Label htmlFor={`specialty-${key}`} className="font-normal">
-                          {key.replace(/_/g, ' ')}
-                        </Label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Notes Field */}
-                <div>
-                  <Label htmlFor="notes">Review Notes</Label>
-                  <Textarea
-                    id="notes"
-                    value={reviewNotes}
-                    onChange={(e) => setReviewNotes(e.target.value)}
-                    placeholder="Add any notes about this application..."
-                    className="mt-1"
-                  />
+                  ))}
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              {selectedApplication.status === COACH_APPLICATION_STATUS.PENDING && (
-                <div className="flex justify-end gap-4">
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleReview(selectedApplication.ulid, 'rejected')}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Rejecting...
-                      </>
-                    ) : (
-                      'Reject'
-                    )}
-                  </Button>
-                  <Button
-                    onClick={() => handleReview(selectedApplication.ulid, 'approved')}
-                    disabled={isSubmitting || selectedSpecialties.length === 0}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Approving...
-                      </>
-                    ) : (
-                      'Approve'
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {selectedApplication.status !== COACH_APPLICATION_STATUS.PENDING && (
-                <div className={cn(
-                  "p-4 rounded-lg text-center",
-                  selectedApplication.status === COACH_APPLICATION_STATUS.APPROVED && "bg-green-100 text-green-800",
-                  selectedApplication.status === COACH_APPLICATION_STATUS.REJECTED && "bg-red-100 text-red-800"
-                )}>
-                  <p className="font-medium">
-                    Application {selectedApplication.status.toLowerCase()}
-                    {selectedApplication.reviewDate && ` on ${format(new Date(selectedApplication.reviewDate), 'PPP')}`}
-                  </p>
-                  {selectedApplication.status === COACH_APPLICATION_STATUS.APPROVED && (
-                    <div className="mt-4">
-                      <h4 className="font-medium mb-2">Approved Specialties</h4>
-                      <ul className="list-disc list-inside">
-                        {selectedApplication.approvedSpecialties?.map((specialty) => (
-                          <li key={specialty}>{specialty.replace(/_/g, ' ')}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
+              <div className="flex justify-end gap-4 mt-4">
+                <Button
+                  variant="destructive"
+                  onClick={() => selectedApplication && handleReview(selectedApplication.ulid, COACH_APPLICATION_STATUS.REJECTED)}
+                  disabled={isSubmitting}
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Reject
+                </Button>
+                <Button
+                  onClick={() => selectedApplication && handleReview(selectedApplication.ulid, COACH_APPLICATION_STATUS.APPROVED)}
+                  disabled={isSubmitting || selectedSpecialties.length === 0}
+                >
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Approve
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

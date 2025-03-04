@@ -1309,35 +1309,50 @@ model Review {
 }
 
 model CoachApplication {
+  // Core identifiers
   ulid                   String   @id @db.Char(26)
   applicantUlid          String   @db.Char(26)
   status                 CoachApplicationStatus @default(PENDING)
-  experience             String
-  specialties            String[] @default([])
-  industrySpecialties    String[] @default([])
-  applicationDate        DateTime @default(now())
-  reviewerUlid           String?  @db.Char(26)
-  reviewDate             DateTime?
-  notes                  String?
+
+  // Basic Information
+  firstName              String?  // From user profile
+  lastName               String?  // From user profile
+  phoneNumber            String?  // Required in form
+
+  // Professional Experience
+  yearsOfExperience     Int      // Required field
+  superPower            String   // Required field
+  aboutYou              String?  // Optional field
+
+  // Domain Expertise
+  realEstateDomains     String[] @default([])
+  primaryDomain         String?
+
+  // Professional Links
+  resumeUrl             String?
+  linkedIn              String?
+  primarySocialMedia    String?
+
+  // Review Information
+  reviewerUlid          String?  @db.Char(26)
+  reviewDate            DateTime?
+  reviewNotes           String?
   
-  // Draft-specific fields
-  isDraft                Boolean   @default(false)
-  lastSavedAt            DateTime? @db.Timestamptz
-  draftData              Json?
-  draftVersion           Int       @default(1)
-  
-  // Application fields
-  resumeUrl              String?
-  linkedIn               String?
-  primarySocialMedia     String?
-  additionalInfo         String?
+  // Draft Management
+  isDraft               Boolean   @default(false)
+  lastSavedAt           DateTime? @db.Timestamptz
+  draftData             Json?
+  draftVersion          Int       @default(1)
 
-  applicant              User     @relation("Applicant", fields: [applicantUlid], references: [ulid], onDelete: Cascade)
-  reviewer               User?    @relation("Reviewer", fields: [reviewerUlid], references: [ulid], onDelete: SetNull)
+  // Timestamps
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  // Relations
+  applicant             User      @relation("Applicant", fields: [applicantUlid], references: [ulid], onDelete: Cascade)
+  reviewer              User?     @relation("Reviewer", fields: [reviewerUlid], references: [ulid], onDelete: SetNull)
 
+  // Indexes
   @@index([applicantUlid])
   @@index([reviewerUlid])
   @@index([isDraft, applicantUlid])
