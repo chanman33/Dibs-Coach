@@ -18,37 +18,6 @@ core:
     forbidden: ["Exposed API keys", "Unvalidated inputs", "Missing CORS headers"]
     required: ["Rate limiting", "Security event logging", "Input sanitization", "Authentication checks"]
 
-# Authentication & Database
-
-# auth:
-#   clerk:
-#     import: "import { auth } from '@clerk/nextjs/server'"
-#     core_utilities:
-#       location: "utils/auth.ts"
-#       functions:
-#         - "createAuthClient: reusable Supabase client for auth"
-#         - "ensureUserExists: handle user creation/updates"
-#         - "getUserDbIdAndRole: fetch user role info"
-#         - "updateUser: handle profile updates"
-#     rules:
-#       - "await auth() required"
-#       - "Server-side auth checks"
-#       - "Webhook event handling"
-#       - "Supabase user sync via ensureUserExists"
-#       - "Protected routes in middleware"
-#       - "No @clerk/nextjs without server"
-#     sign_up:
-#       location: "app/(auth)/sign-up/[[...sign-up]]/page.tsx"
-#       flow:
-#         - "Clerk SignUp component for auth"
-#         - "Redirect to onboarding"
-#         - "Server-side user creation via after-signup API"
-#     after_signup:
-#       location: "app/api/auth/after-signup/route.ts"
-#       flow:
-#         - "Verify auth status"
-#         - "Call ensureUserExists"
-#         - "Handle errors appropriately"
 
 # Authentication Implementation
 auth:
@@ -67,6 +36,8 @@ auth:
         - "Direct role checks without utility functions"
         - "Multiple auth hook implementations"
         - "Duplicate provider implementations"
+        - "Client-side role storage"
+        - "Direct database queries for roles"
     
     file_structure:
       auth_core:
@@ -79,6 +50,9 @@ auth:
         - location: "utils/auth/auth-client.ts"
           purpose: "Supabase client creation"
           exports: ["createAuthClient"]
+        - location: "utils/auth/auth-utils.ts"
+          purpose: "Core auth verification"
+          exports: ["verifyAuth", "handleAuthError"]
       
       roles:
         - location: "utils/roles/roles.ts"
@@ -93,6 +67,15 @@ auth:
           purpose: "Client-side auth state"
           exports: ["useAuth"]
           forbidden: "No alternative implementations"
+          return_type: |
+            {
+              isLoading: boolean
+              isSignedIn: boolean | null
+              userId: string | null
+              userUlid: string | null
+              systemRole: SystemRole
+              capabilities: UserCapability[]
+            }
       
       components:
         - location: "components/auth/with-auth.tsx"
@@ -102,28 +85,38 @@ auth:
         - location: "components/auth/providers.tsx"
           purpose: "Auth context provider"
           exports: ["AuthProviders", "useAuthContext"]
+        - location: "components/auth/not-authorized.tsx"
+          purpose: "Error UI component"
+          exports: ["NotAuthorized"]
       
       api:
         - location: "app/api/auth/after-signup/"
           purpose: "User creation flow"
         - location: "app/api/auth/recover/"
           purpose: "Account recovery"
+        - location: "app/api/auth/webhook/"
+          purpose: "Clerk webhook handling"
     
     usage_guidelines:
       server_side:
         - "Always use getUserRoleContext for role checks"
         - "Use createAuthClient for database access"
         - "Handle errors with proper logging"
+        - "Verify auth before any protected operation"
+        - "Use verifyAuth for route protection"
       
       client_side:
         - "Use WithAuth for component protection"
         - "Use useAuth for state access"
         - "Never create alternative implementations"
+        - "No direct role checks in components"
+        - "Handle loading and error states"
       
       data_flow:
         - "Clerk -> auth-context -> roles -> capabilities"
         - "Single source of truth for auth state"
         - "Consistent error handling patterns"
+        - "Type-safe throughout the flow"
       
       error_handling:
         format: |
@@ -137,6 +130,7 @@ auth:
           - "UnauthorizedError: Not signed in"
           - "ForbiddenError: Insufficient permissions"
           - "ValidationError: Invalid data"
+          - "DatabaseError: Role fetch failed"
 
     core_files:
       auth_context:

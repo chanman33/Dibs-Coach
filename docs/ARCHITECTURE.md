@@ -24,10 +24,138 @@ The Real Estate Agent Coaching Marketplace is built using a modern tech stack wi
 - `/prisma` - Database schema and migrations
 
 ## Authentication & Authorization
-- Clerk handles user authentication
-- Server-side auth checks using `await auth()`
-- Protected routes managed in middleware
-- Role-based access control system:
+
+### File Structure
+```
+/utils/auth/
+├── auth-utils.ts      # Core auth verification utilities
+├── auth-middleware.ts # Route protection middleware
+├── auth-context.ts    # Auth context and state management
+├── auth-client.ts     # Supabase client creation
+└── index.ts          # Centralized exports
+
+/components/auth/
+├── providers.tsx      # Auth context provider
+├── with-auth.tsx     # HOC for component protection
+└── not-authorized.tsx # Error UI component
+
+/utils/roles/
+├── roles.ts          # Role and capability definitions
+└── checkUserRole.ts  # Server-side role verification
+
+/utils/hooks/
+└── useAuth.ts        # Client-side auth state hook
+```
+
+### Authentication Flow
+1. **Sign In/Up Process**
+   - User visits `/sign-in` or `/sign-up`
+   - Clerk handles authentication UI and flow
+   - On success, webhook triggers user creation/update
+   - User role context is established
+
+2. **Protected Routes**
+   - Middleware checks auth status (`auth-middleware.ts`)
+   - Server components verify auth (`auth-utils.ts`)
+   - Role context is fetched (`checkUserRole.ts`)
+   - Auth state provided to app (`providers.tsx`)
+
+3. **Client-Side Auth**
+   - Components use `useAuth` hook for state
+   - `WithAuth` HOC protects sensitive components
+   - Role-based UI rendering
+   - Error handling via `NotAuthorized` component
+
+### Implementation Details
+
+#### Server-Side Auth
+```typescript
+// Route protection
+import { auth } from "@clerk/nextjs";
+import { verifyAuth } from "@/utils/auth/auth-utils";
+
+export default async function ProtectedRoute() {
+  const { userId } = auth();
+  const authResult = await verifyAuth(userId);
+  
+  if (!authResult.authorized) {
+    return <NotAuthorized message={authResult.message} />;
+  }
+  // ... protected content
+}
+```
+
+#### Client-Side Auth
+```typescript
+// Component protection
+import { WithAuth } from "@/components/auth/with-auth";
+import { useAuth } from "@/utils/hooks/useAuth";
+
+function ProtectedComponent() {
+  const { isSignedIn, capabilities } = useAuth();
+  // ... component logic
+}
+
+export default WithAuth(ProtectedComponent, {
+  requiredCapabilities: [USER_CAPABILITIES.MENTEE]
+});
+```
+
+### Role Management
+1. **System Roles**
+   - SYSTEM_OWNER: Highest level admin
+   - SYSTEM_MODERATOR: System-wide moderation
+   - USER: Standard user access
+
+2. **Capabilities**
+   - Core: COACH, MENTEE
+   - Domain-specific: REALTOR, INVESTOR, MORTGAGE
+   - Stored as array in user record
+   - Validated through utility functions
+
+3. **Role Checks**
+   - Server-side: `getUserRoleContext`
+   - Client-side: `useAuth` hook
+   - Component-level: `WithAuth` HOC
+   - API routes: Role middleware
+
+### Error Handling
+```typescript
+// Standard error format
+console.error('[AUTH_ERROR]', {
+  code: error.code,
+  message: error.message,
+  context: { userId, path, timestamp }
+});
+
+// Client response format
+{
+  error: {
+    code: 'UNAUTHORIZED',
+    message: 'Access denied',
+    details?: Record<string, any>
+  }
+}
+```
+
+### Security Best Practices
+1. **Authentication**
+   - Clerk handles core auth flow
+   - Server-side verification required
+   - Protected route middleware
+   - Secure cookie handling
+
+2. **Authorization**
+   - Role-based access control
+   - Capability validation
+   - Server-side verification
+   - Type-safe role checks
+
+3. **Data Security**
+   - No client-side role storage
+   - Server-validated capabilities
+   - Secure context passing
+   - Error sanitization
 
 ## Database Architecture
 ### Data Layer Rules
