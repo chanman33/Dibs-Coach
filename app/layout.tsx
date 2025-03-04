@@ -1,7 +1,7 @@
 import Provider from '@/app/provider'
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
-import AuthWrapper from '@/components/wrapper/auth-wrapper'
+import { AuthProviders } from '@/components/auth/providers'
 import { Analytics } from "@vercel/analytics/react"
 import { GeistSans } from 'geist/font/sans'
 import type { Metadata } from 'next'
@@ -16,10 +16,15 @@ export const metadata: Metadata = {
   description: 'Connect with expert real estate coaches, accelerate your property success, and achieve your real estate goals with personalized coaching sessions.',
   keywords: [
     'real estate coaching',
-    'property investment mentoring',
+    'realtor coaching',
     'real estate mentor',
     'real estate professional development',
-    'property success coaching'
+     'real estate coaching platform',
+    'real estate coaching services',
+    'real estate coaching programs',
+    'real estate coaching courses',
+    'real estate coaching certification',
+    'real estate coaching training'    
   ],
   authors: [{ name: 'Dibs' }],
   creator: 'Dibs',
@@ -55,7 +60,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <AuthWrapper>
+    <AuthProviders>
       <html lang="en" suppressHydrationWarning>
         <head>
           <link
@@ -84,6 +89,6 @@ export default function RootLayout({
           <Analytics />
         </body>
       </html>
-    </AuthWrapper>
+    </AuthProviders>
   )
 }

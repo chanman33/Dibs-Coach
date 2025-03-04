@@ -47,6 +47,14 @@ type UserResponse = {
   }>
 }
 
+// Custom error for missing users
+export class UserNotFoundError extends Error {
+  constructor(userId: string) {
+    super(`User not found in database. User may need to complete signup process. UserId: ${userId}`)
+    this.name = 'UserNotFoundError'
+  }
+}
+
 export const getAuthContext = cache(async (): Promise<AuthContext> => {
   const session = await auth()
   if (!session?.userId) {
@@ -83,7 +91,15 @@ export const getAuthContext = cache(async (): Promise<AuthContext> => {
 
   if (error) {
     if (error.code === 'PGRST116') {
-      return createNewUser(session.userId)
+      // Log the error for monitoring
+      console.error('[AUTH_ERROR] User exists in Clerk but not in database:', {
+        userId: session.userId,
+        error,
+        timestamp: new Date().toISOString()
+      })
+      
+      // Throw custom error
+      throw new UserNotFoundError(session.userId)
     }
     throw error
   }
@@ -124,56 +140,6 @@ export const getAuthContext = cache(async (): Promise<AuthContext> => {
     } : undefined
   })
 })
-
-async function createNewUser(userId: string): Promise<AuthContext> {
-  const supabase = await createAuthClient();
-  const user = await currentUser();
-  
-  if (!user) {
-    throw new Error('User data not available');
-  }
-
-  const newUser = {
-    ulid: generateUlid(),
-    userId: user.id,
-    email: user.emailAddresses[0]?.emailAddress,
-    firstName: user.firstName,
-    lastName: user.lastName,
-    displayName: user.firstName && user.lastName ? 
-      `${user.firstName} ${user.lastName}`.trim() : 
-      user.emailAddresses[0]?.emailAddress?.split('@')[0],
-    profileImageUrl: user.imageUrl,
-    systemRole: SYSTEM_ROLES.USER,
-    capabilities: [USER_CAPABILITIES.MENTEE],
-    isCoach: false,
-    isMentee: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-
-  const { data, error } = await supabase
-    .from('User')
-    .insert(newUser)
-    .select(`
-      ulid,
-      userId,
-      systemRole,
-      capabilities
-    `)
-    .single();
-
-  if (error) {
-    console.error('[AUTH_ERROR] Failed to create user:', error);
-    throw error;
-  }
-
-  return {
-    userId: user.id,
-    userUlid: data.ulid,
-    systemRole: data.systemRole,
-    capabilities: data.capabilities || []
-  };
-}
 
 // React hook for client components
 export function useAuthContext() {

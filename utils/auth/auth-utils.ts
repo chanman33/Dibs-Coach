@@ -5,7 +5,7 @@ import { UnauthorizedError } from '../types/auth'
 import { getAuthContext } from './auth-context'
 import { createAuthMiddleware } from './auth-middleware'
 import { AuthOptions } from '../types/auth'
-import { SystemRole, UserCapability, SYSTEM_ROLES } from '../roles/roles'
+import { SystemRole, UserCapability, SYSTEM_ROLES, USER_CAPABILITIES } from '../roles/roles'
 
 export interface AuthorizationResult {
   authorized: boolean
@@ -22,8 +22,8 @@ export function getRequiredRole(pathname: string): SystemRole | undefined {
 
 // Route-based capability requirements
 export function getRequiredCapabilities(pathname: string): UserCapability[] {
-  if (pathname.match(/\/dashboard\/coach(.*)/)) return ['COACH']
-  if (pathname.match(/\/dashboard\/mentee(.*)/)) return ['MENTEE']
+  if (pathname.match(/\/dashboard\/coach(.*)/)) return [USER_CAPABILITIES.COACH]
+  if (pathname.match(/\/dashboard\/mentee(.*)/)) return [USER_CAPABILITIES.MENTEE]
   return []
 }
 
