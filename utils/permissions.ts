@@ -4,22 +4,21 @@
  * across the application to ensure consistent behavior.
  */
 
-import { createAuthClient } from '@/utils/auth';
+import { createAuthClient } from './auth/auth-client';
 import { USER_CAPABILITIES, SYSTEM_ROLES, type UserCapability } from '@/utils/roles/roles';
 
 /**
  * Constants for capability names to avoid typos
  */
-export const CAPABILITIES = {
-  COACH: USER_CAPABILITIES.COACH,
-  MENTEE: USER_CAPABILITIES.MENTEE,
-} as const;
+export const CAPABILITIES = USER_CAPABILITIES;
+
+type Capability = UserCapability;
 
 /**
  * Check if a user has a specific capability
  * This is the preferred way to check for capabilities in server actions
  */
-export async function hasCapability(userUlid: string, capability: string): Promise<boolean> {
+export async function hasCapability(userUlid: string, capability: Capability): Promise<boolean> {
   const supabase = await createAuthClient();
   
   const { data, error } = await supabase
@@ -52,7 +51,7 @@ export async function canAccessProfileType(
   const supabase = await createAuthClient();
   const { data, error } = await supabase
     .from('User')
-    .select('systemRole')
+    .select('systemRole, realEstateDomains')
     .eq('ulid', userUlid)
     .single();
     
@@ -69,8 +68,8 @@ export async function canAccessProfileType(
   // Coach profile is a special case - just need coach capability
   if (profileType === 'COACH') return true;
   
-  // For domain-specific profiles, check the specific capability
-  return hasCapability(userUlid, profileType);
+  // For domain-specific profiles, check realEstateDomains
+  return Array.isArray(data.realEstateDomains) && data.realEstateDomains.includes(profileType);
 }
 
 /**
@@ -79,7 +78,7 @@ export async function canAccessProfileType(
  */
 export async function updateUserCapabilities(
   userUlid: string, 
-  capabilities: string[]
+  capabilities: Capability[]
 ): Promise<boolean> {
   const supabase = await createAuthClient();
   
@@ -105,7 +104,7 @@ export async function updateUserCapabilities(
  */
 export async function addUserCapability(
   userUlid: string,
-  capability: string
+  capability: Capability
 ): Promise<boolean> {
   const supabase = await createAuthClient();
   
@@ -128,7 +127,7 @@ export async function addUserCapability(
     ? [...data.capabilities, capability]
     : [capability];
     
-  return updateUserCapabilities(userUlid, capabilities);
+  return updateUserCapabilities(userUlid, capabilities as Capability[]);
 }
 
 /**
@@ -136,7 +135,7 @@ export async function addUserCapability(
  */
 export async function removeUserCapability(
   userUlid: string,
-  capability: string
+  capability: Capability
 ): Promise<boolean> {
   const supabase = await createAuthClient();
   
@@ -159,5 +158,5 @@ export async function removeUserCapability(
     ? data.capabilities.filter(c => c !== capability)
     : [];
     
-  return updateUserCapabilities(userUlid, capabilities);
+  return updateUserCapabilities(userUlid, capabilities as Capability[]);
 } 

@@ -105,10 +105,15 @@ export interface AuthContext {
 export const authContextSchema = z.object({
   userId: z.string(),
   userUlid: z.string(),
-  systemRole: z.enum(Object.values(SYSTEM_ROLES) as [string, ...string[]]),
-  capabilities: z.array(z.enum(Object.values(USER_CAPABILITIES) as [string, ...string[]])),
-  orgRole: z.enum(Object.values(ORG_ROLES) as [string, ...string[]]).optional(),
-  orgLevel: z.enum(Object.values(ORG_LEVELS) as [string, ...string[]]).optional(),
+  systemRole: z.enum(['SYSTEM_OWNER', 'SYSTEM_MODERATOR', 'USER']),
+  capabilities: z.array(z.enum(['COACH', 'MENTEE'])),
+  orgRole: z.enum([
+    'GLOBAL_OWNER', 'GLOBAL_DIRECTOR', 'GLOBAL_MANAGER',
+    'REGIONAL_OWNER', 'REGIONAL_DIRECTOR', 'REGIONAL_MANAGER',
+    'LOCAL_OWNER', 'LOCAL_DIRECTOR', 'LOCAL_MANAGER',
+    'OWNER', 'DIRECTOR', 'MANAGER', 'MEMBER', 'GUEST'
+  ]).optional(),
+  orgLevel: z.enum(['GLOBAL', 'REGIONAL', 'LOCAL', 'BRANCH']).optional(),
   subscription: z.object({
     status: z.string(),
     planId: z.string()

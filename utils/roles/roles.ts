@@ -5,7 +5,7 @@ export const SYSTEM_ROLES = {
   USER: 'USER'
 } as const;
 
-export type SystemRole = keyof typeof SYSTEM_ROLES;
+export type SystemRole = typeof SYSTEM_ROLES[keyof typeof SYSTEM_ROLES];
 
 // Organization-level roles (from Prisma schema)
 export const ORG_ROLES = {
@@ -283,7 +283,7 @@ export function hasCapability(context: UserRoleContext, capability: UserCapabili
 
 // Validation Functions
 export function isValidSystemRole(role: string): role is SystemRole {
-  return Object.values(SYSTEM_ROLES).includes(role as SystemRole);
+  return Object.values(SYSTEM_ROLES).includes(role as any);
 }
 
 export function isValidOrgRole(role: string): role is OrgRole {

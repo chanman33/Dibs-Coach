@@ -4,12 +4,48 @@ import { createAuthClient } from './auth-client'
 import { cookies } from 'next/headers'
 import { AuthContext, UnauthorizedError, authContextSchema } from '../types/auth'
 import { generateUlid } from '../ulid'
-import { SYSTEM_ROLES, USER_CAPABILITIES, isValidSystemRole } from '../roles/roles'
+import { 
+  SYSTEM_ROLES, 
+  USER_CAPABILITIES, 
+  isValidSystemRole,
+  isValidCapability,
+  isValidOrgRole,
+  isValidOrgLevel
+} from '../roles/roles'
 import { SystemRole, UserCapability, OrgRole, OrgLevel } from '../roles/roles'
 import { UserRole } from '@prisma/client'
 
 // Cache duration in seconds
 const CACHE_DURATION = 60
+
+// Type guard for SystemRole
+function assertSystemRole(role: string): asserts role is SystemRole {
+  if (!isValidSystemRole(role)) {
+    throw new Error(`Invalid system role: ${role}`)
+  }
+}
+
+// Type for raw Supabase response
+type UserResponse = {
+  ulid: string
+  userId: string
+  systemRole: string
+  capabilities: string[]
+  organizationMember?: Array<{
+    role: string
+    scope: string
+    organization: {
+      level: string
+      status: string
+    }
+  }>
+  subscription?: Array<{
+    status: string
+    plan: {
+      planId: string
+    }
+  }>
+}
 
 export const getAuthContext = cache(async (): Promise<AuthContext> => {
   const session = await auth()
@@ -37,7 +73,9 @@ export const getAuthContext = cache(async (): Promise<AuthContext> => {
       ),
       subscription:Subscription!inner (
         status,
-        planId
+        plan:planUlid (
+          planId
+        )
       )
     `)
     .eq('userId', session.userId)
@@ -50,20 +88,40 @@ export const getAuthContext = cache(async (): Promise<AuthContext> => {
     throw error
   }
 
+  // Validate and transform system role
   if (!isValidSystemRole(data.systemRole)) {
-    throw new Error(`Invalid system role: ${data.systemRole}`);
+    throw new Error(`Invalid system role: ${data.systemRole}`)
   }
 
-  const validatedRole = data.systemRole as typeof SYSTEM_ROLES[keyof typeof SYSTEM_ROLES];
+  // Filter and validate capabilities
+  const capabilities = Array.isArray(data.capabilities) 
+    ? data.capabilities.filter(isValidCapability)
+    : []
 
+  // Validate org role and level if present
+  const orgRole = data.organizationMember?.[0]?.role
+  const orgLevel = data.organizationMember?.[0]?.organization?.level
+
+  if (orgRole && !isValidOrgRole(orgRole)) {
+    throw new Error(`Invalid org role: ${orgRole}`)
+  }
+
+  if (orgLevel && !isValidOrgLevel(orgLevel)) {
+    throw new Error(`Invalid org level: ${orgLevel}`)
+  }
+
+  // Let schema validation handle all type narrowing
   return authContextSchema.parse({
     userId: session.userId,
     userUlid: data.ulid,
-    systemRole: validatedRole,
-    capabilities: data.capabilities as UserCapability[] || [],
-    orgRole: data.organizationMember?.[0]?.role as OrgRole | undefined,
-    orgLevel: data.organizationMember?.[0]?.organization?.level as OrgLevel | undefined,
-    subscription: data.subscription
+    systemRole: data.systemRole,
+    capabilities,
+    orgRole,
+    orgLevel,
+    subscription: data.subscription?.[0] ? {
+      status: data.subscription[0].status,
+      planId: data.subscription[0].plan?.planId
+    } : undefined
   })
 })
 

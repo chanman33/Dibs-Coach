@@ -2,7 +2,7 @@
 export * from './types'
 
 // Client exports
-export { createServerClient } from './server'
+export { createAuthClient } from './server'
 export { createClient } from './client'
 export { createAdminClient } from './admin'
 
