@@ -21,6 +21,7 @@ import {
 import { FilterSidebarProps, CoachFilters } from './types';
 import { cn } from '@/lib/utils';
 import { ChevronDown, X } from 'lucide-react';
+import { REAL_ESTATE_DOMAINS, ACTIVE_DOMAINS } from '@/utils/types/coach';
 
 const INDUSTRY_DOMAINS = [
   { label: 'Realtor', value: 'realtor', icon: Home },
@@ -31,6 +32,17 @@ const INDUSTRY_DOMAINS = [
   { label: 'Private Credit', value: 'private_credit', icon: FileText },
   { label: 'Title & Escrow', value: 'title_escrow', icon: Building2 },
 ];
+
+// Map the industry domains to their corresponding REAL_ESTATE_DOMAINS values
+const DOMAIN_VALUE_MAP = {
+  'realtor': REAL_ESTATE_DOMAINS.REALTOR,
+  'mortgage': REAL_ESTATE_DOMAINS.MORTGAGE,
+  'commercial_re': REAL_ESTATE_DOMAINS.COMMERCIAL,
+  'property_manager': REAL_ESTATE_DOMAINS.PROPERTY_MANAGER,
+  'investor': REAL_ESTATE_DOMAINS.INVESTOR,
+  'private_credit': REAL_ESTATE_DOMAINS.PRIVATE_CREDIT,
+  'title_escrow': REAL_ESTATE_DOMAINS.TITLE_ESCROW,
+} as const;
 
 const PRICE_RANGES = [
   { label: '$50 - $100/hr', value: '50-100', count: 45 },
@@ -60,8 +72,12 @@ export function FilterSidebar({
     rating: false, // Rating is collapsed by default
   });
 
-  // Use provided domains or fall back to default industry domains
-  const displayDomains = domains && domains.length > 0 ? domains : INDUSTRY_DOMAINS;
+  // Filter domains based on ACTIVE_DOMAINS configuration
+  const displayDomains = (domains && domains.length > 0 ? domains : INDUSTRY_DOMAINS)
+    .filter(domain => {
+      const realEstateDomain = DOMAIN_VALUE_MAP[domain.value as keyof typeof DOMAIN_VALUE_MAP];
+      return ACTIVE_DOMAINS[realEstateDomain];
+    });
 
   useEffect(() => {
     const count = Object.values(filters).reduce((acc, value) => {

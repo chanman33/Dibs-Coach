@@ -14,6 +14,7 @@ import {
 import { COACH_SPECIALTIES, SpecialtyCategory } from '@/utils/types/coach'
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 // Define general categories to show
 const GENERAL_CATEGORIES = [
@@ -53,8 +54,14 @@ const categoryDetails: Record<GeneralCategory, { name: string; description: stri
     name: 'Client Relations',
     description: 'Build stronger client relationships'
   },
+  // Alternative labels that align with sub-categories:
+  // 1. "Skill Building" - focuses on professional improvement
+  // 2. "Pro Tools" - emphasizes the digital and practical tools aspect
+  // 3. "Pro Skills" - direct and encompasses both technical and soft skills
+  // 4. "Expertise" - broad term covering all professional development aspects
+  // 5. "Pro Brand" - emphasizes the personal branding aspect
   PROFESSIONAL_DEVELOPMENT: {
-    name: 'Professional Development',
+    name: 'Pro Development',
     description: 'Advance your career and skills'
   },
   MARKET_INNOVATION: {
@@ -84,33 +91,41 @@ export function Categories({ onCategoryClick }: CategoriesProps) {
   };
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader className="pb-4">
         <h2 className="text-lg font-semibold">Skills</h2>
       </CardHeader>
-      <CardContent className="grid gap-1.5">
-        {GENERAL_CATEGORIES.map(category => {
-          const Icon = categoryIcons[category]
-          const details = categoryDetails[category]
-          const specialties = COACH_SPECIALTIES[category as SpecialtyCategory]
-          const isSelected = selectedCategory === category;
+      <CardContent className="grid gap-1.5 -ml-2">
+        <TooltipProvider>
+          {GENERAL_CATEGORIES.map(category => {
+            const Icon = categoryIcons[category]
+            const details = categoryDetails[category]
+            const specialties = COACH_SPECIALTIES[category as SpecialtyCategory]
+            const isSelected = selectedCategory === category;
 
-          return (
-            <Button
-              key={category}
-              variant="ghost"
-              className={cn(
-                "w-full justify-start rounded-md text-sm font-normal",
-                "hover:bg-muted/50 transition-colors",
-                isSelected && "bg-primary/10 text-primary font-medium"
-              )}
-              onClick={() => handleCategoryClick(category as SpecialtyCategory, [...specialties])}
-            >
-              <Icon className="mr-2 h-4 w-4 flex-shrink-0" />
-              <span className="truncate">{details.name}</span>
-            </Button>
-          )
-        })}
+            return (
+              <Tooltip key={category}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "w-full justify-start rounded-md text-sm font-normal pl-1 pr-2 py-1.5",
+                      "hover:bg-muted/50 transition-colors",
+                      isSelected && "bg-primary/10 text-primary font-medium"
+                    )}
+                    onClick={() => handleCategoryClick(category as SpecialtyCategory, [...specialties])}
+                  >
+                    <Icon className="h-4 w-4 mr-2 flex-shrink-0" />
+                    <span className="truncate">{details.name}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right" align="center">
+                  <p>{details.description}</p>
+                </TooltipContent>
+              </Tooltip>
+            )
+          })}
+        </TooltipProvider>
       </CardContent>
     </Card>
   )
