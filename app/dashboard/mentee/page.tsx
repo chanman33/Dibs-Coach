@@ -369,7 +369,7 @@ function MenteeDashboardContent() {
                   className="w-full h-10 bg-green-500 hover:bg-green-600 text-white transition-colors mt-4"
                   asChild
                 >
-                  <Link href="/dashboard">
+                  <Link href="/dashboard/mentee/history">
                     View Training History
                   </Link>
                 </Button>
