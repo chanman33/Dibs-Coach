@@ -259,8 +259,16 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
 // Get coach application
 export const getCoachApplication = withServerAction<ApplicationResponse>(
   async (_, { userUlid }) => {
+    console.log('[GET_COACH_APPLICATION_START]', {
+      userUlid,
+      timestamp: new Date().toISOString()
+    });
+
     try {
       const supabase = await createAuthClient()
+      console.log('[GET_COACH_APPLICATION_QUERY_START]', {
+        timestamp: new Date().toISOString()
+      });
 
       const { data: application, error: applicationError } = await supabase
         .from('CoachApplication')
@@ -271,7 +279,6 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
           superPower,
           realEstateDomains,
           primaryDomain,
-          notes,
           reviewDate,
           createdAt,
           updatedAt,
@@ -279,6 +286,7 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
           linkedIn,
           primarySocialMedia,
           aboutYou,
+          isDraft,
           applicant:User!CoachApplication_applicantUlid_fkey (
             ulid,
             firstName,
@@ -296,31 +304,92 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
         .eq('applicantUlid', userUlid)
         .single() as { data: ApplicationResponse | null, error: any }
 
-      // If no application found, return null data without error
-      if (!application) {
-        return {
-          data: null,
-          error: null
-        }
-      }
+      console.log('[GET_COACH_APPLICATION_QUERY_RESULT]', {
+        hasData: !!application,
+        status: application?.status,
+        error: applicationError,
+        timestamp: new Date().toISOString()
+      });
 
+      // If database error, check if it's a schema mismatch
       if (applicationError) {
-        console.error('[GET_APPLICATION_ERROR]', { userUlid, error: applicationError })
+        console.error('[GET_COACH_APPLICATION_ERROR]', { 
+          userUlid, 
+          error: applicationError,
+          timestamp: new Date().toISOString()
+        });
+
+        // If it's a column does not exist error, log it but treat as no application found
+        if (applicationError.code === '42703') {
+          console.log('[GET_COACH_APPLICATION_SCHEMA_MISMATCH]', {
+            message: 'Schema mismatch detected, treating as no application found',
+            error: applicationError.message,
+            timestamp: new Date().toISOString()
+          });
+          return {
+            data: null,
+            error: null
+          };
+        }
+
         return {
           data: null,
           error: {
             code: 'FETCH_ERROR',
             message: 'Failed to fetch application'
           }
-        }
+        };
       }
 
-      return {
-        data: application,
-        error: null
+      // If no application found, return null data without error
+      if (!application) {
+        console.log('[GET_COACH_APPLICATION_NOT_FOUND]', {
+          userUlid,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: null
+        };
       }
+
+      console.log('[GET_COACH_APPLICATION_SUCCESS]', {
+        applicationId: application.ulid,
+        status: application.status,
+        timestamp: new Date().toISOString()
+      });
+
+      // Transform the data to match ApplicationResponse type
+      const transformedData: ApplicationResponse = {
+        ulid: application.ulid,
+        status: application.status as CoachApplicationStatus,
+        firstName: application.applicant?.firstName ?? null,
+        lastName: application.applicant?.lastName ?? null,
+        phoneNumber: application.applicant?.phoneNumber ?? null,
+        yearsOfExperience: application.yearsOfExperience,
+        superPower: application.superPower,
+        aboutYou: application.aboutYou ?? null,
+        realEstateDomains: (application.realEstateDomains ?? []) as RealEstateDomain[],
+        primaryDomain: application.primaryDomain as RealEstateDomain,
+        resumeUrl: application.resumeUrl ?? null,
+        linkedIn: application.linkedIn ?? null,
+        primarySocialMedia: application.primarySocialMedia ?? null,
+        isDraft: application.isDraft ?? false,
+        createdAt: application.createdAt,
+        updatedAt: application.updatedAt
+      };
+
+      return {
+        data: transformedData,
+        error: null
+      };
     } catch (error) {
-      console.error('[GET_APPLICATION_ERROR]', error)
+      console.error('[GET_COACH_APPLICATION_ERROR]', {
+        userUlid,
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       return {
         data: null,
         error: {
@@ -328,10 +397,10 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
           message: 'An unexpected error occurred',
           details: error instanceof Error ? { message: error.message } : undefined
         }
-      }
+      };
     }
   }
-)
+);
 
 // Review coach application
 export const reviewCoachApplication = withServerAction<ApplicationResponse>(

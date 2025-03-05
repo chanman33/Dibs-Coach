@@ -85,13 +85,26 @@ export type ApplicationResponse = {
   superPower: string;
   aboutYou: string | null;
   realEstateDomains: RealEstateDomain[];
-  primaryDomain: RealEstateDomain | null;
+  primaryDomain: RealEstateDomain;
   resumeUrl: string | null;
   linkedIn: string | null;
   primarySocialMedia: string | null;
   isDraft: boolean;
   createdAt: string;
   updatedAt: string;
+  applicant?: {
+    ulid: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+    phoneNumber: string | null;
+    profileImageUrl: string | null;
+  };
+  reviewer?: {
+    ulid: string;
+    firstName: string | null;
+    lastName: string | null;
+  };
 };
 
 export type ApiResponse<T> = {

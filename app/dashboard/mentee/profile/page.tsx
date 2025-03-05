@@ -10,11 +10,12 @@ import { getCoachApplication } from "@/utils/actions/coach-application"
 import { fetchRealtorProfile, updateRealtorProfile } from "@/utils/actions/realtor-profile"
 import { Badge } from "@/components/ui/badge"
 import { Loader2 } from "lucide-react"
-import type { ApplicationData } from "@/utils/types/coach-application"
+import type { ApplicationResponse } from "@/utils/types/coach-application"
 import type { GoalFormValues } from "@/utils/types/goals"
 import type { GeneralFormData } from "@/utils/actions/user-profile-actions"
 import type { ApiResponse, ApiError } from "@/utils/types/api"
 import { toast } from "sonner"
+import { COACH_APPLICATION_STATUS, type CoachApplicationStatus } from "@/utils/types/coach-application"
 
 interface ProfileData {
   user: {
@@ -34,24 +35,43 @@ export default function AgentProfilePage() {
   const searchParams = useSearchParams()
   const defaultTab = searchParams.get('tab') || 'general'
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [application, setApplication] = useState<ApplicationData | null>(null)
+  const [application, setApplication] = useState<ApplicationResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
 
   // Fetch both profile and application data in parallel
   useEffect(() => {
     const fetchData = async () => {
+      console.log('[PROFILE_PAGE_FETCH_START]', {
+        timestamp: new Date().toISOString()
+      });
+
       try {
         const [profileResponse, applicationResponse] = await Promise.all([
           fetchRealtorProfile(),
           getCoachApplication({})
         ])
 
+        console.log('[PROFILE_PAGE_FETCH_COMPLETE]', {
+          hasProfileData: !!profileResponse.data,
+          hasApplicationData: !!applicationResponse.data,
+          applicationStatus: applicationResponse.data?.status,
+          timestamp: new Date().toISOString()
+        });
+
         // Handle profile data
         if (profileResponse.error) {
-          console.error('[FETCH_PROFILE_ERROR]', profileResponse.error)
+          console.error('[FETCH_PROFILE_ERROR]', {
+            error: profileResponse.error,
+            timestamp: new Date().toISOString()
+          })
           toast.error('Failed to load profile data')
         } else if (profileResponse.data) {
+          console.log('[PROFILE_DATA_UPDATE]', {
+            firstName: profileResponse.data.user.firstName,
+            lastName: profileResponse.data.user.lastName,
+            timestamp: new Date().toISOString()
+          });
           setProfileData({
             user: {
               firstName: profileResponse.data.user.firstName ?? null,
@@ -68,12 +88,24 @@ export default function AgentProfilePage() {
 
         // Handle application data
         if (applicationResponse.error) {
-          console.error('[FETCH_APPLICATION_ERROR]', applicationResponse.error)
-        } else if (applicationResponse.data) {
-          setApplication(applicationResponse.data as ApplicationData)
+          console.error('[FETCH_APPLICATION_ERROR]', {
+            error: applicationResponse.error,
+            timestamp: new Date().toISOString()
+          })
+        } else {
+          console.log('[APPLICATION_DATA_UPDATE]', {
+            hasData: !!applicationResponse.data,
+            status: applicationResponse.data?.status,
+            timestamp: new Date().toISOString()
+          });
+          setApplication(applicationResponse.data)
         }
       } catch (error) {
-        console.error('[FETCH_DATA_ERROR]', error)
+        console.error('[FETCH_DATA_ERROR]', {
+          error,
+          stack: error instanceof Error ? error.stack : undefined,
+          timestamp: new Date().toISOString()
+        })
         toast.error('Failed to load some data')
       } finally {
         setIsLoading(false)
@@ -143,31 +175,51 @@ export default function AgentProfilePage() {
     console.log('goals form submitted:', formData)
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: CoachApplicationStatus) => {
+    console.log('[GET_STATUS_COLOR]', {
+      status,
+      timestamp: new Date().toISOString()
+    });
     switch (status) {
-      case 'PENDING':
+      case COACH_APPLICATION_STATUS.PENDING:
         return 'bg-yellow-500'
-      case 'APPROVED':
+      case COACH_APPLICATION_STATUS.APPROVED:
         return 'bg-green-500'
-      case 'REJECTED':
+      case COACH_APPLICATION_STATUS.REJECTED:
         return 'bg-red-500'
+      case COACH_APPLICATION_STATUS.DRAFT:
+        return 'bg-gray-500'
       default:
         return 'bg-gray-500'
     }
   }
 
-  const getStatusMessage = (status: string) => {
+  const getStatusMessage = (status: CoachApplicationStatus) => {
+    console.log('[GET_STATUS_MESSAGE]', {
+      status,
+      timestamp: new Date().toISOString()
+    });
     switch (status) {
-      case 'PENDING':
+      case COACH_APPLICATION_STATUS.PENDING:
         return 'Your application is under review. We will notify you once a decision has been made.'
-      case 'APPROVED':
+      case COACH_APPLICATION_STATUS.APPROVED:
         return 'Congratulations! Your application has been approved. You can now access the coaching dashboard.'
-      case 'REJECTED':
+      case COACH_APPLICATION_STATUS.REJECTED:
         return 'Unfortunately, your application was not approved at this time. You may apply again in the future.'
+      case COACH_APPLICATION_STATUS.DRAFT:
+        return 'Your application is saved as a draft. Please complete and submit it.'
       default:
         return ''
     }
   }
+
+  // Add logging before the return statement
+  console.log('[PROFILE_PAGE_RENDER]', {
+    isLoading,
+    hasApplication: !!application,
+    applicationStatus: application?.status,
+    timestamp: new Date().toISOString()
+  });
 
   return (
     <div className="container mx-auto py-6">
@@ -223,7 +275,7 @@ export default function AgentProfilePage() {
                   <p className="text-sm text-muted-foreground">
                     {getStatusMessage(application.status)}
                   </p>
-                  {application.status === 'REJECTED' && (
+                  {application.status === COACH_APPLICATION_STATUS.REJECTED && (
                     <Button
                       onClick={() => router.push('/apply-coach')}
                       variant="default"
