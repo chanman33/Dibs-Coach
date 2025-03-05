@@ -193,20 +193,20 @@ function MenteeDashboardContent() {
       case "avg_sale_price":
       case "session_revenue":
         return "currency"
-      
+
       // Percentage format
       case "market_share":
       case "client_retention":
       case "mentee_satisfaction":
       case "session_completion":
         return "percentage"
-      
+
       // Time format (hours)
       case "response_time":
       case "training_hours":
       case "days_on_market":
         return "time"
-      
+
       // Number format (default)
       default:
         return "number"
@@ -624,6 +624,7 @@ function MenteeDashboardContent() {
           </CardContent>
         </Card>
       </div>
+
     </div>
   )
 }

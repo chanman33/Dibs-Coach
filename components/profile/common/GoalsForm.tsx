@@ -49,8 +49,14 @@ import { type ValidationError } from "@/utils/types/errors"
 const goalSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
-  target: z.number().min(0, "Target must be a positive number"),
-  current: z.number().min(0, "Current value must be a positive number"),
+  target: z.number({
+    required_error: "Target value is required",
+    invalid_type_error: "Target must be a number"
+  }).min(0, "Target must be a positive number"),
+  current: z.number({
+    required_error: "Current value is required",
+    invalid_type_error: "Current value must be a number"
+  }).min(0, "Current value must be a positive number"),
   deadline: z.string().min(1, "Deadline is required"),
   type: z.enum(Object.values(GOAL_TYPE) as [string, ...string[]]),
   status: z.enum(Object.values(GOAL_STATUS) as [string, ...string[]]).default(GOAL_STATUS.IN_PROGRESS),
@@ -191,6 +197,28 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
     setIsLoading(true);
     
     try {
+      // Validate the data against our schema
+      const validationResult = goalSchema.safeParse(data);
+      
+      if (!validationResult.success) {
+        console.error('[GOAL_VALIDATION_ERROR]', {
+          errors: validationResult.error.flatten(),
+          timestamp: new Date().toISOString()
+        });
+        
+        // Set form errors
+        const fieldErrors = validationResult.error.flatten().fieldErrors;
+        (Object.keys(fieldErrors) as Array<keyof typeof fieldErrors>).forEach(field => {
+          form.setError(field, {
+            type: 'manual',
+            message: fieldErrors[field]?.[0]
+          });
+        });
+        
+        toast.error('Please fill in all required fields correctly');
+        return;
+      }
+
       const baseGoalData = {
         title: data.title,
         description: data.description,
@@ -198,7 +226,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
         current: data.current,
         deadline: data.deadline,
         type: data.type,
-        status: data.status,
+        status: data.status || GOAL_STATUS.IN_PROGRESS,
       };
 
       if (currentEditingGoal) {
@@ -206,7 +234,13 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
           goalUlid: currentEditingGoal.ulid,
           ...baseGoalData 
         });
-        if (result.error) throw result.error;
+        if (result.error) {
+          console.error('[UPDATE_GOAL_ERROR]', {
+            error: result.error,
+            timestamp: new Date().toISOString()
+          });
+          throw result.error;
+        }
       } else {
         await onSubmit(baseGoalData);
       }
@@ -215,7 +249,11 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       await loadGoals();
       handleCloseForm();
     } catch (error) {
-      console.error('[SUBMIT_GOAL_ERROR]', error);
+      console.error('[SUBMIT_GOAL_ERROR]', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       toast.error('Failed to submit goal');
     } finally {
       setIsLoading(false);
@@ -405,7 +443,12 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       {/* Goals List */}
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h3 className="text-lg font-semibold">Your Goals</h3>
+          <div>
+            <h3 className="text-lg font-semibold">Your Goals</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Goals are visible to coaches you have booked sessions with and to your brokerage if connected
+            </p>
+          </div>
           <Button 
             onClick={handleAddNewGoal}
             className="flex items-center gap-2"
@@ -488,9 +531,14 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       {showForm && (
         <Card className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-semibold">
-              {currentEditingGoal ? 'Update Goal' : 'Add New Goal'}
-            </h3>
+            <div>
+              <h3 className="text-lg font-semibold">
+                {currentEditingGoal ? 'Update Goal' : 'Add New Goal'}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Fields marked with <span className="text-destructive">*</span> are required
+              </p>
+            </div>
             <Button
               variant="ghost"
               size="sm"
@@ -509,7 +557,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 name="title"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Goal Title</FormLabel>
+                    <FormLabel>Goal Title <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
                       <Input placeholder="Enter your goal title" {...field} />
                     </FormControl>
@@ -523,7 +571,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 name="type"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Type</FormLabel>
+                    <FormLabel>Goal Type <span className="text-destructive">*</span></FormLabel>
                     <Select 
                       onValueChange={(value: GoalType) => {
                         field.onChange(value)
@@ -535,7 +583,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a type" />
+                          <SelectValue placeholder="Select a goal type" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -573,7 +621,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                   name="target"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Target Value{getValueLabelSuffix(form.getValues("type"))}</FormLabel>
+                      <FormLabel>Target Value <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <div className="relative">
                           {getFormatForGoalType(form.getValues("type")) === "currency" && (
@@ -581,9 +629,9 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                           )}
                           <Input 
                             type="number"
-                            placeholder="0"
+                            placeholder="Enter your target value"
                             {...field}
-                            value={field.value === 0 ? "" : field.value}
+                            value={field.value || ""}
                             className={
                               getFormatForGoalType(form.getValues("type")) === "currency" 
                                 ? "pl-7" 
@@ -592,14 +640,8 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                                   : ""
                             }
                             onChange={(e) => {
-                              const value = e.target.value === "" ? 0 : parseFloat(e.target.value);
+                              const value = e.target.value === "" ? undefined : parseFloat(e.target.value);
                               field.onChange(value);
-                            }}
-                            onBlur={(e) => {
-                              field.onBlur();
-                              if (e.target.value === "") {
-                                field.onChange(0);
-                              }
                             }}
                             step={getFormatForGoalType(form.getValues("type")) === "currency" ? "0.01" : "1"}
                             min="0"
@@ -622,7 +664,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                   name="current"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Current Value{getValueLabelSuffix(form.getValues("type"))}</FormLabel>
+                      <FormLabel>Current Value <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <div className="relative">
                           {getFormatForGoalType(form.getValues("type")) === "currency" && (
@@ -630,9 +672,9 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                           )}
                           <Input 
                             type="number"
-                            placeholder="0"
+                            placeholder="Enter current progress"
                             {...field}
-                            value={field.value === 0 ? "" : field.value}
+                            value={field.value || ""}
                             className={
                               getFormatForGoalType(form.getValues("type")) === "currency" 
                                 ? "pl-7" 
@@ -641,14 +683,8 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                                   : ""
                             }
                             onChange={(e) => {
-                              const value = e.target.value === "" ? 0 : parseFloat(e.target.value);
+                              const value = e.target.value === "" ? undefined : parseFloat(e.target.value);
                               field.onChange(value);
-                            }}
-                            onBlur={(e) => {
-                              field.onBlur();
-                              if (e.target.value === "") {
-                                field.onChange(0);
-                              }
                             }}
                             step={getFormatForGoalType(form.getValues("type")) === "currency" ? "0.01" : "1"}
                             min="0"
@@ -672,7 +708,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 name="deadline"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Deadline</FormLabel>
+                    <FormLabel>Deadline <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
@@ -686,12 +722,12 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel>Description <span className="text-muted-foreground text-sm">(Optional)</span></FormLabel>
                     <FormControl>
                       <Textarea 
                         {...field}
                         value={field.value ?? ""}
-                        placeholder="Enter goal description"
+                        placeholder="Add additional details about your goal"
                       />
                     </FormControl>
                     <FormMessage />
@@ -704,11 +740,11 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 name="status"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Status</FormLabel>
+                    <FormLabel>Status <span className="text-muted-foreground text-sm">(Defaults to In Progress)</span></FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
+                          <SelectValue placeholder="Select goal status" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>

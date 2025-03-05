@@ -16,6 +16,7 @@ import type { GeneralFormData } from "@/utils/actions/user-profile-actions"
 import type { ApiResponse, ApiError } from "@/utils/types/api"
 import { toast } from "sonner"
 import { COACH_APPLICATION_STATUS, type CoachApplicationStatus } from "@/utils/types/coach-application"
+import { createGoal } from "@/utils/actions/goals"
 
 interface ProfileData {
   user: {
@@ -172,7 +173,26 @@ export default function AgentProfilePage() {
   }
 
   const handleGoalsSubmit = async (formData: GoalFormValues) => {
-    console.log('goals form submitted:', formData)
+    try {
+      const { data, error } = await createGoal(formData)
+      
+      if (error) {
+        console.error('[CREATE_GOAL_ERROR]', {
+          error,
+          timestamp: new Date().toISOString()
+        })
+        toast.error(error.message || 'Failed to create goal')
+        return
+      }
+
+      toast.success('Goal created successfully!')
+    } catch (error) {
+      console.error('[CREATE_GOAL_ERROR]', {
+        error,
+        timestamp: new Date().toISOString()
+      })
+      toast.error('Failed to create goal')
+    }
   }
 
   const getStatusColor = (status: CoachApplicationStatus) => {
