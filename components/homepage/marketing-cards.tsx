@@ -46,7 +46,7 @@ const FeaturesData = [
 const SpringAnimatedFeatures = () => {
   return (
     <div className="flex flex-col justify-center items-center lg:w-[75%]">
-      <div className='flex flex-col mb-[3rem]'>
+      <div className='flex flex-col mb-[3rem] text-center w-full'>
         <h2 className={`${TITLE_TAILWIND_CLASS} mt-2 font-semibold tracking-tight dark:text-white text-gray-900`}>
           Why Choose Our Platform
         </h2>

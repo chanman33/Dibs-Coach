@@ -22,14 +22,14 @@ export default function BusinessesPage() {
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div className="space-y-6 max-w-2xl">
                 <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-medium text-sm mb-2">
-                  <span className="mr-1">✦</span> Enterprise Solution
+                  <span className="mr-1">✦</span> Business Solutions
                 </div>
                 <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-slate-900">
-                  Transform Your Brokerage with Scalable Coaching
+                  Scale Your Real Estate Business with Professional Coaching
                 </h1>
                 <p className="text-xl text-slate-600">
-                  Scale high-quality coaching across your entire organization to increase agent productivity, reduce
-                  turnover, and drive sustainable revenue growth.
+                  Whether you're a growing team or established brokerage, our coaching platform helps increase agent productivity, 
+                  reduce turnover, and drive sustainable revenue growth at any scale.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
                   <Button 
@@ -107,11 +107,11 @@ export default function BusinessesPage() {
           <div className="container mx-auto px-4">
             <div className="max-w-3xl mx-auto text-center mb-16">
               <h2 className="text-3xl font-bold mb-6 text-slate-900">
-                Why Most Brokerages Struggle with Agent Development
+                Common Challenges in Agent Development
               </h2>
               <p className="text-xl text-slate-600">
-                <strong>The challenge is clear:</strong> Only 10% of agents drive 90% of transactions, while 87% of new
-                agents quit within five years.
+                <strong>The reality is clear:</strong> Growing and retaining successful agents is challenging, with 87% of new
+                agents leaving the industry within five years.
               </p>
             </div>
 
@@ -166,9 +166,9 @@ export default function BusinessesPage() {
               <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-medium text-sm mb-4">
                 THE SOLUTION
               </div>
-              <h2 className="text-3xl font-bold mb-6 text-slate-900">Introducing Our Marketplace Coaching Platform</h2>
+              <h2 className="text-3xl font-bold mb-6 text-slate-900">A Coaching Platform That Grows With You</h2>
               <p className="text-xl text-slate-600">
-                A revolutionary approach to agent development designed specifically for mid-market and large brokerages.
+                A flexible approach to agent development designed for teams and brokerages of all sizes.
               </p>
             </div>
 
@@ -377,11 +377,11 @@ export default function BusinessesPage() {
           <div className="container mx-auto px-4">
             <div className="max-w-3xl mx-auto text-center mb-16">
               <div className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-medium text-sm mb-4">
-                ENTERPRISE-GRADE
+                SCALABLE FEATURES
               </div>
-              <h2 className="text-3xl font-bold mb-6 text-slate-900">Powerful Features for Large Brokerages</h2>
+              <h2 className="text-3xl font-bold mb-6 text-slate-900">Powerful Features for Growing Teams</h2>
               <p className="text-xl text-slate-600">
-                Our platform is built to meet the unique needs of enterprise real estate organizations.
+                Our platform adapts to your needs, whether you're a small team or a large organization.
               </p>
             </div>
 
@@ -455,10 +455,9 @@ export default function BusinessesPage() {
             <div className="max-w-6xl mx-auto">
               <div className="grid lg:grid-cols-2 gap-12 items-center">
                 <div className="space-y-6">
-                  <h2 className="text-3xl font-bold text-slate-900">Ready to Transform Your Brokerage?</h2>
+                  <h2 className="text-3xl font-bold text-slate-900">Ready to Transform Your Business?</h2>
                   <p className="text-xl text-slate-600">
-                    Schedule a consultation with our enterprise team to learn how our coaching platform can be customized
-                    for your organization.
+                    Schedule a consultation to learn how our coaching platform can be customized for your team's unique needs and growth goals.
                   </p>
                   <div className="space-y-4 pt-4">
                     <div className="flex items-start gap-3">
@@ -496,12 +495,12 @@ export default function BusinessesPage() {
         <section className="py-20 bg-gradient-to-br from-blue-600 to-blue-800 text-white">
           <div className="container mx-auto px-4 text-center">
             <div className="max-w-3xl mx-auto">
-              <h2 className="text-3xl font-bold mb-6">Don't Let Your Agents Fall Behind</h2>
+              <h2 className="text-3xl font-bold mb-6">Give Your Agents the Support They Need</h2>
               <p className="text-xl mb-8 text-blue-100">
-                In today's competitive market, can you afford to leave agent development to chance?
+                In today's competitive market, investing in agent development is crucial for businesses of any size.
               </p>
               <Button size="lg" className="bg-white text-blue-700 hover:bg-blue-50">
-                Schedule Your Enterprise Consultation Today
+                Schedule Your Consultation Today
               </Button>
               {/* <p className="mt-6 text-blue-200 text-sm">
                 Join the 200+ brokerages already transforming their business with our platform
