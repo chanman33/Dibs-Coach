@@ -8,7 +8,16 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/webhooks(.*)',
-  '/api/auth/(.*)'
+  '/api/auth/(.*)',
+  '/contact-sales(.*)',
+  '/coaches(.*)',
+  '/pricing(.*)',
+  '/about(.*)',
+  '/blog(.*)',
+  '/terms(.*)',
+  '/privacy(.*)',
+  '/faq(.*)',
+  '/((?!dashboard|admin|coach|settings).*)'
 ])
 
 const isProtectedRoute = createRouteMatcher([

@@ -1,16 +1,17 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 import { z } from "zod"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { useAuth } from "@clerk/nextjs"
+import { useRouter } from "next/navigation"
+import { submitContactSalesForm } from "@/utils/actions/contact-sales-actions"
+import { contactSalesSchema, type ContactSalesFormData } from "@/utils/types/contact-sales"
+import type { ZodError } from "zod"
 
 // Helper function to normalize website URL
 function normalizeUrl(url: string): string {
@@ -54,12 +55,18 @@ const formSchema = z.object({
   multipleOffices: z.enum(["yes", "no"]).transform(val => val === "yes")
 })
 
-type FormValues = Omit<z.infer<typeof formSchema>, 'multipleOffices'> & {
+type FormValues = Omit<ContactSalesFormData, 'multipleOffices'> & {
   multipleOffices: "yes" | "no"
 }
 
-export function ContactSalesForm() {
-  const { userId, isSignedIn, isLoaded } = useAuth()
+interface ContactSalesFormProps {
+  onSuccess?: () => void;
+  className?: string;
+}
+
+export function ContactSalesForm({ onSuccess, className = "" }: ContactSalesFormProps) {
+  const router = useRouter()
+  
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -76,47 +83,38 @@ export function ContactSalesForm() {
 
   async function onSubmit(values: FormValues) {
     try {
-      const transformedValues = {
+      const formData: ContactSalesFormData = {
         ...values,
         multipleOffices: values.multipleOffices === "yes"
       }
-      
-      const response = await fetch("/api/contact-sales", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          ...transformedValues,
-          userId: isSignedIn ? userId : undefined,
-          source: isSignedIn ? "CONTACT_FORM_AUTH" : "CONTACT_FORM_PUBLIC"
-        })
-      })
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || "Failed to submit form")
+      const result = await submitContactSalesForm(formData)
+
+      if (result.error) {
+        if (result.error.code === 'VALIDATION_ERROR' && result.error.details) {
+          Object.entries(result.error.details.fieldErrors).forEach(([field, errors]) => {
+            if (errors?.[0]) {
+              form.setError(field as keyof FormValues, { message: errors[0] })
+            }
+          })
+          return
+        }
+        
+        throw new Error(result.error.message)
       }
 
-      toast.success(
-        isSignedIn 
-          ? "Form submitted successfully! Our team will contact you soon." 
-          : "Form submitted successfully! Please check your email for next steps."
-      )
+      toast.success("Form submitted successfully! Please check your email for next steps.")
+      onSuccess?.()
       form.reset()
     } catch (error) {
-      console.error("[CONTACT_SALES_SUBMIT_ERROR]", {
-        error,
-        values,
-        userId: isSignedIn ? userId : undefined
-      })
-      toast.error(error instanceof Error ? error.message : "Failed to submit form. Please try again.")
+      console.error("[CONTACT_SALES_SUBMIT_ERROR]", error)
+      toast.error("Failed to submit form. Please try again.")
     }
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className={`space-y-6 ${className}`}>
         <FormField
           control={form.control}
           name="companyName"

@@ -60,15 +60,17 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Get auth context for initial state
+  // Get auth context for initial state (now optional)
   const authContext = await getAuthContext();
   
-  console.log('[ROOT_LAYOUT] Initializing auth context:', {
-    userId: authContext?.userId,
-    systemRole: authContext?.systemRole,
-    capabilities: authContext?.capabilities,
-    timestamp: new Date().toISOString()
-  });
+  if (authContext) {
+    console.log('[ROOT_LAYOUT] Initializing auth context:', {
+      userId: authContext.userId,
+      systemRole: authContext.systemRole,
+      capabilities: authContext.capabilities,
+      timestamp: new Date().toISOString()
+    });
+  }
 
   return (
     <html lang="en" suppressHydrationWarning>

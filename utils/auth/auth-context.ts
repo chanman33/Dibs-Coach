@@ -59,10 +59,10 @@ export class UserNotFoundError extends Error {
  * Gets the auth context for the current user.
  * Uses Clerk for auth and Supabase for user data/roles.
  */
-export const getAuthContext = cache(async (): Promise<AuthContext> => {
+export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   const { userId } = await auth()
   if (!userId) {
-    throw new Error('Unauthorized')
+    return null
   }
 
   // Get user data from Supabase

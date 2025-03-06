@@ -690,7 +690,6 @@ model User {
   marketingProfile       MarketingProfile?
 
   // Lead Relations
-  submittedLeads      EnterpriseLeads[] @relation("UserLeads")
   assignedLeads       EnterpriseLeads[] @relation("AssignedLeads")
 
   @@index([userId])
@@ -2113,8 +2112,6 @@ model AIMessage {
 model EnterpriseLeads {
   // Core identifiers
   ulid            String   @id @db.Char(26)
-  userId          String?  // Clerk auth ID
-  userUlid        String?  @db.Char(26)
   assignedToUlid  String?  @db.Char(26)
 
   // Company Information
@@ -2135,7 +2132,6 @@ model EnterpriseLeads {
   // Lead Status
   status          String   @default("NEW")
   priority        String   @default("MEDIUM")
-  source          String   @default("CONTACT_FORM_AUTH")
 
   // Tracking
   notes           Json?    // Array of notes
@@ -2144,15 +2140,14 @@ model EnterpriseLeads {
   metadata        Json?
 
   // Timestamps
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now()) @db.Timestamptz
+  updatedAt       DateTime @updatedAt @db.Timestamptz
 
   // Relations
-  user            User?    @relation("UserLeads", fields: [userUlid], references: [ulid], onDelete: SetNull)
   assignedTo      User?    @relation("AssignedLeads", fields: [assignedToUlid], references: [ulid], onDelete: SetNull)
 
-  @@index([userUlid])
   @@index([assignedToUlid])
+  @@map("EnterpriseLeads")
 }
 
 

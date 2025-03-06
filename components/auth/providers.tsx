@@ -27,7 +27,7 @@ export function useAuthContext() {
 
 interface AuthProvidersProps {
   children: React.ReactNode;
-  initialState: AuthContext;
+  initialState: AuthContext | null;
 }
 
 function LoadingSpinner() {
@@ -43,19 +43,19 @@ function LoadingSpinner() {
 
 function AuthStateProvider({ children, initialState }: AuthProvidersProps) {
   const { isLoaded, userId } = useAuth();
-  const [authState, setAuthState] = useState<AuthContext>(initialState);
+  const [authState, setAuthState] = useState<AuthContext | null>(initialState);
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     console.log('[AUTH_PROVIDER] Clerk auth state:', {
       isLoaded,
       userId,
-      initialStateUserId: initialState.userId,
+      initialStateUserId: initialState?.userId,
       timestamp: new Date().toISOString()
     });
 
     if (isLoaded) {
-      if (userId && userId === initialState.userId) {
+      if (userId && initialState?.userId === userId) {
         console.log('[AUTH_PROVIDER] Setting authenticated state:', {
           ...initialState,
           timestamp: new Date().toISOString()
@@ -63,12 +63,7 @@ function AuthStateProvider({ children, initialState }: AuthProvidersProps) {
         setAuthState(initialState);
       } else {
         console.log('[AUTH_PROVIDER] Setting unauthenticated state');
-        setAuthState({
-          userId: '',
-          userUlid: '',
-          systemRole: SYSTEM_ROLES.USER,
-          capabilities: []
-        });
+        setAuthState(null);
       }
       setIsInitialized(true);
     }
@@ -88,12 +83,16 @@ function AuthStateProvider({ children, initialState }: AuthProvidersProps) {
 }
 
 export function AuthProviders({ children, initialState }: AuthProvidersProps) {
-  console.log('[AUTH_PROVIDERS] Initializing with state:', {
-    userId: initialState.userId,
-    systemRole: initialState.systemRole,
-    capabilities: initialState.capabilities,
-    timestamp: new Date().toISOString()
-  });
+  if (initialState) {
+    console.log('[AUTH_PROVIDERS] Initializing with state:', {
+      userId: initialState.userId,
+      systemRole: initialState.systemRole,
+      capabilities: initialState.capabilities,
+      timestamp: new Date().toISOString()
+    });
+  } else {
+    console.log('[AUTH_PROVIDERS] Initializing without auth state');
+  }
 
   return (
     <ClerkProvider>

@@ -856,13 +856,10 @@ export type Database = {
           notes: Json | null
           phone: string
           priority: string
-          source: string
           status: string
           teamSize: string
           ulid: string
           updatedAt: string
-          userId: string | null
-          userUlid: string | null
           website: string | null
         }
         Insert: {
@@ -880,13 +877,10 @@ export type Database = {
           notes?: Json | null
           phone: string
           priority?: string
-          source?: string
           status?: string
           teamSize: string
           ulid: string
           updatedAt: string
-          userId?: string | null
-          userUlid?: string | null
           website?: string | null
         }
         Update: {
@@ -904,26 +898,16 @@ export type Database = {
           notes?: Json | null
           phone?: string
           priority?: string
-          source?: string
           status?: string
           teamSize?: string
           ulid?: string
           updatedAt?: string
-          userId?: string | null
-          userUlid?: string | null
           website?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "EnterpriseLeads_assignedToUlid_fkey"
             columns: ["assignedToUlid"]
-            isOneToOne: false
-            referencedRelation: "User"
-            referencedColumns: ["ulid"]
-          },
-          {
-            foreignKeyName: "EnterpriseLeads_userUlid_fkey"
-            columns: ["userUlid"]
             isOneToOne: false
             referencedRelation: "User"
             referencedColumns: ["ulid"]
