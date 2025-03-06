@@ -30,12 +30,17 @@ export type PricingHeaderProps = {
 // Shared utility functions
 export const calculateAnnualSavings = (monthlyPrice: number | undefined, savingsPercentage: number = 0.2) => {
   if (!monthlyPrice) return 0;
-  return Math.round(monthlyPrice * 12 * savingsPercentage);
+  // Only calculate savings on the software portion ($50)
+  return Math.round(50 * 12 * savingsPercentage);
 }
 
 // Shared constants
-export const MONTHLY_PRICE = 199;
-export const YEARLY_PRICE = 2270; // 20% off monthly price
+export const MONTHLY_SOFTWARE_PRICE = 50;
+export const MONTHLY_COACHING_CREDITS = 150;
+export const MONTHLY_PRICE = MONTHLY_SOFTWARE_PRICE + MONTHLY_COACHING_CREDITS;
+
+// Calculate yearly price: Discounted software (20% off) + Full price coaching credits
+export const YEARLY_PRICE = Math.round((MONTHLY_SOFTWARE_PRICE * 12 * 0.8) + (MONTHLY_COACHING_CREDITS * 12));
 
 export const STARTER_PLAN_FEATURES = [
   "Waive the standard 4.5% payment and platform fees",

@@ -7,7 +7,14 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
 import { TITLE_TAILWIND_CLASS } from "@/utils/constants"
-import { PricingHeaderProps, PricingSwitchProps, PricingCardProps, calculateAnnualSavings } from "@/utils/pricing"
+import { 
+  PricingHeaderProps, 
+  PricingSwitchProps, 
+  PricingCardProps, 
+  calculateAnnualSavings,
+  MONTHLY_SOFTWARE_PRICE,
+  MONTHLY_COACHING_CREDITS 
+} from "@/utils/pricing"
 
 export const PricingHeader = ({ title, subtitle }: PricingHeaderProps) => (
   <section className="text-center">
@@ -78,7 +85,12 @@ export const PricingCard = ({
           exclusive,
       })}>
       <div>
-        <CardHeader className="pb-8 pt-4">
+        <CardHeader className={cn(
+          "pb-8 pt-4",
+          isYearly && monthlyPrice 
+            ? "min-h-[180px]"
+            : "min-h-[140px]"
+        )}>
           {isYearly && yearlyPrice && monthlyPrice ? (
             <div className="flex justify-between items-start">
               <CardTitle className="text-zinc-700 dark:text-zinc-300 text-lg">{title}</CardTitle>
@@ -94,18 +106,29 @@ export const PricingCard = ({
           )}
           <div className="flex gap-0.5">
             <h2 className="text-3xl font-bold">
-              {yearlyPrice && isYearly ? "$" + Math.round(yearlyPrice / 12) : monthlyPrice ? "$" + monthlyPrice : "Custom"}
+              {monthlyPrice 
+                ? isYearly 
+                  ? "$" + (Math.round((MONTHLY_SOFTWARE_PRICE * 0.8) + MONTHLY_COACHING_CREDITS))
+                  : "$" + monthlyPrice
+                : "Custom"}
             </h2>
             <span className="flex flex-col justify-end text-sm mb-1">
-              /month
+              {monthlyPrice ? "/month" : ""}
             </span>
           </div>
-          {isYearly && yearlyPrice && (
+          {isYearly && yearlyPrice && monthlyPrice && (
             <div className="text-sm text-gray-500 mt-1">
-              ${yearlyPrice?.toLocaleString()}/year (20% off, billed annually)
+              <div>
+                Software: ${Math.round(MONTHLY_SOFTWARE_PRICE * 12 * 0.8)}/year (Save ${calculateAnnualSavings(monthlyPrice)}, billed annually)
+              </div>
+              <div className="mt-1">
+                + $150/month in coaching credits (billed monthly)
+              </div>
             </div>
           )}
-          <div className="pt-1.5 h-12 text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: description }} />
+          {(!isYearly || !monthlyPrice) && (
+            <div className="pt-1.5 text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: description }} />
+          )}
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           {features.map((feature: string) => (
