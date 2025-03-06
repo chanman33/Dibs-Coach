@@ -5,7 +5,7 @@ export default function PublicContactSalesPage() {
   return (
     <PageWrapper>
       <ContactSalesLayout 
-        title="Contact Our Sales Team"
+        title="Contact Our Team"
         description="Tell us about your business and we'll help you find the perfect solution"
       />
     </PageWrapper>
