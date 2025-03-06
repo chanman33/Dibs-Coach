@@ -840,6 +840,96 @@ export type Database = {
           },
         ]
       }
+      EnterpriseLeads: {
+        Row: {
+          assignedToUlid: string | null
+          companyName: string
+          createdAt: string
+          email: string
+          fullName: string
+          industry: Database["public"]["Enums"]["OrgIndustry"]
+          jobTitle: string
+          lastContactedAt: string | null
+          metadata: Json | null
+          multipleOffices: boolean
+          nextFollowUpDate: string | null
+          notes: Json | null
+          phone: string
+          priority: string
+          source: string
+          status: string
+          teamSize: string
+          ulid: string
+          updatedAt: string
+          userId: string | null
+          userUlid: string | null
+          website: string | null
+        }
+        Insert: {
+          assignedToUlid?: string | null
+          companyName: string
+          createdAt?: string
+          email: string
+          fullName: string
+          industry: Database["public"]["Enums"]["OrgIndustry"]
+          jobTitle: string
+          lastContactedAt?: string | null
+          metadata?: Json | null
+          multipleOffices?: boolean
+          nextFollowUpDate?: string | null
+          notes?: Json | null
+          phone: string
+          priority?: string
+          source?: string
+          status?: string
+          teamSize: string
+          ulid: string
+          updatedAt: string
+          userId?: string | null
+          userUlid?: string | null
+          website?: string | null
+        }
+        Update: {
+          assignedToUlid?: string | null
+          companyName?: string
+          createdAt?: string
+          email?: string
+          fullName?: string
+          industry?: Database["public"]["Enums"]["OrgIndustry"]
+          jobTitle?: string
+          lastContactedAt?: string | null
+          metadata?: Json | null
+          multipleOffices?: boolean
+          nextFollowUpDate?: string | null
+          notes?: Json | null
+          phone?: string
+          priority?: string
+          source?: string
+          status?: string
+          teamSize?: string
+          ulid?: string
+          updatedAt?: string
+          userId?: string | null
+          userUlid?: string | null
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "EnterpriseLeads_assignedToUlid_fkey"
+            columns: ["assignedToUlid"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["ulid"]
+          },
+          {
+            foreignKeyName: "EnterpriseLeads_userUlid_fkey"
+            columns: ["userUlid"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["ulid"]
+          },
+        ]
+      }
       Goal: {
         Row: {
           createdAt: string
