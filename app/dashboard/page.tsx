@@ -1,13 +1,16 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
-import { getAuthContext } from "@/utils/auth";
+import { getAuthContext, UserNotFoundError } from "@/utils/auth";
 import { SYSTEM_ROLES, USER_CAPABILITIES } from "@/utils/roles/roles";
 import { createAuthClient } from "@/utils/auth";
-import { UserNotFoundError } from "@/utils/auth/auth-context";
 
 export default async function DashboardPage() {
   try {
     const authContext = await getAuthContext();
+    
+    if (!authContext) {
+      redirect('/sign-in');
+    }
 
     // Define routing priority and rules
     const routingRules = [
@@ -77,6 +80,10 @@ export default async function DashboardPage() {
             <h2 className="text-2xl font-semibold">Setting up your account...</h2>
             <p className="text-muted-foreground">This may take a few moments.</p>
             <p className="text-sm text-muted-foreground">If this page persists, please refresh.</p>
+            {/* Automatic refresh after delay */}
+            <script dangerouslySetInnerHTML={{
+              __html: `setTimeout(() => window.location.reload(), 2000)`
+            }} />
           </div>
         </div>
       );

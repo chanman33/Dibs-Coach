@@ -1,9 +1,10 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
-import { NextResponse } from 'next/server'
-import { createAuthClient } from '@/utils/auth/auth-client'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from "next/server"
+import { createAuthClient } from './utils/auth/auth-client'
 
 // Define route matchers
-const isPublicRoute = createRouteMatcher([
+const PUBLIC_ROUTES = [
   '/',
   '/sign-in(.*)',
   '/sign-up(.*)',
@@ -18,84 +19,109 @@ const isPublicRoute = createRouteMatcher([
   '/privacy(.*)',
   '/faq(.*)',
   '/((?!dashboard|admin|coach|settings).*)'
-])
+]
 
-const isProtectedRoute = createRouteMatcher([
+const PROTECTED_ROUTES = [
   '/dashboard(.*)',
-  '/settings(.*)'
-])
-
-const isAdminRoute = createRouteMatcher([
-  '/admin(.*)'
-])
-
-const isCoachRoute = createRouteMatcher([
+  '/settings(.*)',
+  '/admin(.*)',
   '/coach(.*)'
-])
+]
 
-export default clerkMiddleware(async (auth, req) => {
+const ONBOARDING_ROUTE = '/onboarding'
+
+const isPublicRoute = createRouteMatcher(PUBLIC_ROUTES)
+const isProtectedRoute = createRouteMatcher(PROTECTED_ROUTES)
+
+// Metrics tracking
+const metrics = new Map<string, {
+  hits: number
+  misses: number
+  errors: number
+  latency: number[]
+}>()
+
+export default clerkMiddleware(async (auth, request) => {
+  const start = Date.now()
+  const requestId = Math.random().toString(36).substring(7)
+  
   try {
-    // Public routes are always accessible
-    if (isPublicRoute(req)) {
+    // Handle public routes
+    if (isPublicRoute(request)) {
+      updateMetrics('public_route', { duration: Date.now() - start })
       return NextResponse.next()
     }
 
     // Get auth state
-    const authState = await auth()
+    const { userId } = await auth()
 
-    // Protected routes require authentication
-    if (isProtectedRoute(req) && !authState.userId) {
-      return NextResponse.redirect(new URL('/sign-in', req.url))
+    // Require authentication for all other routes
+    if (!userId) {
+      updateMetrics('auth_required', { duration: Date.now() - start })
+      return NextResponse.redirect(new URL('/sign-in', request.url))
     }
 
-    // For admin and coach routes, verify roles in Supabase
-    if (isAdminRoute(req) || isCoachRoute(req)) {
-      if (!authState.userId) {
-        return NextResponse.redirect(new URL('/sign-in', req.url))
-      }
+    // Special handling for sign-up to onboarding redirect
+    if (request.nextUrl.pathname.startsWith('/sign-up') && userId) {
+      updateMetrics('signup_redirect', { duration: Date.now() - start })
+      return NextResponse.redirect(new URL(ONBOARDING_ROUTE, request.url))
+    }
 
-      const supabase = createAuthClient()
-      const { data: user, error } = await supabase
-        .from('User')
-        .select('systemRole, capabilities')
-        .eq('userId', authState.userId)
-        .single()
+    // For protected routes, verify user exists in database
+    if (isProtectedRoute(request)) {
+      try {
+        const supabase = createAuthClient()
+        const { data: user, error } = await supabase
+          .from('User')
+          .select('ulid')
+          .eq('userId', userId)
+          .maybeSingle()
 
-      if (error || !user) {
+        // If user doesn't exist in database, redirect to onboarding
+        if (!user || error) {
+          updateMetrics('new_user_redirect', { duration: Date.now() - start })
+          return NextResponse.redirect(new URL(ONBOARDING_ROUTE, request.url))
+        }
+      } catch (error) {
+        // Always log errors
         console.error('[AUTH_ERROR]', {
-          code: 'ROLE_VERIFICATION_ERROR',
-          message: error?.message || 'User not found',
-          context: { userId: authState.userId, path: req.nextUrl.pathname },
-          timestamp: new Date().toISOString()
+          code: 'MIDDLEWARE_ERROR',
+          message: error instanceof Error ? error.message : 'Unknown error',
+          context: { userId, path: request.nextUrl.pathname }
         })
-        return NextResponse.redirect(new URL('/not-authorized', req.url))
-      }
-
-      // Verify admin access
-      if (isAdminRoute(req) && 
-          user.systemRole !== 'SYSTEM_OWNER' && 
-          user.systemRole !== 'SYSTEM_MODERATOR') {
-        return NextResponse.redirect(new URL('/not-authorized', req.url))
-      }
-
-      // Verify coach access
-      if (isCoachRoute(req) && 
-          !user.capabilities?.includes('COACH')) {
-        return NextResponse.redirect(new URL('/not-authorized', req.url))
+        updateMetrics('middleware_error', { duration: Date.now() - start, error: error as Error })
+        return NextResponse.redirect(new URL('/error?code=server_error', request.url))
       }
     }
 
+    updateMetrics('success', { duration: Date.now() - start })
     return NextResponse.next()
   } catch (error) {
-    console.error('[AUTH_ERROR]', {
-      code: 'MIDDLEWARE_ERROR',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      context: { path: req.nextUrl.pathname },
-      timestamp: new Date().toISOString()
+    updateMetrics('unhandled_error', { duration: Date.now() - start, error: error as Error })
+    // Always log errors
+    console.error('[UNHANDLED_AUTH_ERROR]', {
+      error,
+      path: request.nextUrl.pathname
     })
-    return NextResponse.redirect(new URL('/error?code=server_error', req.url))
+    return NextResponse.redirect(new URL('/error?code=server_error', request.url))
   }
 })
+
+function updateMetrics(operation: string, data: { duration: number, error?: Error }) {
+  const metric = metrics.get(operation) || { hits: 0, misses: 0, errors: 0, latency: [] }
+  
+  if (data.error) {
+    metric.errors++
+    metric.misses++
+  } else {
+    metric.hits++
+  }
+  
+  metric.latency.push(data.duration)
+  if (metric.latency.length > 100) metric.latency.shift()
+  
+  metrics.set(operation, metric)
+}
 
 export const config = {
   matcher: [

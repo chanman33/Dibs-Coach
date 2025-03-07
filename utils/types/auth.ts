@@ -86,6 +86,7 @@ export interface AuthContext {
     status: string;
     planId: string;
   };
+  isNewUser?: boolean;    // Flag for users in onboarding
 }
 
 export interface AuthOptions {
@@ -108,7 +109,8 @@ export const authContextSchema = z.object({
   subscription: z.object({
     status: z.string(),
     planId: z.string()
-  }).optional()
+  }).optional(),
+  isNewUser: z.boolean().optional()
 });
 
 export class UnauthorizedError extends Error {

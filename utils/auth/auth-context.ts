@@ -1,113 +1,70 @@
 import { cache } from 'react'
 import { auth } from '@clerk/nextjs/server'
-import { createAuthClient } from './auth-client'
-import { cookies } from 'next/headers'
-import { AuthContext, UnauthorizedError, authContextSchema } from '../types/auth'
-import { generateUlid } from '../ulid'
-import { 
-  SYSTEM_ROLES, 
-  USER_CAPABILITIES, 
-  isValidSystemRole,
-  isValidCapability,
-  isValidOrgRole,
-  isValidOrgLevel
-} from '../roles/roles'
-import { SystemRole, UserCapability, OrgRole, OrgLevel } from '../roles/roles'
-import { UserRole } from '@prisma/client'
+import { createUserIfNotExists, getUserById, type UserContext } from './user-management'
+import { SYSTEM_ROLES, USER_CAPABILITIES } from '../roles/roles'
 
-// Cache duration in seconds
-const CACHE_DURATION = 60
-
-// Type guard for SystemRole
-function assertSystemRole(role: string): asserts role is SystemRole {
-  if (!isValidSystemRole(role)) {
-    throw new Error(`Invalid system role: ${role}`)
-  }
-}
-
-// Type for raw Supabase response
-type UserResponse = {
-  ulid: string
-  userId: string
-  systemRole: string
-  capabilities: string[]
-  organizationMember?: Array<{
-    role: string
-    scope: string
-    organization: {
-      level: string
-      status: string
-    }
-  }>
-  subscription?: Array<{
-    status: string
-    plan: {
-      planId: string
-    }
-  }>
-}
-
-// Custom error for missing users
-export class UserNotFoundError extends Error {
-  constructor(userId: string) {
-    super(`User not found in database. UserId: ${userId}`)
-    this.name = 'UserNotFoundError'
+// Custom error for unauthorized access
+export class UnauthorizedError extends Error {
+  constructor(message = 'Unauthorized access') {
+    super(message)
+    this.name = 'UnauthorizedError'
   }
 }
 
 /**
  * Gets the auth context for the current user.
  * Uses Clerk for auth and Supabase for user data/roles.
+ * This function is cached to improve performance.
  */
-export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
+export const getAuthContext = cache(async (): Promise<UserContext | null> => {
   const { userId } = await auth()
+  
   if (!userId) {
     return null
   }
 
-  // Get user data from Supabase
-  const supabase = createAuthClient()
-  const { data: user, error } = await supabase
-    .from('User')
-    .select('ulid, systemRole, capabilities')
-    .eq('userId', userId)
-    .single()
-
-  if (error) {
-    console.error('[AUTH_ERROR]', {
-      code: 'DB_QUERY_ERROR',
-      message: error.message,
-      context: { userId },
-      timestamp: new Date().toISOString()
+  try {
+    // Try to get existing user first
+    const existingUser = await getUserById(userId)
+    
+    if (existingUser) {
+      return existingUser
+    }
+    
+    // If user doesn't exist, create them
+    const newUser = await createUserIfNotExists(userId)
+    
+    return newUser
+  } catch (error) {
+    // Always log errors
+    console.error('[AUTH_CONTEXT] Error retrieving auth context:', {
+      userId,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
     })
-    throw error
-  }
-
-  if (!user) {
-    throw new UserNotFoundError(userId)
-  }
-
-  return {
-    userId,
-    userUlid: user.ulid,
-    systemRole: user.systemRole || SYSTEM_ROLES.USER,
-    capabilities: user.capabilities || []
+    
+    // Return a minimal context as fallback
+    return {
+      userId,
+      userUlid: '',
+      systemRole: SYSTEM_ROLES.USER,
+      capabilities: [USER_CAPABILITIES.MENTEE],
+      isNewUser: true
+    }
   }
 })
 
-// React hook for client components
+/**
+ * React hook for client components to access auth context
+ */
 export function useAuthContext() {
   return cache(getAuthContext)
 }
 
-// Metrics tracking
-const metrics = new Map<string, {
-  hits: number
-  misses: number
-  errors: number
-  latency: number[]
-}>()
-
-export function getAuthMetrics() {
-  return Object.fromEntries(metrics)
+/**
+ * Gets the current user's ID if authenticated
+ */
+export async function getCurrentUserId(): Promise<string | null> {
+  const { userId } = await auth()
+  return userId
 }

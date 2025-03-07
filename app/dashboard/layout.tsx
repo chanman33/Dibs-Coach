@@ -1,78 +1,113 @@
 import { ReactNode } from "react"
 import { redirect } from "next/navigation"
-import { getAuthContext } from "@/utils/auth"
+import { getAuthContext, UserNotFoundError, createUserIfNotExists } from "@/utils/auth"
 import NotAuthorized from "@/components/auth/not-authorized"
 import DashboardTopNav from "./_components/dashboard-top-nav"
 import config from '@/config'
-import { UserNotFoundError } from "@/utils/auth/auth-context"
+import { createAuthClient } from "@/utils/auth"
+import { auth } from "@clerk/nextjs/server"
 
-async function recoverUser(userId: string): Promise<boolean> {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    const response = await fetch(`${baseUrl}/api/auth/recover`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ userId })
-    })
-    
-    if (!response.ok) {
-      throw new Error('Recovery failed')
+// Maximum time to wait for user creation (15 seconds)
+const MAX_WAIT_TIME = 15000
+const POLL_INTERVAL = 1000
+
+async function waitForUser(userId: string): Promise<boolean> {
+  const MAX_ATTEMPTS = 5;
+  const DELAY_MS = 1000;
+  
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const supabase = createAuthClient();
+      const { data: user, error } = await supabase
+        .from('User')
+        .select('ulid, systemRole, capabilities')
+        .eq('userId', userId)
+        .single();
+      
+      // Try to ensure user exists and has roles
+      try {
+        await createUserIfNotExists(userId);
+      } catch (ensureError) {
+        // Always log errors
+        console.error('[DASHBOARD_LAYOUT] Error ensuring user:', {
+          userId,
+          attempt,
+          error: ensureError instanceof Error ? ensureError.message : String(ensureError)
+        });
+      }
+      
+      // Check if user is ready
+      if (user?.ulid && 
+          user?.systemRole && 
+          Array.isArray(user?.capabilities) && 
+          user.capabilities.length > 0) {
+        return true;
+      }
+      
+      // Wait before next attempt
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+      }
+    } catch (error) {
+      // Always log errors
+      console.error('[DASHBOARD_LAYOUT] Error checking user:', {
+        userId,
+        attempt,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+      }
     }
-    
-    const data = await response.json()
-    return data.status === 200
-  } catch (error) {
-    console.error('[DASHBOARD_ERROR] Recovery failed:', error)
-    return false
   }
+  
+  return false;
 }
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   try {
-    // Add debug logging before auth check
-    console.log('[DASHBOARD_LAYOUT] Starting auth context check');
+    const authContext = await getAuthContext();
     
-    // Single auth check that will throw UserNotFoundError if needed
-    const authContext = await getAuthContext()
+    if (!authContext) {
+      redirect('/sign-in');
+    }
     
-    // Log auth context details
-    console.log('[DASHBOARD_LAYOUT] Auth context retrieved:', {
-      userId: authContext.userId,
-      systemRole: authContext.systemRole,
-      capabilities: authContext.capabilities,
-      timestamp: new Date().toISOString()
-    });
-
-    if (!authContext.userId && config.auth.enabled) {
-      console.log('[DASHBOARD_LAYOUT] No userId found with auth enabled');
-      redirect('/sign-in')
+    // Check if user has all required fields
+    const hasCompleteContext = !!(
+      authContext.userId &&
+      authContext.userUlid &&
+      authContext.systemRole &&
+      Array.isArray(authContext.capabilities) &&
+      authContext.capabilities.length > 0
+    );
+    
+    // If user context is incomplete, wait for it to be ready
+    if (!hasCompleteContext) {
+      const userReady = await waitForUser(authContext.userId);
+      
+      if (userReady) {
+        // Redirect to refresh the page with the updated auth context
+        redirect(`/dashboard?t=${Date.now()}`);
+      }
+      
+      // If still not ready, try to ensure user exists
+      try {
+        const user = await createUserIfNotExists(authContext.userId);
+        
+        // Redirect to refresh the page with the updated auth context
+        redirect(`/dashboard?t=${Date.now()}`);
+      } catch (error) {
+        // Always log errors
+        console.error('[DASHBOARD_LAYOUT] Error ensuring user exists:', {
+          userId: authContext.userId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
     }
-
-    if (!config.roles.enabled) {
-      console.log('[DASHBOARD_LAYOUT] Roles disabled, rendering without role check');
-      return (
-        <div className="grid min-h-screen w-full">
-          <DashboardTopNav>
-            {children}
-          </DashboardTopNav>
-        </div>
-      )
-    }
-
-    // Basic auth check - just ensure we have a user with role context
-    if (!authContext.systemRole || !authContext.capabilities?.length) {
-      console.log('[DASHBOARD_LAYOUT] Missing role context:', {
-        systemRole: authContext.systemRole,
-        capabilities: authContext.capabilities
-      });
-      return <NotAuthorized message="User role not found" />
-    }
-
-    console.log('[DASHBOARD_LAYOUT] Role check passed, rendering dashboard');
+    
     return (
-      <div className="grid min-h-screen w-full">
+      <div className="min-h-screen bg-background">
         <DashboardTopNav>
           {children}
         </DashboardTopNav>
@@ -80,45 +115,60 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     )
 
   } catch (error) {
-    // Don't treat NEXT_REDIRECT as an error
-    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
-      throw error; // Re-throw redirect to let Next.js handle it
-    }
-    
-    console.error("[DASHBOARD_ERROR] Auth context error:", {
-      message: error instanceof Error ? error.message : 'Unknown error occurred',
-      name: error instanceof Error ? error.name : 'UnknownError',
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Handle missing user case
+    // If it's a UserNotFoundError, we should wait for user creation
     if (error instanceof UserNotFoundError) {
-      const userId = error.message.match(/UserId: (.*?)$/)?.[1]
-      
+      // Extract userId from error message
+      const userId = error.message.includes('UserId:') 
+        ? error.message.split('UserId:')[1].trim()
+        : null;
+        
       if (userId) {
-        // Show loading state while attempting recovery
-        return (
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="text-center space-y-4">
-              <h2 className="text-2xl font-semibold">Setting up your account...</h2>
-              <p className="text-muted-foreground">This may take a few moments.</p>
-              {/* Hidden iframe to trigger recovery */}
-              <iframe 
-                src={`/api/auth/recover?userId=${userId}`}
-                style={{ display: 'none' }}
-                onLoad={async () => {
-                  // After recovery completes, redirect to refresh the page
-                  window.location.href = '/dashboard'
-                }}
-              />
-            </div>
-          </div>
-        )
+        const userReady = await waitForUser(userId);
+        
+        if (userReady) {
+          // Redirect to refresh the page with the updated auth context
+          redirect(`/dashboard?t=${Date.now()}`);
+        }
+        
+        // If still not ready, try to ensure user exists
+        try {
+          const user = await createUserIfNotExists(userId);
+          
+          // Redirect to refresh the page with the updated auth context
+          redirect(`/dashboard?t=${Date.now()}`);
+        } catch (createError) {
+          // Always log errors
+          console.error('[DASHBOARD_LAYOUT] Error creating user after not found:', {
+            userId,
+            error: createError instanceof Error ? createError.message : String(createError)
+          });
+        }
       }
     }
     
-    // For any other errors, redirect to error page
-    redirect('/error?code=setup_failed')
+    // Always log errors
+    console.error('[DASHBOARD_LAYOUT] Error in dashboard layout:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="p-8 max-w-md">
+          <h1 className="text-2xl font-bold mb-4">Something went wrong</h1>
+          <p className="text-muted-foreground mb-6">
+            We're having trouble loading your dashboard. Please try refreshing the page.
+          </p>
+          <div className="flex justify-center">
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+            >
+              Refresh Page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 }

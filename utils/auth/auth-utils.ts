@@ -1,6 +1,7 @@
 import { auth } from '@clerk/nextjs/server'
+import { getAuthContext, UnauthorizedError } from './auth-context'
+import { getUserById } from './user-management'
 import type { SystemRole, UserCapability } from '../roles/roles'
-import { getUserRoleContext } from '../roles/checkUserRole'
 
 export interface AuthResult {
   authenticated: boolean
@@ -47,7 +48,11 @@ export async function verifyAuth(): Promise<AuthResult> {
 /**
  * Verifies if the current user is authorized (authenticated and has required role/capabilities)
  */
-export async function isAuthorized(): Promise<AuthorizationResult> {
+export async function isAuthorized(options?: {
+  requiredSystemRole?: SystemRole
+  requiredCapabilities?: UserCapability[]
+  requireAll?: boolean
+}): Promise<AuthorizationResult> {
   try {
     const authResult = await verifyAuth()
     if (!authResult.authenticated || !authResult.userId) {
@@ -57,12 +62,48 @@ export async function isAuthorized(): Promise<AuthorizationResult> {
       }
     }
 
-    // Get user's role context
-    const roleContext = await getUserRoleContext(authResult.userId)
-    if (!roleContext) {
+    // If no specific requirements, just being authenticated is enough
+    if (!options || (!options.requiredSystemRole && !options.requiredCapabilities)) {
+      return {
+        authorized: true,
+        message: 'User is authorized'
+      }
+    }
+
+    // Get user's context
+    const userContext = await getAuthContext()
+    if (!userContext) {
       return {
         authorized: false,
-        message: 'User role not found'
+        message: 'User context not found'
+      }
+    }
+
+    // Check system role if required
+    if (options.requiredSystemRole && userContext.systemRole !== options.requiredSystemRole) {
+      return {
+        authorized: false,
+        message: `Required role ${options.requiredSystemRole} not found`
+      }
+    }
+
+    // Check capabilities if required
+    if (options.requiredCapabilities && options.requiredCapabilities.length > 0) {
+      const hasAllRequired = options.requiredCapabilities.every(cap => 
+        userContext.capabilities.includes(cap)
+      )
+      
+      const hasAnyRequired = options.requiredCapabilities.some(cap => 
+        userContext.capabilities.includes(cap)
+      )
+      
+      const requireAll = options.requireAll ?? true
+      
+      if ((requireAll && !hasAllRequired) || (!requireAll && !hasAnyRequired)) {
+        return {
+          authorized: false,
+          message: `Required capabilities not found`
+        }
       }
     }
 

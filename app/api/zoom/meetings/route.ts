@@ -7,7 +7,7 @@ import {
   type ZoomMeeting,
   type ZoomMeetingUpdate,
 } from '@/utils/types/zoom'
-import { ensureUserExists } from '@/utils/auth'
+import { createUserIfNotExists } from '@/utils/auth'
 
 export async function POST(request: NextRequest) {
   const { userId } = await auth()
@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = ZoomMeetingSchema.parse(body)
     
-    const user = await ensureUserExists()
-    if (!user?.ulid) {
+    const user = await createUserIfNotExists(userId)
+    if (!user?.userUlid) {
       console.error('[CREATE_ZOOM_MEETING_ERROR] User not found')
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[CREATE_ZOOM_MEETING_ERROR]', error)
     return NextResponse.json(
-      { error: 'Error creating Zoom meeting' },
+      { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }
@@ -60,8 +60,8 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const validatedData = ZoomMeetingUpdateSchema.parse(body)
     
-    const user = await ensureUserExists()
-    if (!user?.ulid) {
+    const user = await createUserIfNotExists(userId)
+    if (!user?.userUlid) {
       console.error('[UPDATE_ZOOM_MEETING_ERROR] User not found')
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
@@ -85,7 +85,7 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error('[UPDATE_ZOOM_MEETING_ERROR]', error)
     return NextResponse.json(
-      { error: 'Error updating Zoom meeting' },
+      { error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

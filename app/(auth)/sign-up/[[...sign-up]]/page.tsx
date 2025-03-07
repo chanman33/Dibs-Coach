@@ -4,6 +4,8 @@ import { ReadonlyURLSearchParams } from "next/navigation";
 import config from "@/config";
 import { Suspense } from "react";
 
+const ONBOARDING_ROUTE = '/onboarding';
+
 export default async function SignUpPage({
     searchParams,
 }: {
@@ -12,14 +14,6 @@ export default async function SignUpPage({
     if (!config?.auth?.enabled) {
         redirect('/');
     }
-
-    // Wait for searchParams to be ready and safely extract forceRedirectUrl
-    const params = await Promise.resolve(searchParams);
-    const forceRedirectUrl = params instanceof ReadonlyURLSearchParams 
-        ? params.get('forceRedirectUrl')
-        : params.forceRedirectUrl;
-
-    const redirectPath = forceRedirectUrl || "/dashboard";
 
     return (
         <div className="flex min-h-screen justify-center items-center p-4">
@@ -35,8 +29,8 @@ export default async function SignUpPage({
                             card: "shadow-none"
                         }
                     }}
-                    redirectUrl={redirectPath}
-                    afterSignUpUrl={redirectPath}
+                    redirectUrl={ONBOARDING_ROUTE}
+                    afterSignUpUrl={ONBOARDING_ROUTE}
                     signInUrl="/sign-in"
                 />
             </Suspense>
