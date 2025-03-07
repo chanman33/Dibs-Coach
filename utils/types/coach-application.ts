@@ -13,9 +13,6 @@ export type CoachApplicationStatus = typeof COACH_APPLICATION_STATUS[keyof typeo
 
 // Base schema for form submission
 export const coachApplicationFormSchema = z.object({
-  firstName: z.string(),
-  lastName: z.string(),
-  email: z.string().email(),
   phoneNumber: z.string().min(1, "Phone number is required"),
   resume: z.instanceof(File).nullable(),
   linkedIn: z.string().url().optional().nullable(),
@@ -39,7 +36,7 @@ export const CoachApplicationSchema = z.object({
   superPower: z.string(),
   realEstateDomains: z.array(z.enum(Object.values(REAL_ESTATE_DOMAINS) as [string, ...string[]])),
   primaryDomain: z.enum(Object.values(REAL_ESTATE_DOMAINS) as [string, ...string[]]),
-  notes: z.string().nullable(),
+  reviewNotes: z.string().nullable(),
   reviewerUlid: z.string().length(26).nullable(),
   reviewDate: z.string().datetime().nullable(),
   resumeUrl: z.string().nullable(),
@@ -69,7 +66,7 @@ export type CoachApplication = z.infer<typeof CoachApplicationSchema>;
 export const ReviewApplicationInputSchema = z.object({
   applicationUlid: z.string().length(26),
   status: z.enum(Object.values(COACH_APPLICATION_STATUS) as [string, ...string[]]),
-  notes: z.string().optional()
+  reviewNotes: z.string().optional()
 });
 
 export type ReviewApplicationInput = z.infer<typeof ReviewApplicationInputSchema>;
@@ -92,6 +89,8 @@ export type ApplicationResponse = {
   isDraft: boolean;
   createdAt: string;
   updatedAt: string;
+  reviewNotes: string | null;
+  reviewDate: string | null;
   applicant?: {
     ulid: string;
     firstName: string | null;

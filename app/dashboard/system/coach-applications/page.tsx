@@ -20,20 +20,22 @@ import {
   Link as LinkIcon,
   Mail,
   Phone,
-  Clock
+  Clock,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
-import { type ApplicationData, type ApiResponse } from '@/utils/types/coach-application';
-import { 
-  COACH_APPLICATION_STATUS, 
+import { type ApplicationResponse, type ApiResponse } from '@/utils/types/coach-application';
+import {
+  COACH_APPLICATION_STATUS,
   type CoachApplicationStatus,
   REAL_ESTATE_DOMAINS,
   type RealEstateDomain
 } from '@/utils/types/coach';
-import { 
-  getCoachApplication, 
-  reviewCoachApplication, 
-  getResumePresignedUrl, 
-  getAllCoachApplications 
+import {
+  getCoachApplication,
+  reviewCoachApplication,
+  getResumePresignedUrl,
+  getAllCoachApplications
 } from '@/utils/actions/coach-application';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -57,39 +59,49 @@ type StatusFilter = CoachApplicationStatus | 'ALL';
 
 const ITEMS_PER_PAGE = 10;
 
-interface ApplicationResponse {
-  ulid: string;
-  status: CoachApplicationStatus;
-  applicant: {
-    ulid: string;
-    firstName: string | null;
-    lastName: string | null;
-    email: string;
-    phoneNumber: string | null;
-    profileImageUrl: string | null;
-  };
-  reviewer: {
-    ulid: string;
-    firstName: string | null;
-    lastName: string | null;
-  } | null;
-  yearsOfExperience: number;
-  superPower: string;
-  realEstateDomains: RealEstateDomain[];
-  primaryDomain: RealEstateDomain;
-  notes: string | null;
-  reviewDate: string | null;
-  createdAt: string;
-  updatedAt: string;
-  resumeUrl: string | null;
-  linkedIn: string | null;
-  primarySocialMedia: string | null;
-  aboutYou: string | null;
-}
-
 const transformSpecialties = (specialties: string[]): RealEstateDomain[] => {
-  return specialties.filter((specialty): specialty is RealEstateDomain => 
+  return specialties.filter((specialty): specialty is RealEstateDomain =>
     Object.values(REAL_ESTATE_DOMAINS).includes(specialty as RealEstateDomain)
+  );
+};
+
+const CollapsibleText = ({ text, title }: { text: string; title: string }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const maxHeight = isExpanded ? 'none' : '100px';
+
+  return (
+    <div>
+      <h3 className="text-lg font-semibold mb-4">{title}</h3>
+      <div className="relative">
+        <div
+          className={clsx(
+            "text-gray-700 whitespace-pre-wrap overflow-y-auto transition-all duration-200",
+            !isExpanded && "max-h-[100px]"
+          )}
+          style={{ maxHeight }}
+        >
+          {text}
+        </div>
+        {text.length > 200 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="mt-2 flex items-center gap-1 text-gray-600 hover:text-gray-900"
+          >
+            {isExpanded ? (
+              <>
+                Show less <ChevronUp className="h-4 w-4" />
+              </>
+            ) : (
+              <>
+                Show more <ChevronDown className="h-4 w-4" />
+              </>
+            )}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -117,7 +129,7 @@ export default function CoachApplicationsPage() {
     try {
       console.log('[FETCH_APPLICATIONS_START]', 'Fetching coach applications');
       const result = await getAllCoachApplications(null);
-      
+
       if (result.error) {
         console.error('[FETCH_APPLICATIONS_ERROR]', {
           error: result.error,
@@ -125,7 +137,7 @@ export default function CoachApplicationsPage() {
         });
         throw new Error(result.error.message);
       }
-      
+
       if (!result.data) {
         console.error('[FETCH_APPLICATIONS_ERROR]', {
           message: 'No data returned from server',
@@ -148,14 +160,18 @@ export default function CoachApplicationsPage() {
           } : null
         } : 'No applications'
       });
-      
-      // Transform ApplicationData to ApplicationResponse
-      const transformedData: ApplicationResponse[] = result.data
-        .filter((app): app is ApplicationData & { applicant: NonNullable<ApplicationData['applicant']> } => 
-          app.applicant !== null
+
+      // Transform the data to match ApplicationResponse type
+      const transformedData: ApplicationResponse[] = (result.data ?? [])
+        .filter((app): app is NonNullable<typeof app> & { applicant: NonNullable<typeof app['applicant']> } =>
+          app !== null && app.applicant !== null
         )
         .map(app => ({
-          ...app,
+          ulid: app.ulid,
+          status: app.status as CoachApplicationStatus,
+          firstName: app.applicant.firstName,
+          lastName: app.applicant.lastName,
+          phoneNumber: app.applicant.phoneNumber,
           yearsOfExperience: app.yearsOfExperience,
           superPower: app.superPower,
           realEstateDomains: app.realEstateDomains,
@@ -168,9 +184,22 @@ export default function CoachApplicationsPage() {
             email: app.applicant.email,
             phoneNumber: app.applicant.phoneNumber || null,
             profileImageUrl: app.applicant.profileImageUrl || null
-          }
+          },
+          reviewer: app.reviewer ? {
+            ulid: app.reviewer.ulid,
+            firstName: app.reviewer.firstName,
+            lastName: app.reviewer.lastName
+          } : undefined,
+          resumeUrl: app.resumeUrl ?? null,
+          linkedIn: app.linkedIn ?? null,
+          primarySocialMedia: app.primarySocialMedia ?? null,
+          isDraft: app.status === COACH_APPLICATION_STATUS.DRAFT,
+          createdAt: app.createdAt,
+          updatedAt: app.updatedAt,
+          reviewNotes: app.reviewNotes ?? null,
+          reviewDate: app.reviewDate ?? null
         }));
-      
+
       setApplications(transformedData);
     } catch (error) {
       console.error('[FETCH_APPLICATIONS_ERROR]', {
@@ -196,11 +225,11 @@ export default function CoachApplicationsPage() {
     setSelectedApplication(application);
     setIsModalOpen(true);
     setSelectedSpecialties(application.realEstateDomains.map(domain => domain.replace(/_/g, ' ')));
-    setReviewNotes(application.notes || '');
-    
+    setReviewNotes(application.reviewNotes || '');
+
     // Reset resume URL
     setResumeUrl(null);
-    
+
     // Fetch resume URL if available
     if (application.resumeUrl) {
       const fetchResumeUrl = async () => {
@@ -222,7 +251,7 @@ export default function CoachApplicationsPage() {
           });
         }
       };
-      
+
       fetchResumeUrl();
     }
   };
@@ -233,10 +262,7 @@ export default function CoachApplicationsPage() {
       const result = await reviewCoachApplication({
         applicationUlid,
         status,
-        notes: reviewNotes,
-        approvedSpecialties: status === COACH_APPLICATION_STATUS.APPROVED ? selectedSpecialties.filter((s): s is RealEstateDomain => 
-          Object.values(REAL_ESTATE_DOMAINS).includes(s as RealEstateDomain)
-        ) : undefined
+        notes: reviewNotes
       });
 
       if (result.error) {
@@ -254,10 +280,10 @@ export default function CoachApplicationsPage() {
       });
 
       // Reset state and close dialog
-      setIsReviewDialogOpen(false);
+      setIsModalOpen(false);
       setSelectedSpecialties([]);
       setReviewNotes('');
-      
+
       // Refresh applications
       await fetchApplications();
     } catch (error) {
@@ -311,13 +337,13 @@ export default function CoachApplicationsPage() {
   const handleBulkAction = async (status: CoachApplicationStatus) => {
     try {
       const selectedApplications = applications.filter(app => selectedIds.includes(app.ulid));
-      
+
       for (const app of selectedApplications) {
         setProcessingIds(prev => [...prev, app.ulid]);
         await handleReview(app.ulid, status);
         setProcessingIds(prev => prev.filter(id => id !== app.ulid));
       }
-      
+
       setSelectedIds([]);
     } catch (error) {
       console.error('[BULK_ACTION_ERROR]', error);
@@ -340,16 +366,18 @@ export default function CoachApplicationsPage() {
 
   // Add logging to filtered applications
   useEffect(() => {
-    console.log('[FILTERED_APPLICATIONS]', {
-      total: applications.length,
-      filtered: filteredApplications.length,
-      searchTerm: search || 'none',
-      statusFilter,
-      currentPage,
-      itemsPerPage: ITEMS_PER_PAGE,
-      paginatedCount: paginatedApplications.length
-    });
-  }, [applications, filteredApplications, paginatedApplications, search, statusFilter, currentPage]);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[FILTERED_APPLICATIONS]', {
+        total: applications.length,
+        filtered: filteredApplications.length,
+        searchTerm: search || 'none',
+        statusFilter,
+        currentPage,
+        itemsPerPage: ITEMS_PER_PAGE,
+        paginatedCount: paginatedApplications.length
+      });
+    }
+  }, [applications.length, filteredApplications.length, search, statusFilter, currentPage]);
 
   if (loading) {
     return (
@@ -434,8 +462,8 @@ export default function CoachApplicationsPage() {
         ) : (
           <>
             {paginatedApplications.map((application) => (
-              <Card 
-                key={application.ulid} 
+              <Card
+                key={application.ulid}
                 className="hover:shadow-lg transition-shadow"
               >
                 <CardContent className="p-4">
@@ -455,7 +483,7 @@ export default function CoachApplicationsPage() {
                           className="mt-2"
                         />
                       )}
-                      
+
                       <div className="space-y-3">
                         {/* User Details */}
                         <div>
@@ -475,9 +503,9 @@ export default function CoachApplicationsPage() {
                             )}
                           </div>
                         </div>
-                        
+
                         {/* Application Details */}
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-4 gap-4">
                           <div>
                             <p className="text-sm text-muted-foreground">Experience</p>
                             <p className="font-medium">{application.yearsOfExperience} years</p>
@@ -489,29 +517,32 @@ export default function CoachApplicationsPage() {
                             </p>
                           </div>
                           <div>
-                            <p className="text-sm text-muted-foreground">Super Power</p>
-                            <p className="font-medium">{application.superPower}</p>
+                            <p className="text-sm text-muted-foreground">Primary Domain</p>
+                            <Badge variant="outline" className="mt-1">
+                              {application.primaryDomain.replace(/_/g, ' ')}
+                            </Badge>
                           </div>
-                        </div>
-                        
-                        {/* Real Estate Domains */}
-                        {application.realEstateDomains && application.realEstateDomains.length > 0 && (
-                          <div className="mt-3">
-                            <p className="text-sm text-muted-foreground">Real Estate Domains</p>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {application.realEstateDomains.slice(0, 3).map((domain, index) => (
-                                <Badge key={index} variant="secondary" className="text-xs">
-                                  {domain.replace(/_/g, ' ')}
-                                </Badge>
-                              ))}
-                              {application.realEstateDomains.length > 3 && (
-                                <Badge variant="secondary" className="text-xs">
-                                  +{application.realEstateDomains.length - 3}
-                                </Badge>
-                              )}
+                          {application.realEstateDomains && application.realEstateDomains.length > 0 && (
+                            <div>
+                              <p className="text-sm text-muted-foreground">Real Estate Domains</p>
+                              <div className="flex flex-row items-center gap-1 mt-1">
+                                {application.realEstateDomains
+                                  .filter(domain => domain !== application.primaryDomain)
+                                  .slice(0, 2)
+                                  .map((domain, index) => (
+                                    <Badge key={index} variant="secondary" className="text-xs">
+                                      {domain.replace(/_/g, ' ')}
+                                    </Badge>
+                                  ))}
+                                {application.realEstateDomains.filter(domain => domain !== application.primaryDomain).length > 2 && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    +{application.realEstateDomains.filter(domain => domain !== application.primaryDomain).length - 2}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -528,7 +559,7 @@ export default function CoachApplicationsPage() {
                       >
                         {application.status}
                       </Badge>
-                      
+
                       <Button
                         variant="outline"
                         size="sm"
@@ -643,35 +674,49 @@ export default function CoachApplicationsPage() {
 
                 {/* Right Column */}
                 <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">Super Power</h3>
-                    <p className="text-gray-700 whitespace-pre-wrap">
-                      {selectedApplication.superPower}
-                    </p>
-                  </div>
-                  
+
+                  {selectedApplication.aboutYou && (
+                    <CollapsibleText 
+                      text={selectedApplication.aboutYou}
+                      title="About"
+                    />
+                  )}
+
                   {/* Real Estate Domains Section */}
                   {selectedApplication.realEstateDomains && selectedApplication.realEstateDomains.length > 0 && (
                     <div>
                       <h3 className="text-lg font-semibold mb-4">Real Estate Domains</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {selectedApplication.realEstateDomains.map((domain, index) => (
-                          <Badge key={index} variant="outline">
-                            {domain.replace(/_/g, ' ')}
-                          </Badge>
-                        ))}
+                      <div className="flex items-start gap-x-8">
+                        <div>
+                          <Label className="text-sm text-gray-500">Primary Domain</Label>
+                          <div className="mt-1.5">
+                            <Badge variant="secondary" className="text-sm">
+                              {selectedApplication.primaryDomain.replace(/_/g, ' ')}
+                            </Badge>
+                          </div>
+                        </div>
+                        {selectedApplication.realEstateDomains.filter(domain => domain !== selectedApplication.primaryDomain).length > 0 && (
+                          <div className="flex-1">
+                            <Label className="text-sm text-gray-500">Additional Domains</Label>
+                            <div className="flex flex-wrap gap-2 mt-1.5">
+                              {selectedApplication.realEstateDomains
+                                .filter(domain => domain !== selectedApplication.primaryDomain)
+                                .map((domain, index) => (
+                                  <Badge key={index} variant="outline" className="text-sm">
+                                    {domain.replace(/_/g, ' ')}
+                                  </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
 
-                  {selectedApplication.aboutYou && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4">About You</h3>
-                      <p className="text-gray-700 whitespace-pre-wrap">
-                        {selectedApplication.aboutYou}
-                      </p>
-                    </div>
-                  )}
+                  <CollapsibleText 
+                    text={selectedApplication.superPower}
+                    title="Super Power"
+                  />
 
                   {selectedApplication.status === COACH_APPLICATION_STATUS.PENDING && (
                     <div className="space-y-4">
@@ -734,11 +779,11 @@ export default function CoachApplicationsPage() {
                           </p>
                         </div>
                       )}
-                      {selectedApplication.notes && (
+                      {selectedApplication.reviewNotes && (
                         <div>
                           <Label className="text-gray-500">Review Notes</Label>
                           <p className="mt-1 text-gray-700 whitespace-pre-wrap">
-                            {selectedApplication.notes}
+                            {selectedApplication.reviewNotes}
                           </p>
                         </div>
                       )}

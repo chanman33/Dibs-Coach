@@ -469,12 +469,9 @@ export type Database = {
           createdAt: string
           draftData: Json | null
           draftVersion: number
-          firstName: string | null
           isDraft: boolean
-          lastName: string | null
           lastSavedAt: string | null
           linkedIn: string | null
-          phoneNumber: string | null
           primaryDomain: string | null
           primarySocialMedia: string | null
           realEstateDomains: string[] | null
@@ -494,12 +491,9 @@ export type Database = {
           createdAt?: string
           draftData?: Json | null
           draftVersion?: number
-          firstName?: string | null
           isDraft?: boolean
-          lastName?: string | null
           lastSavedAt?: string | null
           linkedIn?: string | null
-          phoneNumber?: string | null
           primaryDomain?: string | null
           primarySocialMedia?: string | null
           realEstateDomains?: string[] | null
@@ -519,12 +513,9 @@ export type Database = {
           createdAt?: string
           draftData?: Json | null
           draftVersion?: number
-          firstName?: string | null
           isDraft?: boolean
-          lastName?: string | null
           lastSavedAt?: string | null
           linkedIn?: string | null
-          phoneNumber?: string | null
           primaryDomain?: string | null
           primarySocialMedia?: string | null
           realEstateDomains?: string[] | null

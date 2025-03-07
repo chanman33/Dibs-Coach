@@ -3,7 +3,7 @@
 import { createAuthClient } from '@/utils/auth'
 import { withServerAction } from '@/utils/middleware/withServerAction'
 import { SYSTEM_ROLES } from '@/utils/roles/roles'
-import { PROFILE_STATUS, ProfileStatus } from '@/utils/types/coach'
+import { PROFILE_STATUS, ProfileStatus, type RealEstateDomain } from '@/utils/types/coach'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
@@ -319,7 +319,7 @@ export async function updateCoachSpecialties({
     const { data, error } = await supabase
       .from('User')
       .update({ 
-        realEstateDomains: specialties,
+        realEstateDomains: specialties as RealEstateDomain[],
         updatedAt: new Date().toISOString()
       })
       .eq('ulid', coachUlid)

@@ -1317,11 +1317,6 @@ model CoachApplication {
   applicantUlid          String   @db.Char(26)
   status                 CoachApplicationStatus @default(PENDING)
 
-  // Basic Information
-  firstName              String?  // From user profile
-  lastName               String?  // From user profile
-  phoneNumber            String?  // Required in form
-
   // Professional Experience
   yearsOfExperience     Int      // Required field
   superPower            String   // Required field

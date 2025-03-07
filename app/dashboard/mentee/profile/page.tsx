@@ -93,13 +93,17 @@ export default function AgentProfilePage() {
             error: applicationResponse.error,
             timestamp: new Date().toISOString()
           })
+          toast.error('Failed to load coach application data')
         } else {
           console.log('[APPLICATION_DATA_UPDATE]', {
             hasData: !!applicationResponse.data,
             status: applicationResponse.data?.status,
             timestamp: new Date().toISOString()
           });
-          setApplication(applicationResponse.data)
+          // Only set application if we have data (null means no application exists)
+          if (applicationResponse.data) {
+            setApplication(applicationResponse.data)
+          }
         }
       } catch (error) {
         console.error('[FETCH_DATA_ERROR]', {

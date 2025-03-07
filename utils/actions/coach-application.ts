@@ -20,14 +20,60 @@ import { coachApplicationFormSchema, type CoachApplicationFormData } from '@/uti
 // Define the status type to match database
 type ApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DRAFT';
 
+// Application Input Schema for submission
+const ApplicationInputSchema = z.object({
+  yearsOfExperience: z.number(),
+  superPower: z.string(),
+  aboutYou: z.string().nullable(),
+  realEstateDomains: z.array(z.enum(Object.values(REAL_ESTATE_DOMAINS) as [string, ...string[]])),
+  primaryDomain: z.enum(Object.values(REAL_ESTATE_DOMAINS) as [string, ...string[]]),
+  phoneNumber: z.string().min(1, "Phone number is required"),
+  resumeUrl: z.string().nullable(),
+  linkedIn: z.string().nullable(),
+  primarySocialMedia: z.string().nullable(),
+  isDraft: z.boolean().default(false)
+});
+
+type ApplicationInput = z.infer<typeof ApplicationInputSchema>;
+
+// Database response type
+type ApplicationData = {
+  ulid: string;
+  status: CoachApplicationStatus;
+  yearsOfExperience: number;
+  superPower: string;
+  realEstateDomains: string[];
+  primaryDomain: string;
+  aboutYou: string | null;
+  resumeUrl: string | null;
+  linkedIn: string | null;
+  primarySocialMedia: string | null;
+  isDraft: boolean;
+  reviewNotes: string | null;
+  reviewDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  applicant: {
+    ulid: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+    phoneNumber: string | null;
+    profileImageUrl: string | null;
+  } | null;
+  reviewer: {
+    ulid: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+};
+
 // Validation schemas
 const CoachApplicationSchema = z.object({
   ulid: z.string().length(26).optional(),
   applicantUlid: z.string().length(26),
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
-  firstName: z.string().nullable(),
-  lastName: z.string().nullable(),
-  phoneNumber: z.string().nullable(),
+  phoneNumber: z.string().min(1, "Phone number is required"),
   yearsOfExperience: z.number(),
   superPower: z.string(),
   aboutYou: z.string().nullable(),
@@ -47,12 +93,12 @@ const CoachApplicationSchema = z.object({
   updatedAt: z.string().datetime().optional()
 })
 
+// Review Application Schema
 const ApplicationReviewSchema = z.object({
-  applicationUlid: ulidSchema,
-  status: z.enum(['pending', 'approved', 'rejected']),
-  approvedSpecialties: z.array(z.string()).optional(),
+  applicationUlid: z.string().length(26),
+  status: z.enum([COACH_APPLICATION_STATUS.PENDING, COACH_APPLICATION_STATUS.APPROVED, COACH_APPLICATION_STATUS.REJECTED]),
   notes: z.string().optional()
-})
+});
 
 // Response types
 type CoachApplication = Database['public']['Tables']['CoachApplication']['Row'];
@@ -81,6 +127,37 @@ type RawApplicationData = {
     phoneNumber: string | null;
     profileImageUrl: string | null;
   };
+  reviewer: {
+    ulid: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+};
+
+// Type for Supabase response
+type CoachApplicationWithRelations = {
+  ulid: string;
+  status: CoachApplicationStatus;
+  yearsOfExperience: number;
+  superPower: string;
+  realEstateDomains: RealEstateDomain[];
+  primaryDomain: RealEstateDomain;
+  aboutYou: string | null;
+  linkedIn: string | null;
+  primarySocialMedia: string | null;
+  resumeUrl: string | null;
+  reviewNotes: string | null;
+  reviewDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+  applicant: {
+    ulid: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+    phoneNumber: string | null;
+    profileImageUrl: string | null;
+  } | null;
   reviewer: {
     ulid: string;
     firstName: string | null;
@@ -127,9 +204,6 @@ async function validateCoachApplicationData(formData: FormData) {
 
   // Convert FormData to object, handling optional fields
   const data = {
-    firstName: formData.get('firstName') as string,
-    lastName: formData.get('lastName') as string,
-    email: formData.get('email') as string,
     phoneNumber: formData.get('phoneNumber') as string,
     yearsOfExperience: parseInt(formData.get('yearsOfExperience') as string),
     superPower: formData.get('superPower') as string,
@@ -144,7 +218,7 @@ async function validateCoachApplicationData(formData: FormData) {
   // Validate input data using form schema
   const validatedFormData = coachApplicationFormSchema.parse(data);
 
-  // Return both validated form data and resume URL
+  // Return validated data with resume URL
   return {
     ...validatedFormData,
     resumeUrl
@@ -158,24 +232,48 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
       const validatedData = await validateCoachApplicationData(formData);
       const supabase = await createAuthClient();
 
+      // First update the user's phone number
+      const { error: userUpdateError } = await supabase
+        .from('User')
+        .update({ 
+          phoneNumber: validatedData.phoneNumber,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('ulid', userUlid);
+
+      if (userUpdateError) {
+        console.error('[SUBMIT_APPLICATION_USER_UPDATE_ERROR]', {
+          error: userUpdateError,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to update user phone number'
+          }
+        };
+      }
+
+      // Then create/update the application
       const applicationData = {
         ulid: generateUlid(),
         applicantUlid: userUlid,
         status: 'PENDING' as const,
         yearsOfExperience: validatedData.yearsOfExperience,
         superPower: validatedData.superPower,
+        aboutYou: validatedData.aboutYou,
         realEstateDomains: validatedData.realEstateDomains,
         primaryDomain: validatedData.primaryDomain,
         resumeUrl: validatedData.resumeUrl || null,
         linkedIn: validatedData.linkedIn,
         primarySocialMedia: validatedData.primarySocialMedia,
-        aboutYou: validatedData.aboutYou,
         isDraft: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
-      const { data: application, error } = await supabase
+      const { data: application, error: applicationError } = await supabase
         .from('CoachApplication')
         .insert(applicationData)
         .select(`
@@ -185,61 +283,96 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
           superPower,
           realEstateDomains,
           primaryDomain,
-          resumeUrl,
+          aboutYou,
           linkedIn,
           primarySocialMedia,
-          aboutYou,
+          resumeUrl,
+          reviewNotes,
+          reviewDate,
           createdAt,
           updatedAt,
-          applicant:User!CoachApplication_applicantUlid_fkey (
+          isDraft,
+          applicant:User!CoachApplication_applicantUlid_fkey(
+            ulid,
             firstName,
             lastName,
             email,
-            phoneNumber
+            phoneNumber,
+            profileImageUrl
+          ),
+          reviewer:User!CoachApplication_reviewerUlid_fkey(
+            ulid,
+            firstName,
+            lastName
           )
         `)
         .single();
 
-      if (error) {
-        console.error('[COACH_APPLICATION_ERROR]', error);
+      if (applicationError) {
+        console.error('[SUBMIT_APPLICATION_ERROR]', {
+          error: applicationError,
+          timestamp: new Date().toISOString()
+        });
         return {
           data: null,
           error: {
-            code: 'DATABASE_ERROR' as const,
+            code: 'DATABASE_ERROR',
             message: 'Failed to submit application'
           }
         };
       }
 
+      // Transform and return the response
+      const transformedData: ApplicationResponse = {
+        ulid: application.ulid,
+        status: application.status as CoachApplicationStatus,
+        firstName: application.applicant?.firstName ?? null,
+        lastName: application.applicant?.lastName ?? null,
+        phoneNumber: application.applicant?.phoneNumber ?? null,
+        yearsOfExperience: application.yearsOfExperience,
+        superPower: application.superPower,
+        aboutYou: application.aboutYou ?? null,
+        realEstateDomains: (application.realEstateDomains ?? []) as RealEstateDomain[],
+        primaryDomain: application.primaryDomain as RealEstateDomain,
+        resumeUrl: application.resumeUrl ?? null,
+        linkedIn: application.linkedIn ?? null,
+        primarySocialMedia: application.primarySocialMedia ?? null,
+        isDraft: application.isDraft ?? false,
+        createdAt: application.createdAt,
+        updatedAt: application.updatedAt,
+        reviewNotes: application.reviewNotes ?? null,
+        reviewDate: application.reviewDate ?? null,
+        applicant: application.applicant ? {
+          ulid: application.applicant.ulid,
+          firstName: application.applicant.firstName,
+          lastName: application.applicant.lastName,
+          email: application.applicant.email,
+          phoneNumber: application.applicant.phoneNumber,
+          profileImageUrl: application.applicant.profileImageUrl
+        } : undefined,
+        reviewer: application.reviewer ? {
+          ulid: application.reviewer.ulid,
+          firstName: application.reviewer.firstName,
+          lastName: application.reviewer.lastName
+        } : undefined
+      };
+
       return {
-        data: {
-          ulid: application.ulid,
-          status: application.status as CoachApplicationStatus,
-          firstName: application.applicant?.firstName ?? null,
-          lastName: application.applicant?.lastName ?? null,
-          phoneNumber: application.applicant?.phoneNumber ?? null,
-          yearsOfExperience: application.yearsOfExperience,
-          superPower: application.superPower,
-          aboutYou: application.aboutYou ?? null,
-          realEstateDomains: (application.realEstateDomains ?? []) as RealEstateDomain[],
-          primaryDomain: application.primaryDomain as RealEstateDomain,
-          resumeUrl: application.resumeUrl ?? null,
-          linkedIn: application.linkedIn ?? null,
-          primarySocialMedia: application.primarySocialMedia ?? null,
-          isDraft: application.status === ('DRAFT' as CoachApplicationStatus),
-          createdAt: application.createdAt,
-          updatedAt: application.updatedAt
-        },
+        data: transformedData,
         error: null
       };
 
     } catch (error) {
-      console.error('[COACH_APPLICATION_ERROR]', error);
+      console.error('[SUBMIT_APPLICATION_ERROR]', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       if (error instanceof z.ZodError) {
         return {
           data: null,
           error: {
-            code: 'VALIDATION_ERROR' as const,
+            code: 'VALIDATION_ERROR',
             message: 'Invalid form data',
             details: error.flatten()
           }
@@ -248,8 +381,9 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
       return {
         data: null,
         error: {
-          code: 'INTERNAL_ERROR' as const,
-          message: 'An unexpected error occurred'
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
         }
       };
     }
@@ -280,6 +414,7 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
           realEstateDomains,
           primaryDomain,
           reviewDate,
+          reviewNotes,
           createdAt,
           updatedAt,
           resumeUrl,
@@ -302,7 +437,7 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
           )
         `)
         .eq('applicantUlid', userUlid)
-        .single() as { data: ApplicationResponse | null, error: any }
+        .single();
 
       console.log('[GET_COACH_APPLICATION_QUERY_RESULT]', {
         hasData: !!application,
@@ -311,37 +446,35 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
         timestamp: new Date().toISOString()
       });
 
-      // If database error, check if it's a schema mismatch
+      // If no application found, return null data without error
+      if (applicationError?.code === 'PGRST116') {
+        console.log('[GET_COACH_APPLICATION_NOT_FOUND]', {
+          userUlid,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: null
+        };
+      }
+
+      // If other database error, log and return error
       if (applicationError) {
         console.error('[GET_COACH_APPLICATION_ERROR]', { 
           userUlid, 
           error: applicationError,
           timestamp: new Date().toISOString()
         });
-
-        // If it's a column does not exist error, log it but treat as no application found
-        if (applicationError.code === '42703') {
-          console.log('[GET_COACH_APPLICATION_SCHEMA_MISMATCH]', {
-            message: 'Schema mismatch detected, treating as no application found',
-            error: applicationError.message,
-            timestamp: new Date().toISOString()
-          });
-          return {
-            data: null,
-            error: null
-          };
-        }
-
         return {
           data: null,
           error: {
-            code: 'FETCH_ERROR',
+            code: 'DATABASE_ERROR',
             message: 'Failed to fetch application'
           }
         };
       }
 
-      // If no application found, return null data without error
+      // If no application found (shouldn't happen with single() but just in case)
       if (!application) {
         console.log('[GET_COACH_APPLICATION_NOT_FOUND]', {
           userUlid,
@@ -376,7 +509,22 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
         primarySocialMedia: application.primarySocialMedia ?? null,
         isDraft: application.isDraft ?? false,
         createdAt: application.createdAt,
-        updatedAt: application.updatedAt
+        updatedAt: application.updatedAt,
+        reviewNotes: application.reviewNotes ?? null,
+        reviewDate: application.reviewDate ?? null,
+        applicant: application.applicant ? {
+          ulid: application.applicant.ulid,
+          firstName: application.applicant.firstName,
+          lastName: application.applicant.lastName,
+          email: application.applicant.email,
+          phoneNumber: application.applicant.phoneNumber,
+          profileImageUrl: application.applicant.profileImageUrl
+        } : undefined,
+        reviewer: application.reviewer ? {
+          ulid: application.reviewer.ulid,
+          firstName: application.reviewer.firstName,
+          lastName: application.reviewer.lastName
+        } : undefined
       };
 
       return {
@@ -422,7 +570,24 @@ export const reviewCoachApplication = withServerAction<ApplicationResponse>(
       // Get the application
       const { data: application, error: fetchError } = await supabase
         .from('CoachApplication')
-        .select('*, applicant:applicantUlid (*)')
+        .select(`
+          ulid,
+          status,
+          yearsOfExperience,
+          superPower,
+          realEstateDomains,
+          primaryDomain,
+          aboutYou,
+          linkedIn,
+          primarySocialMedia,
+          resumeUrl,
+          reviewNotes,
+          reviewDate,
+          createdAt,
+          updatedAt,
+          applicant:User!CoachApplication_applicantUlid_fkey(ulid,firstName,lastName,email,phoneNumber,profileImageUrl),
+          reviewer:User!CoachApplication_reviewerUlid_fkey(ulid,firstName,lastName)
+        `)
         .eq('ulid', data.applicationUlid)
         .single();
 
@@ -437,27 +602,15 @@ export const reviewCoachApplication = withServerAction<ApplicationResponse>(
         };
       }
 
-      // If approving, validate that at least one specialty is approved
-      if (data.status === 'approved' && (!data.approvedSpecialties || data.approvedSpecialties.length === 0)) {
-        return {
-          data: null,
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "Must approve at least one specialty",
-          },
-        };
-      }
-
       // Update application status
       const { error: updateError } = await supabase
         .from('CoachApplication')
         .update({
-          status: data.status.toUpperCase() as 'PENDING' | 'APPROVED' | 'REJECTED',
+          status: data.status,
           reviewerUlid: userUlid,
           reviewDate: new Date().toISOString(),
-          notes: data.notes,
-          updatedAt: new Date().toISOString(),
-          approvedSpecialties: data.approvedSpecialties || []
+          reviewNotes: data.notes,
+          updatedAt: new Date().toISOString()
         })
         .eq('ulid', data.applicationUlid);
 
@@ -473,17 +626,17 @@ export const reviewCoachApplication = withServerAction<ApplicationResponse>(
       }
 
       // If approved, add coach capability and create coach profile
-      if (data.status === 'approved') {
+      if (data.status === COACH_APPLICATION_STATUS.APPROVED && application.applicant) {
         // Add coach capability
-        await addUserCapability(application.applicantUlid, USER_CAPABILITIES.COACH);
+        await addUserCapability(application.applicant.ulid, USER_CAPABILITIES.COACH);
 
-        // Create coach profile with approved specialties
+        // Create coach profile with the domains from application
         const { error: profileError } = await supabase
           .from('CoachProfile')
           .insert({
             ulid: generateUlid(),
-            userUlid: application.applicantUlid,
-            coachSkills: data.approvedSpecialties || [],
+            userUlid: application.applicant.ulid,
+            coachSkills: application.realEstateDomains,
             profileStatus: 'DRAFT',
             completionPercentage: 0,
             createdAt: new Date().toISOString(),
@@ -502,49 +655,43 @@ export const reviewCoachApplication = withServerAction<ApplicationResponse>(
         }
       }
 
-      // Get updated application data
-      const { data: updatedApplication, error: refetchError } = await supabase
-        .from('CoachApplication')
-        .select(`
-          ulid,
-          status,
-          experience,
-          specialties,
-          industrySpecialties,
-          approvedSpecialties,
-          notes,
-          applicationDate,
-          reviewDate,
-          createdAt,
-          updatedAt,
-          applicant:applicantUlid!CoachApplication_applicantUlid_fkey (
-            ulid,
-            firstName,
-            lastName,
-            email
-          ),
-          reviewer:reviewerUlid!CoachApplication_reviewerUlid_fkey (
-            ulid,
-            firstName,
-            lastName
-          )
-        `)
-        .eq('ulid', data.applicationUlid)
-        .single() as unknown as { data: ApplicationResponse | null, error: any };
-
-      if (refetchError) {
-        console.error('[COACH_APPLICATION_REFETCH_ERROR]', refetchError);
-        return {
-          data: null,
-          error: {
-            code: "INTERNAL_ERROR",
-            message: "Failed to fetch updated application",
-          },
-        };
-      }
+      // Transform the data to match ApplicationResponse type
+      const transformedData: ApplicationResponse = {
+        ulid: application.ulid,
+        status: data.status, // Use the new status from the review
+        firstName: application.applicant?.firstName || null,
+        lastName: application.applicant?.lastName || null,
+        phoneNumber: application.applicant?.phoneNumber || null,
+        yearsOfExperience: application.yearsOfExperience,
+        superPower: application.superPower,
+        aboutYou: application.aboutYou,
+        realEstateDomains: application.realEstateDomains as RealEstateDomain[],
+        primaryDomain: application.primaryDomain as RealEstateDomain,
+        resumeUrl: application.resumeUrl,
+        linkedIn: application.linkedIn,
+        primarySocialMedia: application.primarySocialMedia,
+        isDraft: false,
+        createdAt: application.createdAt,
+        updatedAt: application.updatedAt,
+        reviewNotes: data.notes || null,
+        reviewDate: new Date().toISOString(),
+        applicant: application.applicant ? {
+          ulid: application.applicant.ulid,
+          firstName: application.applicant.firstName,
+          lastName: application.applicant.lastName,
+          email: application.applicant.email,
+          phoneNumber: application.applicant.phoneNumber,
+          profileImageUrl: application.applicant.profileImageUrl
+        } : undefined,
+        reviewer: application.reviewer ? {
+          ulid: application.reviewer.ulid,
+          firstName: application.reviewer.firstName,
+          lastName: application.reviewer.lastName
+        } : undefined
+      };
 
       return {
-        data: updatedApplication,
+        data: transformedData,
         error: null,
       };
     } catch (error) {
@@ -702,58 +849,104 @@ export const getAllCoachApplications = withServerAction<ApplicationResponse[]>(
           superPower,
           realEstateDomains,
           primaryDomain,
+          reviewDate,
+          reviewNotes,
+          createdAt,
+          updatedAt,
           resumeUrl,
           linkedIn,
           primarySocialMedia,
           aboutYou,
-          createdAt,
-          updatedAt,
+          isDraft,
           applicant:User!CoachApplication_applicantUlid_fkey (
+            ulid,
             firstName,
             lastName,
-            phoneNumber
+            email,
+            phoneNumber,
+            profileImageUrl
+          ),
+          reviewer:User!CoachApplication_reviewerUlid_fkey (
+            ulid,
+            firstName,
+            lastName
           )
         `)
+        .order('createdAt', { ascending: false });
 
       if (applicationsError) {
-        console.error('[GET_ALL_APPLICATIONS_ERROR]', applicationsError);
+        console.error('[GET_ALL_APPLICATIONS_ERROR]', {
+          error: applicationsError,
+          timestamp: new Date().toISOString()
+        });
         return {
           data: null,
           error: {
-            code: 'INTERNAL_ERROR',
+            code: 'DATABASE_ERROR',
             message: 'Failed to fetch applications'
           }
         };
       }
 
+      if (!applications) {
+        return {
+          data: [],
+          error: null
+        };
+      }
+
+      // Transform the data to match ApplicationResponse type
+      const transformedData: ApplicationResponse[] = applications.map(app => ({
+        ulid: app.ulid,
+        status: app.status as CoachApplicationStatus,
+        firstName: app.applicant?.firstName ?? null,
+        lastName: app.applicant?.lastName ?? null,
+        phoneNumber: app.applicant?.phoneNumber ?? null,
+        yearsOfExperience: app.yearsOfExperience,
+        superPower: app.superPower,
+        aboutYou: app.aboutYou ?? null,
+        realEstateDomains: (app.realEstateDomains ?? []) as RealEstateDomain[],
+        primaryDomain: app.primaryDomain as RealEstateDomain,
+        resumeUrl: app.resumeUrl ?? null,
+        linkedIn: app.linkedIn ?? null,
+        primarySocialMedia: app.primarySocialMedia ?? null,
+        isDraft: false,
+        createdAt: app.createdAt,
+        updatedAt: app.updatedAt,
+        reviewNotes: app.reviewNotes ?? null,
+        reviewDate: app.reviewDate ?? null,
+        applicant: app.applicant ? {
+          ulid: app.applicant.ulid,
+          firstName: app.applicant.firstName,
+          lastName: app.applicant.lastName,
+          email: app.applicant.email,
+          phoneNumber: app.applicant.phoneNumber,
+          profileImageUrl: app.applicant.profileImageUrl
+        } : undefined,
+        reviewer: app.reviewer ? {
+          ulid: app.reviewer.ulid,
+          firstName: app.reviewer.firstName,
+          lastName: app.reviewer.lastName
+        } : undefined
+      }));
+
       return {
-        data: applications?.map(app => ({
-          ulid: app.ulid,
-          status: app.status as CoachApplicationStatus,
-          firstName: app.applicant?.firstName ?? null,
-          lastName: app.applicant?.lastName ?? null,
-          phoneNumber: app.applicant?.phoneNumber ?? null,
-          yearsOfExperience: app.yearsOfExperience,
-          superPower: app.superPower,
-          aboutYou: app.aboutYou ?? null,
-          realEstateDomains: (app.realEstateDomains ?? []) as RealEstateDomain[],
-          primaryDomain: app.primaryDomain as RealEstateDomain,
-          resumeUrl: app.resumeUrl ?? null,
-          linkedIn: app.linkedIn ?? null,
-          primarySocialMedia: app.primarySocialMedia ?? null,
-          isDraft: app.status === ('DRAFT' as CoachApplicationStatus),
-          createdAt: app.createdAt,
-          updatedAt: app.updatedAt
-        })) ?? null,
+        data: transformedData,
         error: null
       };
+
     } catch (error) {
-      console.error('[GET_ALL_APPLICATIONS_ERROR]', error);
+      console.error('[GET_ALL_APPLICATIONS_ERROR]', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       return {
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'Failed to fetch applications'
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
         }
       };
     }
