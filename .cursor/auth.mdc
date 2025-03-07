@@ -1,0 +1,153 @@
+---
+description: Authentication & User Flow Rules
+globs: 
+alwaysApply: true
+---
+# Authentication & User Flow Rules
+version: 1.0
+
+# Core Authentication Flow
+auth_flow:
+  provider: "Supabase Auth"
+  implementation:
+    client_side:
+      - "Use createBrowserClient from @supabase/ssr"
+      - "Initialize in utils/supabase/client.ts"
+    server_side:
+      - "Use createServerClient from @supabase/ssr"
+      - "Initialize in utils/supabase/server.ts"
+      - "Always use cookies() from next/headers"
+
+# User Flow States
+user_states:
+  unauthenticated:
+    - "No session"
+    - "Limited access to public routes"
+    - "Redirect to /signin for protected routes"
+  authenticated:
+    - "Valid session exists"
+    - "Access to protected routes based on role"
+    - "Profile may be incomplete"
+  complete_profile:
+    - "Valid session"
+    - "Required profile fields completed"
+    - "Full access to role-specific features"
+
+# Sign Up Flow
+signup_flow:
+  steps:
+    1. "Email/password or OAuth provider signup"
+    2. "Automatic redirect to profile completion"
+    3. "Store user data in Supabase"
+    4. "Generate ULID for database ID"
+  required_data:
+    - "email (from auth provider)"
+    - "name (from auth provider or form)"
+    - "ulid (generated)"
+  database_tables:
+    - "auth.users (managed by Supabase)"
+    - "public.User (our application user data)"
+
+# Sign In Flow
+signin_flow:
+  methods:
+    - "Email/password"
+    - "OAuth providers"
+  validation:
+    - "Check for existing session"
+    - "Verify email verification status"
+    - "Check profile completion status"
+  redirects:
+    - "/ for complete profiles"
+    - "/onboarding for incomplete profiles"
+
+# Protected Routes
+route_protection:
+  middleware:
+    location: "middleware.ts"
+    checks:
+      - "Valid session exists"
+      - "User profile exists"
+      - "Required role/permissions"
+  public_routes:
+    - "/signin"
+    - "/signup"
+    - "/api/auth/*"
+  protected_routes:
+    - "/dashboard/*"
+    - "/settings/*"
+    - "/api/*"
+
+# Database Schema
+database_schema:
+  auth_tables:
+    - "auth.users (Supabase managed)"
+  app_tables:
+    User:
+      required_fields:
+        - "ulid: String @id @db.Char(26)"
+        - "email: String @unique"
+        - "name: String"
+        - "authUserId: String @unique"
+      timestamps:
+        - "createdAt: DateTime @default(now())"
+        - "updatedAt: DateTime @updatedAt"
+
+# Error Handling
+error_handling:
+  auth_errors:
+    format: |
+      {
+        code: string
+        message: string
+        details?: Record<string, any>
+      }
+    logging:
+      format: |
+        console.error('[AUTH_ERROR]', {
+          code,
+          message,
+          context: { userId, path, timestamp }
+        })
+
+# Security Rules
+security:
+  session:
+    - "Server-side session validation"
+    - "Secure cookie handling"
+    - "CSRF protection"
+  tokens:
+    - "Refresh token rotation"
+    - "Access token expiration"
+  headers:
+    - "Strict security headers"
+    - "CORS configuration"
+
+# Implementation Files
+required_files:
+  utils:
+    - "utils/supabase/client.ts"
+    - "utils/supabase/server.ts"
+    - "utils/auth/session.ts"
+  components:
+    - "components/auth/SignInForm.tsx"
+    - "components/auth/SignUpForm.tsx"
+  api:
+    - "app/api/auth/callback/route.ts"
+  middleware:
+    - "middleware.ts"
+
+# Best Practices
+best_practices:
+  security:
+    - "Never store sensitive data in localStorage"
+    - "Always validate sessions server-side"
+    - "Use environment variables for secrets"
+  performance:
+    - "Minimize auth checks"
+    - "Cache session state"
+    - "Efficient role checking"
+  ux:
+    - "Clear error messages"
+    - "Smooth auth transitions"
+    - "Persistent login state"
