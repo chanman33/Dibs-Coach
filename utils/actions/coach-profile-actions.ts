@@ -1,6 +1,6 @@
 'use server'
 
-import { createAuthClient, getUserUlidAndRole } from "../auth"
+import { createAuthClient } from "../auth"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { revalidatePath } from "next/cache"
@@ -139,7 +139,8 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
             status,
             verificationUrl,
             certificateUrl,
-            expiryDate
+            expiryDate,
+            coachProfileUlid
           )
         `)
         .eq("userUlid", userUlid)
@@ -164,7 +165,10 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       // Get active recognitions from the coach profile
       const activeRecognitions = coachProfile?.ProfessionalRecognition?.filter(
         (recognition: any) => recognition.isVisible
-      ) || [];
+      ).map((recognition: any) => ({
+        ...recognition,
+        coachProfileUlid: coachProfile.ulid
+      })) || [];
 
       const profileData = {
         firstName: userData?.firstName,
@@ -611,68 +615,77 @@ export async function createCoachProfileIfNeeded(userUlid: string) {
   }
 } 
 
-export async function saveCoachSkills({
-  skills
-}: {
-  skills: string[]
-}) {
-  'use server'
+export const saveCoachSkills = withServerAction<{ skills: string[] }, { skills: string[] }>(
+  async ({ skills }, { userUlid }) => {
+    try {
+      const supabase = await createAuthClient();
 
-  try {
-    const { userId } = await auth();
-    if (!userId) {
-      return { data: null, error: { message: 'Not authenticated' } };
-    }
+      // Get the existing profile
+      const { data: profile, error: profileError } = await supabase
+        .from('CoachProfile')
+        .select('ulid')
+        .eq('userUlid', userUlid)
+        .single();
 
-    const supabase = await createAuthClient();
-    const { userUlid } = await getUserUlidAndRole(userId);
+      if (profileError) {
+        console.error('[SAVE_COACH_SKILLS_ERROR]', {
+          error: profileError,
+          userUlid,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Coach profile not found',
+            details: profileError
+          }
+        };
+      }
 
-    // Get the existing profile
-    const { data: profile, error: profileError } = await supabase
-      .from('CoachProfile')
-      .select('ulid')
-      .eq('userUlid', userUlid)
-      .single();
+      // Update skills on existing profile
+      const { data, error: updateError } = await supabase
+        .from('CoachProfile')
+        .update({
+          coachSkills: skills,
+          updatedAt: new Date().toISOString()
+        })
+        .eq('ulid', profile.ulid)
+        .select()
+        .single();
 
-    if (profileError) {
+      if (updateError) {
+        console.error('[SAVE_COACH_SKILLS_ERROR]', {
+          error: updateError,
+          userUlid,
+          profileUlid: profile.ulid,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to update skills',
+            details: updateError
+          }
+        };
+      }
+
+      revalidatePath('/dashboard/coach/profile');
+      return { data: { skills }, error: null };
+    } catch (error) {
       console.error('[SAVE_COACH_SKILLS_ERROR]', {
-        error: profileError,
-        userId,
-        userUlid,
+        error,
         timestamp: new Date().toISOString()
       });
-      return { data: null, error: { message: 'Coach profile not found' } };
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to save skills',
+          details: error instanceof Error ? error.message : String(error)
+        }
+      };
     }
-
-    // Update skills on existing profile
-    const { data, error: updateError } = await supabase
-      .from('CoachProfile')
-      .update({
-        coachSkills: skills,
-        updatedAt: new Date().toISOString()
-      })
-      .eq('ulid', profile.ulid)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('[SAVE_COACH_SKILLS_ERROR]', {
-        error: updateError,
-        userId,
-        userUlid,
-        profileUlid: profile.ulid,
-        timestamp: new Date().toISOString()
-      });
-      return { data: null, error: { message: 'Failed to update skills' } };
-    }
-
-    revalidatePath('/dashboard/coach/profile');
-    return { data: { skills }, error: null };
-  } catch (error) {
-    console.error('[SAVE_COACH_SKILLS_ERROR]', {
-      error,
-      timestamp: new Date().toISOString()
-    });
-    return { data: null, error: { message: 'Failed to save skills' } };
   }
-} 
+); 

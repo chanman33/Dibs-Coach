@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Target, Clock, ArrowUpRight, TrendingUp, DollarSign, Star, MessageSquare, Zap, BookOpen, Award, CalendarRange, AlertOctagon, Video } from "lucide-react"
-import { withRole } from "@/components/wrapper/with-role"
+import { WithAuth } from "@/components/auth/with-auth"
 import { USER_CAPABILITIES } from "@/utils/roles/roles"
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -400,5 +400,8 @@ function CoachDashboard() {
     </div>
   )
 }
-export default withRole(CoachDashboard, { requiredCapabilities: [USER_CAPABILITIES.COACH] })
+
+export default WithAuth(CoachDashboard, {
+  requiredCapabilities: [USER_CAPABILITIES.COACH]
+});
 
