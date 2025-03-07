@@ -30,8 +30,9 @@ import {
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { updateCoachSpecialties } from '@/utils/actions/admin-coach-actions'
+import { updateRealEstateDomains } from '@/utils/actions/admin-coach-actions'
 import { toast } from 'sonner'
+import { Progress } from '@/components/ui/progress'
 
 // Available real estate domains
 const REAL_ESTATE_DOMAINS = [
@@ -85,9 +86,9 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
     if (!selectedCoach) return
 
     try {
-      const result = await updateCoachSpecialties({
+      const result = await updateRealEstateDomains({
         coachUlid: selectedCoach.userUlid,
-        specialties: selectedDomains
+        domains: selectedDomains
       })
 
       if (result.error) {
@@ -139,49 +140,82 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
                       {domain}
                     </Badge>
                   ))}
+                  {profile.realEstateDomains?.length === 0 && (
+                    <span className="text-xs text-muted-foreground italic">None specified</span>
+                  )}
                 </div>
               </TableCell>
-              <TableCell>{profile.completionPercentage}%</TableCell>
-              <TableCell>${profile.hourlyRate}/hr</TableCell>
-              <TableCell>{formatDate(profile.updatedAt)}</TableCell>
               <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0">
-                      <span className="sr-only">Open menu</span>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleOpenDomains(profile)}>
-                      <Tags className="mr-2 h-4 w-4" />
-                      Edit Domains
-                    </DropdownMenuItem>
-                    {profile.profileStatus === 'DRAFT' && (
-                      <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'PUBLISHED')}>
-                        Publish Profile
-                      </DropdownMenuItem>
-                    )}
-                    {profile.profileStatus === 'PUBLISHED' && (
-                      <>
+                <div className="flex items-center gap-2">
+                  <Progress value={profile.completionPercentage} className="w-24 h-2" />
+                  <span className="text-sm font-medium">{profile.completionPercentage}%</span>
+                </div>
+              </TableCell>
+              <TableCell>
+                {profile.hourlyRate > 0 ? (
+                  <span className="font-medium">${profile.hourlyRate}/hr</span>
+                ) : (
+                  <span className="text-muted-foreground text-sm">Not set</span>
+                )}
+              </TableCell>
+              <TableCell>
+                <span className="text-sm text-muted-foreground">{formatDate(profile.updatedAt)}</span>
+              </TableCell>
+              <TableCell>
+                <div className="flex items-center gap-1">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleOpenDomains(profile)}
+                    className="h-8 px-2"
+                  >
+                    <Tags className="h-4 w-4 mr-1" />
+                    Domains
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="h-8 w-8 p-0">
+                        <span className="sr-only">Open menu</span>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {profile.profileStatus === 'DRAFT' && (
+                        <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'PUBLISHED')}>
+                          Publish Profile
+                        </DropdownMenuItem>
+                      )}
+                      {profile.profileStatus === 'PUBLISHED' && (
+                        <>
+                          <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'DRAFT')}>
+                            Unpublish Profile
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'ARCHIVED')}>
+                            Archive Profile
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      {profile.profileStatus === 'ARCHIVED' && (
                         <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'DRAFT')}>
-                          Unpublish Profile
+                          Restore Profile
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'ARCHIVED')}>
-                          Archive Profile
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                    {profile.profileStatus === 'ARCHIVED' && (
-                      <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'DRAFT')}>
-                        Restore Profile
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </TableCell>
             </TableRow>
           ))}
+          {profiles.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={7} className="h-24 text-center">
+                <div className="flex flex-col items-center justify-center text-muted-foreground">
+                  <p>No coach profiles found</p>
+                  <p className="text-sm">Try adjusting your filters</p>
+                </div>
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
 

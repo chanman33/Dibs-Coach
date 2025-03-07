@@ -3,7 +3,7 @@
 import { createAuthClient } from '@/utils/auth'
 import { withServerAction } from '@/utils/middleware/withServerAction'
 import { SYSTEM_ROLES } from '@/utils/roles/roles'
-import { PROFILE_STATUS, ProfileStatus, type RealEstateDomain } from '@/utils/types/coach'
+import { PROFILE_STATUS, ProfileStatus, type RealEstateDomain, REAL_ESTATE_DOMAINS } from '@/utils/types/coach'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
@@ -302,24 +302,53 @@ export const fetchCoachProfile = withServerAction<CoachProfileData, string>(
 export async function refreshCoachManagement() {
   'use server'
   revalidatePath('/dashboard/system/coach-mgmt')
+  return { success: true }
 }
 
-export async function updateCoachSpecialties({
+/**
+ * Updates a coach's real estate domains
+ * This replaces the previous updateCoachSpecialties function which had issues with type casting
+ */
+export async function updateRealEstateDomains({
   coachUlid,
-  specialties
+  domains
 }: {
   coachUlid: string
-  specialties: string[]
+  domains: string[]
 }) {
   'use server'
   
   try {
     const supabase = await createAuthClient()
     
+    // Validate that all domains are valid RealEstateDomain values
+    const validDomains = domains.filter(domain => 
+      Object.values(REAL_ESTATE_DOMAINS).includes(domain as RealEstateDomain)
+    ) as RealEstateDomain[]
+    
+    // First fetch the existing user data to ensure we're not losing any information
+    const { data: existingUser, error: fetchError } = await supabase
+      .from('User')
+      .select('*')
+      .eq('ulid', coachUlid)
+      .single()
+    
+    if (fetchError) {
+      console.error('[FETCH_USER_ERROR]', fetchError)
+      return { 
+        data: null, 
+        error: { 
+          message: 'Failed to fetch user data',
+          details: fetchError.message
+        } 
+      }
+    }
+    
+    // Now perform the update with only the fields we want to change
     const { data, error } = await supabase
       .from('User')
       .update({ 
-        realEstateDomains: specialties as RealEstateDomain[],
+        realEstateDomains: validDomains,
         updatedAt: new Date().toISOString()
       })
       .eq('ulid', coachUlid)
@@ -327,14 +356,26 @@ export async function updateCoachSpecialties({
       .single()
 
     if (error) {
-      console.error('[UPDATE_SPECIALTIES_ERROR]', error)
-      return { data: null, error: { message: 'Failed to update domains' } }
+      console.error('[UPDATE_DOMAINS_ERROR]', error)
+      return { 
+        data: null, 
+        error: { 
+          message: 'Failed to update domains',
+          details: error.message
+        } 
+      }
     }
 
     revalidatePath('/dashboard/system/coach-mgmt')
     return { data, error: null }
   } catch (error) {
-    console.error('[UPDATE_SPECIALTIES_ERROR]', error)
-    return { data: null, error: { message: 'Failed to update domains' } }
+    console.error('[UPDATE_DOMAINS_ERROR]', error)
+    return { 
+      data: null, 
+      error: { 
+        message: 'Failed to update domains',
+        details: error instanceof Error ? error.message : String(error)
+      } 
+    }
   }
 } 
