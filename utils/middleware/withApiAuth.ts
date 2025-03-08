@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createAuthClient } from '@/utils/auth'
 import { ApiResponse } from '@/utils/types/api'
 import { getAuthContext } from '@/utils/auth/auth-context'
-import { createAuthMiddleware } from '@/utils/auth/auth-middleware'
+import authMiddleware from '@/utils/auth/auth-middleware'
 import { AuthContext, AuthOptions, UnauthorizedError } from '@/utils/types/auth'
 import { 
   SystemRole, 
@@ -15,7 +16,8 @@ import {
   hasOrgRole,
   hasPermission,
   hasCapability,
-  UserRoleContext
+  UserRoleContext,
+  USER_CAPABILITIES
 } from '@/utils/roles/roles'
 import type { Database } from '@/types/supabase'
 
@@ -38,7 +40,7 @@ interface ApiAuthOptions {
 }
 
 type ApiHandler<T = any> = (
-  req: Request,
+  req: NextRequest,
   ctx: AuthContext
 ) => Promise<NextResponse<ApiResponse<T>>>
 
@@ -60,8 +62,52 @@ export function withApiAuth<T>(handler: ApiHandler<T>, options: AuthOptions = {}
   return async (req: Request) => {
     try {
       const context = await getAuthContext()
-      await createAuthMiddleware(options)(context)
-      return handler(req, context)
+      if (!context) {
+        throw new UnauthorizedError('No auth context available')
+      }
+
+      // Convert Request to NextRequest for middleware
+      const nextReq = new Request(req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: req.body,
+        cache: req.cache,
+        credentials: req.credentials,
+        integrity: req.integrity,
+        keepalive: req.keepalive,
+        mode: req.mode,
+        redirect: req.redirect,
+        referrer: req.referrer,
+        referrerPolicy: req.referrerPolicy,
+        signal: req.signal,
+      }) as unknown as NextRequest
+
+      // Run auth middleware
+      const middlewareResponse = await authMiddleware(nextReq)
+      if (middlewareResponse instanceof NextResponse) {
+        return middlewareResponse
+      }
+
+      // Check additional auth options if provided
+      if (options.requiredSystemRole && !hasSystemRole(context.systemRole, options.requiredSystemRole)) {
+        throw new UnauthorizedError(`Required system role ${options.requiredSystemRole} not found`)
+      }
+
+      if (options.requiredCapabilities?.length) {
+        const hasRequiredCapabilities = options.requireAll
+          ? options.requiredCapabilities.every(cap => 
+              context.capabilities.includes(cap as keyof typeof USER_CAPABILITIES)
+            )
+          : options.requiredCapabilities.some(cap => 
+              context.capabilities.includes(cap as keyof typeof USER_CAPABILITIES)
+            )
+
+        if (!hasRequiredCapabilities) {
+          throw new UnauthorizedError('Required capabilities not found')
+        }
+      }
+
+      return handler(nextReq as NextRequest, context)
     } catch (error) {
       return handleAuthError(error)
     }

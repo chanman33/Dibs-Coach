@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { CoachProfileModal } from './CoachProfileModal'
+import { CoachProfileModal } from '../profile/common/CoachProfileModal'
 import { DEFAULT_AVATARS } from '@/utils/constants'
 import { SessionConfig } from '@/utils/types/browse-coaches'
 

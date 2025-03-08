@@ -43,12 +43,12 @@ interface BookedSession {
 }
 
 // Fetch coach availability schedule
-export const fetchCoachAvailability = withServerAction<AvailabilityResponse | null, { coachDbId?: number }>(
+export const fetchCoachAvailability = withServerAction<AvailabilityResponse | null, { coachDbId?: string }>(
   async (params, { userUlid, roleContext }) => {
     try {
       // If coachDbId is provided, use it to fetch that coach's availability
       // Otherwise, use the current user's ID (for coaches viewing their own schedule)
-      const targetUserUlid = params.coachDbId ? params.coachDbId.toString() : userUlid
+      const targetUserUlid = params.coachDbId || userUlid
 
       // Only allow coaches to view their own schedule, or anyone to view a coach's schedule
       if (!params.coachDbId && !roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {

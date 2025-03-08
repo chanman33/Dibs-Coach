@@ -5,6 +5,7 @@ import { SessionRate } from './session'
 // Base Calendly Types
 export interface CalendlyStatus {
   connected: boolean
+  message?: string
   schedulingUrl?: string
   expiresAt?: string
   isExpired?: boolean

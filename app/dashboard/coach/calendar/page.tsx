@@ -18,7 +18,7 @@ export default function CoachCalendarPage() {
   const { status, isLoading: isCalendlyLoading, handleConnect } = useCalendlyConnection()
   const [isLoadingBusyTimes, setIsLoadingBusyTimes] = useState(false)
   const [busyTimes, setBusyTimes] = useState<any[]>([])
-  const [coachDbId, setCoachDbId] = useState<number | null>(null)
+  const [coachDbId, setCoachDbId] = useState<string | null>(null)
 
   // Fetch coach's database ID using server action
   const { data: dbId, isLoading: isLoadingDbId } = useQuery({

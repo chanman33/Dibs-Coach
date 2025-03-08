@@ -3,7 +3,7 @@ import { Calendar, momentLocalizer, View, ToolbarProps } from 'react-big-calenda
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import '@/styles/calendar.css'
-import { Loader2, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react"
+import { Loader2, RefreshCw, ChevronLeft, ChevronRight, XCircle, CheckCircle2 } from "lucide-react"
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -26,6 +26,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { VirtualizedList } from '../ui/virtualized-list'
+import { cn } from '@/lib/utils'
 
 const localizer = momentLocalizer(moment)
 
@@ -128,33 +129,76 @@ const EventComponent: React.FC<{ event: CalendarEvent }> = ({ event }) => (
 
 const SessionCard: React.FC<{ session: ExtendedSession; userRole: 'coach' | 'mentee' }> = ({ session, userRole }) => {
   return (
-    <div className="p-2 border rounded-lg">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <p className="font-medium">
-            {session.otherParty.firstName} {session.otherParty.lastName}
-          </p>
-          <Badge className={getStatusColor(session.status)}>
+    <div className="p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start justify-between">
+          <div className="space-y-1">
+            <p className="font-medium">
+              {session.otherParty.firstName} {session.otherParty.lastName}
+            </p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>{moment(session.startTime).format('ddd, MMM D')}</span>
+              <span>·</span>
+              <span>{moment(session.startTime).format('h:mm A')}</span>
+              <span>·</span>
+              <span>{session.durationMinutes}m</span>
+            </div>
+          </div>
+          <Badge 
+            variant="outline"
+            className={cn(
+              "capitalize font-medium",
+              session.status.toLowerCase() === 'scheduled' && "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100",
+              session.status.toLowerCase() === 'completed' && "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+              session.status.toLowerCase() === 'cancelled' && "border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+              session.status.toLowerCase() === 'no_show' && "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
+            )}
+          >
             {formatStatusText(session.status)}
           </Badge>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>{moment(session.startTime).format('MMM D, h:mm A')}</span>
-          <span>·</span>
-          <span>{session.durationMinutes}m</span>
-        </div>
+        {session.status.toLowerCase() === 'scheduled' && (
+          <div className="flex items-center gap-2 text-sm">
+            <Button variant="outline" size="sm" className="w-full h-7">
+              Join Meeting
+            </Button>
+            <Button variant="outline" size="sm" className="w-full h-7">
+              Reschedule
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-const NoSessionsPrompt: React.FC<{ userRole: 'coach' | 'mentee' }> = ({ userRole }) => {
+const NoSessionsPrompt: React.FC<{ userRole: 'coach' | 'mentee'; isCalendlyConnected?: boolean }> = ({ userRole, isCalendlyConnected }) => {
   if (userRole === 'coach') {
+    if (!isCalendlyConnected) {
+      return (
+        <div className="flex flex-col items-center justify-center text-center space-y-3 py-6">
+          <h3 className="text-base font-semibold text-muted-foreground">Connect Your Calendly</h3>
+          <p className="text-sm text-muted-foreground max-w-[300px]">
+            To start accepting coaching sessions, please connect your Calendly account. This will sync your availability and allow mentees to book sessions with you.
+          </p>
+          <div className="flex flex-col gap-2 w-full max-w-[200px]">
+            <Button variant="default" size="sm" className="w-full">
+              Connect Calendly
+            </Button>
+            <Link href="/dashboard/coach/availability">
+              <Button variant="outline" size="sm" className="w-full">
+                Manage Availability
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="flex flex-col items-center justify-center text-center space-y-3 py-6">
         <h3 className="text-base font-semibold text-muted-foreground">No Sessions Found</h3>
         <p className="text-sm text-muted-foreground max-w-[250px]">
-          Booked sessions will display here. Make sure your Calendly is connected and coaching availability is up to date.
+          Booked sessions will display here. Make sure your coaching availability is up to date.
         </p>
         <Link href="/dashboard/coach/availability">
           <Button variant="outline" size="sm" className="mt-2">
@@ -176,6 +220,92 @@ const NoSessionsPrompt: React.FC<{ userRole: 'coach' | 'mentee' }> = ({ userRole
           Find a Coach
         </Button>
       </Link>
+    </div>
+  )
+}
+
+const CalendlyStatus: React.FC<{
+  isConnected?: boolean;
+  isLoading?: boolean;
+  onConnect?: () => void;
+}> = ({ isConnected, isLoading, onConnect }) => {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <span>Checking Calendly...</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 w-full justify-between bg-background rounded-md border px-3 py-2">
+      <div className="flex items-center gap-2">
+        {!isConnected ? (
+          <div className="flex items-center gap-2 text-destructive">
+            <XCircle className="h-4 w-4 shrink-0" />
+            <span className="text-sm font-medium">Calendly Not Connected</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-emerald-600">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span className="text-sm font-medium">Calendly Connected</span>
+          </div>
+        )}
+      </div>
+      {!isConnected && (
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={onConnect}
+          className="h-7 hover:bg-destructive/10 hover:text-destructive"
+        >
+          Connect
+        </Button>
+      )}
+    </div>
+  )
+}
+
+const AvailabilityStatus: React.FC<{
+  hasAvailability?: boolean;
+  isLoading?: boolean;
+  onManage?: () => void;
+}> = ({ hasAvailability, isLoading, onManage }) => {
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground animate-pulse">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        <span>Checking availability...</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 w-full justify-between bg-background rounded-md border px-3 py-2">
+      <div className="flex items-center gap-2">
+        {!hasAvailability ? (
+          <div className="flex items-center gap-2 text-destructive">
+            <XCircle className="h-4 w-4 shrink-0" />
+            <span className="text-sm font-medium">Availability Not Set</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-emerald-600">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            <span className="text-sm font-medium">Availability Set</span>
+          </div>
+        )}
+      </div>
+      {!hasAvailability && (
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={onManage}
+          className="h-7 hover:bg-destructive/10 hover:text-destructive"
+        >
+          Update
+        </Button>
+      )}
     </div>
   )
 }
@@ -441,7 +571,7 @@ interface CoachingCalendarProps {
   isCalendlyLoading?: boolean
   showCalendlyButton?: boolean
   userRole: 'coach' | 'mentee'
-  coachDbId?: number
+  coachDbId?: string
 }
 
 export function CoachingCalendar({
@@ -552,13 +682,34 @@ export function CoachingCalendar({
   )
 
   return (
-    <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
-      <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
+    <div className="p-2 sm:p-4 md:p-6 space-y-6">
+      <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+          <p className="text-sm text-muted-foreground">
+            Manage your coaching sessions and availability
+          </p>
+        </div>
+        {showCalendlyButton && userRole === 'coach' && (
+          <div className="flex flex-col gap-2 min-w-[280px]">
+            <CalendlyStatus
+              isConnected={isCalendlyConnected}
+              isLoading={isCalendlyLoading}
+              onConnect={onRefreshCalendly}
+            />
+            <AvailabilityStatus
+              hasAvailability={availabilitySchedules.length > 0}
+              isLoading={isLoading}
+              onManage={() => window.location.href = '/dashboard/coach/availability'}
+            />
+          </div>
+        )}
+      </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4">
-        <div className="space-y-4 min-w-0">
-          <Card className="p-2 sm:p-4 overflow-hidden">
-            <div className="h-[500px] sm:h-[600px] w-full overflow-hidden">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr,340px] gap-6">
+        <div className="space-y-6">
+          <Card className="p-0 overflow-hidden border-none shadow-sm">
+            <div className="h-[600px] sm:h-[700px] w-full overflow-hidden">
               <div className="rbc-calendar-container w-full h-full">
                 <Calendar
                   localizer={localizer}
@@ -592,86 +743,57 @@ export function CoachingCalendar({
           </Card>
         </div>
 
-        <Card className="p-2 sm:p-4">
-          <h2 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">All Sessions</h2>
-          <div className="h-[calc(500px-3rem)] sm:h-[calc(600px-4rem)] overflow-hidden">
-            <ScrollArea>
-              {paginatedSessions.length > 0 ? (
-                <>
-                  <VirtualizedList
-                    items={paginatedSessions}
-                    height={500}
-                    itemHeight={80}
-                    renderItem={(session) => (
-                      <div key={session.id}>
-                        <SessionCard session={session} userRole={userRole} />
+        <div className="space-y-6">
+          <Card className="p-5">
+            <h2 className="text-lg font-semibold tracking-tight mb-4">All Sessions</h2>
+            <div className="h-[calc(700px-7rem)] overflow-hidden">
+              <ScrollArea className="h-full">
+                {paginatedSessions.length > 0 ? (
+                  <div className="space-y-4">
+                    <VirtualizedList
+                      items={paginatedSessions}
+                      height={600}
+                      itemHeight={80}
+                      renderItem={(session) => (
+                        <div key={session.id} className="pb-2">
+                          <SessionCard session={session} userRole={userRole} />
+                        </div>
+                      )}
+                    />
+                    
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                      <div className="flex justify-between items-center gap-2 pt-4 border-t">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPage(p => Math.max(1, p - 1))}
+                          disabled={page === 1}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                          Page {page} of {totalPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                          disabled={page === totalPages}
+                        >
+                          Next
+                        </Button>
                       </div>
                     )}
-                  />
-                  
-                  {/* Pagination Controls */}
-                  {totalPages > 1 && (
-                    <div className="flex justify-center items-center gap-2 mt-4 pb-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage(p => Math.max(1, p - 1))}
-                        disabled={page === 1}
-                      >
-                        Previous
-                      </Button>
-                      <span className="text-sm text-muted-foreground">
-                        Page {page} of {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                        disabled={page === totalPages}
-                      >
-                        Next
-                      </Button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <NoSessionsPrompt userRole={userRole} />
-              )}
-            </ScrollArea>
-          </div>
-        </Card>
-      </div>
-
-      {(showCalendlyButton || userRole === 'coach') && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {showCalendlyButton && (
-            <Button
-              onClick={(e) => {
-                e.preventDefault()
-                onRefreshCalendly?.()
-              }}
-              disabled={isLoading || isCalendlyLoading}
-              variant="outline"
-              className="gap-2"
-            >
-              {isLoading || isCalendlyLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              {!isCalendlyConnected ? 'Connect Calendly' : 'Refresh Schedule'}
-            </Button>
-          )}
-          
-          {userRole === 'coach' && (
-            <Link href="/dashboard/coach/availability">
-              <Button variant="outline" className="gap-2">
-                Manage Availability
-              </Button>
-            </Link>
-          )}
+                  </div>
+                ) : (
+                  <NoSessionsPrompt userRole={userRole} isCalendlyConnected={isCalendlyConnected} />
+                )}
+              </ScrollArea>
+            </div>
+          </Card>
         </div>
-      )}
+      </div>
     </div>
   )
 } 

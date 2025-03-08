@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from "@/components/ui/button"
-import { CoachProfileModal } from "@/components/dashboard/CoachProfileModal"
+import { CoachProfileModal } from "@/components/profile/common/CoachProfileModal"
 
 // Mock coach data for testing
 const mockCoach = {

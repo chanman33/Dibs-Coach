@@ -45,18 +45,23 @@ export function useCalendlyConnection() {
             }
 
             // Try to parse successful response as JSON
-            const responseText = await response.text()
-            let data
-            try {
-                data = JSON.parse(responseText)
-                setStatus(data.data)
-            } catch (parseError) {
-                console.error('[CALENDLY_STATUS_ERROR] Invalid JSON response:', responseText)
-                throw new Error('Invalid response format')
+            const data = await response.json()
+            
+            // Handle not connected state gracefully
+            if (data.data && !data.data.connected) {
+                setStatus({ connected: false })
+                // Don't show error toast for not connected state
+                return
             }
+            
+            setStatus(data.data)
         } catch (error) {
             console.error('[CALENDLY_STATUS_ERROR]', error)
-            toast.error('Failed to check Calendly connection status')
+            if (error instanceof Error && error.message.includes('Failed to fetch')) {
+                toast.error('Unable to check Calendly connection status')
+            } else {
+                toast.error('Failed to check Calendly connection status')
+            }
             setStatus(null)
         } finally {
             setIsLoading(false)
