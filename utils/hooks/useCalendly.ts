@@ -25,6 +25,13 @@ export function useCalendlyConnection() {
             setIsLoading(true)
             const response = await fetch('/api/calendly/status')
             
+            // Handle 403 Forbidden (not connected) gracefully
+            if (response.status === 403) {
+                console.log('[CALENDLY_STATUS] Not connected (403 response)')
+                setStatus({ connected: false })
+                return
+            }
+            
             // First check if response is ok
             if (!response.ok) {
                 // Try to parse error as JSON, but handle case where it's not JSON
@@ -57,12 +64,14 @@ export function useCalendlyConnection() {
             setStatus(data.data)
         } catch (error) {
             console.error('[CALENDLY_STATUS_ERROR]', error)
-            if (error instanceof Error && error.message.includes('Failed to fetch')) {
+            // Only show error toast for unexpected errors, not for "not connected" state
+            if (error instanceof Error && 
+                !error.message.includes('Failed to fetch Calendly status') && 
+                !error.message.includes('Server error occurred')) {
                 toast.error('Unable to check Calendly connection status')
-            } else {
-                toast.error('Failed to check Calendly connection status')
             }
-            setStatus(null)
+            // Set status to not connected on error
+            setStatus({ connected: false })
         } finally {
             setIsLoading(false)
         }

@@ -54,6 +54,22 @@ interface CoachProfileResponse {
   validationMessages: Record<string, string>;
 }
 
+interface ProfessionalRecognitionData {
+  ulid: string;
+  title: string;
+  type: string;
+  issueDate: string;
+  issuer: string;
+  description?: string;
+  isVisible: boolean;
+  industryType?: string;
+  status: string;
+  verificationUrl?: string;
+  certificateUrl?: string;
+  expiryDate?: string | null;
+  coachProfileUlid?: string;
+}
+
 export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
   async (_, { userUlid }) => {
     try {
@@ -64,111 +80,87 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
 
       const supabase = await createAuthClient();
 
-      // Fetch user data including capabilities and profile info
+      // Get user data
       const { data: userData, error: userError } = await supabase
-        .from("User")
+        .from('User')
         .select(`
-          capabilities,
           firstName,
           lastName,
           bio,
           profileImageUrl,
           realEstateDomains
         `)
-        .eq("ulid", userUlid)
+        .eq('ulid', userUlid)
         .single();
 
       if (userError) {
-        console.error("[FETCH_COACH_PROFILE_USER_ERROR]", {
-          userUlid,
-          error: userError,
-          timestamp: new Date().toISOString()
-        });
+        console.error('[FETCH_COACH_USER_ERROR]', userError);
         return {
           data: null,
           error: {
-            code: "DATABASE_ERROR",
-            message: "Failed to fetch user data",
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch user data',
             details: userError
           }
         };
       }
 
-      if (!userData?.capabilities?.includes("COACH")) {
-        console.error("[FETCH_COACH_PROFILE_UNAUTHORIZED]", {
-          userUlid,
-          capabilities: userData?.capabilities,
-          timestamp: new Date().toISOString()
-        });
-        return {
-          data: null,
-          error: {
-            code: "UNAUTHORIZED",
-            message: "User does not have coach capability",
-            details: null
-          }
-        };
-      }
-
-      // First try to create profile if it doesn't exist
-      const { data: ensuredProfile, error: ensureError } = await createCoachProfileIfNeeded(userUlid);
-      
-      if (ensureError) {
-        console.error("[ENSURE_COACH_PROFILE_ERROR]", {
-          userUlid,
-          error: ensureError,
-          timestamp: new Date().toISOString()
-        });
-        // Don't return error here, continue to try fetching existing profile
-      }
-
-      // Fetch coach profile with professional recognitions
+      // Get coach profile data
       const { data: coachProfile, error: coachError } = await supabase
-        .from("CoachProfile")
+        .from('CoachProfile')
         .select(`
           *,
-          ProfessionalRecognition (
-            ulid,
-            title,
-            type,
-            issueDate,
-            issuer,
-            description,
-            isVisible,
-            industryType,
-            status,
-            verificationUrl,
-            certificateUrl,
-            expiryDate,
-            coachProfileUlid
-          )
+          professionalRecognitions:ProfessionalRecognition (*)
         `)
-        .eq("userUlid", userUlid)
-        .maybeSingle();
+        .eq('userUlid', userUlid)
+        .single();
 
-      if (coachError) {
-        console.error("[FETCH_COACH_PROFILE_ERROR]", {
-          userUlid,
-          error: coachError,
-          timestamp: new Date().toISOString()
-        });
+      if (coachError && coachError.code !== 'PGRST116') {
+        console.error('[FETCH_COACH_PROFILE_ERROR]', coachError);
         return {
           data: null,
           error: {
-            code: "DATABASE_ERROR",
-            message: "Failed to fetch coach profile",
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch coach profile',
             details: coachError
           }
         };
       }
 
-      // Get active recognitions from the coach profile
-      const activeRecognitions = coachProfile?.ProfessionalRecognition?.filter(
-        (recognition: any) => recognition.isVisible
-      ).map((recognition: any) => ({
-        ...recognition,
-        coachProfileUlid: coachProfile.ulid
-      })) || [];
+      // Check for availability schedule
+      const { data: availabilitySchedules, error: availabilityError } = await supabase
+        .from('CoachingAvailabilitySchedule')
+        .select('ulid')
+        .eq('userUlid', userUlid)
+        .eq('active', true)
+        .limit(1);
+
+      if (availabilityError) {
+        console.error('[FETCH_COACH_AVAILABILITY_ERROR]', availabilityError);
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch availability schedule',
+            details: availabilityError
+          }
+        };
+      }
+
+      // Filter active recognitions and convert dates
+      const activeRecognitions = ((coachProfile?.professionalRecognitions || []) as any[])
+        .filter(rec => rec.status === 'ACTIVE' && rec.isVisible)
+        .map(rec => {
+          const issueDate = new Date(rec.issueDate);
+          const expiryDate = rec.expiryDate ? new Date(rec.expiryDate) : null;
+          
+          return {
+            ...rec,
+            issueDate,
+            expiryDate,
+            type: rec.type as "AWARD" | "ACHIEVEMENT"
+          } satisfies ProfessionalRecognition;
+        });
 
       const profileData = {
         firstName: userData?.firstName,
@@ -180,6 +172,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         yearsCoaching: coachProfile?.yearsCoaching || null,
         calendlyUrl: coachProfile?.calendlyUrl || null,
         eventTypeUrl: coachProfile?.eventTypeUrl || null,
+        hasAvailabilitySchedule: availabilitySchedules && availabilitySchedules.length > 0
       };
       
       const { percentage, missingFields, canPublish } = calculateProfileCompletion(profileData);
@@ -214,17 +207,13 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
 
       return { data: responseData, error: null };
     } catch (error) {
-      console.error("[FETCH_COACH_PROFILE_ERROR]", {
-        userUlid,
-        error,
-        timestamp: new Date().toISOString()
-      });
+      console.error('[FETCH_COACH_PROFILE_ERROR]', error);
       return {
         data: null,
         error: {
-          code: "INTERNAL_ERROR",
-          message: "An unexpected error occurred",
-          details: error instanceof Error ? error.message : String(error)
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
         }
       };
     }

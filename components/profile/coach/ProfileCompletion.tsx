@@ -150,8 +150,8 @@ export function ProfileCompletion({
       {
         title: 'Scheduling',
         description: 'Connect your Calendly to accept bookings.',
-        fields: ['calendlyUrl', 'eventTypeUrl'],
-        requiredFields: ['calendlyUrl', 'eventTypeUrl'],
+        fields: ['calendlyUrl', 'eventTypeUrl', 'hasAvailabilitySchedule'],
+        requiredFields: ['calendlyUrl', 'eventTypeUrl', 'hasAvailabilitySchedule'],
         isComplete: (fields: string[]) => {
           const missing = fields.filter(field => missingFields.includes(field));
           const invalid = fields.filter(field => validationMessages[field]);
@@ -176,18 +176,51 @@ export function ProfileCompletion({
           if (invalid.length > 0) {
             return invalid.map(field => validationMessages[field]).join(' • ');
           }
+
           if (missing.length > 0) {
-            return (
-              <div className="flex items-center gap-2">
-                <Link 
-                  href="/dashboard/coach/settings#calendly"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
-                >
-                  Connect Calendly
-                  <ChevronRight className="h-3 w-3" />
-                </Link>
-              </div>
-            );
+            const needsCalendly = missing.some(field => field === 'calendlyUrl' || field === 'eventTypeUrl');
+            const needsAvailability = missing.includes('hasAvailabilitySchedule');
+
+            if (needsCalendly && needsAvailability) {
+              return (
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <Link 
+                      href="/dashboard/coach/settings#calendly"
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                      Connect Calendly
+                      <ChevronRight className="h-3 w-3" />
+                    </Link>
+                  </div>
+                  <div className="text-xs text-red-500">
+                    Set up your availability schedule after connecting Calendly
+                  </div>
+                </div>
+              );
+            }
+
+            if (needsCalendly) {
+              return (
+                <div className="flex items-center gap-2">
+                  <Link 
+                    href="/dashboard/coach/settings#calendly"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                  >
+                    Connect Calendly
+                    <ChevronRight className="h-3 w-3" />
+                  </Link>
+                </div>
+              );
+            }
+
+            if (needsAvailability) {
+              return (
+                <div className="text-xs text-red-500">
+                  Set up your availability schedule
+                </div>
+              );
+            }
           }
           return null;
         },
@@ -285,8 +318,12 @@ export function ProfileCompletion({
                   : step.optional 
                     ? 'bg-blue-50/50 hover:bg-blue-100/80'
                     : errorMessage
-                      ? 'bg-red-50/50 hover:bg-red-100/80'
-                      : 'bg-gray-50 hover:bg-gray-100/80'
+                      ? step.title === 'Scheduling'
+                        ? 'bg-red-50/50'
+                        : 'bg-red-50/50 hover:bg-red-100/80'
+                      : step.title === 'Scheduling'
+                        ? 'bg-gray-50'
+                        : 'bg-gray-50 hover:bg-gray-100/80'
               }`}
             >
               <div className="flex items-start gap-3">
@@ -336,7 +373,7 @@ export function ProfileCompletion({
                   {typeof errorMessage !== 'string' && errorMessage}
                   {step.renderContent?.(isComplete)}
                 </div>
-                {!isComplete && (
+                {!isComplete && step.title !== 'Scheduling' && (
                   <Link 
                     href={step.title === 'Scheduling' ? '/dashboard/coach/settings#calendly' : '#'}
                     className={`shrink-0 ${step.title !== 'Scheduling' ? 'pointer-events-none' : ''}`}

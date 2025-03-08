@@ -12,13 +12,89 @@ import { toast } from 'sonner'
 import { useUser } from '@clerk/nextjs'
 import { TransformedSession, SessionType } from '@/utils/types/session'
 import { ExtendedSession } from '@/utils/types/calendly'
+import { fetchCoachCalendlyStatus } from '@/utils/actions/calendly-actions'
+import { Button } from '@/components/ui/button'
+
+// Minimal styles to fix calendar issues without causing scrollbar problems
+const calendarStyles = `
+  /* Remove transitions to prevent layout shifts */
+  .rbc-calendar, .rbc-view-container {
+    transition: none !important;
+  }
+  
+  /* Ensure toolbar is properly spaced */
+  .rbc-toolbar {
+    margin-bottom: 10px !important;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  /* Improve month view cell appearance */
+  .rbc-month-view .rbc-date-cell {
+    text-align: center;
+    padding: 4px;
+  }
+  
+  /* Fix time view scrolling */
+  .rbc-time-view {
+    height: calc(100% - 50px) !important;
+    border: none;
+  }
+  
+  .rbc-time-content {
+    overflow-y: auto !important;
+    max-height: calc(100% - 80px) !important;
+    border-top: 1px solid #ddd;
+  }
+  
+  /* Ensure consistent time slot heights for predictable scrolling */
+  .rbc-timeslot-group {
+    min-height: 50px !important;
+    height: 50px !important;
+  }
+  
+  .rbc-time-header {
+    border-bottom: none;
+  }
+  
+  /* Ensure month view fits properly */
+  .rbc-month-view {
+    height: calc(100% - 50px) !important;
+    min-height: auto !important;
+  }
+  
+  /* Calendar wrapper */
+  .calendar-wrapper {
+    height: 600px !important;
+    overflow: hidden;
+  }
+  
+  /* Ensure events are visible */
+  .rbc-event {
+    z-index: 3;
+  }
+  
+  /* Responsive toolbar */
+  @media (max-width: 640px) {
+    .rbc-toolbar {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .calendar-wrapper {
+      height: 500px !important;
+    }
+  }
+`;
 
 export default function CoachCalendarPage() {
   const { user } = useUser()
-  const { status, isLoading: isCalendlyLoading, handleConnect } = useCalendlyConnection()
+  const { handleConnect } = useCalendlyConnection()
   const [isLoadingBusyTimes, setIsLoadingBusyTimes] = useState(false)
   const [busyTimes, setBusyTimes] = useState<any[]>([])
   const [coachDbId, setCoachDbId] = useState<string | null>(null)
+  const [hasCalendlyConnection, setHasCalendlyConnection] = useState<boolean | null>(null)
+  const [schedulingUrl, setSchedulingUrl] = useState<string | null>(null)
 
   // Fetch coach's database ID using server action
   const { data: dbId, isLoading: isLoadingDbId } = useQuery({
@@ -36,6 +112,41 @@ export default function CoachCalendarPage() {
     enabled: !!user?.id
   })
 
+  // Fetch Calendly connection status from database
+  const { 
+    data: calendlyDbStatus, 
+    isLoading: isLoadingCalendlyDbStatus,
+    refetch: refetchCalendlyStatus
+  } = useQuery({
+    queryKey: ['coach-calendly-status', dbId],
+    queryFn: async () => {
+      if (!dbId) return { hasConnection: false }
+      try {
+        const result = await fetchCoachCalendlyStatus()
+        console.log('[CALENDLY_DB_STATUS]', {
+          result,
+          timestamp: new Date().toISOString()
+        })
+        return { 
+          hasConnection: !!result.data?.connected,
+          schedulingUrl: result.data?.schedulingUrl
+        }
+      } catch (error) {
+        console.error('[FETCH_CALENDLY_STATUS_ERROR]', error)
+        return { hasConnection: false }
+      }
+    },
+    enabled: !!dbId
+  })
+
+  // Update connection status when data is available
+  useEffect(() => {
+    if (calendlyDbStatus) {
+      setHasCalendlyConnection(calendlyDbStatus.hasConnection)
+      setSchedulingUrl(calendlyDbStatus.schedulingUrl || null)
+    }
+  }, [calendlyDbStatus])
+
   // Update coachDbId when dbId changes
   useEffect(() => {
     if (dbId) {
@@ -52,7 +163,12 @@ export default function CoachCalendarPage() {
   })
 
   const fetchBusyTimes = async () => {
-    if (!status?.schedulingUrl) return
+    // Early return if not connected or missing scheduling URL
+    if (!hasCalendlyConnection || !schedulingUrl) {
+      setBusyTimes([])
+      setIsLoadingBusyTimes(false)
+      return
+    }
 
     try {
       setIsLoadingBusyTimes(true)
@@ -60,20 +176,57 @@ export default function CoachCalendarPage() {
       const startDate = startOfWeek(new Date())
       const endDate = endOfWeek(addMonths(new Date(), 3))
 
-      const queryParams = new URLSearchParams({
+      console.log('[FETCH_BUSY_TIMES]', {
+        hasCalendlyConnection,
+        schedulingUrl,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        timestamp: new Date().toISOString()
+      })
+
+      // First try to get availability schedules
+      const schedulesParams = new URLSearchParams({
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString()
       })
 
-      const response = await fetch(`/api/calendly/availability/schedules?${queryParams}`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch availability data')
+      const schedulesResponse = await fetch(`/api/calendly/availability/schedules?${schedulesParams}`)
+      
+      if (!schedulesResponse.ok) {
+        console.error('[FETCH_SCHEDULES_ERROR]', {
+          status: schedulesResponse.status,
+          statusText: schedulesResponse.statusText,
+          timestamp: new Date().toISOString()
+        })
+        
+        // If schedules fail, try busy times directly
+        const busyTimesParams = new URLSearchParams({
+          startTime: startDate.toISOString(),
+          endTime: endDate.toISOString()
+        })
+        
+        const busyTimesResponse = await fetch(`/api/calendly/busy-times?${busyTimesParams}`)
+        
+        if (!busyTimesResponse.ok) {
+          throw new Error(`Failed to fetch busy times: ${busyTimesResponse.status}`)
+        }
+        
+        const busyTimesData = await busyTimesResponse.json()
+        setBusyTimes(busyTimesData.busyTimes || [])
+        return
       }
 
-      const { data } = await response.json()
-      setBusyTimes(data.busyTimes || [])
+      const schedulesData = await schedulesResponse.json()
+      setBusyTimes(schedulesData.data?.busyTimes || [])
+      
+      console.log('[BUSY_TIMES_FETCHED]', {
+        count: (schedulesData.data?.busyTimes || []).length,
+        timestamp: new Date().toISOString()
+      })
     } catch (error) {
-      console.error('Error fetching busy times:', error)
+      console.error('[FETCH_BUSY_TIMES_ERROR]', error)
+      toast.error('Failed to load calendar data')
+      setBusyTimes([])
     } finally {
       setIsLoadingBusyTimes(false)
     }
@@ -81,20 +234,37 @@ export default function CoachCalendarPage() {
 
   // Fetch busy times when Calendly is connected
   useEffect(() => {
-    if (status?.connected) {
-      fetchBusyTimes()
+    // Only fetch busy times if we have confirmed connection from the database
+    if (hasCalendlyConnection === true && schedulingUrl) {
+      fetchBusyTimes();
+    } else {
+      // Clear busy times if not connected
+      setBusyTimes([]);
     }
-  }, [status?.connected])
+  }, [hasCalendlyConnection, schedulingUrl]);
 
   const handleCalendlyAction = async () => {
-    if (!status?.connected) {
-      handleConnect()
-    } else {
-      fetchBusyTimes()
+    try {
+      // Use database status for determining connection state
+      if (hasCalendlyConnection !== true) {
+        // If not connected, initiate connection flow
+        handleConnect();
+        
+        // Note: After connection, the page will reload due to the OAuth redirect,
+        // so we don't need to manually refresh the status here
+      } else {
+        // If already connected, refresh data
+        await fetchBusyTimes();
+        toast.success('Calendar data refreshed');
+      }
+    } catch (error) {
+      console.error('[CALENDLY_ACTION_ERROR]', error);
+      toast.error('Failed to perform Calendly action');
     }
   }
 
-  const isPageLoading = isLoadingBusyTimes || isLoadingSessions || isLoadingDbId
+  // Include the new loading state in the overall loading state
+  const isPageLoading = isLoadingBusyTimes || isLoadingSessions || isLoadingDbId || isLoadingCalendlyDbStatus;
 
   const transformedSessions = (sessions || []).map(s => ({
     ulid: s.ulid,
@@ -114,20 +284,56 @@ export default function CoachCalendarPage() {
     calendlyEventId: s.sessionType === SessionType.PEER_TO_PEER ? s.ulid : undefined
   }))
 
+  // Check for Calendly OAuth callback parameters
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const calendlyStatus = url.searchParams.get('calendly');
+    
+    if (calendlyStatus === 'success') {
+      // If we just completed a successful OAuth flow, refetch the status
+      toast.success('Calendly connected successfully!');
+      refetchCalendlyStatus();
+      
+      // Remove the query parameters to avoid duplicate toasts on refresh
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+    }
+  }, [refetchCalendlyStatus]);
+
   return (
-    <div className="p-6 space-y-6">
+    <div className="container mx-auto py-6 px-4">
+      <style jsx global>{calendarStyles}</style>
       <CoachingCalendar
         sessions={transformedSessions}
         isLoading={isPageLoading}
         title="My Coaching Calendar"
         busyTimes={busyTimes}
         onRefreshCalendly={handleCalendlyAction}
-        isCalendlyConnected={status?.connected}
-        isCalendlyLoading={isCalendlyLoading || isLoadingBusyTimes}
+        isCalendlyConnected={hasCalendlyConnection === true}
+        isCalendlyLoading={isLoadingCalendlyDbStatus || isLoadingBusyTimes}
         showCalendlyButton={true}
         userRole="coach"
         coachDbId={coachDbId || undefined}
       />
+      
+      {hasCalendlyConnection && (
+        <div className="mt-6 flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchBusyTimes}
+            disabled={isLoadingBusyTimes}
+            className="flex items-center gap-2"
+          >
+            {isLoadingBusyTimes ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            {isLoadingBusyTimes ? 'Refreshing...' : 'Refresh Calendar'}
+          </Button>
+        </div>
+      )}
     </div>
   )
 } 

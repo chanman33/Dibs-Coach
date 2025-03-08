@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Calendar, momentLocalizer, View, ToolbarProps } from 'react-big-calendar'
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
@@ -172,7 +172,11 @@ const SessionCard: React.FC<{ session: ExtendedSession; userRole: 'coach' | 'men
   )
 }
 
-const NoSessionsPrompt: React.FC<{ userRole: 'coach' | 'mentee'; isCalendlyConnected?: boolean }> = ({ userRole, isCalendlyConnected }) => {
+const NoSessionsPrompt: React.FC<{ 
+  userRole: 'coach' | 'mentee'; 
+  isCalendlyConnected?: boolean;
+  onConnect?: () => void;
+}> = ({ userRole, isCalendlyConnected, onConnect }) => {
   if (userRole === 'coach') {
     if (!isCalendlyConnected) {
       return (
@@ -182,7 +186,12 @@ const NoSessionsPrompt: React.FC<{ userRole: 'coach' | 'mentee'; isCalendlyConne
             To start accepting coaching sessions, please connect your Calendly account. This will sync your availability and allow mentees to book sessions with you.
           </p>
           <div className="flex flex-col gap-2 w-full max-w-[200px]">
-            <Button variant="default" size="sm" className="w-full">
+            <Button 
+              variant="default" 
+              size="sm" 
+              className="w-full"
+              onClick={onConnect}
+            >
               Connect Calendly
             </Button>
             <Link href="/dashboard/coach/availability">
@@ -602,6 +611,31 @@ export function CoachingCalendar({
     enabled: !!coachDbId
   })
 
+  // Function to scroll to 7:00 AM
+  const scrollToMorning = useCallback(() => {
+    if (view === 'week' || view === 'day') {
+      setTimeout(() => {
+        const timeContent = document.querySelector('.rbc-time-content');
+        if (timeContent) {
+          // Calculate scroll position for 7:00 AM (7 hours from midnight)
+          const scrollPosition = 14 * 50; // Approximate height per hour
+          timeContent.scrollTop = scrollPosition;
+        }
+      }, 100);
+    }
+  }, [view]);
+
+  // Set initial scroll position when view changes or component mounts
+  useEffect(() => {
+    scrollToMorning();
+  }, [view, scrollToMorning]);
+
+  // Handle view changes
+  const handleViewChange = (newView: View) => {
+    setView(newView);
+    // The useEffect will handle scrolling when view changes
+  };
+
   if (isLoading) {
     return (
       <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
@@ -682,117 +716,107 @@ export function CoachingCalendar({
   )
 
   return (
-    <div className="p-2 sm:p-4 md:p-6 space-y-6">
-      <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage your coaching sessions and availability
-          </p>
-        </div>
-        {showCalendlyButton && userRole === 'coach' && (
-          <div className="flex flex-col gap-2 min-w-[280px]">
-            <CalendlyStatus
-              isConnected={isCalendlyConnected}
-              isLoading={isCalendlyLoading}
-              onConnect={onRefreshCalendly}
-            />
-            <AvailabilityStatus
-              hasAvailability={availabilitySchedules.length > 0}
-              isLoading={isLoading}
-              onManage={() => window.location.href = '/dashboard/coach/availability'}
-            />
+    <div>
+      <div className="mb-6">
+        <div className="flex flex-col space-y-4 sm:space-y-0 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage your coaching sessions and availability
+            </p>
           </div>
-        )}
+          {showCalendlyButton && userRole === 'coach' && (
+            <div className="flex flex-col gap-2 min-w-[280px]">
+              <CalendlyStatus
+                isConnected={isCalendlyConnected}
+                isLoading={isCalendlyLoading}
+                onConnect={onRefreshCalendly}
+              />
+              <AvailabilityStatus
+                hasAvailability={availabilitySchedules.length > 0}
+                isLoading={isLoading}
+                onManage={() => window.location.href = '/dashboard/coach/availability'}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr,340px] gap-6">
-        <div className="space-y-6">
-          <Card className="p-0 overflow-hidden border-none shadow-sm">
-            <div className="h-[600px] sm:h-[700px] w-full overflow-hidden">
-              <div className="rbc-calendar-container w-full h-full">
-                <Calendar
-                  localizer={localizer}
-                  events={allEvents}
-                  startAccessor="start"
-                  endAccessor="end"
-                  view={view}
-                  date={date}
-                  onView={setView}
-                  onNavigate={setDate}
-                  views={['month', 'week', 'day']}
-                  step={30}
-                  timeslots={1}
-                  min={new Date(2020, 1, 1, 6, 30, 0)}
-                  max={new Date(2020, 1, 1, 20, 0, 0)}
-                  eventPropGetter={eventStyleGetter}
-                  tooltipAccessor={null}
-                  components={{
-                    toolbar: CustomToolbar,
-                    event: EventComponent
-                  }}
-                  className="max-w-full overflow-hidden"
-                  style={{
-                    height: '100%',
-                    width: '100%',
-                    minWidth: 0
-                  }}
-                />
-              </div>
-            </div>
-          </Card>
-        </div>
+        <Card className="shadow-sm">
+          <div className="calendar-wrapper" style={{ height: '600px', overflow: 'hidden' }}>
+            <Calendar
+              localizer={localizer}
+              events={allEvents}
+              startAccessor="start"
+              endAccessor="end"
+              view={view}
+              date={date}
+              onView={handleViewChange}
+              onNavigate={setDate}
+              views={['month', 'week', 'day']}
+              step={30}
+              timeslots={1}
+              min={new Date(2020, 1, 1, 0, 0, 0)} // Start at midnight
+              max={new Date(2020, 1, 1, 23, 59, 59)} // End at midnight
+              eventPropGetter={eventStyleGetter}
+              tooltipAccessor={null}
+              components={{
+                toolbar: CustomToolbar,
+                event: EventComponent
+              }}
+              style={{ 
+                height: '100%',
+                width: '100%'
+              }}
+            />
+          </div>
+        </Card>
 
-        <div className="space-y-6">
-          <Card className="p-5">
+        <Card>
+          <div className="p-5">
             <h2 className="text-lg font-semibold tracking-tight mb-4">All Sessions</h2>
-            <div className="h-[calc(700px-7rem)] overflow-hidden">
-              <ScrollArea className="h-full">
-                {paginatedSessions.length > 0 ? (
-                  <div className="space-y-4">
-                    <VirtualizedList
-                      items={paginatedSessions}
-                      height={600}
-                      itemHeight={80}
-                      renderItem={(session) => (
-                        <div key={session.id} className="pb-2">
-                          <SessionCard session={session} userRole={userRole} />
-                        </div>
-                      )}
-                    />
-                    
-                    {/* Pagination Controls */}
-                    {totalPages > 1 && (
-                      <div className="flex justify-between items-center gap-2 pt-4 border-t">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPage(p => Math.max(1, p - 1))}
-                          disabled={page === 1}
-                        >
-                          Previous
-                        </Button>
-                        <span className="text-sm text-muted-foreground">
-                          Page {page} of {totalPages}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                          disabled={page === totalPages}
-                        >
-                          Next
-                        </Button>
-                      </div>
-                    )}
+            {paginatedSessions.length > 0 ? (
+              <div className="space-y-4">
+                {paginatedSessions.map((session) => (
+                  <div key={session.id} className="pb-2">
+                    <SessionCard session={session} userRole={userRole} />
                   </div>
-                ) : (
-                  <NoSessionsPrompt userRole={userRole} isCalendlyConnected={isCalendlyConnected} />
+                ))}
+                
+                {totalPages > 1 && (
+                  <div className="flex justify-between items-center gap-2 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {page} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={page === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
                 )}
-              </ScrollArea>
-            </div>
-          </Card>
-        </div>
+              </div>
+            ) : (
+              <NoSessionsPrompt 
+                userRole={userRole} 
+                isCalendlyConnected={isCalendlyConnected} 
+                onConnect={onRefreshCalendly}
+              />
+            )}
+          </div>
+        </Card>
       </div>
     </div>
   )

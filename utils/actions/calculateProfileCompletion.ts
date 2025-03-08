@@ -20,6 +20,7 @@ export type CoachProfileData = {
   yearsCoaching?: number | null;
   calendlyUrl?: string | null;
   eventTypeUrl?: string | null;
+  hasAvailabilitySchedule?: boolean | null;
   [key: string]: any;
 };
 
@@ -37,7 +38,8 @@ export const REQUIRED_FIELDS: Record<string, FieldConfig> = {
   hourlyRate: { weight: 10, required: true },
   yearsCoaching: { weight: 10, required: true },
   calendlyUrl: { weight: 10, required: true },
-  eventTypeUrl: { weight: 10, required: true }
+  eventTypeUrl: { weight: 10, required: true },
+  hasAvailabilitySchedule: { weight: 10, required: true }
 };
 
 export const OPTIONAL_FIELDS: Record<string, FieldConfig> = {
@@ -182,6 +184,9 @@ function isFieldComplete(field: string, value: any): boolean {
       // Must be explicitly set, not just default value
       return typeof value === 'number' && value > 0;
     
+    case 'hasAvailabilitySchedule':
+      return value === true;
+    
     default:
       return false;
   }
@@ -201,6 +206,7 @@ export function getFieldDisplayName(fieldName: string): string {
     yearsCoaching: 'Years of Experience',
     calendlyUrl: 'Calendly URL',
     eventTypeUrl: 'Event Type URL',
+    hasAvailabilitySchedule: 'Availability Schedule'
   };
 
   return displayNames[fieldName] || fieldName;
