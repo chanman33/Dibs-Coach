@@ -1,13 +1,13 @@
 "use client"
 import { CoachCRMDashboard } from '../_components/CoachCRMDashboard'
-import { withRole } from "@/components/wrapper/with-role"
+import { WithAuth } from "@/components/auth/with-auth"
 import { USER_CAPABILITIES } from "@/utils/roles/roles"
 
 function CoachCRMPage() {
   return <CoachCRMDashboard />
 }
 
-export default withRole(CoachCRMPage, {
+export default WithAuth(CoachCRMPage, {
   requiredCapabilities: [USER_CAPABILITIES.COACH]
-})
+});
 
