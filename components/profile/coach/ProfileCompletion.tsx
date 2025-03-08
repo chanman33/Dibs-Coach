@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button'
 import { CheckCircle, AlertCircle, EyeOff, ChevronRight } from 'lucide-react'
 import { PROFILE_STATUS, ProfileStatus } from '@/utils/types/coach'
 import { toast } from 'sonner'
+import Link from 'next/link'
 import { updateProfileStatus } from '@/utils/actions/coach-profile-actions'
+import type { ReactNode } from 'react'
 
 interface ProfileCompletionProps {
   completionPercentage: number
@@ -17,6 +19,17 @@ interface ProfileCompletionProps {
   missingRequiredFields: string[]
   optionalMissingFields: string[]
   validationMessages: Record<string, string>
+}
+
+interface Step {
+  title: string;
+  description: string;
+  fields: string[];
+  requiredFields: string[];
+  optional?: boolean;
+  isComplete: (fields: string[]) => boolean;
+  getErrorMessage: (fields: string[]) => string | ReactNode | null;
+  renderContent?: (isComplete: boolean) => ReactNode | null;
 }
 
 export function ProfileCompletion({
@@ -63,7 +76,7 @@ export function ProfileCompletion({
       timestamp: new Date().toISOString()
     });
 
-    const steps = [
+    const steps: Step[] = [
       {
         title: 'Basic Information',
         description: 'Personal details and bio',
@@ -136,7 +149,7 @@ export function ProfileCompletion({
       },
       {
         title: 'Scheduling',
-        description: 'Availability and booking',
+        description: 'Connect your Calendly to accept bookings.',
         fields: ['calendlyUrl', 'eventTypeUrl'],
         requiredFields: ['calendlyUrl', 'eventTypeUrl'],
         isComplete: (fields: string[]) => {
@@ -164,7 +177,36 @@ export function ProfileCompletion({
             return invalid.map(field => validationMessages[field]).join(' • ');
           }
           if (missing.length > 0) {
-            return `Missing required fields: ${missing.join(', ')}`;
+            return (
+              <div className="flex items-center gap-2">
+                <Link 
+                  href="/dashboard/coach/settings#calendly"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  Connect Calendly
+                  <ChevronRight className="h-3 w-3" />
+                </Link>
+              </div>
+            );
+          }
+          return null;
+        },
+        renderContent: (isComplete: boolean) => {
+          if (isComplete) {
+            return (
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-1.5 text-emerald-600 text-xs">
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  <span>Ready to accept bookings</span>
+                </div>
+                <Link 
+                  href="/dashboard/coach/settings#calendly"
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline ml-auto"
+                >
+                  Manage Settings
+                </Link>
+              </div>
+            );
           }
           return null;
         }
@@ -237,7 +279,7 @@ export function ProfileCompletion({
           return (
             <div 
               key={step.title} 
-              className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+              className={`flex flex-col gap-2 p-3 rounded-lg transition-colors ${
                 isComplete
                   ? 'bg-green-50/50' 
                   : step.optional 
@@ -247,61 +289,90 @@ export function ProfileCompletion({
                       : 'bg-gray-50 hover:bg-gray-100/80'
               }`}
             >
-              <div className={`flex h-6 w-6 items-center justify-center rounded-full ${
-                isComplete
-                  ? 'bg-green-100 text-green-600' 
-                  : step.optional
-                    ? 'bg-blue-100 text-blue-600'
-                    : errorMessage
-                      ? 'bg-red-100 text-red-600'
-                      : 'bg-gray-200 text-gray-600'
-              }`}>
-                {isComplete ? (
-                  <CheckCircle className="h-4 w-4" />
-                ) : errorMessage ? (
-                  <AlertCircle className="h-4 w-4" />
-                ) : (
-                  <span className="text-xs font-medium">{index + 1}</span>
-                )}
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <p className={`text-sm font-medium ${
-                    isComplete
-                      ? 'text-green-700' 
-                      : step.optional
-                        ? 'text-blue-700'
-                        : errorMessage
-                          ? 'text-red-700'
-                          : 'text-gray-700'
-                  }`}>
-                    {step.title}
-                  </p>
-                  {step.optional && (
-                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                      Optional
-                    </span>
+              <div className="flex items-start gap-3">
+                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                  isComplete
+                    ? 'bg-green-100 text-green-600' 
+                    : step.optional
+                      ? 'bg-blue-100 text-blue-600'
+                      : errorMessage
+                        ? 'bg-red-100 text-red-600'
+                        : 'bg-gray-200 text-gray-600'
+                }`}>
+                  {isComplete ? (
+                    <CheckCircle className="h-4 w-4" />
+                  ) : errorMessage ? (
+                    <AlertCircle className="h-4 w-4" />
+                  ) : (
+                    <span className="text-xs font-medium">{index + 1}</span>
                   )}
                 </div>
-                <p className={`text-xs mt-0.5 ${
-                  errorMessage 
-                    ? 'text-red-500'
-                    : 'text-gray-500'
-                }`}>
-                  {errorMessage || step.description}
-                </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className={`text-sm font-medium ${
+                      isComplete
+                        ? 'text-green-700' 
+                        : step.optional
+                          ? 'text-blue-700'
+                          : errorMessage
+                            ? 'text-red-700'
+                            : 'text-gray-700'
+                    }`}>
+                      {step.title}
+                    </p>
+                    {step.optional && (
+                      <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                        Optional
+                      </span>
+                    )}
+                  </div>
+                  <p className={`text-xs mt-0.5 ${
+                    errorMessage 
+                      ? 'text-red-500'
+                      : 'text-gray-500'
+                  }`}>
+                    {typeof errorMessage === 'string' ? errorMessage : step.description}
+                  </p>
+                  {typeof errorMessage !== 'string' && errorMessage}
+                  {step.renderContent?.(isComplete)}
+                </div>
+                {!isComplete && (
+                  <Link 
+                    href={step.title === 'Scheduling' ? '/dashboard/coach/settings#calendly' : '#'}
+                    className={`shrink-0 ${step.title !== 'Scheduling' ? 'pointer-events-none' : ''}`}
+                  >
+                    <ChevronRight className={`h-4 w-4 ${
+                      errorMessage ? 'text-red-400' : 'text-gray-400'
+                    }`} />
+                  </Link>
+                )}
               </div>
-              {!isComplete && (
-                <ChevronRight className={`h-4 w-4 ${
-                  errorMessage ? 'text-red-400' : 'text-gray-400'
-                }`} />
-              )}
             </div>
           );
         })}
       </div>
     )
   }
+
+  const handlePublish = async () => {
+    setIsUpdating(true);
+    try {
+      const result = await updateProfileStatus({
+        status: PROFILE_STATUS.PUBLISHED,
+        isSystemOwner: false
+      });
+      if (result.error) {
+        toast.error(result.error.message || 'Failed to publish profile');
+        return;
+      }
+      toast.success('Profile published successfully');
+    } catch (error) {
+      console.error('[PUBLISH_PROFILE_ERROR]', error);
+      toast.error('Failed to publish profile');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   return (
     <Card className="w-full bg-white border-gray-200">
@@ -336,28 +407,7 @@ export function ProfileCompletion({
             <Button
               className="w-full"
               disabled={isUpdating}
-              onClick={async () => {
-                try {
-                  setIsUpdating(true)
-                  const { data, error } = await updateProfileStatus({ 
-                    status: PROFILE_STATUS.PUBLISHED 
-                  })
-                  
-                  if (error) {
-                    toast.error(error.message || 'Failed to publish profile')
-                    return
-                  }
-                  
-                  if (data?.success) {
-                    toast.success('Profile published successfully')
-                  }
-                } catch (error) {
-                  console.error('Error publishing profile:', error)
-                  toast.error('Failed to publish profile')
-                } finally {
-                  setIsUpdating(false)
-                }
-              }}
+              onClick={handlePublish}
             >
               Publish Profile
             </Button>
