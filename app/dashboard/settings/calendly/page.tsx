@@ -1,10 +1,7 @@
 'use client'
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card } from '@/components/ui/card'
 import { ConnectCalendly } from '@/components/calendly/ConnectCalendly'
-import { CalendlyEventTypes } from '@/components/calendly/CalendlyEventTypes'
-import { AvailabilityManager } from '@/components/coaching/AvailabilityManager'
 import { useRouter } from 'next/navigation'
 
 export default function CalendlySettingsPage() {

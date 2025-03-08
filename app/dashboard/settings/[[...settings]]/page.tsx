@@ -10,38 +10,45 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { useState, useEffect } from 'react'
 import { ConnectCalendly } from '@/components/calendly/ConnectCalendly'
-import { SYSTEM_ROLES, USER_CAPABILITIES, type SystemRole } from "@/utils/roles/roles"
+import { USER_CAPABILITIES } from "@/utils/roles/roles"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
+import { fetchUserCapabilities } from "@/utils/actions/user-actions"
 
 export default function Settings() {
   const router = useRouter()
   const { user } = useUser()
   const [loading, setLoading] = useState(false)
-  const [userRoles, setUserRoles] = useState<SystemRole[]>([SYSTEM_ROLES.USER])
-  const [loadingRoles, setLoadingRoles] = useState(true)
+  const [userCapabilities, setUserCapabilities] = useState<string[]>([])
+  const [loadingCapabilities, setLoadingCapabilities] = useState(true)
 
   useEffect(() => {
-    async function fetchUserRoles() {
+    async function loadUserCapabilities() {
       if (user?.id) {
         try {
-          const response = await fetch(`/api/user/role?userId=${user.id}`)
-          const data = await response.json()
-          setUserRoles(data.roles)
+          const result = await fetchUserCapabilities()
+          
+          if (result.error) {
+            throw result.error
+          }
+
+          if (result.data) {
+            setUserCapabilities(result.data.capabilities)
+          }
         } catch (error) {
-          console.error("[ROLE_FETCH_ERROR]", error)
-          setUserRoles([SYSTEM_ROLES.USER])
+          console.error("[CAPABILITIES_FETCH_ERROR]", error)
+          setUserCapabilities([])
         }
-        setLoadingRoles(false)
+        setLoadingCapabilities(false)
       }
     }
 
-    fetchUserRoles()
+    loadUserCapabilities()
   }, [user?.id])
 
-  const isCoachOrAdmin = userRoles?.includes(SYSTEM_ROLES.SYSTEM_OWNER) || false
+  const isCoach = userCapabilities.includes('COACH')
 
-  if (loadingRoles) {
+  if (loadingCapabilities) {
     return <div>Loading...</div>
   }
 
@@ -67,7 +74,7 @@ export default function Settings() {
           >
             Subscription
           </TabsTrigger>
-          {isCoachOrAdmin && (
+          {isCoach && (
             <TabsTrigger
               value="calendly"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
@@ -161,12 +168,11 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {isCoachOrAdmin ? (
+        {isCoach ? (
           <TabsContent value="calendly" className="space-y-4 mt-6">
             <Card className="p-6">
               <ConnectCalendly />
             </Card>
-
           </TabsContent>
         ) : (
           <TabsContent value="calendly" className="space-y-4 mt-6">
