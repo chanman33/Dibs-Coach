@@ -2,12 +2,69 @@ import { z } from "zod";
 
 // Define Profile Status enum
 export const PROFILE_STATUS = {
+  /** Initial state, profile is editable and not visible in marketplace */
   DRAFT: 'DRAFT',
+  /** Profile is complete and visible in marketplace */
   PUBLISHED: 'PUBLISHED',
+  /** Profile is temporarily hidden (system owner action only, terminal state) */
+  SUSPENDED: 'SUSPENDED',
+  /** Profile is hidden (can be restored by system owner or coach) */
   ARCHIVED: 'ARCHIVED'
 } as const;
 
 export type ProfileStatus = typeof PROFILE_STATUS[keyof typeof PROFILE_STATUS];
+
+// Profile state transition validation with role-based permissions
+export interface StatusTransition {
+  to: ProfileStatus[];
+  requiresSystemOwner?: boolean;
+}
+
+export const ALLOWED_STATUS_TRANSITIONS: Record<ProfileStatus, StatusTransition> = {
+  DRAFT: {
+    to: ['PUBLISHED', 'ARCHIVED']
+  },
+  PUBLISHED: {
+    to: ['DRAFT', 'ARCHIVED', 'SUSPENDED'],
+    requiresSystemOwner: false // Only SUSPENDED requires system owner
+  },
+  SUSPENDED: {
+    to: [], // Terminal state, no transitions allowed
+    requiresSystemOwner: true
+  },
+  ARCHIVED: {
+    to: ['DRAFT'], // Can be restored to draft state
+    requiresSystemOwner: false // Both coach and system owner can restore
+  }
+};
+
+// Helper to check if transition is allowed for the current user
+export const canTransitionTo = (
+  from: ProfileStatus,
+  to: ProfileStatus,
+  isSystemOwner: boolean
+): boolean => {
+  const transition = ALLOWED_STATUS_TRANSITIONS[from];
+  
+  // Check if transition is allowed
+  if (!transition.to.includes(to)) {
+    return false;
+  }
+
+  // If transition requires system owner, check permission
+  if (to === PROFILE_STATUS.SUSPENDED && !isSystemOwner) {
+    return false;
+  }
+
+  return true;
+};
+
+// Publication requirements
+export const PROFILE_REQUIREMENTS = {
+  MINIMUM_COMPLETION: 70,
+  MINIMUM_DOMAINS: 1,
+  REQUIRES_HOURLY_RATE: true
+} as const;
 
 export const REAL_ESTATE_DOMAINS = {
   REALTOR: 'REALTOR',

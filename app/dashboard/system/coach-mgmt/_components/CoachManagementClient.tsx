@@ -6,11 +6,13 @@ import { updateCoachProfileStatus, refreshCoachManagement } from '@/utils/action
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { RefreshCw, Users, CheckCircle, PieChart, DollarSign, Search } from 'lucide-react'
-import { ProfileStatus } from '@/utils/types/coach'
+import { PROFILE_STATUS, ProfileStatus } from '@/utils/types/coach'
 import { toast } from 'sonner'
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { removeUserCapability } from '@/utils/permissions'
+import { USER_CAPABILITIES } from '@/utils/roles/roles'
 
 interface CoachProfile {
   userUlid: string
@@ -21,6 +23,7 @@ interface CoachProfile {
   completionPercentage: number
   hourlyRate: number
   updatedAt: string
+  email: string
 }
 
 interface CoachManagementClientProps {
@@ -55,9 +58,10 @@ export default function CoachManagementClient({
     ? Math.round(profiles.reduce((acc, p) => acc + p.completionPercentage, 0) / profiles.length)
     : 0;
 
-  // Calculate average hourly rate
-  const avgRate = profiles.length > 0
-    ? Math.round(profiles.reduce((acc, p) => acc + (p.hourlyRate || 0), 0) / profiles.length)
+  // Calculate average hourly rate (only for profiles with rate > 0)
+  const profilesWithRate = profiles.filter(p => p.hourlyRate > 0);
+  const avgRate = profilesWithRate.length > 0
+    ? Math.round(profilesWithRate.reduce((acc, p) => acc + p.hourlyRate, 0) / profilesWithRate.length)
     : 0;
 
   const handleRefresh = async () => {
@@ -69,7 +73,7 @@ export default function CoachManagementClient({
     }
   };
 
-  const handleUpdateStatus = async (coachId: string, newStatus: ProfileStatus) => {
+  const handleUpdateStatus = async (coachId: string, newStatus: typeof PROFILE_STATUS[keyof typeof PROFILE_STATUS]) => {
     try {
       const result = await updateCoachProfileStatus({ coachUlid: coachId, status: newStatus })
       if (result.error) {
@@ -84,6 +88,21 @@ export default function CoachManagementClient({
     } catch (error) {
       console.error('[UPDATE_STATUS_ERROR]', error)
       toast.error('Failed to update profile status')
+    }
+  }
+
+  const handleRemoveCoachCapability = async (coachId: string) => {
+    try {
+      const success = await removeUserCapability(coachId, USER_CAPABILITIES.COACH)
+      if (success) {
+        toast.success('Coach capability removed successfully')
+        await handleRefresh() // Refresh the list
+      } else {
+        toast.error('Failed to remove coach capability')
+      }
+    } catch (error) {
+      console.error('[REMOVE_COACH_ERROR]', error)
+      toast.error('Failed to remove coach capability')
     }
   }
 
@@ -220,18 +239,21 @@ export default function CoachManagementClient({
                 <CoachProfilesTable 
                   profiles={getCurrentProfiles()}
                   onUpdateStatus={handleUpdateStatus}
+                  onRemoveCoach={handleRemoveCoachCapability}
                 />
               </TabsContent>
               <TabsContent value="published">
                 <CoachProfilesTable 
                   profiles={getCurrentProfiles()}
                   onUpdateStatus={handleUpdateStatus}
+                  onRemoveCoach={handleRemoveCoachCapability}
                 />
               </TabsContent>
               <TabsContent value="draft">
                 <CoachProfilesTable 
                   profiles={getCurrentProfiles()}
                   onUpdateStatus={handleUpdateStatus}
+                  onRemoveCoach={handleRemoveCoachCapability}
                 />
               </TabsContent>
             </Tabs>

@@ -14,6 +14,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -55,14 +56,17 @@ interface CoachProfile {
   completionPercentage: number
   hourlyRate: number
   updatedAt: string
+  isSystemOwner?: boolean // Added to determine if user is system owner
+  email: string
 }
 
 interface CoachProfilesTableProps {
   profiles: CoachProfile[]
   onUpdateStatus: (coachId: string, newStatus: ProfileStatus) => void
+  onRemoveCoach: (coachId: string) => Promise<void>
 }
 
-export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTableProps) {
+export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: CoachProfilesTableProps) {
   const [selectedCoach, setSelectedCoach] = useState<CoachProfile | null>(null)
   const [selectedDomains, setSelectedDomains] = useState<string[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -104,12 +108,58 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
     }
   }
 
+  const validateProfileRequirements = (profile: CoachProfile) => {
+    const requirements = {
+      profileCompletion: profile.completionPercentage >= 70,
+      hasValidDomains: profile.realEstateDomains.length >= 1,
+      hasValidRate: profile.hourlyRate > 0
+    }
+
+    return {
+      isValid: Object.values(requirements).every(Boolean),
+      requirements,
+      missingRequirements: Object.entries(requirements)
+        .filter(([_, satisfied]) => !satisfied)
+        .map(([req]) => req)
+    }
+  }
+
+  const handleStatusUpdate = async (profile: CoachProfile, newStatus: ProfileStatus) => {
+    // Publishing validation
+    if (newStatus === 'PUBLISHED') {
+      // If coming from SUSPENDED state, check system owner permission
+      if (profile.profileStatus === 'SUSPENDED' && !profile.isSystemOwner) {
+        toast.error('Only system owners can restore suspended profiles')
+        return
+      }
+
+      const validation = validateProfileRequirements(profile)
+      if (!validation.isValid) {
+        toast.error(
+          `Cannot publish profile. Missing requirements:\n${validation.missingRequirements
+            .map(req => `- ${req.replace(/([A-Z])/g, ' $1').toLowerCase()}`)
+            .join('\n')}`
+        )
+        return
+      }
+    }
+
+    // System owner-only actions
+    if ((newStatus === 'SUSPENDED' || newStatus === 'ARCHIVED') && !profile.isSystemOwner) {
+      toast.error('Only system owners can suspend or archive profiles')
+      return
+    }
+
+    await onUpdateStatus(profile.userUlid, newStatus)
+  }
+
   return (
     <>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
+            <TableHead>Email</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Real Estate Domains</TableHead>
             <TableHead>Completion</TableHead>
@@ -124,11 +174,17 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
               <TableCell>
                 {profile.firstName} {profile.lastName}
               </TableCell>
+              <TableCell className="text-sm text-muted-foreground">
+                {profile.email}
+              </TableCell>
               <TableCell>
                 <Badge variant={
                   profile.profileStatus === 'PUBLISHED' ? 'default' : 
                   profile.profileStatus === 'ARCHIVED' ? 'destructive' : 
+                  profile.profileStatus === 'SUSPENDED' ? 'outline' :
                   'secondary'
+                } className={
+                  profile.profileStatus === 'SUSPENDED' ? 'border-yellow-500 text-yellow-600' : ''
                 }>
                   {profile.profileStatus}
                 </Badge>
@@ -147,7 +203,6 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-2">
-                  <Progress value={profile.completionPercentage} className="w-24 h-2" />
                   <span className="text-sm font-medium">{profile.completionPercentage}%</span>
                 </div>
               </TableCell>
@@ -163,15 +218,6 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
               </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => handleOpenDomains(profile)}
-                    className="h-8 px-2"
-                  >
-                    <Tags className="h-4 w-4 mr-1" />
-                    Domains
-                  </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="h-8 w-8 p-0">
@@ -180,26 +226,98 @@ export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTa
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      {/* Draft Profile Actions */}
                       {profile.profileStatus === 'DRAFT' && (
-                        <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'PUBLISHED')}>
-                          Publish Profile
-                        </DropdownMenuItem>
+                        <>
+                          <DropdownMenuItem 
+                            onClick={() => handleStatusUpdate(profile, 'PUBLISHED')}
+                            className="text-green-600 focus:text-green-600"
+                          >
+                            Publish Profile
+                          </DropdownMenuItem>
+                          {profile.isSystemOwner && (
+                            <DropdownMenuItem 
+                              onClick={() => handleStatusUpdate(profile, 'ARCHIVED')}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              Archive Profile
+                            </DropdownMenuItem>
+                          )}
+                        </>
                       )}
+                      
+                      {/* Published Profile Actions */}
                       {profile.profileStatus === 'PUBLISHED' && (
                         <>
-                          <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'DRAFT')}>
-                            Unpublish Profile
+                          <DropdownMenuItem 
+                            onClick={() => handleStatusUpdate(profile, 'DRAFT')}
+                          >
+                            Unpublish to Draft
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'ARCHIVED')}>
+                          {profile.isSystemOwner && (
+                            <>
+                              <DropdownMenuItem 
+                                onClick={() => handleStatusUpdate(profile, 'SUSPENDED')}
+                                className="text-yellow-600 focus:text-yellow-600"
+                              >
+                                Suspend Profile
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => handleStatusUpdate(profile, 'ARCHIVED')}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                Archive Profile
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </>
+                      )}
+
+                      {/* Suspended Profile Actions */}
+                      {profile.profileStatus === 'SUSPENDED' && profile.isSystemOwner && (
+                        <>
+                          <DropdownMenuItem 
+                            onClick={() => handleStatusUpdate(profile, 'PUBLISHED')}
+                            className="text-green-600 focus:text-green-600"
+                          >
+                            Restore to Published
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleStatusUpdate(profile, 'ARCHIVED')}
+                            className="text-destructive focus:text-destructive"
+                          >
                             Archive Profile
                           </DropdownMenuItem>
                         </>
                       )}
-                      {profile.profileStatus === 'ARCHIVED' && (
-                        <DropdownMenuItem onClick={() => onUpdateStatus(profile.userUlid, 'DRAFT')}>
-                          Restore Profile
+
+                      {/* Archived Profile Actions */}
+                      {profile.profileStatus === 'ARCHIVED' && profile.isSystemOwner && (
+                        <DropdownMenuItem 
+                          onClick={() => handleStatusUpdate(profile, 'DRAFT')}
+                          className="text-muted-foreground focus:text-muted-foreground"
+                        >
+                          Un-Archive to Draft
                         </DropdownMenuItem>
                       )}
+
+                      {/* Always show Update Domains option */}
+                      <DropdownMenuItem 
+                        onClick={() => handleOpenDomains(profile)}
+                        className="focus:text-primary"
+                      >
+                        <Tags className="h-4 w-4 mr-2" />
+                        Update Domains
+                      </DropdownMenuItem>
+
+                      {/* Remove Coach Capability - moved to bottom */}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={() => onRemoveCoach(profile.userUlid)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        Remove Coach Capability
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

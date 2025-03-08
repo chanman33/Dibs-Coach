@@ -13,7 +13,8 @@ const UpdateProfileStatusSchema = z.object({
   status: z.enum([
     PROFILE_STATUS.DRAFT,
     PROFILE_STATUS.PUBLISHED,
-    PROFILE_STATUS.ARCHIVED
+    PROFILE_STATUS.ARCHIVED,
+    PROFILE_STATUS.SUSPENDED
   ])
 })
 
@@ -73,7 +74,7 @@ export const updateCoachProfileStatus = withServerAction<{ success: boolean }, z
       const { error: updateError } = await supabase
         .from('CoachProfile')
         .update({
-          profileStatus: status,
+          profileStatus: status as 'DRAFT' | 'PUBLISHED' | 'ARCHIVED',
           updatedAt: new Date().toISOString()
         })
         .eq('userUlid', coachUlid)

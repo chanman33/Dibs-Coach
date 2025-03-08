@@ -24,6 +24,7 @@ export default async function CoachManagementPage() {
     userUlid: profile.userUlid,
     firstName: profile.firstName || '',
     lastName: profile.lastName || '',
+    email: profile.email || '',
     profileStatus: profile.profileStatus,
     realEstateDomains: profile.realEstateDomains || [],
     completionPercentage: profile.completionPercentage,

@@ -9,8 +9,21 @@ import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Mail, Calendar, Clock, DollarSign, Award, CheckCircle, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
-import { PROFILE_STATUS } from '@/utils/types/coach'
+import { PROFILE_STATUS, ProfileStatus } from '@/utils/types/coach'
 import { formatDistanceToNow } from 'date-fns'
+
+const REAL_ESTATE_DOMAINS = [
+  'REALTOR',
+  'INVESTOR',
+  'MORTGAGE',
+  'PROPERTY_MANAGER',
+  'TITLE_ESCROW',
+  'INSURANCE',
+  'COMMERCIAL',
+  'PRIVATE_CREDIT'
+] as const;
+
+type RealEstateDomain = typeof REAL_ESTATE_DOMAINS[number];
 
 interface CoachProfilePageProps {
   params: {
@@ -67,6 +80,10 @@ export default async function CoachProfilePage({ params }: CoachProfilePageProps
   }
 
   const completionStatus = getProfileCompletionStatus(profile.completionPercentage);
+
+  const validDomains = (profile.realEstateDomains || []).filter((domain): domain is RealEstateDomain => 
+    REAL_ESTATE_DOMAINS.includes(domain as RealEstateDomain)
+  );
 
   return (
     <div className="container space-y-8 p-8">
@@ -216,7 +233,7 @@ export default async function CoachProfilePage({ params }: CoachProfilePageProps
               coachName={`${profile.firstName} ${profile.lastName}`}
               currentStatus={profile.profileStatus}
               completionPercentage={profile.completionPercentage}
-              approvedSpecialties={profile.realEstateDomains || []}
+              approvedSpecialties={validDomains}
               updateStatus={updateProfileStatus}
               updateSpecialties={async () => true}
             />

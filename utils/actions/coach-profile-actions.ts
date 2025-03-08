@@ -4,7 +4,7 @@ import { createAuthClient } from "../auth"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { revalidatePath } from "next/cache"
-import { PROFILE_STATUS, type ProfileStatus } from "@/utils/types/coach"
+import { PROFILE_STATUS, type ProfileStatus, ALLOWED_STATUS_TRANSITIONS, PROFILE_REQUIREMENTS, canTransitionTo } from "@/utils/types/coach"
 import { calculateProfileCompletion, PUBLICATION_THRESHOLD } from "@/utils/actions/calculateProfileCompletion"
 import { auth } from "@clerk/nextjs/server"
 import { ProfessionalRecognition } from "@/utils/types/recognition"
@@ -398,92 +398,111 @@ interface UpdateProfileStatusResponse {
   profileStatus: ProfileStatus;
 }
 
-export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse, { status: ProfileStatus }>(
+interface UpdateProfileStatusParams {
+  status: ProfileStatus
+  isSystemOwner: boolean
+}
+
+interface CoachProfileRecord {
+  profileStatus: ProfileStatus
+  completionPercentage: number
+  realEstateDomains: string[]
+  hourlyRate: number
+  updatedAt: string
+}
+
+export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse, UpdateProfileStatusParams>(
   async (data, { userUlid }) => {
     try {
       const supabase = await createAuthClient()
       
-      if (data.status === PROFILE_STATUS.PUBLISHED) {
-        const { data: userData, error: userError } = await supabase
-          .from('User')
-          .select(`
-            firstName,
-            lastName,
-            bio,
-            profileImageUrl,
-            coachProfile:CoachProfile (
-              coachSkills,
-              yearsCoaching,
-              hourlyRate,
-              calendlyUrl,
-              eventTypeUrl,
-              completionPercentage
-            )
-          `)
-          .eq('ulid', userUlid)
-          .single()
+      // Get current profile status
+      const { data: profile, error: profileError } = await supabase
+        .from('CoachProfile')
+        .select(`
+          profileStatus,
+          completionPercentage,
+          realEstateDomains,
+          hourlyRate
+        `)
+        .eq('userUlid', userUlid)
+        .single() as { data: CoachProfileRecord | null, error: any }
 
-        if (userError) {
-          console.error('[DEBUG] Error fetching user for status update:', userError)
-          return {
-            data: null,
-            error: {
-              code: 'DATABASE_ERROR',
-              message: 'Failed to fetch user data',
-              details: { error: userError }
+      if (profileError || !profile) {
+        console.error('[UPDATE_STATUS_ERROR]', { error: profileError })
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch current profile status',
+            details: profileError
+          }
+        }
+      }
+
+      // Check if transition is allowed for the user's role
+      if (!canTransitionTo(profile.profileStatus, data.status, data.isSystemOwner)) {
+        return {
+          data: null,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: data.isSystemOwner 
+              ? `Cannot transition from ${profile.profileStatus} to ${data.status}`
+              : 'You do not have permission to perform this action',
+            details: { 
+              currentStatus: profile.profileStatus, 
+              requestedStatus: data.status,
+              isSystemOwner: data.isSystemOwner
             }
           }
         }
+      }
 
-        const coachProfile = Array.isArray(userData.coachProfile) 
-          ? userData.coachProfile[0] 
-          : userData.coachProfile;
+      // Validate publication requirements
+      if (data.status === PROFILE_STATUS.PUBLISHED) {
+        const requirements = {
+          completionMet: profile.completionPercentage >= PROFILE_REQUIREMENTS.MINIMUM_COMPLETION,
+          domainsMet: (profile.realEstateDomains?.length || 0) >= PROFILE_REQUIREMENTS.MINIMUM_DOMAINS,
+          rateMet: PROFILE_REQUIREMENTS.REQUIRES_HOURLY_RATE ? (profile.hourlyRate || 0) > 0 : true
+        }
 
-        const profileData = {
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          bio: userData.bio,
-          profileImageUrl: userData.profileImageUrl,
-          coachingSpecialties: coachProfile?.coachSkills || [],
-          hourlyRate: coachProfile?.hourlyRate || null,
-          yearsCoaching: coachProfile?.yearsCoaching || null,
-          calendlyUrl: coachProfile?.calendlyUrl || null,
-          eventTypeUrl: coachProfile?.eventTypeUrl || null,
-        };
-        
-        const { canPublish, percentage } = calculateProfileCompletion(profileData);
-        
-        if (!canPublish) {
+        const missingRequirements = Object.entries(requirements)
+          .filter(([_, met]) => !met)
+          .map(([req]) => req.replace(/Met$/, ''))
+
+        if (missingRequirements.length > 0) {
           return {
             data: null,
             error: {
               code: 'VALIDATION_ERROR',
-              message: `Your profile is only ${percentage}% complete. It needs to be at least ${PUBLICATION_THRESHOLD}% complete to publish.`,
-              details: { 
-                completionPercentage: percentage || 0,
-                requiredThreshold: PUBLICATION_THRESHOLD
+              message: 'Profile does not meet publication requirements',
+              details: {
+                missingRequirements,
+                currentCompletion: profile.completionPercentage,
+                requiredCompletion: PROFILE_REQUIREMENTS.MINIMUM_COMPLETION
               }
             }
           }
         }
       }
 
+      // Update profile status
       const { error: updateError } = await supabase
         .from('CoachProfile')
         .update({
-          profileStatus: data.status,
+          profileStatus: data.status as any, // temporary fix for Supabase enum type mismatch
           updatedAt: new Date().toISOString()
         })
         .eq('userUlid', userUlid)
 
       if (updateError) {
-        console.error('[DEBUG] Error updating profile status:', updateError)
+        console.error('[UPDATE_STATUS_ERROR]', { error: updateError })
         return {
           data: null,
           error: {
             code: 'DATABASE_ERROR',
             message: 'Failed to update profile status',
-            details: { error: updateError }
+            details: updateError
           }
         }
       }
@@ -497,13 +516,13 @@ export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse,
         error: null
       }
     } catch (error) {
-      console.error('[DEBUG] Error in updateProfileStatus:', error)
+      console.error('[UPDATE_STATUS_ERROR]', { error })
       return {
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
           message: 'Failed to update profile status',
-          details: { error }
+          details: error instanceof Error ? error.message : String(error)
         }
       }
     }

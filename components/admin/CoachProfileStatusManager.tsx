@@ -24,16 +24,29 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { INDUSTRY_SPECIALTIES } from '@/components/profile/common/ProfileTabsManager'
+
+// Available real estate domains
+const REAL_ESTATE_DOMAINS = [
+  'REALTOR',
+  'INVESTOR',
+  'MORTGAGE',
+  'PROPERTY_MANAGER',
+  'TITLE_ESCROW',
+  'INSURANCE',
+  'COMMERCIAL',
+  'PRIVATE_CREDIT'
+] as const;
+
+type RealEstateDomain = typeof REAL_ESTATE_DOMAINS[number];
 
 interface CoachProfileStatusManagerProps {
   coachId: string
   coachName: string
   currentStatus: ProfileStatus
   completionPercentage: number
-  approvedSpecialties: string[]
+  approvedSpecialties: RealEstateDomain[]
   updateStatus: (coachId: string, newStatus: ProfileStatus) => Promise<boolean>
-  updateSpecialties: (coachId: string, specialties: string[]) => Promise<boolean>
+  updateSpecialties: (coachId: string, specialties: RealEstateDomain[]) => Promise<boolean>
 }
 
 export function CoachProfileStatusManager({
@@ -46,7 +59,7 @@ export function CoachProfileStatusManager({
   updateSpecialties
 }: CoachProfileStatusManagerProps) {
   const [status, setStatus] = useState<ProfileStatus>(currentStatus)
-  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>(approvedSpecialties)
+  const [selectedSpecialties, setSelectedSpecialties] = useState<RealEstateDomain[]>(approvedSpecialties)
   const [isUpdating, setIsUpdating] = useState(false)
 
   const handleStatusChange = async () => {
@@ -170,24 +183,24 @@ export function CoachProfileStatusManager({
 
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-medium mb-2">Industry Specialties</h3>
+              <h3 className="text-sm font-medium mb-2">Real Estate Domains</h3>
               <div className="grid grid-cols-2 gap-4">
-                {Object.entries(INDUSTRY_SPECIALTIES).map(([key, value]) => (
-                  <div key={key} className="flex items-center space-x-2">
+                {REAL_ESTATE_DOMAINS.map((domain) => (
+                  <div key={domain} className="flex items-center space-x-2">
                     <Checkbox
-                      id={`specialty-${key}`}
-                      checked={selectedSpecialties.includes(value)}
+                      id={`domain-${domain}`}
+                      checked={selectedSpecialties.includes(domain)}
                       onCheckedChange={(checked) => {
                         if (checked) {
-                          setSelectedSpecialties([...selectedSpecialties, value]);
+                          setSelectedSpecialties([...selectedSpecialties, domain]);
                         } else {
-                          setSelectedSpecialties(selectedSpecialties.filter(s => s !== value));
+                          setSelectedSpecialties(selectedSpecialties.filter(s => s !== domain));
                         }
                       }}
                       disabled={isUpdating}
                     />
-                    <Label htmlFor={`specialty-${key}`} className="font-normal">
-                      {key.replace(/_/g, ' ')}
+                    <Label htmlFor={`domain-${domain}`} className="font-normal">
+                      {domain.replace(/_/g, ' ')}
                     </Label>
                   </div>
                 ))}
