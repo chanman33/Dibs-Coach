@@ -62,24 +62,35 @@ export function useCalendlyConnection(customRedirectUrl?: string) {
             const responseData = await response.json()
             console.log('[CALENDLY_HOOK_DEBUG] Status response:', responseData)
             
-            // Handle not connected state gracefully
-            if (!responseData?.data?.resourceExists) {
+            // Check if the response indicates a connected status
+            // The API returns either the direct status object or a nested data structure
+            const statusData = responseData.data || responseData
+            
+            if (statusData.connected === true) {
+                console.log('[CALENDLY_HOOK_DEBUG] Setting connected status:', statusData)
+                setStatus({
+                    connected: true,
+                    schedulingUrl: statusData.schedulingUrl,
+                    userUri: statusData.userUri,
+                    isExpired: statusData.isExpired || false,
+                    expiresAt: statusData.expiresAt,
+                    needsReconnect: statusData.needsReconnect || false
+                })
+            } else if (statusData.resourceExists) {
+                // Alternative format where resourceExists indicates connection
+                console.log('[CALENDLY_HOOK_DEBUG] Setting connected status from resourceExists:', statusData)
+                setStatus({
+                    connected: true,
+                    schedulingUrl: statusData.schedulingUrl,
+                    userUri: statusData.uri,
+                    isExpired: false,
+                    expiresAt: undefined,
+                    needsReconnect: false
+                })
+            } else {
                 console.log('[CALENDLY_HOOK_DEBUG] Not connected state from API')
                 setStatus({ connected: false })
-                return
             }
-            
-            // Set the full status object
-            const data = responseData.data
-            console.log('[CALENDLY_HOOK_DEBUG] Setting connected status:', data)
-            setStatus({
-                connected: true,
-                schedulingUrl: data.schedulingUrl,
-                userUri: data.uri,
-                isExpired: false, // These fields come from a different endpoint if needed
-                expiresAt: undefined,
-                needsReconnect: false
-            })
         } catch (error) {
             console.error('[CALENDLY_HOOK_DEBUG] Status fetch error:', error)
             // Only show error toast for unexpected errors, not for "not connected" state
