@@ -11,9 +11,15 @@ import { Separator } from '@/components/ui/separator'
 import { useState, useEffect } from 'react'
 import { ConnectCalendly } from '@/components/calendly/ConnectCalendly'
 import { USER_CAPABILITIES } from "@/utils/roles/roles"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
 import { fetchUserCapabilities } from "@/utils/actions/user-actions"
+import { useCalendlyConnection } from '@/utils/hooks/useCalendly'
+import { Calendar, ExternalLink, Loader2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { toast } from 'react-hot-toast'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import Link from 'next/link'
 
 export default function Settings() {
   const router = useRouter()
@@ -21,10 +27,86 @@ export default function Settings() {
   const [loading, setLoading] = useState(false)
   const [userCapabilities, setUserCapabilities] = useState<string[]>([])
   const [loadingCapabilities, setLoadingCapabilities] = useState(true)
+  const { 
+    status: calendlyStatus, 
+    isLoading: isCalendlyLoading, 
+    isConnecting,
+    handleConnect,
+    refreshStatus: refreshCalendlyStatus 
+  } = useCalendlyConnection(`${typeof window !== 'undefined' ? window.location.origin : ''}/dashboard/settings?tab=calendly&calendly=success`)
+  const isCoach = userCapabilities.includes('COACH')
+  const [activeTab, setActiveTab] = useState("account")
+  const [isDisconnecting, setIsDisconnecting] = useState(false)
+
+  // Debug state changes
+  useEffect(() => {
+    console.log('[SETTINGS_PAGE_DEBUG] Calendly status changed:', {
+      status: calendlyStatus,
+      isLoading: isCalendlyLoading,
+      isConnecting,
+      isDisconnecting,
+      timestamp: new Date().toISOString()
+    })
+  }, [calendlyStatus, isCalendlyLoading, isConnecting, isDisconnecting])
+
+  // Set the active tab based on the URL parameter
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href)
+      const tab = url.searchParams.get('tab')
+      console.log('[SETTINGS_PAGE_DEBUG] URL change detected:', {
+        tab,
+        currentTab: activeTab,
+        success: url.searchParams.get('success'),
+        error: url.searchParams.get('error'),
+        timestamp: new Date().toISOString()
+      })
+
+      if (tab && ['account', 'notifications', 'subscription', 'calendly'].includes(tab)) {
+        setActiveTab(tab)
+      }
+      
+      // Check for success or error messages in URL
+      const success = url.searchParams.get('success')
+      const error = url.searchParams.get('error')
+
+      if (success) {
+        console.log('[SETTINGS_PAGE_DEBUG] Processing success:', {
+          success,
+          currentStatus: calendlyStatus,
+          timestamp: new Date().toISOString()
+        })
+        
+        // Only show success message and refresh if we don't already have a connection
+        if (!calendlyStatus?.connected) {
+          toast.success('Calendly connected successfully!')
+          refreshCalendlyStatus()
+        }
+        
+        // Remove the query parameter to avoid showing the message again on refresh
+        url.searchParams.delete('success')
+        window.history.replaceState({}, '', url.toString())
+      } else if (error) {
+        console.error('[SETTINGS_PAGE_DEBUG] Processing error:', {
+          error,
+          currentStatus: calendlyStatus,
+          timestamp: new Date().toISOString()
+        })
+        toast.error(`Error: ${error}`)
+        // Remove the query parameter to avoid showing the message again on refresh
+        url.searchParams.delete('error')
+        window.history.replaceState({}, '', url.toString())
+      }
+    }
+  }, [calendlyStatus?.connected]) // Only re-run when connection status changes
 
   useEffect(() => {
     async function loadUserCapabilities() {
       if (user?.id) {
+        console.log('[SETTINGS_PAGE_DEBUG] Loading capabilities:', {
+          userId: user.id,
+          timestamp: new Date().toISOString()
+        })
         try {
           const result = await fetchUserCapabilities()
           
@@ -33,10 +115,17 @@ export default function Settings() {
           }
 
           if (result.data) {
+            console.log('[SETTINGS_PAGE_DEBUG] Capabilities loaded:', {
+              capabilities: result.data.capabilities,
+              timestamp: new Date().toISOString()
+            })
             setUserCapabilities(result.data.capabilities)
           }
         } catch (error) {
-          console.error("[CAPABILITIES_FETCH_ERROR]", error)
+          console.error("[SETTINGS_PAGE_DEBUG] Capabilities fetch error:", {
+            error,
+            timestamp: new Date().toISOString()
+          })
           setUserCapabilities([])
         }
         setLoadingCapabilities(false)
@@ -46,15 +135,59 @@ export default function Settings() {
     loadUserCapabilities()
   }, [user?.id])
 
-  const isCoach = userCapabilities.includes('COACH')
+  const handleDisconnectCalendly = async () => {
+    try {
+      console.log('[SETTINGS_PAGE_DEBUG] Starting disconnect:', {
+        currentStatus: calendlyStatus,
+        timestamp: new Date().toISOString()
+      })
+      setIsDisconnecting(true)
+      const response = await fetch('/api/calendly/disconnect', {
+        method: 'POST',
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('[SETTINGS_PAGE_DEBUG] Disconnect failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData,
+          timestamp: new Date().toISOString()
+        })
+        throw new Error('Failed to disconnect Calendly')
+      }
+      
+      console.log('[SETTINGS_PAGE_DEBUG] Disconnect successful')
+      toast.success('Calendly disconnected successfully')
+      refreshCalendlyStatus()
+    } catch (error) {
+      console.error('[SETTINGS_PAGE_DEBUG] Disconnect error:', {
+        error,
+        timestamp: new Date().toISOString()
+      })
+      toast.error('Failed to disconnect Calendly')
+    } finally {
+      setIsDisconnecting(false)
+    }
+  }
+
+  // Debug render
+  console.log('[SETTINGS_PAGE_DEBUG] Rendering:', {
+    isCoach,
+    activeTab,
+    loadingCapabilities,
+    calendlyStatus,
+    timestamp: new Date().toISOString()
+  })
 
   if (loadingCapabilities) {
+    console.log('[SETTINGS_PAGE_DEBUG] Loading capabilities')
     return <div>Loading...</div>
   }
 
   return (
     <div className="container mx-auto py-6 space-y-8">
-      <Tabs defaultValue="account" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0">
           <TabsTrigger
             value="account"
@@ -77,9 +210,15 @@ export default function Settings() {
           {isCoach && (
             <TabsTrigger
               value="calendly"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent flex items-center gap-2"
             >
               Calendly
+              {!isCalendlyLoading && calendlyStatus?.connected && !calendlyStatus?.needsReconnect && (
+                <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  Connected
+                </Badge>
+              )}
             </TabsTrigger>
           )}
         </TabsList>
@@ -170,15 +309,94 @@ export default function Settings() {
 
         {isCoach ? (
           <TabsContent value="calendly" className="space-y-4 mt-6">
-            <Card className="p-6">
-              <ConnectCalendly />
+            <Card>
+              <CardHeader>
+                <CardTitle>Calendly Integration</CardTitle>
+                <CardDescription>Connect your Calendly account to manage your coaching sessions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isCalendlyLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <LoadingSpinner size="sm" />
+                    <span>Loading Calendly status...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center space-x-2 mb-4">
+                      <span>Status:</span>
+                      {calendlyStatus?.connected ? (
+                        <Badge className="bg-green-500">Connected</Badge>
+                      ) : calendlyStatus?.needsReconnect ? (
+                        <Badge variant="destructive">Connection Error</Badge>
+                      ) : (
+                        <Badge variant="secondary">Not Connected</Badge>
+                      )}
+                    </div>
+
+                    {calendlyStatus?.connected ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDisconnectCalendly}
+                        disabled={isDisconnecting}
+                      >
+                        {isDisconnecting ? (
+                          <>
+                            <LoadingSpinner size="sm" className="mr-2" />
+                            Disconnecting...
+                          </>
+                        ) : (
+                          'Disconnect'
+                        )}
+                      </Button>
+                    ) : calendlyStatus?.needsReconnect ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleConnect}
+                        disabled={isConnecting}
+                      >
+                        {isConnecting ? (
+                          <>
+                            <LoadingSpinner size="sm" className="mr-2" />
+                            Reconnecting...
+                          </>
+                        ) : (
+                          'Reconnect'
+                        )}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleConnect}
+                        disabled={isConnecting}
+                      >
+                        {isConnecting ? (
+                          <>
+                            <LoadingSpinner size="sm" className="mr-2" />
+                            Connecting...
+                          </>
+                        ) : (
+                          'Connect'
+                        )}
+                      </Button>
+                    )}
+                  </>
+                )}
+              </CardContent>
             </Card>
           </TabsContent>
         ) : (
           <TabsContent value="calendly" className="space-y-4 mt-6">
             <Alert>
+              <AlertTitle>Calendly Integration</AlertTitle>
               <AlertDescription>
-                Calendly integration is only available for coaches. If you're interested in becoming a coach, please visit our coaching application page.
+                Calendly integration is only available for coaches. If you&apos;re interested in becoming a coach,{' '}
+                <Link href="/dashboard/coaching/apply" className="underline">
+                  visit our coaching application page
+                </Link>
+                .
               </AlertDescription>
             </Alert>
           </TabsContent>

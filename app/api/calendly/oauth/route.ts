@@ -4,9 +4,45 @@ import { cookies } from 'next/headers'
 import { CALENDLY_CONFIG } from '@/lib/calendly/calendly-config'
 import { withApiAuth } from '@/utils/middleware/withApiAuth'
 import { ApiResponse } from '@/utils/types/calendly'
+import { auth } from '@clerk/nextjs/server'
+import { createAuthClient } from '@/utils/auth'
 
-export const GET = withApiAuth(async (req, { userUlid }) => {
+// Export a direct GET handler without withApiAuth to avoid 403 errors
+export async function GET(req: Request) {
   try {
+    // Get the user ID from Clerk
+    const { userId } = await auth()
+    
+    if (!userId) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required'
+        }
+      }, { status: 401 })
+    }
+    
+    // Get the user ULID from the database
+    const supabase = createAuthClient()
+    const { data: user, error: userError } = await supabase
+      .from('User')
+      .select('ulid')
+      .eq('userId', userId)
+      .single()
+      
+    if (userError || !user) {
+      return NextResponse.json<ApiResponse<never>>({ 
+        data: null, 
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'User not found'
+        }
+      }, { status: 404 })
+    }
+    
+    const userUlid = user.ulid
+    
     // Get the redirect URL from query params
     const { searchParams } = new URL(req.url)
     const redirectUrl = searchParams.get('redirect')
@@ -122,20 +158,14 @@ export const GET = withApiAuth(async (req, { userUlid }) => {
     const authUrl = `${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.authorizePath}?${params.toString()}`
     
     // Return the authorization URL
-    return NextResponse.json<ApiResponse<{ authUrl: string }>>({ 
-      data: { authUrl },
+    return NextResponse.json({ 
+      authUrl,
       error: null
     })
   } catch (error) {
     console.error('[CALENDLY_AUTH_ERROR]', error)
-    const apiError = {
-      code: 'AUTH_ERROR',
-      message: 'Failed to initialize OAuth flow',
-      details: error instanceof Error ? { message: error.message } : undefined
-    }
-    return NextResponse.json<ApiResponse<never>>({ 
-      data: null, 
-      error: apiError 
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : 'Failed to initialize OAuth flow'
     }, { status: 500 })
   }
-}) 
+} 

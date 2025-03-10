@@ -4,8 +4,12 @@ import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
 import { useCalendlyConnection } from '@/utils/hooks/useCalendly'
 
-export function ConnectCalendly() {
-  const { status, isLoading, isConnecting, handleConnect } = useCalendlyConnection()
+interface ConnectCalendlyProps {
+  redirectUrl?: string;
+}
+
+export function ConnectCalendly({ redirectUrl }: ConnectCalendlyProps) {
+  const { status, isLoading, isConnecting, handleConnect } = useCalendlyConnection(redirectUrl)
 
   if (isLoading) {
     return (

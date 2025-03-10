@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { CALENDLY_CONFIG, useRealCalendly } from '@/lib/calendly/calendly-config'
 import { createAuthClient } from '@/utils/auth'
+import { generateUlid } from '@/utils/ulid'
 
 // Mock response for development mode
 const MOCK_TOKEN_RESPONSE = {
@@ -90,7 +91,7 @@ export async function GET(request: Request) {
 
     // Log token request details (excluding sensitive data)
     console.log('[CALENDLY_AUTH_DEBUG] Token request:', {
-      url: `${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.tokenPath}`,
+      url: CALENDLY_CONFIG.oauth.tokenUrl || `${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.tokenPath}`,
       params: {
         grant_type: 'authorization_code',
         redirect_uri: CALENDLY_CONFIG.oauth.redirectUri,
@@ -112,7 +113,7 @@ export async function GET(request: Request) {
       userData = MOCK_USER_RESPONSE
     } else {
       // Exchange code for token
-      const tokenResponse = await fetch(`${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.tokenPath}`, {
+      const tokenResponse = await fetch(CALENDLY_CONFIG.oauth.tokenUrl || `${CALENDLY_CONFIG.oauth.baseUrl}${CALENDLY_CONFIG.oauth.tokenPath}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -181,6 +182,15 @@ export async function GET(request: Request) {
       }
 
       userData = await userResponse.json()
+      
+      // Log the user data structure for debugging
+      console.log('[CALENDLY_AUTH_DEBUG] User data structure:', {
+        resourceExists: !!userData.resource,
+        uri: userData.resource?.uri,
+        currentOrg: userData.resource?.current_organization,
+        schedulingUrl: userData.resource?.scheduling_url,
+        currentOrgType: userData.resource?.current_organization ? typeof userData.resource.current_organization : 'undefined'
+      })
     }
 
     const { access_token, refresh_token, expires_in, scope } = tokenData
@@ -221,15 +231,24 @@ export async function GET(request: Request) {
       .from('CalendlyIntegration')
       .upsert(
         {
+          ulid: generateUlid(),
           userUlid: user.ulid,
-          calendlyUserId: userData.resource.uri.split('/').pop() || 'MOCK-USER-ID',
+          userId: userData.resource.uri.split('/').pop() || 'MOCK-USER-ID',
           accessToken: access_token,
           refreshToken: refresh_token,
           scope: scope || 'default',
-          organizationUrl: userData.resource.current_organization?.url,
+          organization: userData.resource.current_organization ? 
+            (typeof userData.resource.current_organization === 'string' ? 
+              userData.resource.current_organization.split('/').pop() : 
+              null) : 
+            null,
+          organizationUrl: typeof userData.resource.current_organization === 'string' ? 
+            userData.resource.current_organization : 
+            null,
           schedulingUrl: userData.resource.scheduling_url,
           expiresAt: new Date(Date.now() + (expires_in * 1000)).toISOString(),
-          updatedAt: new Date().toISOString()
+          updatedAt: new Date().toISOString(),
+          status: 'active'
         },
         {
           onConflict: 'userUlid'
@@ -238,6 +257,41 @@ export async function GET(request: Request) {
 
     if (integrationError) {
       console.error('[CALENDLY_AUTH_ERROR] Failed to store integration:', integrationError)
+      console.error('[CALENDLY_AUTH_DEBUG] Integration data attempted:', {
+        userUlid: user.ulid,
+        userId: userData.resource.uri.split('/').pop() || 'MOCK-USER-ID',
+        organization: userData.resource.current_organization ? 
+          (typeof userData.resource.current_organization === 'string' ? 
+            userData.resource.current_organization.split('/').pop() : 
+            null) : 
+          null,
+        organizationUrl: typeof userData.resource.current_organization === 'string' ? 
+          userData.resource.current_organization : 
+          null,
+        schedulingUrl: userData.resource.scheduling_url,
+      })
+      
+      // Test the token with a simple API call to verify it works
+      try {
+        console.log('[CALENDLY_AUTH_DEBUG] Testing token with API call')
+        const testResponse = await fetch(`${CALENDLY_CONFIG.api.baseUrl}/event_types`, {
+          headers: {
+            'Authorization': `Bearer ${access_token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        if (testResponse.ok) {
+          console.log('[CALENDLY_AUTH_DEBUG] Token test successful')
+          const data = await testResponse.json()
+          console.log('[CALENDLY_AUTH_DEBUG] Event types count:', data.collection?.length || 0)
+        } else {
+          console.error('[CALENDLY_AUTH_ERROR] Token test failed:', testResponse.status, testResponse.statusText)
+        }
+      } catch (testError) {
+        console.error('[CALENDLY_AUTH_ERROR] Token test exception:', testError)
+      }
+      
       return NextResponse.redirect(
         `${process.env.FRONTEND_URL}/dashboard/settings/calendly?error=${encodeURIComponent('Failed to store integration')}`
       )
@@ -249,8 +303,16 @@ export async function GET(request: Request) {
 
     // Get the redirect URL from cookie
     const redirectUrl = cookieStore.get('calendly_redirect')?.value || '/dashboard/settings/calendly'
-
-    return NextResponse.redirect(`${redirectUrl}?success=true`)
+    
+    // Ensure we have an absolute URL for the redirect
+    const baseUrl = process.env.FRONTEND_URL || 'https://slim-migration-shops-forge.trycloudflare.com'
+    const absoluteRedirectUrl = redirectUrl.startsWith('http') 
+      ? `${redirectUrl}?success=true` 
+      : `${baseUrl}${redirectUrl.startsWith('/') ? '' : '/'}${redirectUrl}?success=true`
+    
+    console.log('[CALENDLY_AUTH_DEBUG] Redirecting to:', absoluteRedirectUrl)
+    
+    return NextResponse.redirect(absoluteRedirectUrl)
   } catch (error) {
     console.error('[CALENDLY_AUTH_ERROR]', error)
     return NextResponse.redirect(

@@ -14,7 +14,7 @@ import type {
 } from '@/utils/types/calendly'
 
 // Connection & Auth Hook
-export function useCalendlyConnection() {
+export function useCalendlyConnection(customRedirectUrl?: string) {
     const [status, setStatus] = useState<CalendlyStatus | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [isConnecting, setIsConnecting] = useState(false)
@@ -22,12 +22,13 @@ export function useCalendlyConnection() {
 
     const fetchStatus = async () => {
         try {
+            console.log('[CALENDLY_HOOK_DEBUG] Fetching status...')
             setIsLoading(true)
             const response = await fetch('/api/calendly/status')
             
             // Handle 403 Forbidden (not connected) gracefully
             if (response.status === 403) {
-                console.log('[CALENDLY_STATUS] Not connected (403 response)')
+                console.log('[CALENDLY_HOOK_DEBUG] Not connected (403 response)')
                 setStatus({ connected: false })
                 return
             }
@@ -36,34 +37,51 @@ export function useCalendlyConnection() {
             if (!response.ok) {
                 // Try to parse error as JSON, but handle case where it's not JSON
                 const errorText = await response.text()
+                console.log('[CALENDLY_HOOK_DEBUG] Non-OK response:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    errorText
+                })
                 let errorData
                 try {
                     errorData = JSON.parse(errorText)
                     if (errorData.error?.code === 'USER_NOT_FOUND') {
+                        console.log('[CALENDLY_HOOK_DEBUG] User not found error')
                         toast.error('Please complete onboarding before connecting Calendly')
                         return
                     }
                 } catch (parseError) {
                     // If not JSON, use the raw text
-                    console.error('[CALENDLY_STATUS_ERROR] Non-JSON response:', errorText)
+                    console.error('[CALENDLY_HOOK_DEBUG] Non-JSON response:', errorText)
                     throw new Error('Server error occurred')
                 }
                 throw new Error('Failed to fetch Calendly status')
             }
 
             // Try to parse successful response as JSON
-            const data = await response.json()
+            const responseData = await response.json()
+            console.log('[CALENDLY_HOOK_DEBUG] Status response:', responseData)
             
             // Handle not connected state gracefully
-            if (data.data && !data.data.connected) {
+            if (!responseData?.data?.resourceExists) {
+                console.log('[CALENDLY_HOOK_DEBUG] Not connected state from API')
                 setStatus({ connected: false })
-                // Don't show error toast for not connected state
                 return
             }
             
-            setStatus(data.data)
+            // Set the full status object
+            const data = responseData.data
+            console.log('[CALENDLY_HOOK_DEBUG] Setting connected status:', data)
+            setStatus({
+                connected: true,
+                schedulingUrl: data.schedulingUrl,
+                userUri: data.uri,
+                isExpired: false, // These fields come from a different endpoint if needed
+                expiresAt: undefined,
+                needsReconnect: false
+            })
         } catch (error) {
-            console.error('[CALENDLY_STATUS_ERROR]', error)
+            console.error('[CALENDLY_HOOK_DEBUG] Status fetch error:', error)
             // Only show error toast for unexpected errors, not for "not connected" state
             if (error instanceof Error && 
                 !error.message.includes('Failed to fetch Calendly status') && 
@@ -79,23 +97,37 @@ export function useCalendlyConnection() {
 
     const handleConnect = async () => {
         try {
+            console.log('[CALENDLY_HOOK_DEBUG] Starting connection process...')
             setIsConnecting(true)
-            const currentUrl = window.location.href
+            // Use the custom redirect URL if provided, otherwise use the current URL
+            const currentUrl = customRedirectUrl || window.location.href
+            console.log('[CALENDLY_HOOK_DEBUG] Using redirect URL:', currentUrl)
+            
             const response = await fetch(`/api/calendly/oauth?redirect=${encodeURIComponent(currentUrl)}`)
             
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}))
+                console.error('[CALENDLY_HOOK_DEBUG] Connection initiation failed:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: errorData
+                })
                 throw new Error(errorData.message || 'Failed to initiate Calendly connection')
             }
 
             const data = await response.json()
+            console.log('[CALENDLY_HOOK_DEBUG] Received auth URL:', {
+                hasAuthUrl: !!data.authUrl,
+                urlPreview: data.authUrl ? `${data.authUrl.substring(0, 50)}...` : null
+            })
+            
             if (!data.authUrl) {
                 throw new Error('No authorization URL received')
             }
 
             window.location.href = data.authUrl
         } catch (error) {
-            console.error('[CALENDLY_CONNECT_ERROR]', error)
+            console.error('[CALENDLY_HOOK_DEBUG] Connection error:', error)
             toast.error('Failed to connect to Calendly')
         } finally {
             setIsConnecting(false)
@@ -103,6 +135,7 @@ export function useCalendlyConnection() {
     }
 
     useEffect(() => {
+        console.log('[CALENDLY_HOOK_DEBUG] Initial status fetch')
         fetchStatus()
     }, [])
 
@@ -110,10 +143,18 @@ export function useCalendlyConnection() {
         const calendlyStatus = searchParams.get('calendly')
         const error = searchParams.get('error')
 
+        console.log('[CALENDLY_HOOK_DEBUG] URL params changed:', {
+            calendlyStatus,
+            error,
+            allParams: Object.fromEntries(searchParams.entries())
+        })
+
         if (calendlyStatus === 'success') {
+            console.log('[CALENDLY_HOOK_DEBUG] Processing success status')
             toast.success('Calendly connected successfully!')
             fetchStatus()
         } else if (error) {
+            console.error('[CALENDLY_HOOK_DEBUG] Processing error status:', error)
             toast.error(decodeURIComponent(error))
         }
     }, [searchParams])

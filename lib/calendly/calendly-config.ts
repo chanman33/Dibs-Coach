@@ -28,6 +28,7 @@ export const CALENDLY_CONFIG = {
     baseUrl: 'https://calendly.com',
     authorizePath: '/oauth/authorize',
     tokenPath: '/oauth/token',
+    tokenUrl: 'https://auth.calendly.com/oauth/token',
     clientId: env.CALENDLY_CLIENT_ID,
     clientSecret: env.CALENDLY_CLIENT_SECRET,
     redirectUri: env.CALENDLY_REDIRECT_URI

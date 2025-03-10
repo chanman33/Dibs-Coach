@@ -24,7 +24,7 @@ interface TokenResponse {
 }
 
 export class CalendlyService {
-  private baseUrl = 'https://api.calendly.com/v2'
+  private baseUrl = 'https://api.calendly.com'
   private supabase: SupabaseClient = createServerClient(
     env.SUPABASE_URL,
     env.SUPABASE_SERVICE_KEY,
@@ -169,6 +169,10 @@ export class CalendlyService {
   private async fetchCalendly<T = any>(endpoint: string, options: RequestInit = {}, retryCount = 0): Promise<T> {
     try {
       const accessToken = await this.refreshTokenIfNeeded()
+      
+      // Log the request for debugging
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}${endpoint}`)
+      
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         ...options,
         headers: {
@@ -179,8 +183,20 @@ export class CalendlyService {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        console.error('[CALENDLY_API_ERROR]', errorData)
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          // If the response is not JSON, use the status text
+          errorData = { message: response.statusText };
+        }
+        
+        console.error('[CALENDLY_API_ERROR]', {
+          status: response.status,
+          statusText: response.statusText,
+          endpoint: `${this.baseUrl}${endpoint}`,
+          errorData
+        })
 
         // If unauthorized and haven't retried yet, force token refresh and retry once
         if (response.status === 401 && retryCount === 0) {
@@ -208,7 +224,7 @@ export class CalendlyService {
     }
   }
 
-  async getStatus(): Promise<CalendlyStatus> {
+  async getStatus(fetchEventTypes: boolean = false): Promise<CalendlyStatus> {
     try {
       await this.init()
       
@@ -222,16 +238,46 @@ export class CalendlyService {
         const accessToken = await this.refreshTokenIfNeeded()
         
         // If we got here, we have a valid token
-        // Now fetch the Calendly user info and event types
-        const calendlyUser = await this.fetchCalendly('/users/me')
-        const eventTypes = await this.getEventTypes()
-
-        return {
-          connected: true,
-          schedulingUrl: calendlyUser.resource.scheduling_url,
-          eventTypes,
-          // Don't expose token expiration to the client since we handle refresh automatically
-          isExpired: false
+        // Now try to get user info using the correct endpoint
+        try {
+          // According to Calendly API docs, the correct endpoint is /users/me
+          console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/users/me`)
+          const userResponse = await fetch(`${this.baseUrl}/users/me`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+          })
+          
+          if (!userResponse.ok) {
+            console.error(`[CALENDLY_API_ERROR] User endpoint failed: ${userResponse.status} ${userResponse.statusText}`)
+            return await this.getStatusFromEventTypes(accessToken, fetchEventTypes)
+          }
+          
+          // Parse the user response
+          const userData = await userResponse.json()
+          console.log('[CALENDLY_API_DEBUG] User data:', {
+            resourceExists: !!userData.resource,
+            uri: userData.resource?.uri,
+            schedulingUrl: userData.resource?.scheduling_url
+          })
+          
+          // Only fetch event types if requested
+          const eventTypes = fetchEventTypes ? await this.getEventTypes(accessToken) : []
+          
+          return {
+            connected: true,
+            schedulingUrl: userData.resource?.scheduling_url,
+            eventTypes: fetchEventTypes ? eventTypes : undefined,
+            isExpired: false,
+            userUri: userData.resource?.uri
+          }
+        } catch (apiError) {
+          console.error('[CALENDLY_API_ERROR_DETAILS]', apiError)
+          
+          // If the API call fails, try the event_types endpoint as a fallback
+          return await this.getStatusFromEventTypes(accessToken, fetchEventTypes)
         }
       } catch (error) {
         if (error instanceof Error) {
@@ -244,7 +290,6 @@ export class CalendlyService {
             }
           }
           
-          // For other errors, log but don't expose details to client
           console.error('[CALENDLY_STATUS_ERROR]', error)
           return {
             connected: false,
@@ -259,49 +304,147 @@ export class CalendlyService {
     }
   }
 
-  async getEventTypes(accessToken?: string, count?: number, pageToken?: string): Promise<CalendlyEventType[]> {
-    // If not initialized and no access token provided, throw error
-    if (!this.userUlid && !accessToken) {
-      throw new Error('Service not initialized')
-    }
-
-    // If access token is provided, use it directly
-    if (accessToken) {
-      const response = await fetch(`${this.baseUrl}/event_types`, {
+  // Helper method to get status from event types when user endpoints fail
+  private async getStatusFromEventTypes(accessToken: string, fetchEventTypes: boolean = false): Promise<CalendlyStatus> {
+    try {
+      // First, get the user information
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/users/me`)
+      const userResponse = await fetch(`${this.baseUrl}/users/me`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
       })
+      
+      if (!userResponse.ok) {
+        console.error(`[CALENDLY_API_ERROR] User endpoint failed: ${userResponse.status} ${userResponse.statusText}`)
+        throw new Error(`Failed to fetch user: ${userResponse.statusText}`)
+      }
+      
+      const userData = await userResponse.json()
+      
+      // Only fetch event types if requested
+      if (!fetchEventTypes) {
+        return {
+          connected: true,
+          schedulingUrl: userData.resource.scheduling_url,
+          eventTypes: undefined,
+          isExpired: false,
+          userUri: userData.resource.uri
+        }
+      }
+      
+      // Now try to get event types using the user's URI as a filter
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/event_types?user=${userData.resource.uri}`)
+      const eventTypesResponse = await fetch(`${this.baseUrl}/event_types?user=${userData.resource.uri}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+      })
+      
+      if (!eventTypesResponse.ok) {
+        console.error(`[CALENDLY_API_ERROR] Event types endpoint failed: ${eventTypesResponse.status} ${eventTypesResponse.statusText}`)
+        
+        // Even if we can't get event types, we can still return a connected state
+        // with the user's scheduling URL
+        return {
+          connected: true,
+          schedulingUrl: userData.resource.scheduling_url,
+          eventTypes: [],
+          isExpired: false,
+          userUri: userData.resource.uri
+        }
+      }
+      
+      const eventTypesData = await eventTypesResponse.json()
+      const eventTypes = eventTypesData.collection?.map(formatEventType) || []
+      
+      // Return the connected state with user info and event types
+      return {
+        connected: true,
+        schedulingUrl: userData.resource.scheduling_url,
+        eventTypes,
+        isExpired: false,
+        userUri: userData.resource.uri
+      }
+    } catch (error) {
+      console.error('[CALENDLY_API_ERROR_DETAILS]', error)
+      
+      // If the API call fails, we'll return a connected state but with an error
+      // This allows the client to show a reconnect button
+      return {
+        connected: true,
+        needsReconnect: true,
+        error: 'Unable to access Calendly API. Please reconnect your account.'
+      }
+    }
+  }
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(`Failed to fetch event types: ${error.message}`)
+  async getEventTypes(accessToken?: string, count?: number, pageToken?: string): Promise<CalendlyEventType[]> {
+    try {
+      // If not initialized and no access token provided, throw error
+      if (!this.userUlid && !accessToken) {
+        throw new Error('Service not initialized')
       }
 
+      // Get token if not provided
+      const token = accessToken || await this.refreshTokenIfNeeded()
+      
+      // First, get the user information to get the user URI
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/users/me`)
+      const userResponse = await fetch(`${this.baseUrl}/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+      })
+      
+      if (!userResponse.ok) {
+        console.error(`[CALENDLY_API_ERROR] User endpoint failed: ${userResponse.status} ${userResponse.statusText}`)
+        return []
+      }
+      
+      // Extract the user URI from the response
+      const userData = await userResponse.json()
+      if (!userData.resource?.uri) {
+        console.error('[CALENDLY_API_ERROR] No user URI found in response')
+        return []
+      }
+      
+      // Construct query parameters
+      const queryParams = new URLSearchParams({
+        user: userData.resource.uri
+      })
+      
+      if (count) queryParams.append('count', count.toString())
+      if (pageToken) queryParams.append('page_token', pageToken)
+      
+      // Make the request with the user filter
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/event_types?${queryParams}`)
+      const response = await fetch(`${this.baseUrl}/event_types?${queryParams}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+      })
+      
+      if (!response.ok) {
+        console.error(`[CALENDLY_API_ERROR] Event types endpoint failed: ${response.status} ${response.statusText}`)
+        return []
+      }
+      
       const data = await response.json()
-      return data.collection.map(formatEventType)
+      return data.collection?.map(formatEventType) || []
+    } catch (error) {
+      console.error('[CALENDLY_EVENT_TYPES_ERROR]', error)
+      return []
     }
-
-    // Otherwise use fetchCalendly with pagination
-    const userUlid = await this.getUserUlid()
-    const response = await this.fetchCalendly('/event_types', {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      ...(count || pageToken ? {
-        searchParams: new URLSearchParams({
-          ...(count ? { count: count.toString() } : {}),
-          ...(pageToken ? { page_token: pageToken } : {}),
-        }).toString()
-      } : {})
-    })
-
-    const eventTypes = response.collection.map(async (eventType: CalendlyEventType) => {
-      return this.applyEventTypeMapping(eventType, userUlid)
-    })
-
-    return Promise.all(eventTypes)
   }
 
   async getScheduledEvents(params: {
@@ -309,28 +452,76 @@ export class CalendlyService {
     endTime?: string
     status?: 'active' | 'canceled'
   } = {}): Promise<CalendlyScheduledEvent[]> {
-    const queryParams = new URLSearchParams()
-    if (params.startTime) queryParams.append('min_start_time', params.startTime)
-    if (params.endTime) queryParams.append('max_start_time', params.endTime)
-    if (params.status) queryParams.append('status', params.status)
+    try {
+      const queryParams = new URLSearchParams()
+      if (params.startTime) queryParams.append('min_start_time', params.startTime)
+      if (params.endTime) queryParams.append('max_start_time', params.endTime)
+      if (params.status) queryParams.append('status', params.status)
 
-    const response = await this.fetchCalendly(`/scheduled_events?${queryParams}`)
-    return response.collection.map(formatEventDateTime)
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/scheduled_events?${queryParams}`)
+      const response = await fetch(`${this.baseUrl}/scheduled_events?${queryParams}`, {
+        headers: {
+          'Authorization': `Bearer ${await this.refreshTokenIfNeeded()}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch scheduled events: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      return data.collection.map(formatEventDateTime)
+    } catch (error) {
+      console.error('[CALENDLY_EVENTS_ERROR]', error)
+      return []
+    }
   }
 
   async createWebhookSubscription(url: string) {
-    const user = await this.fetchCalendly('/users/me')
-    const organization = user.resource.current_organization
-
-    return this.fetchCalendly('/webhook_subscriptions', {
-      method: 'POST',
-      body: JSON.stringify({
-        url,
-        organization,
-        scope: 'user',
-        events: ['invitee.created', 'invitee.canceled', 'invitee.rescheduled']
+    try {
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/users/me`)
+      const userResponse = await fetch(`${this.baseUrl}/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${await this.refreshTokenIfNeeded()}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
       })
-    })
+      
+      if (!userResponse.ok) {
+        throw new Error(`Failed to fetch user: ${userResponse.statusText}`)
+      }
+      
+      const user = await userResponse.json()
+      const organization = user.resource.current_organization
+      
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/webhook_subscriptions`)
+      const webhookResponse = await fetch(`${this.baseUrl}/webhook_subscriptions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await this.refreshTokenIfNeeded()}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          url,
+          organization,
+          scope: 'user',
+          events: ['invitee.created', 'invitee.canceled', 'invitee.rescheduled']
+        })
+      })
+      
+      if (!webhookResponse.ok) {
+        throw new Error(`Failed to create webhook: ${webhookResponse.statusText}`)
+      }
+      
+      return webhookResponse.json()
+    } catch (error) {
+      console.error('[CALENDLY_WEBHOOK_ERROR]', error)
+      throw error
+    }
   }
 
   async storeWebhookEvent(event: WebhookEvent): Promise<void> {
@@ -558,25 +749,91 @@ export class CalendlyService {
   }
 
   async getBusyTimes(startTime: string, endTime: string): Promise<{ collection: CalendlyBusyTime[] }> {
-    return this.fetchCalendly<{ collection: CalendlyBusyTime[] }>(
-      `/user_busy_times?start_time=${startTime}&end_time=${endTime}`,
-      { method: 'GET' }
-    )
+    try {
+      // First, get the user information to get the user URI
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/users/me`)
+      const userResponse = await fetch(`${this.baseUrl}/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${await this.refreshTokenIfNeeded()}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+      })
+      
+      if (!userResponse.ok) {
+        console.error(`[CALENDLY_API_ERROR] User endpoint failed: ${userResponse.status} ${userResponse.statusText}`)
+        throw new Error(`Failed to fetch user: ${userResponse.statusText}`)
+      }
+      
+      const userData = await userResponse.json()
+      if (!userData.resource?.uri) {
+        throw new Error('User URI not found in response')
+      }
+      
+      // Construct query parameters
+      const queryParams = new URLSearchParams({
+        user: userData.resource.uri,
+        start_time: startTime,
+        end_time: endTime
+      })
+      
+      // Make the request with the correct URL and headers
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/user_busy_times?${queryParams}`)
+      const response = await fetch(`${this.baseUrl}/user_busy_times?${queryParams}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${await this.refreshTokenIfNeeded()}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+      })
+      
+      if (!response.ok) {
+        console.error(`[CALENDLY_API_ERROR] Busy times endpoint failed: ${response.status} ${response.statusText}`)
+        throw new Error(`Failed to fetch busy times: ${response.statusText}`)
+      }
+      
+      return await response.json()
+    } catch (error) {
+      console.error('[CALENDLY_BUSY_TIMES_ERROR]', error)
+      throw error
+    }
   }
 
   async getEventTypeAvailableTimes(params: {
-    eventUri: string,
+    eventTypeUri: string,
     startTime: string,
     endTime: string
   }): Promise<{ collection: CalendlyAvailableTime[] }> {
-    return this.fetchCalendly<{ collection: CalendlyAvailableTime[] }>(
-      `/event_types/${encodeURIComponent(params.eventUri)}/available_times?` + 
-      new URLSearchParams({
+    try {
+      // Construct query parameters
+      const queryParams = new URLSearchParams({
+        event_type: params.eventTypeUri,
         start_time: params.startTime,
         end_time: params.endTime
-      }).toString(),
-      { method: 'GET' }
-    )
+      })
+      
+      // Make the request with the correct URL and headers
+      console.log(`[CALENDLY_API_REQUEST] ${this.baseUrl}/event_type_available_times?${queryParams}`)
+      const response = await fetch(`${this.baseUrl}/event_type_available_times?${queryParams}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${await this.refreshTokenIfNeeded()}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+      })
+      
+      if (!response.ok) {
+        console.error(`[CALENDLY_API_ERROR] Available times endpoint failed: ${response.status} ${response.statusText}`)
+        throw new Error(`Failed to fetch available times: ${response.statusText}`)
+      }
+      
+      return await response.json()
+    } catch (error) {
+      console.error('[CALENDLY_AVAILABLE_TIMES_ERROR]', error)
+      throw error
+    }
   }
 
   async markInviteeAsNoShow(inviteeUri: string): Promise<void> {
