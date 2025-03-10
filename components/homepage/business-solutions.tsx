@@ -75,10 +75,10 @@ export default function BusinessSolutions() {
           </div>
 
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <Link href="/business">
+            <Link href="/contact-us">
               <Button size="lg">Schedule a Demo</Button>
             </Link>
-            <Link href="/business/case-studies">
+            <Link href="/case-studies">
               <Button variant="outline" size="lg">
                 View Case Studies
               </Button>

@@ -14,7 +14,7 @@ export default function AudienceSegments() {
       description:
         "Accelerate your career growth with personalized coaching from industry experts who understand your challenges.",
       icon: UserRound,
-      cta: "Find Your Coach",
+      cta: "Find Your Perfect Coach",
       link: "/sign-in?forceRedirectUrl=/dashboard/mentee/browse-coaches",
       features: [
         "One-on-one personalized coaching sessions",
@@ -29,7 +29,7 @@ export default function AudienceSegments() {
       description:
         "Share your expertise, build your coaching business, and help shape the next generation of real estate professionals.",
       icon: Users,
-      cta: "Become a Coach",
+      cta: "Learn More About Coaching",
       link: "/become-coach",
       features: [
         "Flexible scheduling on your terms",
