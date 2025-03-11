@@ -1,7 +1,7 @@
 "use client"
 
 import { Separator } from "@/components/ui/separator"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import clsx from "clsx"
@@ -20,10 +20,34 @@ import {
   Bot,
   GraduationCap,
 } from "lucide-react"
+import { useAuthContext } from "@/components/auth/providers"
+import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
+import { fetchUserCapabilities } from "@/utils/actions/user-profile-actions"
 
 export function CoachSidebar() {
   const pathname = usePathname()
   const [isToolsExpanded, setIsToolsExpanded] = useState(true)
+  const [isRealtorToolsExpanded, setIsRealtorToolsExpanded] = useState(true)
+  const authContext = useAuthContext()
+  const [hasRealtorDomain, setHasRealtorDomain] = useState(false)
+
+  useEffect(() => {
+    const getUserDomains = async () => {
+      try {
+        const result = await fetchUserCapabilities()
+        if (result.data) {
+          const { realEstateDomains } = result.data
+          const isRealtor = realEstateDomains?.includes(REAL_ESTATE_DOMAINS.REALTOR) || false
+          
+          setHasRealtorDomain(isRealtor)
+        }
+      } catch (error) {
+        console.error("[FETCH_USER_DOMAINS_ERROR]", error)
+      }
+    }
+
+    getUserDomains()
+  }, [])
 
   const NavLink = ({ href, icon: Icon, children }: { href: string; icon: any; children: React.ReactNode }) => (
     <Link
@@ -94,21 +118,29 @@ export function CoachSidebar() {
                 </NavLink>
               </div>
             )}
-            
+
             {/* Shared Tools */}
             <Separator className="my-3" />
-            <div className="pl-3 grid gap-1">
-              {/* <NavLink href="/dashboard/coach/tools/ai-agent" icon={Bot}>
-                AI Agent
-              </NavLink>
-              <NavLink href="/dashboard/coach/tools/ai-listings" icon={Building2}>
-                AI Listing Generator
-              </NavLink> */}
-              <NavLink href="/dashboard/coach/tools/income-calc" icon={Calculator}>
-                Income Calculator
-              </NavLink>
 
-            </div>
+            {/* Realtor Tools - Only show if user has REALTOR domain */}
+            {hasRealtorDomain && (
+              <>
+                <button
+                  onClick={() => setIsRealtorToolsExpanded(!isRealtorToolsExpanded)}
+                  className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+                >
+                  <span className="font-semibold">Realtor Tools</span>
+                  {isRealtorToolsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+                {isRealtorToolsExpanded && (
+                  <div className="pl-3 grid gap-1">
+                    <NavLink href="/dashboard/coach/tools/income-calc" icon={Calculator}>
+                      Income Calculator
+                    </NavLink>
+                  </div>
+                )}
+              </>
+            )}
           </nav>
         </div>
       </div>

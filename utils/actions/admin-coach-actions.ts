@@ -19,7 +19,7 @@ const UpdateProfileStatusSchema = z.object({
 })
 
 // Type for coach profile data in admin UI
-interface CoachProfileData {
+export interface CoachProfileData {
   userUlid: string
   profileUlid: string
   firstName: string
@@ -29,6 +29,7 @@ interface CoachProfileData {
   profileStatus: ProfileStatus
   completionPercentage: number
   realEstateDomains: string[]
+  primaryDomain: string | null
   hourlyRate: number | null
   createdAt: string
   updatedAt: string
@@ -153,6 +154,7 @@ export const fetchCoachProfiles = withServerAction<CoachProfileData[]>(
           email,
           profileImageUrl,
           realEstateDomains,
+          primaryDomain,
           CoachProfile (
             ulid,
             coachSkills,
@@ -191,6 +193,7 @@ export const fetchCoachProfiles = withServerAction<CoachProfileData[]>(
           profileStatus: profile?.profileStatus || PROFILE_STATUS.DRAFT,
           completionPercentage: profile?.completionPercentage || 0,
           realEstateDomains: user.realEstateDomains || [],
+          primaryDomain: (user as any).primaryDomain || null,
           hourlyRate: profile?.hourlyRate || null,
           createdAt: profile?.createdAt || '',
           updatedAt: profile?.updatedAt || ''
@@ -277,6 +280,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileData, string>(
         profileStatus: profile?.profileStatus || PROFILE_STATUS.DRAFT,
         completionPercentage: profile?.completionPercentage || 0,
         realEstateDomains: data.realEstateDomains || [],
+        primaryDomain: (data as any).primaryDomain || null,
         hourlyRate: profile?.hourlyRate || null,
         createdAt: profile?.createdAt || '',
         updatedAt: profile?.updatedAt || ''

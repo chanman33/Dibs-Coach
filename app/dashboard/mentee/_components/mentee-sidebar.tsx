@@ -1,7 +1,7 @@
 "use client"
 
 import { Separator } from "@/components/ui/separator"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import clsx from "clsx"
@@ -18,10 +18,33 @@ import {
   Target,
   Bot
 } from "lucide-react"
+import { useAuthContext } from "@/components/auth/providers"
+import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
+import { fetchUserCapabilities } from "@/utils/actions/user-profile-actions"
 
 export function MenteeSidebar() {
   const pathname = usePathname()
   const [isToolsExpanded, setIsToolsExpanded] = useState(true)
+  const authContext = useAuthContext()
+  const [hasRealtorDomain, setHasRealtorDomain] = useState(false)
+
+  useEffect(() => {
+    const getUserDomains = async () => {
+      try {
+        const result = await fetchUserCapabilities()
+        if (result.data) {
+          const { realEstateDomains } = result.data
+          const isRealtor = realEstateDomains?.includes(REAL_ESTATE_DOMAINS.REALTOR) || false
+          
+          setHasRealtorDomain(isRealtor)
+        }
+      } catch (error) {
+        console.error("[FETCH_USER_DOMAINS_ERROR]", error)
+      }
+    }
+
+    getUserDomains()
+  }, [])
 
   const NavLink = ({ href, icon: Icon, children }: { href: string; icon: any; children: React.ReactNode }) => (
     <Link
@@ -81,9 +104,13 @@ export function MenteeSidebar() {
               <NavLink href="/dashboard/mentee/tools/ai-listings" icon={Building2}>
                 AI Listing Generator
               </NavLink> */}
-              <NavLink href="/dashboard/mentee/tools/income-calc" icon={Calculator}>
-                Income Calculator
-              </NavLink>
+              
+              {/* Income Calculator - Only show if user has REALTOR domain */}
+              {hasRealtorDomain && (
+                <NavLink href="/dashboard/mentee/tools/income-calc" icon={Calculator}>
+                  Income Calculator
+                </NavLink>
+              )}
             </div>
           </nav>
         </div>

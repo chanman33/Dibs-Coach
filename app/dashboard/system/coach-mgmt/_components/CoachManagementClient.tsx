@@ -20,6 +20,7 @@ interface CoachProfile {
   lastName: string
   profileStatus: ProfileStatus
   realEstateDomains: string[]
+  primaryDomain: string | null
   completionPercentage: number
   hourlyRate: number
   updatedAt: string

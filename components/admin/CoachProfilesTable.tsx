@@ -28,12 +28,16 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { updateRealEstateDomains } from '@/utils/actions/admin-coach-actions'
 import { toast } from 'sonner'
 import { Progress } from '@/components/ui/progress'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { updateUserDomains } from '@/utils/actions/user-profile-actions'
 
 // Available real estate domains
 const REAL_ESTATE_DOMAINS = [
@@ -53,6 +57,7 @@ interface CoachProfile {
   lastName: string
   profileStatus: ProfileStatus
   realEstateDomains: string[]
+  primaryDomain: string | null
   completionPercentage: number
   hourlyRate: number
   updatedAt: string
@@ -69,42 +74,70 @@ interface CoachProfilesTableProps {
 export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: CoachProfilesTableProps) {
   const [selectedCoach, setSelectedCoach] = useState<CoachProfile | null>(null)
   const [selectedDomains, setSelectedDomains] = useState<string[]>([])
+  const [selectedPrimaryDomain, setSelectedPrimaryDomain] = useState<string | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   const handleOpenDomains = (coach: CoachProfile) => {
     setSelectedCoach(coach)
     setSelectedDomains(coach.realEstateDomains || [])
+    setSelectedPrimaryDomain(coach.primaryDomain)
     setIsDialogOpen(true)
   }
 
   const handleDomainChange = (domain: string) => {
     setSelectedDomains(current => {
       if (current.includes(domain)) {
+        // If removing a domain that's the primary, clear the primary domain
+        if (selectedPrimaryDomain === domain) {
+          setSelectedPrimaryDomain(null)
+        }
         return current.filter(d => d !== domain)
       }
       return [...current, domain]
     })
   }
 
+  const handlePrimaryDomainChange = (domain: string) => {
+    // Ensure the domain is in the selected domains list
+    if (!selectedDomains.includes(domain)) {
+      setSelectedDomains(prev => [...prev, domain])
+    }
+    setSelectedPrimaryDomain(domain)
+  }
+
   const handleSaveDomains = async () => {
     if (!selectedCoach) return
 
     try {
-      const result = await updateRealEstateDomains({
-        coachUlid: selectedCoach.userUlid,
-        domains: selectedDomains
+      // Use updateUserDomains to update both realEstateDomains and primaryDomain
+      const result = await updateUserDomains({
+        realEstateDomains: selectedDomains,
+        primaryDomain: selectedPrimaryDomain,
+        targetUserUlid: selectedCoach.userUlid
       })
 
       if (result.error) {
-        toast.error(result.error.message)
+        toast.error(result.error.message || 'Failed to update domains')
         return
       }
 
-      toast.success('Real estate domains updated successfully')
+      toast.success('Domains updated successfully')
       setIsDialogOpen(false)
+      
+      // Refresh the page to show updated data
+      window.location.reload()
     } catch (error) {
       console.error('[SAVE_DOMAINS_ERROR]', error)
       toast.error('Failed to update domains')
+    }
+  }
+
+  const handleStatusUpdate = async (profile: CoachProfile, newStatus: ProfileStatus) => {
+    try {
+      await onUpdateStatus(profile.userUlid, newStatus)
+    } catch (error) {
+      console.error('[STATUS_UPDATE_ERROR]', error)
+      toast.error('Failed to update status')
     }
   }
 
@@ -124,35 +157,6 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
     }
   }
 
-  const handleStatusUpdate = async (profile: CoachProfile, newStatus: ProfileStatus) => {
-    // Publishing validation
-    if (newStatus === 'PUBLISHED') {
-      // If coming from SUSPENDED state, check system owner permission
-      if (profile.profileStatus === 'SUSPENDED' && !profile.isSystemOwner) {
-        toast.error('Only system owners can restore suspended profiles')
-        return
-      }
-
-      const validation = validateProfileRequirements(profile)
-      if (!validation.isValid) {
-        toast.error(
-          `Cannot publish profile. Missing requirements:\n${validation.missingRequirements
-            .map(req => `- ${req.replace(/([A-Z])/g, ' $1').toLowerCase()}`)
-            .join('\n')}`
-        )
-        return
-      }
-    }
-
-    // System owner-only actions
-    if ((newStatus === 'SUSPENDED' || newStatus === 'ARCHIVED') && !profile.isSystemOwner) {
-      toast.error('Only system owners can suspend or archive profiles')
-      return
-    }
-
-    await onUpdateStatus(profile.userUlid, newStatus)
-  }
-
   return (
     <>
       <Table>
@@ -162,6 +166,7 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
             <TableHead>Email</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Real Estate Domains</TableHead>
+            <TableHead>Primary Domain</TableHead>
             <TableHead>Completion</TableHead>
             <TableHead>Rate</TableHead>
             <TableHead>Last Updated</TableHead>
@@ -202,6 +207,15 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
                 </div>
               </TableCell>
               <TableCell>
+                {profile.primaryDomain ? (
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                    {profile.primaryDomain}
+                  </Badge>
+                ) : (
+                  <span className="text-xs text-muted-foreground italic">None set</span>
+                )}
+              </TableCell>
+              <TableCell>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">{profile.completionPercentage}%</span>
                 </div>
@@ -228,24 +242,14 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
                     <DropdownMenuContent align="end">
                       {/* Draft Profile Actions */}
                       {profile.profileStatus === 'DRAFT' && (
-                        <>
-                          <DropdownMenuItem 
-                            onClick={() => handleStatusUpdate(profile, 'PUBLISHED')}
-                            className="text-green-600 focus:text-green-600"
-                          >
-                            Publish Profile
-                          </DropdownMenuItem>
-                          {profile.isSystemOwner && (
-                            <DropdownMenuItem 
-                              onClick={() => handleStatusUpdate(profile, 'ARCHIVED')}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              Archive Profile
-                            </DropdownMenuItem>
-                          )}
-                        </>
+                        <DropdownMenuItem 
+                          onClick={() => handleStatusUpdate(profile, 'PUBLISHED')}
+                          className="text-green-600 focus:text-green-600"
+                        >
+                          Publish Profile
+                        </DropdownMenuItem>
                       )}
-                      
+
                       {/* Published Profile Actions */}
                       {profile.profileStatus === 'PUBLISHED' && (
                         <>
@@ -274,7 +278,7 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
                       )}
 
                       {/* Suspended Profile Actions */}
-                      {profile.profileStatus === 'SUSPENDED' && profile.isSystemOwner && (
+                      {profile.profileStatus === 'SUSPENDED' && (
                         <>
                           <DropdownMenuItem 
                             onClick={() => handleStatusUpdate(profile, 'PUBLISHED')}
@@ -326,7 +330,7 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
           ))}
           {profiles.length === 0 && (
             <TableRow>
-              <TableCell colSpan={7} className="h-24 text-center">
+              <TableCell colSpan={9} className="h-24 text-center">
                 <div className="flex flex-col items-center justify-center text-muted-foreground">
                   <p>No coach profiles found</p>
                   <p className="text-sm">Try adjusting your filters</p>
@@ -337,47 +341,68 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
         </TableBody>
       </Table>
 
+      {/* Domain Edit Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Real Estate Domains</DialogTitle>
+            <DialogTitle>Update Real Estate Domains</DialogTitle>
             <DialogDescription>
-              Select the real estate domains for {selectedCoach?.firstName} {selectedCoach?.lastName}
+              Select the domains for this coach and set a primary domain.
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="h-[300px] px-4">
-            <div className="space-y-4">
-              {REAL_ESTATE_DOMAINS.map((domain) => (
-                <div key={domain} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={domain}
-                    checked={selectedDomains.includes(domain)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedDomains(prev => [...prev, domain])
-                      } else {
-                        setSelectedDomains(prev => prev.filter(d => d !== domain))
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor={domain}
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    {domain.replace(/_/g, ' ')}
-                  </label>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="domains" className="font-medium">Real Estate Domains</Label>
+              <ScrollArea className="h-[200px] rounded-md border p-4">
+                <div className="grid gap-3">
+                  {REAL_ESTATE_DOMAINS.map((domain) => (
+                    <div key={domain} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`domain-${domain}`}
+                        checked={selectedDomains.includes(domain)}
+                        onCheckedChange={() => handleDomainChange(domain)}
+                      />
+                      <label
+                        htmlFor={`domain-${domain}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        {domain.replace(/_/g, ' ')}
+                      </label>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </ScrollArea>
             </div>
-          </ScrollArea>
-          <div className="flex justify-end gap-3 mt-4">
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+
+            <div className="grid gap-2">
+              <Label htmlFor="primaryDomain" className="font-medium">Primary Domain</Label>
+              <RadioGroup 
+                value={selectedPrimaryDomain || ''} 
+                onValueChange={handlePrimaryDomainChange}
+                className="grid gap-3"
+              >
+                {selectedDomains.map((domain) => (
+                  <div key={domain} className="flex items-center space-x-2">
+                    <RadioGroupItem value={domain} id={`primary-${domain}`} />
+                    <Label htmlFor={`primary-${domain}`}>{domain.replace(/_/g, ' ')}</Label>
+                  </div>
+                ))}
+                {selectedDomains.length === 0 && (
+                  <div className="text-sm text-muted-foreground italic">
+                    Select at least one domain above to set a primary domain
+                  </div>
+                )}
+              </RadioGroup>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSaveDomains}>
+            <Button type="button" onClick={handleSaveDomains}>
               Save Changes
             </Button>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
