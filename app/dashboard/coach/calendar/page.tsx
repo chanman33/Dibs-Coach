@@ -153,11 +153,7 @@ export default function CoachCalendarPage() {
         coachDbId={coachDbId || undefined}
       />
       
-      <div className="mt-6 p-4 bg-muted rounded-md">
-        <p className="text-sm text-muted-foreground">
-          A new booking and calendar system will be implemented soon. Stay tuned for updates!
-        </p>
-      </div>
+
     </div>
   )
 } 

@@ -636,7 +636,7 @@ model User {
   coachProfile          CoachProfile?
 
   // Existing integrations
-  // coachingSchedules   CoachingAvailabilitySchedule[]
+  coachingSchedules   CoachingAvailabilitySchedule[]
 
   // Session Relations
   sessions             Session[]               @relation("UserSessions")
@@ -2041,6 +2041,35 @@ model ZoomSession {
 
   @@index([sessionUlid])
   @@map("ZoomSession")
+}
+
+model CoachingAvailabilitySchedule {
+  ulid               String   @id @db.Char(26)
+  userUlid           String   @db.Char(26)
+  name               String
+  timezone           String
+  rules              Json     @db.JsonB
+  isDefault          Boolean  @default(false)
+  active             Boolean  @default(true)
+  allowCustomDuration Boolean  @default(true)
+  averageRating      Decimal? @db.Decimal(3, 2)
+  bufferAfter        Int      @default(0)
+  bufferBefore       Int      @default(0)
+  calendlyEnabled    Boolean  @default(false)
+  defaultDuration    Int      @default(60)
+  maximumDuration    Int      @default(120)
+  minimumDuration    Int      @default(30)
+  totalSessions      Int      @default(0)
+  zoomEnabled        Boolean  @default(false)
+  
+  // Relations
+  user               User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  
+  createdAt          DateTime @default(now()) @db.Timestamptz
+  updatedAt          DateTime @updatedAt @db.Timestamptz
+
+  @@index([userUlid])
+  @@map("CoachingAvailabilitySchedule")
 }
 
 
