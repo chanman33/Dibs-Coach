@@ -26,8 +26,6 @@ const mockCoach = {
     'Property Valuation',
     'Portfolio Management'
   ],
-  calendlyUrl: 'https://calendly.com/test',
-  eventTypeUrl: 'https://calendly.com/test/30min',
   sessionConfig: {
     durations: [30, 60, 90],
     rates: {

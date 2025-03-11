@@ -145,7 +145,7 @@ export default function MessagesPage() {
     // This will be implemented to send a scheduling link/prompt
     const message = {
       id: messages.length + 1,
-      content: "Here's my availability for coaching sessions. You can book a paid session at a time that works best for you: [Calendly Link]",
+      content: "Here's my availability for coaching sessions. You can book a paid session at a time that works best for you.",
       sender: "coach",
       timestamp: new Date().toISOString(),
     };

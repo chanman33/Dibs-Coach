@@ -11,7 +11,7 @@ Comprehensive specification for Zoom integration, including OAuth flow, meeting 
 - Recording handling
 - Webhook processing
 - User settings management
-- Integration with Calendly events
+- Integration with Cal events
 
 ## Implementation
 

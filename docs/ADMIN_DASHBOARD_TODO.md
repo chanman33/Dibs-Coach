@@ -107,7 +107,7 @@ This document outlines the comprehensive implementation plan for the admin dashb
 
 ### Integration Status
 - [ ] Integration health monitoring
-  - [ ] Calendly connection status
+  - [ ] Booking connection status
   - [ ] Zoom service health
   - [ ] Stripe payment system
   - [ ] Email service status

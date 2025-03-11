@@ -636,7 +636,7 @@ model User {
   coachProfile          CoachProfile?
 
   // Existing integrations
-  coachingSchedules   CoachingAvailabilitySchedule[]
+  // coachingSchedules   CoachingAvailabilitySchedule[]
 
   // Session Relations
   sessions             Session[]               @relation("UserSessions")
@@ -1507,40 +1507,6 @@ model Reminder {
   @@index([sessionUlid])
 }
 
-model CoachingAvailabilitySchedule {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @db.Char(26)
-  name                   String // e.g., "Standard Schedule", "Holiday Hours"
-  timezone               String
-  isDefault              Boolean  @default(false)
-  active                 Boolean  @default(true)
-
-  // Session Configuration
-  defaultDuration        Int     @default(60)
-  minimumDuration          Int     @default(30)
-  maximumDuration          Int     @default(120)
-  allowCustomDuration      Boolean @default(false)
-  bufferBefore             Int     @default(15) // minutes
-  bufferAfter              Int     @default(15) // minutes
-
-  // Availability Rules
-  rules                  Json // Stored as JSONB - weekly schedule, breaks, etc.
-
-  // Integration Settings
-  zoomEnabled              Boolean @default(false)
-
-  // Metrics
-  totalSessions            Int      @default(0)
-  averageRating            Decimal? @db.Decimal(3, 2)
-
-  user                     User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-
-  @@index([userUlid])
-}
-
 model StripePaymentMethod {
   ulid                   String   @id @db.Char(26)
   userUlid               String   @db.Char(26)
@@ -1923,7 +1889,6 @@ model EnterpriseLeads {
 
 model Settings {
   // ... existing code ...
-  // Remove Calendly enabled flag
   // ... existing code ...
 }
 

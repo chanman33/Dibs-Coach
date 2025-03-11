@@ -12,7 +12,7 @@ The Real Estate Agent Coaching Marketplace is built using a modern tech stack wi
 - **Authentication**: Clerk
 - **Payment Processing**: Stripe
 - **Video Conferencing**: Zoom API
-- **Scheduling**: Calendly Integration
+- **Scheduling**: Cal Integration
 
 ## Directory Structure
 
@@ -250,7 +250,7 @@ const sessions = await supabase
 - Webhook processing
 - Meeting details stored in Supabase
 
-### Scheduling (Calendly)
+### Scheduling (Cal.com)
 - Server-side event creation
 - Client-side widget integration
 - Real-time availability sync
@@ -283,8 +283,8 @@ const sessions = await supabase
 
 #### Database Tables
 ```sql
--- Calendly Integration Tables
-CREATE TABLE CalendlyIntegration (
+-- Cal.com Integration Tables
+CREATE TABLE CalIntegration (
   id BIGINT PRIMARY KEY,
   userDbId BIGINT REFERENCES User(id),
   accessToken TEXT NOT NULL,
@@ -298,7 +298,7 @@ CREATE TABLE CalendlyIntegration (
   updatedAt TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
-CREATE TABLE CalendlyAvailabilityCache (
+CREATE TABLE CalAvailabilityCache (
   id BIGINT PRIMARY KEY,
   userDbId BIGINT REFERENCES User(id),
   data JSONB NOT NULL,
@@ -306,7 +306,7 @@ CREATE TABLE CalendlyAvailabilityCache (
   createdAt TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE CalendlyWebhookEvent (
+CREATE TABLE CalWebhookEvent (
   id BIGINT PRIMARY KEY,
   eventType TEXT NOT NULL,
   payload JSONB NOT NULL,

@@ -8,7 +8,6 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
-import { ExtendedSession } from '@/utils/types/calendly'
 import Link from 'next/link'
 import {
   Tooltip,
@@ -19,6 +18,22 @@ import {
 import { VirtualizedList } from '../ui/virtualized-list'
 
 const localizer = momentLocalizer(moment)
+
+interface ExtendedSession {
+  ulid: string
+  startTime: string
+  endTime: string
+  durationMinutes: number
+  status: string
+  userRole: string
+  otherParty: {
+    ulid: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    imageUrl: string | null
+  }
+}
 
 interface MenteeCalendarProps {
   sessions: ExtendedSession[] | undefined

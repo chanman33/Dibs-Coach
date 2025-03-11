@@ -13,18 +13,12 @@ export interface BookingFlowProps {
   coachRate?: number
 }
 
-type BookingStep = 'select-time' | 'confirm' | 'calendly' | 'success'
+type BookingStep = 'select-time' | 'confirm' | 'success'
 
 interface SelectedSlot {
   startTime: string
   endTime: string
   durationMinutes: number
-}
-
-declare global {
-  interface Window {
-    Calendly: any;
-  }
 }
 
 export function BookingFlow({
@@ -36,56 +30,7 @@ export function BookingFlow({
 }: BookingFlowProps) {
   const [step, setStep] = useState<BookingStep>('select-time')
   const [selectedSlot, setSelectedSlot] = useState<SelectedSlot | null>(null)
-  const [schedulingUrl, setSchedulingUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-
-  useEffect(() => {
-    if (step === 'calendly' && schedulingUrl) {
-      // Load Calendly script
-      const script = document.createElement('script')
-      script.src = 'https://assets.calendly.com/assets/external/widget.js'
-      script.async = true
-      document.head.appendChild(script)
-
-      // Initialize widget when script loads
-      script.onload = () => {
-        if (window.Calendly) {
-          const container = document.getElementById('calendly-container')
-          if (container) {
-            container.innerHTML = ''
-            window.Calendly.initInlineWidget({
-              url: schedulingUrl,
-              parentElement: container,
-              prefill: {},
-              minWidth: '320px',
-              height: '600px'
-            })
-          }
-        }
-      }
-
-      return () => {
-        const container = document.getElementById('calendly-container')
-        if (container) {
-          container.innerHTML = ''
-        }
-      }
-    }
-  }, [step, schedulingUrl])
-
-  useEffect(() => {
-    if (isOpen) {
-      const handleCalendlyEvent = (e: any) => {
-        if (e.origin !== 'https://calendly.com') return
-        if (e.data.event === 'calendly.event_scheduled') {
-          setStep('success')
-        }
-      }
-
-      window.addEventListener('message', handleCalendlyEvent)
-      return () => window.removeEventListener('message', handleCalendlyEvent)
-    }
-  }, [isOpen])
 
   const handleTimeSelected = (slot: SelectedSlot) => {
     setSelectedSlot(slot)
@@ -112,9 +57,8 @@ export function BookingFlow({
         throw new Error('Failed to book session')
       }
 
-      const { data } = await response.json()
-      setSchedulingUrl(data.schedulingUrl)
-      setStep('calendly')
+      // Move directly to success after booking
+      setStep('success')
     } catch (error) {
       console.error('[BOOKING_ERROR]', error)
       toast.error('Failed to book session. Please try again.')
@@ -126,7 +70,6 @@ export function BookingFlow({
   const handleClose = () => {
     setStep('select-time')
     setSelectedSlot(null)
-    setSchedulingUrl(null)
     onClose()
   }
 
@@ -150,10 +93,6 @@ export function BookingFlow({
             isLoading={isLoading}
           />
         ) : null
-      case 'calendly':
-        return (
-          <div id="calendly-container" className="min-h-[600px]" />
-        )
       case 'success':
         return (
           <BookingSuccess
@@ -168,7 +107,6 @@ export function BookingFlow({
   const titles = {
     'select-time': `Book a Call with ${coachName}`,
     'confirm': 'Confirm Your Booking',
-    'calendly': 'Schedule Your Session',
     'success': 'Booking Confirmed!'
   }
 

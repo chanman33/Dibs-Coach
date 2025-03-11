@@ -481,25 +481,14 @@ integrations:
   stripe:
     rules: ["Secret key server-side only", "Webhook handlers", "Supabase storage", "Error handling"]
   
-  calendly:
-    structure:
-      lib: ["lib/calendly-api.ts", "lib/calendly.ts"]
-      features: ["Server-side API calls", "Client widget", "Webhook handling"]
-      storage: ["Supabase event storage", "User profile linking"]
-  
+
   zoom:
     structure:
       lib: ["lib/zoom-api.ts", "app/api/zoom/auth/"]
       features: ["Server-side creation", "JWT auth", "Webhook processing"]
       security: ["Server-side credentials", "OAuth flow", "Token validation"]
 
-# Meeting Scheduling
-scheduling:
-  flow: ["Calendly event", "Zoom meeting", "Database record", "Notification"]
-  required_fields:
-    event: ["start_time", "end_time", "attendees", "meeting_link"]
-    storage: ["event_id", "meeting_id", "user_id", "status"]
-  error_handling: ["Double booking", "API failures", "Timezone issues", "Creation failures"]
+
 
 # Documentation
 documentation:

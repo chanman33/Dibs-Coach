@@ -1,11 +1,27 @@
 import { FixedSizeList as List } from 'react-window'
-import { ExtendedSession } from '@/utils/types/calendly'
+
+// Define a generic session item type
+interface SessionItem {
+  ulid: string
+  startTime: string
+  endTime: string
+  durationMinutes: number
+  status: string
+  userRole: string
+  otherParty: {
+    ulid: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    imageUrl: string | null
+  }
+}
 
 interface VirtualizedListProps {
-  items: ExtendedSession[]
+  items: SessionItem[]
   height: number
   itemHeight: number
-  renderItem: (item: ExtendedSession) => React.ReactNode
+  renderItem: (item: SessionItem) => React.ReactNode
 }
 
 export function VirtualizedList({

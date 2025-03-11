@@ -1,6 +1,21 @@
-import { ExtendedSession } from '@/utils/types/calendly'
 import { addDays, addHours, addMinutes, addWeeks, setHours, setMinutes, startOfDay } from 'date-fns'
 import config from '@/config'
+
+interface ExtendedSession {
+  ulid: string
+  startTime: string
+  endTime: string
+  durationMinutes: number
+  status: string
+  userRole: string
+  otherParty: {
+    ulid: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    imageUrl: string | null
+  }
+}
 
 // Helper to generate a random time between 9 AM and 5 PM
 const getRandomTime = (date: Date) => {

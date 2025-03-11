@@ -6,7 +6,22 @@ import { MenteeCalendar } from '@/components/mentee/MenteeCalendar'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { generateMockSessions, mockConfig, MockDataScenario } from '@/utils/mock/calendar-data'
-import { ExtendedSession } from '@/utils/types/calendly'
+
+interface ExtendedSession {
+  ulid: string
+  startTime: string
+  endTime: string
+  durationMinutes: number
+  status: string
+  userRole: string
+  otherParty: {
+    ulid: string
+    firstName: string | null
+    lastName: string | null
+    email: string | null
+    imageUrl: string | null
+  }
+}
 
 const NoSessionsPrompt = () => {
   return (
@@ -39,8 +54,6 @@ export default function MenteeCalendarPage() {
       
       return response.data.map(session => ({
         ulid: session.ulid,
-        id: parseInt(session.ulid),
-        calendlyEventId: '',
         startTime: session.startTime,
         endTime: session.endTime,
         durationMinutes: session.durationMinutes,
@@ -48,7 +61,6 @@ export default function MenteeCalendarPage() {
         userRole: session.userRole,
         otherParty: {
           ulid: session.otherParty.ulid,
-          id: parseInt(session.otherParty.ulid),
           firstName: session.otherParty.firstName,
           lastName: session.otherParty.lastName,
           email: session.otherParty.email,

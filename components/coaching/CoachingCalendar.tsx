@@ -11,69 +11,62 @@ import { cn } from '@/utils/cn'
 
 interface CoachingCalendarProps {
   userRole: string
-  onConnect?: () => void
-  showCalendarButton?: boolean
+  title?: string
+  isLoading?: boolean
+  sessions?: any[]
+  busyTimes?: any[]
+  coachDbId?: string
 }
 
 const ConnectCalendarSection: React.FC<{
   userRole: string
-  onConnect?: () => void
-}> = ({ userRole, onConnect }) => {
+}> = ({ userRole }) => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Connect Your Calendar</CardTitle>
+        <CardTitle>Calendar Integration Coming Soon</CardTitle>
         <CardDescription>
-          To start accepting coaching sessions, please connect your calendar. This will sync your availability and allow mentees to book sessions with you.
+          A new booking and calendar system will be implemented soon. Stay tuned for updates!
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button onClick={onConnect} className="w-full">
-          Connect Calendar
-        </Button>
+        <div className="p-4 bg-muted rounded-md">
+          <p className="text-sm text-muted-foreground">
+            This feature is currently under development.
+          </p>
+        </div>
       </CardContent>
     </Card>
   )
 }
 
 const CalendarStatus: React.FC<{
-  isConnected?: boolean
   isLoading?: boolean
-  onConnect?: () => void
-}> = ({ isConnected, isLoading, onConnect }) => {
+}> = ({ isLoading }) => {
   if (isLoading) {
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span>Checking calendar...</span>
-      </div>
-    )
-  }
-
-  if (!isConnected) {
-    return (
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
-          <CalendarIcon className="h-3 w-3 mr-1" />
-          <span className="text-sm font-medium">Calendar Not Connected</span>
-        </Badge>
-        <Button variant="ghost" size="sm" onClick={onConnect}>Connect</Button>
+        <span>Loading calendar...</span>
       </div>
     )
   }
 
   return (
-    <Badge variant="outline" className="bg-green-100 text-green-800">
+    <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
       <CalendarIcon className="h-3 w-3 mr-1" />
-      <span className="text-sm font-medium">Calendar Connected</span>
+      <span className="text-sm font-medium">Calendar Integration Coming Soon</span>
     </Badge>
   )
 }
 
 export function CoachingCalendar({
   userRole,
-  onConnect,
-  showCalendarButton = true
+  title = "Calendar",
+  isLoading = false,
+  sessions = [],
+  busyTimes = [],
+  coachDbId
 }: CoachingCalendarProps) {
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null)
@@ -81,12 +74,8 @@ export function CoachingCalendar({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Calendar</h2>
-        {showCalendarButton && userRole === 'coach' && (
-          <CalendarStatus
-            onConnect={onConnect}
-          />
-        )}
+        <h2 className="text-lg font-semibold">{title}</h2>
+        <CalendarStatus isLoading={isLoading} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -110,7 +99,6 @@ export function CoachingCalendar({
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {/* Time slots will be populated by Cal.com */}
               <div className="flex items-center justify-center h-32 text-muted-foreground">
                 <p>Calendar integration coming soon...</p>
               </div>

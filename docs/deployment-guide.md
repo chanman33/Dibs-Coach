@@ -6,7 +6,7 @@
    - [ ] Vercel account (for hosting)
    - [ ] Supabase account (for database)
    - [ ] Clerk account (for authentication)
-   - [ ] Calendly OAuth application
+   - [ ] Cal OAuth application
 
 2. **Domain & SSL**
    - [ ] Domain name (optional, Vercel provides a default domain)
@@ -83,24 +83,8 @@ NEXT_PUBLIC_APP_URL=your_app_url
    NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/onboarding
    ```
 
-### 4. Calendly Integration Setup
+### 4. Cal.com Deployment - see docs. Self-host available
 
-1. **Create Calendly OAuth App**
-   - Go to Calendly Developer Portal
-   - Create new OAuth application
-   - Add redirect URIs:
-     ```
-     https://your-domain.com/api/calendly/oauth/callback
-     https://your-domain.vercel.app/api/calendly/oauth/callback
-     ```
-
-2. **Configure Webhooks**
-   - Create webhook subscription
-   - Set webhook endpoint URL:
-     ```
-     https://your-domain.com/api/calendly/webhooks
-     ```
-   - Save webhook signing key
 
 ### 5. Vercel Deployment
 
@@ -130,19 +114,8 @@ NEXT_PUBLIC_APP_URL=your_app_url
 3. **Set up Cron Jobs**
    - Verify vercel.json configuration:
    ```json
-   {
-     "crons": [
-       {
-         "path": "/api/cron/refresh-calendly-tokens",
-         "schedule": "0 * * * *"
-       },
-       {
-         "path": "/api/cron/sync-calendly-availability",
-         "schedule": "*/15 * * * *"
-       }
-     ]
-   }
-   ```
+   - Setup Cal.com CRON jobs - see docs
+
 
 ### 6. Post-Deployment Verification
 
@@ -157,7 +130,7 @@ NEXT_PUBLIC_APP_URL=your_app_url
    - Verify OAuth redirects
    - Check user session management
 
-3. **Calendly Integration**
+3. **Cal Integration**
    - Test OAuth connection
    - Verify webhook delivery
    - Check availability sync
@@ -232,7 +205,7 @@ NEXT_PUBLIC_APP_URL=your_app_url
    - Validate payload format
 
 3. **Token Refresh Issues**
-   - Check Calendly API status
+   - Check Cal API status
    - Verify OAuth credentials
    - Check token expiration times
 
@@ -243,10 +216,10 @@ NEXT_PUBLIC_APP_URL=your_app_url
    - [Vercel Documentation](https://vercel.com/docs)
    - [Supabase Documentation](https://supabase.io/docs)
    - [Clerk Documentation](https://clerk.dev/docs)
-   - [Calendly API Documentation](https://developer.calendly.com/)
+   - [Cal.com Documentation] (https://cal.com/docs/developing/introduction)
 
 2. **Support Channels**
    - Vercel Support
    - Supabase Discord
    - Clerk Discord
-   - Calendly API Support 
+   - Cal API Support 

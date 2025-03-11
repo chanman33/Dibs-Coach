@@ -150,8 +150,7 @@ export default async function MonitoringPage() {
                 <div className="flex items-center justify-between p-2 border rounded">
                   <div className="flex items-center space-x-2">
                     <CheckCircle2 className="h-4 w-4 text-green-500" />
-
-                    <span>Calendly</span>
+                    <span>Scheduling Service</span>
                   </div>
                   <Badge>Connected</Badge>
                 </div>
