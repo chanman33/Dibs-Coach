@@ -4,11 +4,14 @@ import { createAuthClient } from "../auth"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { revalidatePath } from "next/cache"
-import { PROFILE_STATUS, type ProfileStatus, ALLOWED_STATUS_TRANSITIONS, PROFILE_REQUIREMENTS, canTransitionTo } from "@/utils/types/coach"
+import { PROFILE_STATUS, type ProfileStatus, ALLOWED_STATUS_TRANSITIONS, PROFILE_REQUIREMENTS, canTransitionTo, RealEstateDomain } from "@/utils/types/coach"
 import { calculateProfileCompletion, PUBLICATION_THRESHOLD } from "@/utils/actions/calculateProfileCompletion"
 import { auth } from "@clerk/nextjs/server"
 import { ProfessionalRecognition } from "@/utils/types/recognition"
 import { generateUlid, isValidUlid } from "@/utils/ulid"
+import { z } from 'zod'
+import { ulidSchema } from '@/utils/types/auth'
+import { updateUserDomains } from '@/utils/actions/user-profile-actions'
 
 export interface CoachProfileFormData {
   coachSkills: string[];
@@ -320,6 +323,22 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         coachProfileData,
         timestamp: new Date().toISOString()
       });
+
+      // Update the User model with the coach skills as realEstateDomains
+      // This will also handle primaryDomain synchronization
+      const userDomainsResult = await updateUserDomains({
+        realEstateDomains: formData.coachSkills
+      });
+
+      if (userDomainsResult.error) {
+        console.error('[USER_DOMAINS_UPDATE_ERROR]', {
+          userUlid,
+          error: userDomainsResult.error,
+          timestamp: new Date().toISOString()
+        });
+        // Continue with coach profile update even if user domains update fails
+        // Just log the error but don't return
+      }
 
       const { error: updateError } = await supabase
         .from('CoachProfile')

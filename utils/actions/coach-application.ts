@@ -16,6 +16,7 @@ import { cookies } from 'next/headers';
 import type { Database } from '@/types/supabase';
 import { CoachApplicationStatus as PrismaCoachApplicationStatus } from '@prisma/client';
 import { coachApplicationFormSchema, type CoachApplicationFormData } from '@/utils/types/coach-application'
+import { updateUserDomains } from '@/utils/actions/user-profile-actions'
 
 // Define the status type to match database
 type ApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DRAFT';
@@ -646,13 +647,31 @@ export const reviewCoachApplication = withServerAction<ApplicationResponse>(
         // Add coach capability
         await addUserCapability(application.applicant.ulid, USER_CAPABILITIES.COACH);
 
+        // Update the User model with realEstateDomains and primaryDomain
+        const userDomainsResult = await updateUserDomains({
+          realEstateDomains: application.realEstateDomains as string[],
+          primaryDomain: application.primaryDomain as string,
+          targetUserUlid: application.applicant.ulid
+        });
+
+        if (userDomainsResult.error) {
+          console.error('[USER_DOMAINS_UPDATE_ERROR]', userDomainsResult.error);
+          return {
+            data: null,
+            error: {
+              code: "INTERNAL_ERROR",
+              message: "Failed to update user domains",
+            },
+          };
+        }
+
         // Create coach profile with the domains from application
         const { error: profileError } = await supabase
           .from('CoachProfile')
           .insert({
             ulid: generateUlid(),
             userUlid: application.applicant.ulid,
-            coachSkills: application.realEstateDomains,
+            coachSkills: [],
             profileStatus: 'DRAFT',
             completionPercentage: 0,
             createdAt: new Date().toISOString(),

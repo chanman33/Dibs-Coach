@@ -8,7 +8,6 @@ import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ServerActionContext } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { calculateProfileCompletion } from '@/utils/actions/calculateProfileCompletion'
-import { getUserUlidAndRole } from "@/utils/auth"
 import { User } from "@/utils/types/user"
 
 export interface GeneralFormData {
@@ -273,7 +272,7 @@ export async function fetchMarketingInfo() {
         marketingAreas,
         testimonials
       `)
-      .eq("userDbId", userData.id)
+      .eq("userDbId", (userData as unknown as { id: string }).id)
       .single()
 
     if (marketingError) {
@@ -281,14 +280,17 @@ export async function fetchMarketingInfo() {
       return { success: false, error: "Failed to fetch marketing information" }
     }
 
+    // Add type assertion to handle potential type errors
+    const typedMarketingData = marketingData as any;
+
     return {
       success: true,
       data: {
-        ...marketingData,
-        marketingAreas: Array.isArray(marketingData.marketingAreas)
-          ? marketingData.marketingAreas.join(", ")
-          : marketingData.marketingAreas || "",
-        testimonials: marketingData.testimonials || []
+        ...typedMarketingData,
+        marketingAreas: Array.isArray(typedMarketingData.marketingAreas)
+          ? typedMarketingData.marketingAreas.join(", ")
+          : typedMarketingData.marketingAreas || "",
+        testimonials: typedMarketingData.testimonials || []
       } as MarketingInfo
     }
   } catch (error) {
@@ -474,7 +476,7 @@ export const updateUserLanguages = withServerAction<{ success: boolean }, Langua
       const { data: updateData, error } = await supabase
         .from("User")
         .update({
-          languages: data.languages,
+          languages: data.languages as any,
           updatedAt: new Date().toISOString()
         })
         .eq("ulid", userUlid)
@@ -650,24 +652,65 @@ export const updateProfileImage = withServerAction<ProfileImageData, ProfileImag
 );
 
 export interface UserStatusData {
-  status: "ACTIVE" | "INACTIVE" | "SUSPENDED" | "DELETED";
+  status: "ACTIVE" | "SUSPENDED" | "INACTIVE" | "DELETED";
 }
 
 export const updateUserStatus = withServerAction<UserStatusData, UserStatusData>(
   async (data, { userUlid }) => {
     try {
-      const supabase = await createAuthClient();
+      console.log("[UPDATE_STATUS_START]", {
+        userUlid,
+        status: data.status,
+        timestamp: new Date().toISOString()
+      });
 
-      const { error } = await supabase
+      const supabase = await createAuthClient()
+
+      // First, get current status
+      const { data: currentData, error: fetchError } = await supabase
+        .from("User")
+        .select("status")
+        .eq("ulid", userUlid)
+        .single();
+
+      console.log("[UPDATE_STATUS_CURRENT]", {
+        userUlid,
+        currentStatus: currentData?.status,
+        fetchError,
+        timestamp: new Date().toISOString()
+      });
+
+      if (fetchError) {
+        console.error("[UPDATE_STATUS_FETCH_ERROR]", {
+          userUlid,
+          error: fetchError,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const { data: updateData, error } = await supabase
         .from("User")
         .update({
-          status: data.status,
+          status: data.status as any, // Type assertion to bypass strict type checking
           updatedAt: new Date().toISOString()
         })
-        .eq("ulid", userUlid);
+        .eq("ulid", userUlid)
+        .select("status");
+
+      console.log("[UPDATE_STATUS_RESULT]", {
+        userUlid,
+        updatedStatus: updateData?.[0]?.status,
+        error,
+        timestamp: new Date().toISOString()
+      });
 
       if (error) {
-        console.error("[USER_STATUS_UPDATE_ERROR]", { userUlid, error });
+        console.error("[UPDATE_STATUS_ERROR]", {
+          userUlid,
+          error,
+          attempted_status: data.status,
+          timestamp: new Date().toISOString()
+        });
         return {
           data: null,
           error: {
@@ -675,23 +718,28 @@ export const updateUserStatus = withServerAction<UserStatusData, UserStatusData>
             message: 'Failed to update user status',
             details: error
           }
-        };
+        }
       }
 
       return {
-        data: { status: data.status },
+        data: { status: updateData?.[0]?.status as "ACTIVE" | "SUSPENDED" | "INACTIVE" | "DELETED" },
         error: null
-      };
+      }
     } catch (error) {
-      console.error("[USER_STATUS_UPDATE_ERROR]", error);
+      console.error("[UPDATE_STATUS_ERROR]", {
+        userUlid,
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       return {
         data: null,
         error: {
           code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'An unexpected error occurred',
-          details: error
+          message: 'Failed to update status',
+          details: error instanceof Error ? { message: error.message } : undefined
         }
-      };
+      }
     }
   }
 );
@@ -699,30 +747,51 @@ export const updateUserStatus = withServerAction<UserStatusData, UserStatusData>
 export interface DomainUpdateData {
   realEstateDomains: string[];
   primaryDomain?: string | null;
+  targetUserUlid?: string;
 }
 
 export const updateUserDomains = withServerAction<DomainUpdateData, DomainUpdateData>(
   async (data, { userUlid }) => {
     try {
       const supabase = await createAuthClient();
+      
+      // Use targetUserUlid if provided, otherwise use the context userUlid
+      const targetUlid = data.targetUserUlid || userUlid;
 
       const updateData: any = {
         realEstateDomains: data.realEstateDomains,
         updatedAt: new Date().toISOString()
       };
 
-      // Only include primaryDomain if it's provided
-      if (data.primaryDomain !== undefined) {
-        updateData.primaryDomain = data.primaryDomain;
+      // Handle primaryDomain logic:
+      // 1. If realEstateDomains is empty, set primaryDomain to null
+      // 2. If primaryDomain is provided and exists in realEstateDomains, use it
+      // 3. If primaryDomain is provided but not in realEstateDomains, use first domain
+      // 4. If primaryDomain is not provided, keep first domain as primary
+      if (data.realEstateDomains.length === 0) {
+        // If no domains, set primaryDomain to null
+        updateData.primaryDomain = null;
+      } else if (data.primaryDomain !== undefined) {
+        // If primaryDomain is explicitly provided
+        if (data.primaryDomain && data.realEstateDomains.includes(data.primaryDomain)) {
+          // Use provided primaryDomain if it's in the domains list
+          updateData.primaryDomain = data.primaryDomain;
+        } else {
+          // Otherwise use the first domain as primary
+          updateData.primaryDomain = data.realEstateDomains[0];
+        }
+      } else {
+        // If primaryDomain not provided, use first domain
+        updateData.primaryDomain = data.realEstateDomains[0];
       }
 
       const { error } = await supabase
         .from("User")
         .update(updateData)
-        .eq("ulid", userUlid);
+        .eq("ulid", targetUlid);
 
       if (error) {
-        console.error("[USER_DOMAINS_UPDATE_ERROR]", { userUlid, error });
+        console.error("[USER_DOMAINS_UPDATE_ERROR]", { targetUlid, error });
         return {
           data: null,
           error: {
@@ -736,7 +805,7 @@ export const updateUserDomains = withServerAction<DomainUpdateData, DomainUpdate
       return {
         data: {
           realEstateDomains: data.realEstateDomains,
-          primaryDomain: data.primaryDomain
+          primaryDomain: updateData.primaryDomain
         },
         error: null
       };
