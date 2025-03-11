@@ -1,5 +1,5 @@
 -- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('SYSTEM_ADMIN', 'SYSTEM_MODERATOR', 'USER');
+CREATE TYPE "UserRole" AS ENUM ('SYSTEM_OWNER', 'SYSTEM_MODERATOR', 'USER');
 
 -- CreateEnum
 CREATE TYPE "UserCapability" AS ENUM ('COACH', 'MENTEE');
@@ -8,19 +8,22 @@ CREATE TYPE "UserCapability" AS ENUM ('COACH', 'MENTEE');
 CREATE TYPE "UserStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
 
 -- CreateEnum
-CREATE TYPE "OrgType" AS ENUM ('INDIVIDUAL', 'BUSINESS', 'ENTERPRISE');
+CREATE TYPE "OrgType" AS ENUM ('INDIVIDUAL', 'TEAM', 'BUSINESS', 'ENTERPRISE', 'FRANCHISE', 'NETWORK');
 
 -- CreateEnum
-CREATE TYPE "OrgStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
+CREATE TYPE "OrgIndustry" AS ENUM ('REAL_ESTATE_SALES', 'MORTGAGE_LENDING', 'PROPERTY_MANAGEMENT', 'REAL_ESTATE_INVESTMENT', 'TITLE_ESCROW', 'INSURANCE', 'COMMERCIAL', 'PRIVATE_CREDIT', 'OTHER');
 
 -- CreateEnum
-CREATE TYPE "OrgTier" AS ENUM ('FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE');
+CREATE TYPE "OrgStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING', 'ARCHIVED');
 
 -- CreateEnum
-CREATE TYPE "OrgRole" AS ENUM ('GLOBAL_ADMIN', 'GLOBAL_DIRECTOR', 'GLOBAL_MANAGER', 'REGIONAL_DIRECTOR', 'REGIONAL_MANAGER', 'LOCAL_ADMIN', 'LOCAL_MANAGER', 'OWNER', 'MEMBER', 'GUEST');
+CREATE TYPE "OrgTier" AS ENUM ('FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE', 'PARTNER');
 
 -- CreateEnum
-CREATE TYPE "OrgLevel" AS ENUM ('GLOBAL', 'REGIONAL', 'LOCAL');
+CREATE TYPE "OrgRole" AS ENUM ('GLOBAL_OWNER', 'GLOBAL_DIRECTOR', 'GLOBAL_MANAGER', 'REGIONAL_OWNER', 'REGIONAL_DIRECTOR', 'REGIONAL_MANAGER', 'LOCAL_OWNER', 'LOCAL_DIRECTOR', 'LOCAL_MANAGER', 'OWNER', 'DIRECTOR', 'MANAGER', 'MEMBER', 'GUEST');
+
+-- CreateEnum
+CREATE TYPE "OrgLevel" AS ENUM ('GLOBAL', 'REGIONAL', 'LOCAL', 'BRANCH');
 
 -- CreateEnum
 CREATE TYPE "MemberStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
@@ -29,7 +32,7 @@ CREATE TYPE "MemberStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
 CREATE TYPE "InviteStatus" AS ENUM ('PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED');
 
 -- CreateEnum
-CREATE TYPE "DomainType" AS ENUM ('REALTOR', 'LOAN_OFFICER', 'TITLE_OFFICER', 'PROPERTY_MANAGER', 'INVESTOR');
+CREATE TYPE "RealEstateDomain" AS ENUM ('REALTOR', 'INVESTOR', 'MORTGAGE', 'PROPERTY_MANAGER', 'TITLE_ESCROW', 'INSURANCE', 'COMMERCIAL', 'PRIVATE_CREDIT');
 
 -- CreateEnum
 CREATE TYPE "DomainStatus" AS ENUM ('PENDING', 'ACTIVE', 'INACTIVE', 'SUSPENDED');
@@ -136,6 +139,39 @@ CREATE TYPE "RoofType" AS ENUM ('Asphalt', 'Metal', 'Slate', 'Tile', 'Wood');
 -- CreateEnum
 CREATE TYPE "ViewType" AS ENUM ('City', 'Golf', 'Lake', 'Mountain', 'Ocean', 'Park', 'River', 'Woods');
 
+-- CreateEnum
+CREATE TYPE "SocialMediaPlatform" AS ENUM ('FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'YOUTUBE', 'TWITTER', 'TIKTOK', 'PINTEREST', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "LoanType" AS ENUM ('CONVENTIONAL', 'FHA', 'VA', 'USDA', 'JUMBO', 'REVERSE', 'CONSTRUCTION', 'COMMERCIAL', 'HELOC', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "InvestmentStrategy" AS ENUM ('FIX_AND_FLIP', 'BUY_AND_HOLD', 'WHOLESALE', 'COMMERCIAL', 'MULTIFAMILY', 'LAND_DEVELOPMENT', 'REIT', 'SYNDICATION', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "PropertyManagerType" AS ENUM ('RESIDENTIAL', 'COMMERCIAL', 'MIXED_USE', 'VACATION_RENTAL', 'HOA', 'STUDENT_HOUSING', 'SENIOR_LIVING', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "TitleEscrowType" AS ENUM ('TITLE_AGENT', 'ESCROW_OFFICER', 'CLOSING_AGENT', 'TITLE_EXAMINER', 'UNDERWRITER', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "InsuranceType" AS ENUM ('PROPERTY_CASUALTY', 'TITLE_INSURANCE', 'ERRORS_OMISSIONS', 'LIABILITY', 'HOMEOWNERS', 'FLOOD', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "Language" AS ENUM ('en', 'es', 'zh', 'tl', 'vi', 'ar', 'fr', 'ko', 'ru', 'de', 'hi', 'pt', 'it', 'ja');
+
+-- CreateEnum
+CREATE TYPE "CommercialPropertyType" AS ENUM ('OFFICE', 'RETAIL', 'INDUSTRIAL', 'MULTIFAMILY', 'MIXED_USE', 'LAND', 'HOTEL', 'MEDICAL', 'SELF_STORAGE', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "CommercialDealType" AS ENUM ('SALES', 'LEASING', 'INVESTMENT', 'DEVELOPMENT', 'PROPERTY_MANAGEMENT', 'CONSULTING');
+
+-- CreateEnum
+CREATE TYPE "PrivateCreditLoanType" AS ENUM ('BRIDGE', 'CONSTRUCTION', 'VALUE_ADD', 'ACQUISITION', 'REFINANCE', 'MEZZANINE', 'PREFERRED_EQUITY', 'OTHER');
+
+-- CreateEnum
+CREATE TYPE "ProfileStatus" AS ENUM ('DRAFT', 'PUBLISHED', 'ARCHIVED');
+
 -- CreateTable
 CREATE TABLE "User" (
     "ulid" CHAR(26) NOT NULL,
@@ -143,7 +179,9 @@ CREATE TABLE "User" (
     "email" TEXT NOT NULL,
     "firstName" TEXT,
     "lastName" TEXT,
+    "phoneNumber" TEXT,
     "displayName" TEXT,
+    "bio" TEXT,
     "systemRole" "UserRole" NOT NULL DEFAULT 'USER',
     "capabilities" "UserCapability"[],
     "isCoach" BOOLEAN NOT NULL DEFAULT false,
@@ -152,45 +190,15 @@ CREATE TABLE "User" (
     "stripeConnectAccountId" TEXT,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMPTZ NOT NULL,
-    "memberKey" TEXT,
-    "memberStatus" TEXT NOT NULL,
-    "designations" TEXT[],
-    "licenseNumber" TEXT,
-    "companyName" TEXT,
-    "phoneNumber" TEXT,
     "status" "UserStatus" NOT NULL DEFAULT 'ACTIVE',
     "profileImageUrl" TEXT,
+    "realEstateDomains" "RealEstateDomain"[] DEFAULT ARRAY[]::"RealEstateDomain"[],
+    "primaryDomain" "RealEstateDomain",
+    "totalYearsRE" INTEGER NOT NULL DEFAULT 0,
+    "languages" "Language"[] DEFAULT ARRAY['en']::"Language"[],
+    "primaryMarket" TEXT,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "RealtorProfile" (
-    "ulid" CHAR(26) NOT NULL,
-    "userUlid" CHAR(26) NOT NULL,
-    "bio" TEXT,
-    "yearsExperience" INTEGER,
-    "propertyTypes" TEXT[],
-    "specializations" TEXT[],
-    "certifications" TEXT[],
-    "languages" TEXT[],
-    "geographicFocus" JSONB NOT NULL,
-    "primaryMarket" TEXT,
-    "slogan" TEXT,
-    "websiteUrl" TEXT,
-    "facebookUrl" TEXT,
-    "instagramUrl" TEXT,
-    "linkedinUrl" TEXT,
-    "youtubeUrl" TEXT,
-    "marketingAreas" TEXT[],
-    "testimonials" JSONB NOT NULL,
-    "mlsId" TEXT,
-    "mlsName" TEXT,
-    "mlsStatus" TEXT DEFAULT 'ACTIVE',
-    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMPTZ NOT NULL,
-
-    CONSTRAINT "RealtorProfile_pkey" PRIMARY KEY ("ulid")
 );
 
 -- CreateTable
@@ -200,7 +208,6 @@ CREATE TABLE "MenteeProfile" (
     "focusAreas" TEXT[],
     "experienceLevel" TEXT,
     "learningStyle" TEXT,
-    "goals" JSONB,
     "sessionsCompleted" INTEGER NOT NULL DEFAULT 0,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "lastSessionDate" TIMESTAMP(3),
@@ -214,11 +221,9 @@ CREATE TABLE "MenteeProfile" (
 CREATE TABLE "CoachProfile" (
     "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
-    "coachingSpecialties" TEXT[],
     "yearsCoaching" INTEGER,
+    "coachSkills" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "hourlyRate" DECIMAL(10,2),
-    "calendlyUrl" TEXT,
-    "eventTypeUrl" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "defaultDuration" INTEGER NOT NULL DEFAULT 60,
     "allowCustomDuration" BOOLEAN NOT NULL DEFAULT false,
@@ -226,10 +231,306 @@ CREATE TABLE "CoachProfile" (
     "maximumDuration" INTEGER NOT NULL DEFAULT 120,
     "totalSessions" INTEGER NOT NULL DEFAULT 0,
     "averageRating" DECIMAL(3,2),
+    "profileStatus" "ProfileStatus" NOT NULL DEFAULT 'DRAFT',
+    "completionPercentage" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMPTZ NOT NULL,
 
     CONSTRAINT "CoachProfile_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "Organization" (
+    "ulid" CHAR(26) NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "type" "OrgType" NOT NULL DEFAULT 'INDIVIDUAL',
+    "industry" "OrgIndustry",
+    "level" "OrgLevel" NOT NULL DEFAULT 'LOCAL',
+    "tier" "OrgTier" NOT NULL DEFAULT 'FREE',
+    "parentUlid" CHAR(26),
+    "metadata" JSONB,
+    "primaryDomain" "RealEstateDomain",
+    "domains" "RealEstateDomain"[],
+    "licenseNumbers" JSONB,
+    "serviceAreas" TEXT[],
+    "specializations" TEXT[],
+    "certifications" TEXT[],
+    "totalTransactions" INTEGER,
+    "transactionVolume" DECIMAL(12,2),
+    "activeAgents" INTEGER,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "Organization_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "Region" (
+    "ulid" CHAR(26) NOT NULL,
+    "organizationUlid" CHAR(26) NOT NULL,
+    "name" TEXT NOT NULL,
+    "type" TEXT NOT NULL,
+    "parentUlid" CHAR(26),
+    "metadata" JSONB,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "Region_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "OrganizationMember" (
+    "ulid" CHAR(26) NOT NULL,
+    "organizationUlid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "role" "OrgRole" NOT NULL DEFAULT 'MEMBER',
+    "scope" TEXT DEFAULT 'LOCAL',
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "customPermissions" JSONB,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "OrganizationMember_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "RolePermission" (
+    "ulid" CHAR(26) NOT NULL,
+    "organizationUlid" CHAR(26) NOT NULL,
+    "role" "OrgRole" NOT NULL,
+    "permissions" JSONB NOT NULL,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "RolePermission_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "MarketingProfile" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26),
+    "organizationUlid" CHAR(26),
+    "slogan" TEXT,
+    "brandColors" JSONB,
+    "logoUrl" TEXT,
+    "brandGuidelines" JSONB,
+    "websiteUrl" TEXT,
+    "blogUrl" TEXT,
+    "socialMediaLinks" JSONB NOT NULL,
+    "marketingAreas" TEXT[],
+    "targetAudience" TEXT[],
+    "geographicFocus" JSONB,
+    "testimonials" JSONB,
+    "pressFeatures" JSONB,
+    "marketingMaterials" JSONB,
+    "brandAssets" JSONB,
+    "marketingTeam" JSONB,
+    "campaignHistory" JSONB,
+    "googleAnalyticsId" TEXT,
+    "facebookPixelId" TEXT,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "MarketingProfile_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "RealtorProfile" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "yearsExperience" INTEGER,
+    "propertyTypes" TEXT[],
+    "specializations" TEXT[],
+    "certifications" TEXT[],
+    "companyName" TEXT,
+    "geographicFocus" JSONB,
+    "primaryMarket" TEXT,
+    "mlsId" TEXT,
+    "mlsName" TEXT,
+    "mlsStatus" TEXT DEFAULT 'ACTIVE',
+    "memberKey" TEXT,
+    "memberStatus" TEXT,
+    "designations" TEXT[],
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "RealtorProfile_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "LoanOfficerProfile" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "yearsExperience" INTEGER,
+    "nmls" TEXT,
+    "lenderName" TEXT,
+    "branchLocation" TEXT,
+    "loanTypes" "LoanType"[],
+    "specializations" TEXT[],
+    "certifications" TEXT[],
+    "closedLoansCount" INTEGER,
+    "totalLoanVolume" DECIMAL(12,2),
+    "averageLoanSize" DECIMAL(12,2),
+    "geographicFocus" JSONB,
+    "primaryMarket" TEXT,
+    "licensedStates" TEXT[],
+    "minLoanAmount" DECIMAL(12,2),
+    "maxLoanAmount" DECIMAL(12,2),
+    "typicalTurnaroundDays" INTEGER,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "LoanOfficerProfile_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "InvestorProfile" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "yearsExperience" INTEGER,
+    "companyName" TEXT,
+    "investmentStrategies" "InvestmentStrategy"[],
+    "specializations" TEXT[],
+    "certifications" TEXT[],
+    "minInvestmentAmount" DECIMAL(12,2),
+    "maxInvestmentAmount" DECIMAL(12,2),
+    "targetRoi" DECIMAL(5,2),
+    "preferredPropertyTypes" TEXT[],
+    "propertiesOwned" INTEGER,
+    "totalPortfolioValue" DECIMAL(12,2),
+    "completedDeals" INTEGER,
+    "geographicFocus" JSONB,
+    "primaryMarket" TEXT,
+    "targetMarkets" TEXT[],
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "InvestorProfile_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "PropertyManagerProfile" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "yearsExperience" INTEGER,
+    "companyName" TEXT,
+    "licenseNumber" TEXT,
+    "managerTypes" "PropertyManagerType"[],
+    "specializations" TEXT[],
+    "certifications" TEXT[],
+    "propertiesManaged" INTEGER,
+    "totalUnits" INTEGER,
+    "squareFeetManaged" DECIMAL(12,2),
+    "occupancyRate" DECIMAL(5,2),
+    "geographicFocus" JSONB,
+    "primaryMarket" TEXT,
+    "serviceZips" TEXT[],
+    "minimumUnits" INTEGER,
+    "propertyTypes" TEXT[],
+    "services" TEXT[],
+    "managementSoftware" TEXT,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "PropertyManagerProfile_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "TitleEscrowProfile" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "yearsExperience" INTEGER,
+    "companyName" TEXT,
+    "licenseNumber" TEXT,
+    "titleEscrowTypes" "TitleEscrowType"[],
+    "specializations" TEXT[],
+    "certifications" TEXT[],
+    "closingsCompleted" INTEGER,
+    "averageClosingTime" INTEGER,
+    "totalTransactionVolume" DECIMAL(12,2),
+    "geographicFocus" JSONB,
+    "primaryMarket" TEXT,
+    "licensedStates" TEXT[],
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "TitleEscrowProfile_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "InsuranceProfile" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "yearsExperience" INTEGER,
+    "companyName" TEXT,
+    "licenseNumber" TEXT,
+    "insuranceTypes" "InsuranceType"[],
+    "specializations" TEXT[],
+    "certifications" TEXT[],
+    "policiesIssued" INTEGER,
+    "totalPremiumVolume" DECIMAL(12,2),
+    "claimProcessingTime" INTEGER,
+    "geographicFocus" JSONB,
+    "primaryMarket" TEXT,
+    "licensedStates" TEXT[],
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "InsuranceProfile_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "CommercialProfile" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "yearsExperience" INTEGER,
+    "companyName" TEXT,
+    "licenseNumber" TEXT,
+    "specializations" TEXT[],
+    "certifications" TEXT[],
+    "propertyTypes" "CommercialPropertyType"[],
+    "dealTypes" "CommercialDealType"[],
+    "typicalDealSize" DECIMAL(12,2),
+    "totalTransactionVolume" DECIMAL(12,2),
+    "completedDeals" INTEGER,
+    "averageDealSize" DECIMAL(12,2),
+    "geographicFocus" JSONB,
+    "primaryMarket" TEXT,
+    "serviceAreas" TEXT[],
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "CommercialProfile_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "PrivateCreditProfile" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "yearsExperience" INTEGER,
+    "companyName" TEXT,
+    "licenseNumber" TEXT,
+    "specializations" TEXT[],
+    "certifications" TEXT[],
+    "minLoanAmount" DECIMAL(12,2),
+    "maxLoanAmount" DECIMAL(12,2),
+    "typicalTermLength" INTEGER,
+    "interestRateRange" JSONB,
+    "loanTypes" "PrivateCreditLoanType"[],
+    "totalLoanVolume" DECIMAL(12,2),
+    "activeLoans" INTEGER,
+    "averageLoanSize" DECIMAL(12,2),
+    "geographicFocus" JSONB,
+    "primaryMarket" TEXT,
+    "licensedStates" TEXT[],
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "PrivateCreditProfile_pkey" PRIMARY KEY ("ulid")
 );
 
 -- CreateTable
@@ -294,20 +595,21 @@ CREATE TABLE "CoachApplication" (
     "ulid" CHAR(26) NOT NULL,
     "applicantUlid" CHAR(26) NOT NULL,
     "status" "CoachApplicationStatus" NOT NULL DEFAULT 'PENDING',
-    "experience" TEXT NOT NULL,
-    "specialties" TEXT[] DEFAULT ARRAY[]::TEXT[],
-    "applicationDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "yearsOfExperience" INTEGER NOT NULL,
+    "superPower" TEXT NOT NULL,
+    "aboutYou" TEXT,
+    "realEstateDomains" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "primaryDomain" TEXT,
+    "resumeUrl" TEXT,
+    "linkedIn" TEXT,
+    "primarySocialMedia" TEXT,
     "reviewerUlid" CHAR(26),
     "reviewDate" TIMESTAMP(3),
-    "notes" TEXT,
+    "reviewNotes" TEXT,
     "isDraft" BOOLEAN NOT NULL DEFAULT false,
     "lastSavedAt" TIMESTAMPTZ,
     "draftData" JSONB,
     "draftVersion" INTEGER NOT NULL DEFAULT 1,
-    "resumeUrl" TEXT,
-    "linkedIn" TEXT,
-    "primarySocialMedia" TEXT,
-    "additionalInfo" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -442,199 +744,6 @@ CREATE TABLE "Reminder" (
 );
 
 -- CreateTable
-CREATE TABLE "CalendlyIntegration" (
-    "ulid" CHAR(26) NOT NULL,
-    "userUlid" CHAR(26) NOT NULL,
-    "userId" TEXT NOT NULL,
-    "eventTypeId" TEXT,
-    "accessToken" TEXT NOT NULL,
-    "refreshToken" TEXT NOT NULL,
-    "scope" TEXT NOT NULL,
-    "organization" TEXT,
-    "expiresAt" TIMESTAMPTZ NOT NULL,
-    "lastSyncAt" TIMESTAMPTZ,
-    "failedRefreshCount" INTEGER NOT NULL DEFAULT 0,
-    "status" TEXT NOT NULL DEFAULT 'active',
-    "schedulingUrl" TEXT NOT NULL,
-    "organizationUrl" TEXT,
-    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMPTZ NOT NULL,
-
-    CONSTRAINT "CalendlyIntegration_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "Subscription" (
-    "ulid" CHAR(26) NOT NULL,
-    "subscriptionId" TEXT NOT NULL,
-    "userUlid" CHAR(26),
-    "organizationUlid" CHAR(26),
-    "stripeCustomerId" TEXT NOT NULL,
-    "status" TEXT NOT NULL,
-    "startDate" TIMESTAMP(3) NOT NULL,
-    "endDate" TIMESTAMP(3),
-    "planUlid" CHAR(26) NOT NULL,
-    "defaultPaymentMethodId" TEXT,
-    "quantity" INTEGER NOT NULL DEFAULT 1,
-    "metadata" JSONB NOT NULL DEFAULT '{}',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Subscription_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "SubscriptionPlan" (
-    "ulid" CHAR(26) NOT NULL,
-    "planId" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
-    "type" "PlanType" NOT NULL DEFAULT 'INDIVIDUAL',
-    "amount" DECIMAL(10,2) NOT NULL,
-    "currency" TEXT NOT NULL DEFAULT 'USD',
-    "interval" TEXT NOT NULL,
-    "features" JSONB NOT NULL DEFAULT '{}',
-    "limits" JSONB NOT NULL DEFAULT '{}',
-    "isActive" BOOLEAN NOT NULL DEFAULT true,
-    "metadata" JSONB NOT NULL DEFAULT '{}',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "SubscriptionPlan_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "Invoice" (
-    "ulid" CHAR(26) NOT NULL,
-    "invoiceId" TEXT NOT NULL,
-    "subscriptionId" TEXT NOT NULL,
-    "userUlid" CHAR(26),
-    "amountPaid" DECIMAL(10,2) NOT NULL,
-    "amountDue" DECIMAL(10,2),
-    "currency" TEXT NOT NULL,
-    "status" TEXT NOT NULL,
-    "dueDate" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Invoice_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "CalendlyWebhookEvent" (
-    "ulid" CHAR(26) NOT NULL,
-    "eventType" TEXT NOT NULL,
-    "payload" JSONB NOT NULL,
-    "processed" BOOLEAN NOT NULL DEFAULT false,
-    "error" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "CalendlyWebhookEvent_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "CalendlyEvent" (
-    "ulid" CHAR(26) NOT NULL,
-    "eventUuid" TEXT NOT NULL,
-    "userUlid" CHAR(26) NOT NULL,
-    "status" TEXT NOT NULL,
-    "eventType" TEXT NOT NULL,
-    "inviteeEmail" TEXT NOT NULL,
-    "inviteeName" TEXT NOT NULL,
-    "sessionUlid" CHAR(26),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "CalendlyEvent_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "ZoomSession" (
-    "ulid" CHAR(26) NOT NULL,
-    "sessionUlid" CHAR(26) NOT NULL,
-    "topic" TEXT NOT NULL,
-    "status" TEXT NOT NULL,
-    "joinUrl" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "ZoomSession_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "Goal" (
-    "ulid" CHAR(26) NOT NULL,
-    "userUlid" CHAR(26) NOT NULL,
-    "title" TEXT NOT NULL,
-    "description" TEXT,
-    "target" DOUBLE PRECISION NOT NULL,
-    "current" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "deadline" TIMESTAMP(3) NOT NULL,
-    "type" "GoalType" NOT NULL,
-    "status" "GoalStatus" NOT NULL DEFAULT 'IN_PROGRESS',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Goal_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "Achievement" (
-    "ulid" CHAR(26) NOT NULL,
-    "userUlid" CHAR(26) NOT NULL,
-    "type" TEXT NOT NULL,
-    "milestone" TEXT NOT NULL,
-    "earnedAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "metadata" JSONB,
-    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMPTZ NOT NULL,
-
-    CONSTRAINT "Achievement_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "ProfessionalRecognition" (
-    "ulid" CHAR(26) NOT NULL,
-    "realtorProfileUlid" CHAR(26) NOT NULL,
-    "title" TEXT NOT NULL,
-    "type" "RecognitionType" NOT NULL,
-    "year" INTEGER NOT NULL,
-    "organization" TEXT,
-    "description" TEXT,
-    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMPTZ NOT NULL,
-    "archivedAt" TIMESTAMPTZ,
-
-    CONSTRAINT "ProfessionalRecognition_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "CoachingAvailabilitySchedule" (
-    "ulid" CHAR(26) NOT NULL,
-    "userUlid" CHAR(26) NOT NULL,
-    "name" TEXT NOT NULL,
-    "timezone" TEXT NOT NULL,
-    "isDefault" BOOLEAN NOT NULL DEFAULT false,
-    "active" BOOLEAN NOT NULL DEFAULT true,
-    "defaultDuration" INTEGER NOT NULL DEFAULT 60,
-    "minimumDuration" INTEGER NOT NULL DEFAULT 30,
-    "maximumDuration" INTEGER NOT NULL DEFAULT 120,
-    "allowCustomDuration" BOOLEAN NOT NULL DEFAULT false,
-    "bufferBefore" INTEGER NOT NULL DEFAULT 15,
-    "bufferAfter" INTEGER NOT NULL DEFAULT 15,
-    "rules" JSONB NOT NULL,
-    "calendlyEnabled" BOOLEAN NOT NULL DEFAULT false,
-    "zoomEnabled" BOOLEAN NOT NULL DEFAULT false,
-    "totalSessions" INTEGER NOT NULL DEFAULT 0,
-    "averageRating" DECIMAL(3,2),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "CoachingAvailabilitySchedule_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
 CREATE TABLE "StripePaymentMethod" (
     "ulid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
@@ -684,7 +793,7 @@ CREATE TABLE "Transaction" (
     "type" TEXT NOT NULL,
     "status" TEXT NOT NULL,
     "amount" DOUBLE PRECISION NOT NULL,
-    "currency" TEXT NOT NULL DEFAULT 'usd',
+    "currency" TEXT NOT NULL,
     "stripePaymentIntentId" TEXT,
     "stripeTransferId" TEXT,
     "platformFee" DOUBLE PRECISION,
@@ -899,78 +1008,147 @@ CREATE TABLE "AIMessage" (
 );
 
 -- CreateTable
-CREATE TABLE "Organization" (
+CREATE TABLE "EnterpriseLeads" (
     "ulid" CHAR(26) NOT NULL,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "assignedToUlid" CHAR(26),
+    "companyName" TEXT NOT NULL,
+    "website" TEXT,
+    "industry" "OrgIndustry" NOT NULL,
+    "fullName" TEXT NOT NULL,
+    "jobTitle" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
+    "teamSize" TEXT NOT NULL,
+    "multipleOffices" BOOLEAN NOT NULL DEFAULT false,
+    "status" TEXT NOT NULL DEFAULT 'NEW',
+    "priority" TEXT NOT NULL DEFAULT 'MEDIUM',
+    "notes" JSONB,
+    "lastContactedAt" TIMESTAMP(3),
+    "nextFollowUpDate" TIMESTAMP(3),
     "metadata" JSONB,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMPTZ NOT NULL,
 
-    CONSTRAINT "Organization_pkey" PRIMARY KEY ("ulid")
+    CONSTRAINT "EnterpriseLeads_pkey" PRIMARY KEY ("ulid")
 );
 
 -- CreateTable
-CREATE TABLE "OrganizationMember" (
+CREATE TABLE "Settings" (
     "ulid" CHAR(26) NOT NULL,
-    "organizationUlid" CHAR(26) NOT NULL,
-    "userUlid" CHAR(26) NOT NULL,
-    "role" "OrgRole" NOT NULL DEFAULT 'MEMBER',
-    "scope" TEXT DEFAULT 'LOCAL',
-    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
-    "customPermissions" JSONB,
-    "metadata" JSONB,
-    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMPTZ NOT NULL,
-
-    CONSTRAINT "OrganizationMember_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "RolePermission" (
-    "ulid" CHAR(26) NOT NULL,
-    "organizationUlid" CHAR(26) NOT NULL,
-    "role" "OrgRole" NOT NULL,
-    "permissions" JSONB NOT NULL,
-    "metadata" JSONB,
-    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMPTZ NOT NULL,
-
-    CONSTRAINT "RolePermission_pkey" PRIMARY KEY ("ulid")
-);
-
--- CreateTable
-CREATE TABLE "DomainExpertise" (
-    "ulid" CHAR(26) NOT NULL,
-    "userUlid" CHAR(26) NOT NULL,
-    "type" TEXT NOT NULL,
-    "level" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'PENDING',
-    "yearsExperience" INTEGER NOT NULL DEFAULT 0,
+    "key" TEXT NOT NULL,
+    "value" JSONB NOT NULL,
     "description" TEXT,
     "metadata" JSONB,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMPTZ NOT NULL,
 
-    CONSTRAINT "DomainExpertise_pkey" PRIMARY KEY ("ulid")
+    CONSTRAINT "Settings_pkey" PRIMARY KEY ("ulid")
 );
 
 -- CreateTable
-CREATE TABLE "DomainVerification" (
+CREATE TABLE "Goal" (
     "ulid" CHAR(26) NOT NULL,
-    "domainExpertiseUlid" CHAR(26) NOT NULL,
     "userUlid" CHAR(26) NOT NULL,
-    "type" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'PENDING',
-    "documentUrl" TEXT,
-    "verificationData" JSONB,
-    "expiresAt" TIMESTAMPTZ,
+    "type" "GoalType" NOT NULL,
+    "status" "GoalStatus" NOT NULL DEFAULT 'IN_PROGRESS',
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "target" JSONB,
+    "progress" JSONB,
+    "startDate" TIMESTAMPTZ NOT NULL,
+    "dueDate" TIMESTAMPTZ NOT NULL,
+    "completedAt" TIMESTAMPTZ,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "Goal_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "Achievement" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "type" "AchievementType" NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "metadata" JSONB,
+    "awardedAt" TIMESTAMPTZ NOT NULL,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "Achievement_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "ProfessionalRecognition" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26) NOT NULL,
+    "coachUlid" CHAR(26),
+    "type" "RecognitionType" NOT NULL,
+    "title" TEXT NOT NULL,
+    "description" TEXT,
+    "issuer" TEXT,
+    "issueDate" TIMESTAMPTZ NOT NULL,
+    "expiryDate" TIMESTAMPTZ,
+    "verificationUrl" TEXT,
     "metadata" JSONB,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMPTZ NOT NULL,
 
-    CONSTRAINT "DomainVerification_pkey" PRIMARY KEY ("ulid")
+    CONSTRAINT "ProfessionalRecognition_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "Subscription" (
+    "ulid" CHAR(26) NOT NULL,
+    "userUlid" CHAR(26),
+    "organizationUlid" CHAR(26),
+    "stripeSubscriptionId" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "planType" "PlanType" NOT NULL,
+    "currentPeriodStart" TIMESTAMPTZ NOT NULL,
+    "currentPeriodEnd" TIMESTAMPTZ NOT NULL,
+    "cancelAtPeriodEnd" BOOLEAN NOT NULL DEFAULT false,
+    "canceledAt" TIMESTAMPTZ,
+    "metadata" JSONB,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "Subscription_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "Invoice" (
+    "ulid" CHAR(26) NOT NULL,
+    "subscriptionUlid" CHAR(26) NOT NULL,
+    "stripeInvoiceId" TEXT NOT NULL,
+    "amount" DECIMAL(10,2) NOT NULL,
+    "currency" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "dueDate" TIMESTAMPTZ NOT NULL,
+    "paidAt" TIMESTAMPTZ,
+    "metadata" JSONB,
+    "userUlid" CHAR(26),
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "Invoice_pkey" PRIMARY KEY ("ulid")
+);
+
+-- CreateTable
+CREATE TABLE "ZoomSession" (
+    "ulid" CHAR(26) NOT NULL,
+    "sessionUlid" CHAR(26) NOT NULL,
+    "sessionName" TEXT NOT NULL,
+    "hostUlid" CHAR(26) NOT NULL,
+    "startUrl" TEXT,
+    "joinUrl" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'scheduled',
+    "metadata" JSONB,
+    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMPTZ NOT NULL,
+
+    CONSTRAINT "ZoomSession_pkey" PRIMARY KEY ("ulid")
 );
 
 -- CreateIndex
@@ -984,12 +1162,6 @@ CREATE UNIQUE INDEX "User_stripeCustomerId_key" ON "User"("stripeCustomerId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "User_stripeConnectAccountId_key" ON "User"("stripeConnectAccountId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "User_memberKey_key" ON "User"("memberKey");
-
--- CreateIndex
-CREATE UNIQUE INDEX "User_licenseNumber_key" ON "User"("licenseNumber");
 
 -- CreateIndex
 CREATE INDEX "User_userId_idx" ON "User"("userId");
@@ -1010,13 +1182,13 @@ CREATE INDEX "User_isMentee_idx" ON "User"("isMentee");
 CREATE INDEX "User_status_idx" ON "User"("status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RealtorProfile_userUlid_key" ON "RealtorProfile"("userUlid");
+CREATE INDEX "User_realEstateDomains_idx" ON "User"("realEstateDomains");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RealtorProfile_mlsId_key" ON "RealtorProfile"("mlsId");
+CREATE INDEX "User_primaryDomain_idx" ON "User"("primaryDomain");
 
 -- CreateIndex
-CREATE INDEX "RealtorProfile_userUlid_idx" ON "RealtorProfile"("userUlid");
+CREATE INDEX "User_primaryMarket_idx" ON "User"("primaryMarket");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "MenteeProfile_userUlid_key" ON "MenteeProfile"("userUlid");
@@ -1029,6 +1201,138 @@ CREATE UNIQUE INDEX "CoachProfile_userUlid_key" ON "CoachProfile"("userUlid");
 
 -- CreateIndex
 CREATE INDEX "CoachProfile_userUlid_idx" ON "CoachProfile"("userUlid");
+
+-- CreateIndex
+CREATE INDEX "CoachProfile_profileStatus_idx" ON "CoachProfile"("profileStatus");
+
+-- CreateIndex
+CREATE INDEX "Organization_status_idx" ON "Organization"("status");
+
+-- CreateIndex
+CREATE INDEX "Organization_type_idx" ON "Organization"("type");
+
+-- CreateIndex
+CREATE INDEX "Organization_level_idx" ON "Organization"("level");
+
+-- CreateIndex
+CREATE INDEX "Organization_parentUlid_idx" ON "Organization"("parentUlid");
+
+-- CreateIndex
+CREATE INDEX "Organization_primaryDomain_idx" ON "Organization"("primaryDomain");
+
+-- CreateIndex
+CREATE INDEX "Region_organizationUlid_idx" ON "Region"("organizationUlid");
+
+-- CreateIndex
+CREATE INDEX "Region_parentUlid_idx" ON "Region"("parentUlid");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMember_organizationUlid_idx" ON "OrganizationMember"("organizationUlid");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMember_userUlid_idx" ON "OrganizationMember"("userUlid");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMember_role_idx" ON "OrganizationMember"("role");
+
+-- CreateIndex
+CREATE INDEX "OrganizationMember_status_idx" ON "OrganizationMember"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "OrganizationMember_organizationUlid_userUlid_key" ON "OrganizationMember"("organizationUlid", "userUlid");
+
+-- CreateIndex
+CREATE INDEX "RolePermission_organizationUlid_idx" ON "RolePermission"("organizationUlid");
+
+-- CreateIndex
+CREATE INDEX "RolePermission_role_idx" ON "RolePermission"("role");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RolePermission_organizationUlid_role_key" ON "RolePermission"("organizationUlid", "role");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MarketingProfile_userUlid_key" ON "MarketingProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "MarketingProfile_organizationUlid_key" ON "MarketingProfile"("organizationUlid");
+
+-- CreateIndex
+CREATE INDEX "MarketingProfile_userUlid_idx" ON "MarketingProfile"("userUlid");
+
+-- CreateIndex
+CREATE INDEX "MarketingProfile_organizationUlid_idx" ON "MarketingProfile"("organizationUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RealtorProfile_userUlid_key" ON "RealtorProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RealtorProfile_mlsId_key" ON "RealtorProfile"("mlsId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RealtorProfile_memberKey_key" ON "RealtorProfile"("memberKey");
+
+-- CreateIndex
+CREATE INDEX "RealtorProfile_userUlid_idx" ON "RealtorProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "LoanOfficerProfile_userUlid_key" ON "LoanOfficerProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "LoanOfficerProfile_nmls_key" ON "LoanOfficerProfile"("nmls");
+
+-- CreateIndex
+CREATE INDEX "LoanOfficerProfile_userUlid_idx" ON "LoanOfficerProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "InvestorProfile_userUlid_key" ON "InvestorProfile"("userUlid");
+
+-- CreateIndex
+CREATE INDEX "InvestorProfile_userUlid_idx" ON "InvestorProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PropertyManagerProfile_userUlid_key" ON "PropertyManagerProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PropertyManagerProfile_licenseNumber_key" ON "PropertyManagerProfile"("licenseNumber");
+
+-- CreateIndex
+CREATE INDEX "PropertyManagerProfile_userUlid_idx" ON "PropertyManagerProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TitleEscrowProfile_userUlid_key" ON "TitleEscrowProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "TitleEscrowProfile_licenseNumber_key" ON "TitleEscrowProfile"("licenseNumber");
+
+-- CreateIndex
+CREATE INDEX "TitleEscrowProfile_userUlid_idx" ON "TitleEscrowProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "InsuranceProfile_userUlid_key" ON "InsuranceProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "InsuranceProfile_licenseNumber_key" ON "InsuranceProfile"("licenseNumber");
+
+-- CreateIndex
+CREATE INDEX "InsuranceProfile_userUlid_idx" ON "InsuranceProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CommercialProfile_userUlid_key" ON "CommercialProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CommercialProfile_licenseNumber_key" ON "CommercialProfile"("licenseNumber");
+
+-- CreateIndex
+CREATE INDEX "CommercialProfile_userUlid_idx" ON "CommercialProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrivateCreditProfile_userUlid_key" ON "PrivateCreditProfile"("userUlid");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "PrivateCreditProfile_licenseNumber_key" ON "PrivateCreditProfile"("licenseNumber");
+
+-- CreateIndex
+CREATE INDEX "PrivateCreditProfile_userUlid_idx" ON "PrivateCreditProfile"("userUlid");
 
 -- CreateIndex
 CREATE INDEX "Session_menteeUlid_idx" ON "Session"("menteeUlid");
@@ -1118,90 +1422,6 @@ CREATE INDEX "Reminder_userUlid_idx" ON "Reminder"("userUlid");
 CREATE INDEX "Reminder_sessionUlid_idx" ON "Reminder"("sessionUlid");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "CalendlyIntegration_userUlid_key" ON "CalendlyIntegration"("userUlid");
-
--- CreateIndex
-CREATE INDEX "CalendlyIntegration_userUlid_idx" ON "CalendlyIntegration"("userUlid");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Subscription_subscriptionId_key" ON "Subscription"("subscriptionId");
-
--- CreateIndex
-CREATE INDEX "Subscription_userUlid_idx" ON "Subscription"("userUlid");
-
--- CreateIndex
-CREATE INDEX "Subscription_organizationUlid_idx" ON "Subscription"("organizationUlid");
-
--- CreateIndex
-CREATE INDEX "Subscription_planUlid_idx" ON "Subscription"("planUlid");
-
--- CreateIndex
-CREATE UNIQUE INDEX "SubscriptionPlan_planId_key" ON "SubscriptionPlan"("planId");
-
--- CreateIndex
-CREATE INDEX "SubscriptionPlan_type_idx" ON "SubscriptionPlan"("type");
-
--- CreateIndex
-CREATE INDEX "SubscriptionPlan_isActive_idx" ON "SubscriptionPlan"("isActive");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Invoice_invoiceId_key" ON "Invoice"("invoiceId");
-
--- CreateIndex
-CREATE INDEX "Invoice_subscriptionId_idx" ON "Invoice"("subscriptionId");
-
--- CreateIndex
-CREATE INDEX "Invoice_userUlid_idx" ON "Invoice"("userUlid");
-
--- CreateIndex
-CREATE INDEX "CalendlyWebhookEvent_eventType_idx" ON "CalendlyWebhookEvent"("eventType");
-
--- CreateIndex
-CREATE INDEX "CalendlyWebhookEvent_processed_idx" ON "CalendlyWebhookEvent"("processed");
-
--- CreateIndex
-CREATE UNIQUE INDEX "CalendlyEvent_eventUuid_key" ON "CalendlyEvent"("eventUuid");
-
--- CreateIndex
-CREATE UNIQUE INDEX "CalendlyEvent_sessionUlid_key" ON "CalendlyEvent"("sessionUlid");
-
--- CreateIndex
-CREATE INDEX "CalendlyEvent_userUlid_idx" ON "CalendlyEvent"("userUlid");
-
--- CreateIndex
-CREATE INDEX "CalendlyEvent_eventUuid_idx" ON "CalendlyEvent"("eventUuid");
-
--- CreateIndex
-CREATE UNIQUE INDEX "ZoomSession_sessionUlid_key" ON "ZoomSession"("sessionUlid");
-
--- CreateIndex
-CREATE INDEX "ZoomSession_sessionUlid_idx" ON "ZoomSession"("sessionUlid");
-
--- CreateIndex
-CREATE INDEX "Goal_userUlid_idx" ON "Goal"("userUlid");
-
--- CreateIndex
-CREATE INDEX "Goal_type_idx" ON "Goal"("type");
-
--- CreateIndex
-CREATE INDEX "Goal_status_idx" ON "Goal"("status");
-
--- CreateIndex
-CREATE INDEX "Achievement_userUlid_idx" ON "Achievement"("userUlid");
-
--- CreateIndex
-CREATE INDEX "Achievement_type_idx" ON "Achievement"("type");
-
--- CreateIndex
-CREATE INDEX "ProfessionalRecognition_realtorProfileUlid_idx" ON "ProfessionalRecognition"("realtorProfileUlid");
-
--- CreateIndex
-CREATE INDEX "ProfessionalRecognition_type_idx" ON "ProfessionalRecognition"("type");
-
--- CreateIndex
-CREATE INDEX "CoachingAvailabilitySchedule_userUlid_idx" ON "CoachingAvailabilitySchedule"("userUlid");
-
--- CreateIndex
 CREATE INDEX "StripePaymentMethod_userUlid_idx" ON "StripePaymentMethod"("userUlid");
 
 -- CreateIndex
@@ -1283,64 +1503,100 @@ CREATE INDEX "AIThread_userUlid_idx" ON "AIThread"("userUlid");
 CREATE INDEX "AIMessage_threadUlid_idx" ON "AIMessage"("threadUlid");
 
 -- CreateIndex
-CREATE INDEX "Organization_status_idx" ON "Organization"("status");
+CREATE INDEX "EnterpriseLeads_assignedToUlid_idx" ON "EnterpriseLeads"("assignedToUlid");
 
 -- CreateIndex
-CREATE INDEX "OrganizationMember_organizationUlid_idx" ON "OrganizationMember"("organizationUlid");
+CREATE UNIQUE INDEX "Settings_key_key" ON "Settings"("key");
 
 -- CreateIndex
-CREATE INDEX "OrganizationMember_userUlid_idx" ON "OrganizationMember"("userUlid");
+CREATE INDEX "Goal_userUlid_idx" ON "Goal"("userUlid");
 
 -- CreateIndex
-CREATE INDEX "OrganizationMember_role_idx" ON "OrganizationMember"("role");
+CREATE INDEX "Achievement_userUlid_idx" ON "Achievement"("userUlid");
 
 -- CreateIndex
-CREATE INDEX "OrganizationMember_status_idx" ON "OrganizationMember"("status");
+CREATE INDEX "ProfessionalRecognition_userUlid_idx" ON "ProfessionalRecognition"("userUlid");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "OrganizationMember_organizationUlid_userUlid_key" ON "OrganizationMember"("organizationUlid", "userUlid");
+CREATE INDEX "ProfessionalRecognition_coachUlid_idx" ON "ProfessionalRecognition"("coachUlid");
 
 -- CreateIndex
-CREATE INDEX "RolePermission_organizationUlid_idx" ON "RolePermission"("organizationUlid");
+CREATE UNIQUE INDEX "Subscription_stripeSubscriptionId_key" ON "Subscription"("stripeSubscriptionId");
 
 -- CreateIndex
-CREATE INDEX "RolePermission_role_idx" ON "RolePermission"("role");
+CREATE INDEX "Subscription_userUlid_idx" ON "Subscription"("userUlid");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "RolePermission_organizationUlid_role_key" ON "RolePermission"("organizationUlid", "role");
+CREATE INDEX "Subscription_organizationUlid_idx" ON "Subscription"("organizationUlid");
 
 -- CreateIndex
-CREATE INDEX "DomainExpertise_userUlid_idx" ON "DomainExpertise"("userUlid");
+CREATE UNIQUE INDEX "Invoice_stripeInvoiceId_key" ON "Invoice"("stripeInvoiceId");
 
 -- CreateIndex
-CREATE INDEX "DomainExpertise_type_idx" ON "DomainExpertise"("type");
+CREATE INDEX "Invoice_subscriptionUlid_idx" ON "Invoice"("subscriptionUlid");
 
 -- CreateIndex
-CREATE INDEX "DomainExpertise_level_idx" ON "DomainExpertise"("level");
+CREATE INDEX "Invoice_userUlid_idx" ON "Invoice"("userUlid");
 
 -- CreateIndex
-CREATE INDEX "DomainExpertise_status_idx" ON "DomainExpertise"("status");
+CREATE UNIQUE INDEX "ZoomSession_sessionUlid_key" ON "ZoomSession"("sessionUlid");
 
 -- CreateIndex
-CREATE INDEX "DomainVerification_domainExpertiseUlid_idx" ON "DomainVerification"("domainExpertiseUlid");
-
--- CreateIndex
-CREATE INDEX "DomainVerification_userUlid_idx" ON "DomainVerification"("userUlid");
-
--- CreateIndex
-CREATE INDEX "DomainVerification_type_idx" ON "DomainVerification"("type");
-
--- CreateIndex
-CREATE INDEX "DomainVerification_status_idx" ON "DomainVerification"("status");
-
--- AddForeignKey
-ALTER TABLE "RealtorProfile" ADD CONSTRAINT "RealtorProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+CREATE INDEX "ZoomSession_sessionUlid_idx" ON "ZoomSession"("sessionUlid");
 
 -- AddForeignKey
 ALTER TABLE "MenteeProfile" ADD CONSTRAINT "MenteeProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "CoachProfile" ADD CONSTRAINT "CoachProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Organization" ADD CONSTRAINT "Organization_parentUlid_fkey" FOREIGN KEY ("parentUlid") REFERENCES "Organization"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Region" ADD CONSTRAINT "Region_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Region" ADD CONSTRAINT "Region_parentUlid_fkey" FOREIGN KEY ("parentUlid") REFERENCES "Region"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationMember" ADD CONSTRAINT "OrganizationMember_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrganizationMember" ADD CONSTRAINT "OrganizationMember_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MarketingProfile" ADD CONSTRAINT "MarketingProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MarketingProfile" ADD CONSTRAINT "MarketingProfile_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RealtorProfile" ADD CONSTRAINT "RealtorProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LoanOfficerProfile" ADD CONSTRAINT "LoanOfficerProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "InvestorProfile" ADD CONSTRAINT "InvestorProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PropertyManagerProfile" ADD CONSTRAINT "PropertyManagerProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TitleEscrowProfile" ADD CONSTRAINT "TitleEscrowProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "InsuranceProfile" ADD CONSTRAINT "InsuranceProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CommercialProfile" ADD CONSTRAINT "CommercialProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PrivateCreditProfile" ADD CONSTRAINT "PrivateCreditProfile_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Session" ADD CONSTRAINT "Session_menteeUlid_fkey" FOREIGN KEY ("menteeUlid") REFERENCES "User"("ulid") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1418,45 +1674,6 @@ ALTER TABLE "Reminder" ADD CONSTRAINT "Reminder_userUlid_fkey" FOREIGN KEY ("use
 ALTER TABLE "Reminder" ADD CONSTRAINT "Reminder_sessionUlid_fkey" FOREIGN KEY ("sessionUlid") REFERENCES "Session"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CalendlyIntegration" ADD CONSTRAINT "CalendlyIntegration_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_planUlid_fkey" FOREIGN KEY ("planUlid") REFERENCES "SubscriptionPlan"("ulid") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "Subscription"("subscriptionId") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "CalendlyEvent" ADD CONSTRAINT "CalendlyEvent_sessionUlid_fkey" FOREIGN KEY ("sessionUlid") REFERENCES "Session"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "CalendlyEvent" ADD CONSTRAINT "CalendlyEvent_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ZoomSession" ADD CONSTRAINT "ZoomSession_sessionUlid_fkey" FOREIGN KEY ("sessionUlid") REFERENCES "Session"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Goal" ADD CONSTRAINT "Goal_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Achievement" ADD CONSTRAINT "Achievement_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "ProfessionalRecognition" ADD CONSTRAINT "ProfessionalRecognition_realtorProfileUlid_fkey" FOREIGN KEY ("realtorProfileUlid") REFERENCES "RealtorProfile"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "CoachingAvailabilitySchedule" ADD CONSTRAINT "CoachingAvailabilitySchedule_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "StripePaymentMethod" ADD CONSTRAINT "StripePaymentMethod_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1487,19 +1704,31 @@ ALTER TABLE "AIThread" ADD CONSTRAINT "AIThread_userUlid_fkey" FOREIGN KEY ("use
 ALTER TABLE "AIMessage" ADD CONSTRAINT "AIMessage_threadUlid_fkey" FOREIGN KEY ("threadUlid") REFERENCES "AIThread"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "OrganizationMember" ADD CONSTRAINT "OrganizationMember_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "EnterpriseLeads" ADD CONSTRAINT "EnterpriseLeads_assignedToUlid_fkey" FOREIGN KEY ("assignedToUlid") REFERENCES "User"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "OrganizationMember" ADD CONSTRAINT "OrganizationMember_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Goal" ADD CONSTRAINT "Goal_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Achievement" ADD CONSTRAINT "Achievement_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "DomainExpertise" ADD CONSTRAINT "DomainExpertise_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ProfessionalRecognition" ADD CONSTRAINT "ProfessionalRecognition_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "DomainVerification" ADD CONSTRAINT "DomainVerification_domainExpertiseUlid_fkey" FOREIGN KEY ("domainExpertiseUlid") REFERENCES "DomainExpertise"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ProfessionalRecognition" ADD CONSTRAINT "ProfessionalRecognition_coachUlid_fkey" FOREIGN KEY ("coachUlid") REFERENCES "CoachProfile"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "DomainVerification" ADD CONSTRAINT "DomainVerification_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_organizationUlid_fkey" FOREIGN KEY ("organizationUlid") REFERENCES "Organization"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_subscriptionUlid_fkey" FOREIGN KEY ("subscriptionUlid") REFERENCES "Subscription"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_userUlid_fkey" FOREIGN KEY ("userUlid") REFERENCES "User"("ulid") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ZoomSession" ADD CONSTRAINT "ZoomSession_sessionUlid_fkey" FOREIGN KEY ("sessionUlid") REFERENCES "Session"("ulid") ON DELETE CASCADE ON UPDATE CASCADE;
