@@ -75,12 +75,12 @@ export function MenteeSidebar() {
             {/* Shared Tools */}
             <Separator className="my-3" />
             <div className="pl-3">
-              <NavLink href="/dashboard/mentee/tools/ai-agent" icon={Bot}>
+              {/* <NavLink href="/dashboard/mentee/tools/ai-agent" icon={Bot}>
                 AI Agent
               </NavLink>
               <NavLink href="/dashboard/mentee/tools/ai-listings" icon={Building2}>
                 AI Listing Generator
-              </NavLink>
+              </NavLink> */}
               <NavLink href="/dashboard/mentee/tools/income-calc" icon={Calculator}>
                 Income Calculator
               </NavLink>

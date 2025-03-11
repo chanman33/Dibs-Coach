@@ -98,12 +98,12 @@ export function CoachSidebar() {
             {/* Shared Tools */}
             <Separator className="my-3" />
             <div className="pl-3 grid gap-1">
-              <NavLink href="/dashboard/coach/tools/ai-agent" icon={Bot}>
+              {/* <NavLink href="/dashboard/coach/tools/ai-agent" icon={Bot}>
                 AI Agent
               </NavLink>
               <NavLink href="/dashboard/coach/tools/ai-listings" icon={Building2}>
                 AI Listing Generator
-              </NavLink>
+              </NavLink> */}
               <NavLink href="/dashboard/coach/tools/income-calc" icon={Calculator}>
                 Income Calculator
               </NavLink>

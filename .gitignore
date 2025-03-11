@@ -83,3 +83,7 @@ logs/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Exclude archived directory from builds but keep in version control
+/archived/**/*.js
+/archived/**/*.js.map
