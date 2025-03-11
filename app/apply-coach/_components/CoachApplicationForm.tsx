@@ -60,9 +60,9 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
     resolver: zodResolver(coachApplicationFormSchema),
     mode: 'onBlur',
     defaultValues: {
-      firstName: userData?.firstName || '',
-      lastName: userData?.lastName || '',
-      email: userData?.email || '',
+      firstName: undefined,
+      lastName: undefined,
+      email: undefined,
       phoneNumber: userData?.phoneNumber || '',
       resume: null,
       linkedIn: existingApplication?.linkedIn || '',
@@ -86,9 +86,9 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
       setLoading(true);
 
       const formData = new FormData();
-      formData.append('firstName', data.firstName);
-      formData.append('lastName', data.lastName);
-      formData.append('email', data.email);
+      formData.append('firstName', userData?.firstName || '');
+      formData.append('lastName', userData?.lastName || '');
+      formData.append('email', userData?.email || '');
       formData.append('phoneNumber', data.phoneNumber);
       formData.append('yearsOfExperience', String(data.yearsOfExperience));
       formData.append('superPower', data.superPower);
@@ -122,7 +122,28 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
 
       setSubmitted(true);
       toast.success('Application submitted successfully!');
-      router.push('/dashboard');
+      
+      // Add a more robust delay before redirecting to allow the database to fully update
+      // This helps prevent race conditions with the auth context since we're updating the User model
+      console.log('[COACH_APPLICATION_FORM] Application submitted successfully, waiting before redirect', {
+        applicationId: response.data?.ulid,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Set a client-side cookie to indicate that we just submitted a coach application
+      // This will help the dashboard layout detect that we're coming from the coach application form
+      document.cookie = `coach_application_submitted=true; path=/; max-age=60`; // 60 seconds expiry
+      
+      // Use a longer delay (3 seconds) to ensure database updates are fully propagated
+      setTimeout(() => {
+        console.log('[COACH_APPLICATION_FORM] Redirecting to dashboard after delay', {
+          timestamp: new Date().toISOString()
+        });
+        
+        // Add a cache-busting query parameter to force a fresh load of the dashboard
+        // This ensures we get the latest user data
+        router.push(`/dashboard?t=${Date.now()}`);
+      }, 3000);
     } catch (error) {
       console.error('Error submitting application:', error);
       toast.error('Failed to submit application. Please try again.');
@@ -207,25 +228,19 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
               <Label htmlFor="firstName">First Name</Label>
               <Input
                 id="firstName"
-                {...register('firstName')}
+                value={userData?.firstName || ''}
                 readOnly
                 className="bg-gray-50"
               />
-              {errors.firstName && (
-                <p className="text-sm text-red-500">{errors.firstName.message}</p>
-              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="lastName">Last Name</Label>
               <Input
                 id="lastName"
-                {...register('lastName')}
+                value={userData?.lastName || ''}
                 readOnly
                 className="bg-gray-50"
               />
-              {errors.lastName && (
-                <p className="text-sm text-red-500">{errors.lastName.message}</p>
-              )}
             </div>
           </div>
 
@@ -233,13 +248,10 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
-              {...register('email')}
+              value={userData?.email || ''}
               readOnly
               className="bg-gray-50"
             />
-            {errors.email && (
-              <p className="text-sm text-red-500">{errors.email.message}</p>
-            )}
           </div>
 
           <div className="space-y-2">

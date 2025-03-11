@@ -54,21 +54,39 @@ export type GoalFormat = typeof GOAL_FORMAT[keyof typeof GOAL_FORMAT];
 export const GoalSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
+  // target will be stored as JSON { value: number } in the database
   target: z.number().min(0, "Target must be a positive number"),
+  // current will be stored as progress JSON { value: number } in the database
   current: z.number().min(0, "Current value must be a positive number"),
+  // deadline will be stored as dueDate in the database
   deadline: z.string().min(1, "Deadline is required"),
   type: z.enum(Object.values(GOAL_TYPE) as [string, ...string[]]),
   status: z.enum(Object.values(GOAL_STATUS) as [string, ...string[]]).default(GOAL_STATUS.IN_PROGRESS),
 });
 
-export const UpdateGoalSchema = GoalSchema.partial();
+// Update Goal Schema for validation
+export const UpdateGoalSchema = z.object({
+  title: z.string().min(1, "Title is required").optional(),
+  description: z.string().optional(),
+  // target will be stored as JSON { value: number } in the database
+  target: z.number().min(0, "Target must be a positive number").optional(),
+  // current will be stored as progress JSON { value: number } in the database
+  current: z.number().min(0, "Current value must be a positive number").optional(),
+  // deadline will be stored as dueDate in the database
+  deadline: z.string().min(1, "Deadline is required").optional(),
+  type: z.enum(Object.values(GOAL_TYPE) as [string, ...string[]]).optional(),
+  status: z.enum(Object.values(GOAL_STATUS) as [string, ...string[]]).optional(),
+});
 
 // Form types
 export interface GoalFormValues {
   title: string;
   description?: string;
+  // Maps to target JSON in database
   target: number;
+  // Maps to progress JSON in database
   current: number;
+  // Maps to dueDate in database
   deadline: string;
   type: GoalType;
   status: GoalStatus;
@@ -80,9 +98,26 @@ export interface Goal {
   userUlid: string;
   title: string;
   description: string | null;
-  target: number;
-  current: number;
-  deadline: string;
+  target: string; // JSON string in DB
+  progress: string; // JSON string in DB
+  startDate: string;
+  dueDate: string;
+  completedAt: string | null;
+  type: GoalType;
+  status: GoalStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Client-side Goal interface for backward compatibility
+export interface ClientGoal {
+  ulid: string;
+  userUlid: string;
+  title: string;
+  description: string | null;
+  target: number; // Parsed from JSON
+  current: number; // Parsed from JSON
+  deadline: string; // Renamed from dueDate
   type: GoalType;
   status: GoalStatus;
   createdAt: string;

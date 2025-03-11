@@ -13,6 +13,12 @@ export type CoachApplicationStatus = typeof COACH_APPLICATION_STATUS[keyof typeo
 
 // Base schema for form submission
 export const coachApplicationFormSchema = z.object({
+  // These fields are read-only and pulled from user data, not submitted in the form
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  email: z.string().email("Invalid email format").optional(),
+  
+  // Required form fields
   phoneNumber: z.string().min(1, "Phone number is required"),
   resume: z.instanceof(File).nullable(),
   linkedIn: z.string().url().optional().nullable(),

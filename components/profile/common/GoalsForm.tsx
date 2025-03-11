@@ -42,7 +42,16 @@ import { Badge } from "@/components/ui/badge"
 import { PlusCircle, Pencil, X, Loader2, Target, Clock, TrendingUp, Trophy, Home, DollarSign, Users, Star, Globe, Award, BookOpen, Settings } from "lucide-react"
 import { createGoal, updateGoal, deleteGoal, fetchGoals } from "@/utils/actions/goals"
 import { toast } from "sonner"
-import { Goal, GoalFormValues, GOAL_TYPE, GOAL_STATUS, GOAL_FORMAT, type GoalType, type GoalStatus, type GoalFormat } from "@/utils/types/goals"
+import { 
+  GOAL_STATUS, 
+  GOAL_TYPE, 
+  GOAL_FORMAT, 
+  type GoalStatus, 
+  type GoalType, 
+  type GoalFormat, 
+  type GoalFormValues,
+  type ClientGoal
+} from "@/utils/types/goals"
 import { type ValidationError } from "@/utils/types/errors"
 
 // Validation schema
@@ -133,12 +142,12 @@ const getGoalTypeIcon = (type: string) => {
 }
 
 const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
-  const [goals, setGoals] = useState<Goal[]>([])
+  const [goals, setGoals] = useState<ClientGoal[]>([])
   const [showForm, setShowForm] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [formErrors, setFormErrors] = useState<ValidationError['details']['fieldErrors']>({})
-  const [currentEditingGoal, setCurrentEditingGoal] = useState<Goal | null>(null)
+  const [currentEditingGoal, setCurrentEditingGoal] = useState<ClientGoal | null>(null)
 
   const form = useForm<GoalFormValues>({
     resolver: zodResolver(goalSchema),
@@ -219,15 +228,23 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
         return;
       }
 
+      // Prepare the goal data with the correct field names for the database schema
       const baseGoalData = {
         title: data.title,
         description: data.description,
+        // These fields will be converted to the correct database format in the server action
         target: data.target,
         current: data.current,
         deadline: data.deadline,
         type: data.type,
         status: data.status || GOAL_STATUS.IN_PROGRESS,
       };
+
+      console.log('[GOAL_SUBMIT]', {
+        data: baseGoalData,
+        isEdit: !!currentEditingGoal,
+        timestamp: new Date().toISOString()
+      });
 
       if (currentEditingGoal) {
         const result = await updateGoal({ 
@@ -260,17 +277,20 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
     }
   };
 
-  const handleEditGoal = (goal: Goal) => {
+  const handleEditGoal = (goal: ClientGoal) => {
     setCurrentEditingGoal(goal)
+    
+    // Reset form with values from the goal
     form.reset({
       title: goal.title,
-      description: goal.description || "",
+      description: goal.description || undefined,
       target: goal.target,
       current: goal.current,
-      deadline: new Date(goal.deadline).toISOString().split('T')[0],
-      type: goal.type,
-      status: goal.status,
+      deadline: goal.deadline,
+      type: goal.type as GoalType,
+      status: goal.status as GoalStatus
     })
+    
     setShowForm(true)
   }
 
@@ -302,7 +322,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
     setShowForm(true)
   }
 
-  const handleDeleteGoal = async (goal: Goal) => {
+  const handleDeleteGoal = async (goal: ClientGoal) => {
     setIsLoading(true)
     try {
       const { error } = await deleteGoal({ goalUlid: goal.ulid })

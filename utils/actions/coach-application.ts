@@ -204,6 +204,12 @@ async function validateCoachApplicationData(formData: FormData) {
 
   // Convert FormData to object, handling optional fields
   const data = {
+    // These fields are optional since they're pulled from user data
+    firstName: formData.get('firstName') as string || undefined,
+    lastName: formData.get('lastName') as string || undefined,
+    email: formData.get('email') as string || undefined,
+    
+    // Required form fields
     phoneNumber: formData.get('phoneNumber') as string,
     yearsOfExperience: parseInt(formData.get('yearsOfExperience') as string),
     superPower: formData.get('superPower') as string,
@@ -214,6 +220,16 @@ async function validateCoachApplicationData(formData: FormData) {
     primarySocialMedia: formData.get('primarySocialMedia') as string || null,
     aboutYou: formData.get('aboutYou') as string || null
   };
+
+  // Log the data being validated
+  console.log('[VALIDATE_COACH_APPLICATION_DATA] Validating form data:', {
+    hasFirstName: !!data.firstName,
+    hasLastName: !!data.lastName,
+    hasEmail: !!data.email,
+    phoneNumber: data.phoneNumber,
+    yearsOfExperience: data.yearsOfExperience,
+    timestamp: new Date().toISOString()
+  });
 
   // Validate input data using form schema
   const validatedFormData = coachApplicationFormSchema.parse(data);

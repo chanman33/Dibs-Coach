@@ -14,11 +14,11 @@ import { fetchGoals } from "@/utils/actions/goals"
 import { fetchUserSessions } from "@/utils/actions/sessions"
 import { SessionStatus, type TransformedSession } from "@/utils/types/session"
 import { toast } from "sonner"
-import type { Goal } from "@/utils/types/goals"
+import type { ClientGoal } from "@/utils/types/goals"
 import { format, isAfter } from "date-fns"
 
 function MenteeDashboardContent() {
-  const [goals, setGoals] = useState<Goal[]>([])
+  const [goals, setGoals] = useState<ClientGoal[]>([])
   const [currentGoalIndex, setCurrentGoalIndex] = useState(0)
   const [nextSession, setNextSession] = useState<TransformedSession | null>(null)
   const [isLoadingGoal, setIsLoadingGoal] = useState(true)
@@ -88,37 +88,46 @@ function MenteeDashboardContent() {
   }
 
   const getTimeUntilDeadline = (deadline: string) => {
-    const today = new Date()
     const deadlineDate = new Date(deadline)
-    const diffTime = deadlineDate.getTime() - today.getTime()
+    const now = new Date()
+    const diffTime = deadlineDate.getTime() - now.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
-    // For periods longer than a year
-    if (diffDays >= 365) {
-      const years = Math.floor(diffDays / 365)
+    if (diffDays < 0) {
       return {
-        value: years,
-        unit: 'year' + (years === 1 ? '' : 's'),
-        isNearDeadline: false
+        value: Math.abs(diffDays),
+        unit: 'days',
+        isNearDeadline: true,
+        text: `${Math.abs(diffDays)} days overdue`
       }
-    }
-
-    // For periods longer than 45 days, show in months
-    if (diffDays > 45) {
-      // More accurate month calculation
-      const months = Math.round(diffDays / 30.44) // Average days in a month
+    } else if (diffDays === 0) {
       return {
-        value: months,
-        unit: 'month' + (months === 1 ? '' : 's'),
-        isNearDeadline: false
+        value: 0,
+        unit: 'days',
+        isNearDeadline: true,
+        text: 'Due today'
       }
-    }
-
-    // For 45 days or less, show in days
-    return {
-      value: diffDays,
-      unit: 'day' + (diffDays === 1 ? '' : 's'),
-      isNearDeadline: diffDays < 7
+    } else if (diffDays === 1) {
+      return {
+        value: 1,
+        unit: 'day',
+        isNearDeadline: true,
+        text: 'Due tomorrow'
+      }
+    } else if (diffDays <= 7) {
+      return {
+        value: diffDays,
+        unit: 'days',
+        isNearDeadline: true,
+        text: `${diffDays} days left`
+      }
+    } else {
+      return {
+        value: diffDays,
+        unit: 'days',
+        isNearDeadline: false,
+        text: `${diffDays} days left`
+      }
     }
   }
 
@@ -576,7 +585,7 @@ function MenteeDashboardContent() {
                     </div>
 
                     <div className="space-y-2.5 bg-muted/30 p-3.5 rounded-lg">
-                      <div className="flex justify-between text-sm">
+                      <div className="flex flex-col gap-1.5">
                         <span className="text-muted-foreground">Current Progress</span>
                         <span className="font-medium">
                           {formatValue(currentGoal.current, getFormatForGoalType(currentGoal.type))} / {formatValue(currentGoal.target, getFormatForGoalType(currentGoal.type))}
@@ -605,12 +614,9 @@ function MenteeDashboardContent() {
                         return (
                           <div className={`flex items-center gap-1.5 font-medium ${timeRemaining.isNearDeadline
                             ? 'text-destructive'
-                            : 'text-muted-foreground'
-                            }`}>
-                            {timeRemaining.isNearDeadline && (
-                              <AlertCircle className="h-4 w-4" />
-                            )}
-                            {timeRemaining.value} {timeRemaining.unit} left
+                            : ''}`}>
+                            <Clock className="h-3.5 w-3.5" />
+                            {timeRemaining.text}
                           </div>
                         )
                       })()}
