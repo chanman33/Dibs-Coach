@@ -404,11 +404,9 @@ function MenteeDashboardContent() {
 
             <Button
               className="w-full h-10 bg-blue-500 hover:bg-blue-600 text-white transition-colors mt-4"
-              asChild
+              disabled
             >
-              <Link href="/dashboard/mentee/upgrade">
-                Upgrade Now
-              </Link>
+              Coming Soon
             </Button>
           </CardContent>
         </Card>

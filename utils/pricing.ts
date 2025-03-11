@@ -81,9 +81,9 @@ export const getDefaultPlans = (isUpgradePage: boolean = false): PricingPlan[] =
     yearlyPrice: YEARLY_PRICE,
     description: "Perfect for career acceleration.<br>$150 monthly coaching credits + premium platform access.",
     features: STARTER_PLAN_FEATURES,
-    priceIdMonthly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID || null,
-    priceIdYearly: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID || null,
-    actionLabel: isUpgradePage ? "Upgrade Now" : "Start Now",
+    priceIdMonthly: null,
+    priceIdYearly: null,
+    actionLabel: "Coming Soon",
     popular: true,
   },
   {
