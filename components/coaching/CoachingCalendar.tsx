@@ -8,6 +8,7 @@ import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Calendar as CalendarIcon, Clock } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@/utils/cn'
+import { CoachSessions } from './CoachSessions'
 
 interface CoachingCalendarProps {
   userRole: string
@@ -72,39 +73,43 @@ export function CoachingCalendar({
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>(null)
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between p-4">
         <h2 className="text-lg font-semibold">{title}</h2>
         <CalendarStatus isLoading={isLoading} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardContent className="p-3">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={setDate}
-              className="rounded-md border"
-            />
-          </CardContent>
-        </Card>
+      <div className="flex-1 grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4 p-4">
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-3">
+              <Calendar
+                mode="single"
+                selected={date}
+                onSelect={setDate}
+                className="rounded-md border"
+              />
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Available Time Slots</CardTitle>
-            <CardDescription>
-              {date ? format(date, 'MMMM d, yyyy') : 'Select a date to view available times'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="flex items-center justify-center h-32 text-muted-foreground">
-                <p>Calendar integration coming soon...</p>
+          <Card>
+            <CardHeader>
+              <CardTitle>Available Time Slots</CardTitle>
+              <CardDescription>
+                {date ? format(date, 'MMMM d, yyyy') : 'Select a date to view available times'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex items-center justify-center h-32 text-muted-foreground">
+                  <p>Calendar integration coming soon...</p>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
+
+        <CoachSessions sessions={sessions} isLoading={isLoading} />
       </div>
     </div>
   )
