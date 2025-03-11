@@ -71,13 +71,12 @@ export default function MenteeCalendarPage() {
   })
 
   return (
-    <div>
+    <div className="h-[calc(100vh-4rem)]">
       <MenteeCalendar 
         sessions={sessions}
         isLoading={isLoading}
         title="My Coaching Calendar"
       />
-      {!isLoading && sessions?.length === 0 && <NoSessionsPrompt />}
     </div>
   )
 } 

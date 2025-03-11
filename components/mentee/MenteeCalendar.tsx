@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { VirtualizedList } from '../ui/virtualized-list'
+import { MenteeSessions } from './MenteeSessions'
 
 const localizer = momentLocalizer(moment)
 
@@ -286,18 +287,6 @@ export function MenteeCalendar({
 }: MenteeCalendarProps) {
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
-  const [page, setPage] = useState(1)
-  const itemsPerPage = 10
-
-  // Separate sessions into past and upcoming
-  const now = new Date()
-  const pastSessions = sessions?.filter(session => new Date(session.endTime) < now) || []
-  const upcomingSessions = sessions?.filter(session => new Date(session.startTime) >= now) || []
-  
-  // Get the most recent coach if there are past sessions
-  const lastCoach = pastSessions.length > 0
-    ? pastSessions.sort((a, b) => new Date(b.endTime).getTime() - new Date(a.endTime).getTime())[0].otherParty
-    : undefined
 
   if (isLoading) {
     return (
@@ -353,106 +342,46 @@ export function MenteeCalendar({
     </TooltipProvider>
   )
 
-  // Sort and paginate sessions
-  const sortedSessions = sessions?.sort(
-    (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
-  ) || []
-  
-  const totalPages = Math.ceil((sortedSessions.length || 0) / itemsPerPage)
-  const paginatedSessions = sortedSessions.slice(
-    (page - 1) * itemsPerPage,
-    page * itemsPerPage
-  )
-
   return (
     <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
       <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4">
-        <div className="space-y-4 min-w-0">
-          <Card className="p-2 sm:p-4 overflow-hidden">
-            <div className="h-[500px] sm:h-[600px] w-full overflow-hidden">
-              <div className="rbc-calendar-container w-full h-full">
-                <Calendar
-                  localizer={localizer}
-                  events={events}
-                  startAccessor="start"
-                  endAccessor="end"
-                  view={view}
-                  date={date}
-                  onView={setView}
-                  onNavigate={setDate}
-                  views={['month', 'week', 'day']}
-                  step={30}
-                  timeslots={1}
-                  min={new Date(2020, 1, 1, 6, 30, 0)}
-                  max={new Date(2020, 1, 1, 20, 0, 0)}
-                  eventPropGetter={eventStyleGetter}
-                  tooltipAccessor={null}
-                  components={{
-                    event: EventComponent,
-                    toolbar: CustomToolbar
-                  }}
-                  className="max-w-full overflow-hidden"
-                  style={{
-                    height: '100%',
-                    width: '100%',
-                    minWidth: 0
-                  }}
-                />
-              </div>
-            </div>
-          </Card>
-
-          {sessions && sessions.length > 0 && upcomingSessions.length === 0 && (
-            <Card className="p-4 sm:p-6">
-              <NoUpcomingSessionsPrompt lastCoach={lastCoach} />
-            </Card>
-          )}
-        </div>
-
-        <Card className="p-2 sm:p-4">
-          <h2 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">All Sessions</h2>
-          <div className="h-[calc(500px-3rem)] sm:h-[calc(600px-4rem)] overflow-hidden">
-            <ScrollArea>
-              <VirtualizedList
-                items={paginatedSessions}
-                height={500}
-                itemHeight={80}
-                renderItem={(session) => (
-                  <div key={session.ulid}>
-                    <SessionCard session={session} />
-                  </div>
-                )}
+        <Card className="p-2 sm:p-4 overflow-hidden">
+          <div className="h-[500px] sm:h-[600px] w-full overflow-hidden">
+            <div className="rbc-calendar-container w-full h-full">
+              <Calendar
+                localizer={localizer}
+                events={events}
+                startAccessor="start"
+                endAccessor="end"
+                view={view}
+                date={date}
+                onView={setView}
+                onNavigate={setDate}
+                views={['month', 'week', 'day']}
+                step={30}
+                timeslots={1}
+                min={new Date(2020, 1, 1, 6, 30, 0)}
+                max={new Date(2020, 1, 1, 20, 0, 0)}
+                eventPropGetter={eventStyleGetter}
+                tooltipAccessor={null}
+                components={{
+                  event: EventComponent,
+                  toolbar: CustomToolbar
+                }}
+                className="max-w-full overflow-hidden"
+                style={{
+                  height: '100%',
+                  width: '100%',
+                  minWidth: 0
+                }}
               />
-              
-              {/* Pagination Controls */}
-              {totalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 mt-4 pb-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Page {page} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              )}
-            </ScrollArea>
+            </div>
           </div>
         </Card>
+
+        <MenteeSessions sessions={sessions} isLoading={isLoading} />
       </div>
     </div>
   )
