@@ -32,6 +32,40 @@ interface Step {
   renderContent?: (isComplete: boolean) => ReactNode | null;
 }
 
+// Field name to user-friendly label mapping
+const fieldLabels: Record<string, string> = {
+  // Basic Information
+  firstName: 'First Name',
+  lastName: 'Last Name',
+  bio: 'Biography',
+  profileImageUrl: 'Profile Image',
+  
+  // Coaching Details
+  coachingSpecialties: 'Coaching Specialties',
+  hourlyRate: 'Hourly Rate',
+  yearsCoaching: 'Years of Coaching Experience',
+  
+  // Scheduling
+  hasAvailabilitySchedule: 'Availability Schedule',
+  
+  // Professional Background
+  certifications: 'Certifications',
+  languages: 'Languages',
+}
+
+// Helper function to get user-friendly field name
+const getFieldLabel = (fieldName: string): string => {
+  return fieldLabels[fieldName] || formatFieldName(fieldName);
+}
+
+// Helper function to format field names that might not be in the mapping
+const formatFieldName = (fieldName: string): string => {
+  return fieldName
+    .replace(/([A-Z])/g, ' $1') // Add space before capital letters
+    .replace(/^./, str => str.toUpperCase()) // Capitalize first letter
+    .trim(); // Remove any extra spaces
+}
+
 export function ProfileCompletion({
   completionPercentage,
   profileStatus,
@@ -104,10 +138,21 @@ export function ProfileCompletion({
           const invalid = fields.filter(field => validationMessages[field]);
           
           if (invalid.length > 0) {
-            return invalid.map(field => validationMessages[field]).join(' • ');
+            // Replace any field names in validation messages with user-friendly labels
+            return invalid.map(field => {
+              let message = validationMessages[field];
+              // Check if the message contains the field name and replace it with the label
+              Object.keys(fieldLabels).forEach(fieldName => {
+                message = message.replace(
+                  new RegExp(`\\b${fieldName}\\b`, 'gi'), 
+                  fieldLabels[fieldName]
+                );
+              });
+              return message;
+            }).join(' • ');
           }
           if (missing.length > 0) {
-            return `Missing required fields: ${missing.join(', ')}`;
+            return `Missing required fields: ${missing.map(field => getFieldLabel(field)).join(', ')}`;
           }
           return null;
         }
@@ -139,10 +184,21 @@ export function ProfileCompletion({
           const invalid = fields.filter(field => validationMessages[field]);
           
           if (invalid.length > 0) {
-            return invalid.map(field => validationMessages[field]).join(' • ');
+            // Replace any field names in validation messages with user-friendly labels
+            return invalid.map(field => {
+              let message = validationMessages[field];
+              // Check if the message contains the field name and replace it with the label
+              Object.keys(fieldLabels).forEach(fieldName => {
+                message = message.replace(
+                  new RegExp(`\\b${fieldName}\\b`, 'gi'), 
+                  fieldLabels[fieldName]
+                );
+              });
+              return message;
+            }).join(' • ');
           }
           if (missing.length > 0) {
-            return `Missing required fields: ${missing.join(', ')}`;
+            return `Missing required fields: ${missing.map(field => getFieldLabel(field)).join(', ')}`;
           }
           return null;
         }
@@ -174,7 +230,18 @@ export function ProfileCompletion({
           const invalid = fields.filter(field => validationMessages[field]);
           
           if (invalid.length > 0) {
-            return invalid.map(field => validationMessages[field]).join(' • ');
+            // Replace any field names in validation messages with user-friendly labels
+            return invalid.map(field => {
+              let message = validationMessages[field];
+              // Check if the message contains the field name and replace it with the label
+              Object.keys(fieldLabels).forEach(fieldName => {
+                message = message.replace(
+                  new RegExp(`\\b${fieldName}\\b`, 'gi'), 
+                  fieldLabels[fieldName]
+                );
+              });
+              return message;
+            }).join(' • ');
           }
 
           if (missing.length > 0) {
@@ -183,7 +250,7 @@ export function ProfileCompletion({
             if (needsAvailability) {
               return (
                 <div className="text-xs text-red-500">
-                  Set up your availability schedule
+                  You need to set up your availability schedule to accept bookings
                 </div>
               );
             }
@@ -238,10 +305,21 @@ export function ProfileCompletion({
           const invalid = fields.filter(field => validationMessages[field]);
           
           if (invalid.length > 0) {
-            return invalid.map(field => validationMessages[field]).join(' • ');
+            // Replace any field names in validation messages with user-friendly labels
+            return invalid.map(field => {
+              let message = validationMessages[field];
+              // Check if the message contains the field name and replace it with the label
+              Object.keys(fieldLabels).forEach(fieldName => {
+                message = message.replace(
+                  new RegExp(`\\b${fieldName}\\b`, 'gi'), 
+                  fieldLabels[fieldName]
+                );
+              });
+              return message;
+            }).join(' • ');
           }
           if (missing.length > 0) {
-            return `Optional fields missing: ${missing.join(', ')}`;
+            return `Optional fields missing: ${missing.map(field => getFieldLabel(field)).join(', ')}`;
           }
           return null;
         }
