@@ -28,8 +28,6 @@ interface BookingModalProps {
   onClose: () => void
   coachName: string
   coachId: string
-  calendlyUrl: string | null
-  eventTypeUrl: string | null
   sessionConfig: SessionConfig
 }
 

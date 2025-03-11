@@ -28,8 +28,6 @@ export interface CoachProfileFormData {
   minimumDuration: number;
   maximumDuration: number;
   allowCustomDuration: boolean;
-  calendlyUrl?: string;
-  eventTypeUrl?: string;
 }
 
 interface ProfessionalRecognition {

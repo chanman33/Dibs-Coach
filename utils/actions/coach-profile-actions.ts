@@ -18,7 +18,6 @@ export interface CoachProfileFormData {
   minimumDuration: number;
   maximumDuration: number;
   allowCustomDuration: boolean;
-  calendlyUrl?: string;
   eventTypeUrl?: string;
   realEstateDomains?: string[];
   certifications?: string[];
@@ -34,7 +33,6 @@ interface CoachProfileResponse {
   minimumDuration: number;
   maximumDuration: number;
   allowCustomDuration: boolean;
-  calendlyUrl: string;
   eventTypeUrl: string;
   certifications: string[];
   professionalRecognitions: ProfessionalRecognition[];
@@ -170,7 +168,6 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         coachingSpecialties: coachProfile?.coachSkills || [],
         hourlyRate: coachProfile?.hourlyRate || null,
         yearsCoaching: coachProfile?.yearsCoaching || null,
-        calendlyUrl: coachProfile?.calendlyUrl || null,
         eventTypeUrl: coachProfile?.eventTypeUrl || null,
         hasAvailabilitySchedule: availabilitySchedules && availabilitySchedules.length > 0
       };
@@ -185,7 +182,6 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         minimumDuration: coachProfile?.minimumDuration || 30,
         maximumDuration: coachProfile?.maximumDuration || 120,
         allowCustomDuration: coachProfile?.allowCustomDuration || false,
-        calendlyUrl: coachProfile?.calendlyUrl || "",
         eventTypeUrl: coachProfile?.eventTypeUrl || "",
         certifications: [],
         professionalRecognitions: activeRecognitions,
@@ -293,7 +289,6 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         coachingSpecialties: formData.coachSkills,
         hourlyRate: formData.hourlyRate,
         yearsCoaching: formData.yearsCoaching,
-        calendlyUrl: formData.calendlyUrl,
         eventTypeUrl: formData.eventTypeUrl,
       };
       
@@ -310,7 +305,6 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         coachSkills: formData.coachSkills,
         yearsCoaching: formData.yearsCoaching,
         hourlyRate: formData.hourlyRate,
-        calendlyUrl: formData.calendlyUrl,
         eventTypeUrl: formData.eventTypeUrl,
         defaultDuration: formData.defaultDuration,
         minimumDuration: formData.minimumDuration,

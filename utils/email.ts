@@ -83,7 +83,7 @@ export async function sendSessionConfirmationEmails(session: SessionDetails) {
         <li><strong>Mentee Email:</strong> ${session.mentee.email}</li>
       </ul>
 
-      <p>The mentee will complete their scheduling through Calendly, and you'll receive a calendar invitation once they do.</p>
+      <p>You'll receive a calendar invitation with the meeting details once the scheduling is complete.</p>
 
       <p>Best regards,<br>The Team</p>
     `,

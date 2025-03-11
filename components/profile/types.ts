@@ -32,10 +32,6 @@ export const coachProfileFormSchema = z.object({
   // Languages
   languages: z.array(z.string()).optional(),
   
-  // Calendly Integration
-  calendlyUrl: z.string().url("Invalid Calendly URL").optional(),
-  eventTypeUrl: z.string().url("Invalid event type URL").optional(),
-  
   // Session Configuration
   defaultDuration: z.number().min(30).max(120).default(60),
   minimumDuration: z.number().min(30).max(60).default(30),
@@ -74,8 +70,6 @@ export interface CoachProfileInitialData {
   coachingSpecialties?: string[] | null;
   hourlyRate?: number | undefined;
   yearsCoaching?: number | undefined;
-  calendlyUrl?: string | null;
-  eventTypeUrl?: string | null;
   // Add completion-related fields
   status?: ProfileStatus;
   completionPercentage?: number;

@@ -86,18 +86,9 @@ export const coachProfileSchema = z.object({
   yearsCoaching: z.number().nullable(),
   hourlyRate: z.number().nullable(),
   
-  // Calendly Integration
-  calendlyUrl: z.string().nullable(),
-  eventTypeUrl: z.string().nullable(),
-  
   // Session Configuration
   isActive: z.boolean(),
   defaultDuration: z.number(),
-  allowCustomDuration: z.boolean(),
-  minimumDuration: z.number(),
-  maximumDuration: z.number(),
-  totalSessions: z.number(),
-  averageRating: z.number().nullable(),
   
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

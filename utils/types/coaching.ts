@@ -74,7 +74,6 @@ export const CoachingScheduleSchema = z.object({
   bufferBefore: z.number().min(0).max(60).default(0),
   bufferAfter: z.number().min(0).max(60).default(0),
   rules: AvailabilityRules,
-  calendlyEnabled: z.boolean().default(false),
   zoomEnabled: z.boolean().default(false),
 });
 

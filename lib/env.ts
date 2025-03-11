@@ -34,14 +34,6 @@ const envSchema = z.object({
   NEXT_PUBLIC_STRIPE_PUBLIC_KEY: z.string().min(1),
   NEXT_PUBLIC_STRIPE_PRICE_ID: z.string().min(1),
 
-  // Calendly
-  CALENDLY_CLIENT_ID: z.string().min(1),
-  CALENDLY_CLIENT_SECRET: z.string().min(1),
-  CALENDLY_WEBHOOK_SECRET: z.string().min(1),
-  CALENDLY_REDIRECT_URI: z.string().url(),
-  CALENDLY_WEBHOOK_SIGNING_KEY: z.string().optional(),
-  USE_REAL_CALENDLY: z.coerce.boolean().default(false),
-
   // Zoom
   ZOOM_SDK_KEY: z.string().min(1),
   ZOOM_SDK_SECRET: z.string().min(1),
@@ -96,14 +88,6 @@ export const env = envSchema.parse({
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
   NEXT_PUBLIC_STRIPE_PUBLIC_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLIC_KEY,
   NEXT_PUBLIC_STRIPE_PRICE_ID: process.env.NEXT_PUBLIC_STRIPE_PRICE_ID,
-
-  // Calendly
-  CALENDLY_CLIENT_ID: process.env.CALENDLY_CLIENT_ID,
-  CALENDLY_CLIENT_SECRET: process.env.CALENDLY_CLIENT_SECRET,
-  CALENDLY_WEBHOOK_SECRET: process.env.CALENDLY_WEBHOOK_SECRET,
-  CALENDLY_REDIRECT_URI: process.env.CALENDLY_REDIRECT_URI,
-  CALENDLY_WEBHOOK_SIGNING_KEY: process.env.CALENDLY_WEBHOOK_SIGNING_KEY,
-  USE_REAL_CALENDLY: process.env.USE_REAL_CALENDLY,
 
   // Zoom
   ZOOM_SDK_KEY: process.env.ZOOM_SDK_KEY,

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { ApiResponse } from '@/utils/types/api'
+import { ApiResponse, ApiErrorCode } from '@/utils/types/api'
 import { withApiAuth } from '@/utils/middleware/withApiAuth'
 import { createAuthClient } from '@/utils/auth'
 import { z } from 'zod'
-import { createSingleUseSchedulingLink } from '@/utils/calendly'
 import { sendSessionConfirmationEmails } from '@/utils/email'
-import { ROLES } from '@/utils/roles/roles'
+import { UserCapability } from '@prisma/client'
+import { ulid } from 'ulid'
 
 // Validation schema for booking request
 const BookingSchema = z.object({
@@ -26,7 +26,6 @@ interface BookingResponse {
     rateAtBooking: number
     currencyCode: string
     status: string
-    schedulingUrl: string
   }
 }
 
@@ -41,21 +40,16 @@ export const POST = withApiAuth<BookingResponse>(async (request, { userUlid }) =
       .from('User')
       .select(`
         ulid,
-        role,
+        capabilities,
         firstName,
         lastName,
         email,
-        calendlyIntegration:CalendlyIntegration!inner (
-          eventTypeId
-        ),
         coachProfile:CoachProfile!inner (
           defaultDuration,
           allowCustomDuration,
           minimumDuration,
           maximumDuration,
-          durations,
-          rates,
-          currency,
+          hourlyRate,
           isActive
         )
       `)
@@ -86,7 +80,7 @@ export const POST = withApiAuth<BookingResponse>(async (request, { userUlid }) =
       }, { status: 404 })
     }
 
-    if (!coach.role.includes(ROLES.COACH)) {
+    if (!coach.capabilities?.includes('COACH')) {
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
@@ -102,14 +96,13 @@ export const POST = withApiAuth<BookingResponse>(async (request, { userUlid }) =
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
-          code: 'COACH_INACTIVE',
+          code: 'COACH_UNAVAILABLE',
           message: 'Coach is not accepting bookings'
         }
       }, { status: 400 })
     }
 
-    // Validate duration
-    if (!coachProfile.durations.includes(validatedData.durationMinutes) && !coachProfile.allowCustomDuration) {
+    if (!coachProfile.allowCustomDuration && validatedData.durationMinutes !== coachProfile.defaultDuration) {
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
@@ -130,37 +123,15 @@ export const POST = withApiAuth<BookingResponse>(async (request, { userUlid }) =
       }, { status: 400 })
     }
 
-    // Validate rate and currency
-    const expectedRate = coachProfile.rates[validatedData.durationMinutes.toString()] || 
-      (validatedData.durationMinutes / 60) * coachProfile.rates['60']
+    // Validate rate
+    const expectedRate = coachProfile.hourlyRate ? (validatedData.durationMinutes / 60) * coachProfile.hourlyRate : null
     
-    if (validatedData.rate !== expectedRate) {
+    if (!expectedRate || validatedData.rate !== expectedRate) {
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
-          code: 'INVALID_RATE',
+          code: 'VALIDATION_ERROR',
           message: 'Invalid session rate'
-        }
-      }, { status: 400 })
-    }
-
-    if (validatedData.currency !== coachProfile.currency) {
-      return NextResponse.json<ApiResponse<never>>({
-        data: null,
-        error: {
-          code: 'INVALID_CURRENCY',
-          message: 'Invalid currency'
-        }
-      }, { status: 400 })
-    }
-
-    const calendlyEventTypeId = coach.calendlyIntegration?.[0]?.eventTypeId
-    if (!calendlyEventTypeId) {
-      return NextResponse.json<ApiResponse<never>>({
-        data: null,
-        error: {
-          code: 'NO_EVENT_TYPE',
-          message: 'Coach has not configured their event type'
         }
       }, { status: 400 })
     }
@@ -169,7 +140,7 @@ export const POST = withApiAuth<BookingResponse>(async (request, { userUlid }) =
     const { data: existingSessions, error: conflictError } = await supabase
       .from('Session')
       .select('ulid')
-      .eq('coachUlid', coach.ulid)
+      .eq('coachId', coach.ulid)
       .or(`startTime.lte.${validatedData.endTime},endTime.gte.${validatedData.startTime}`)
       .neq('status', 'CANCELLED')
 
@@ -197,24 +168,21 @@ export const POST = withApiAuth<BookingResponse>(async (request, { userUlid }) =
       }, { status: 409 })
     }
 
-    // Create single-use scheduling link
-    const schedulingLink = await createSingleUseSchedulingLink({
-      eventTypeId: calendlyEventTypeId
-    })
-
     // Create the session
+    const sessionUlid = ulid()
     const { data: session, error: sessionError } = await supabase
       .from('Session')
       .insert({
+        ulid: sessionUlid,
         coachUlid: coach.ulid,
         menteeUlid: userUlid,
         startTime: validatedData.startTime,
         endTime: validatedData.endTime,
-        durationMinutes: validatedData.durationMinutes,
-        rateAtBooking: validatedData.rate,
-        currencyCode: validatedData.currency,
+        priceAmount: validatedData.rate,
+        currency: validatedData.currency,
         status: 'SCHEDULED',
-        calendlySchedulingLink: schedulingLink.booking_url,
+        sessionType: 'MENTORSHIP',
+        createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       })
       .select()
@@ -235,12 +203,33 @@ export const POST = withApiAuth<BookingResponse>(async (request, { userUlid }) =
       }, { status: 500 })
     }
 
+    // Get mentee's data
+    const { data: mentee, error: menteeError } = await supabase
+      .from('User')
+      .select('firstName, lastName, email')
+      .eq('ulid', userUlid)
+      .single()
+
+    if (menteeError) {
+      console.error('[BOOKING_ERROR] Failed to fetch mentee:', {
+        menteeUlid: userUlid,
+        error: menteeError
+      })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch mentee data'
+        }
+      }, { status: 500 })
+    }
+
     // Send confirmation emails
     await sendSessionConfirmationEmails({
       startTime: validatedData.startTime,
       endTime: validatedData.endTime,
       durationMinutes: validatedData.durationMinutes,
-      schedulingUrl: schedulingLink.booking_url,
+      schedulingUrl: `/dashboard/sessions/${sessionUlid}`,
       rate: validatedData.rate,
       currency: validatedData.currency,
       coach: {
@@ -249,9 +238,9 @@ export const POST = withApiAuth<BookingResponse>(async (request, { userUlid }) =
         email: coach.email
       },
       mentee: {
-        firstName: session.mentee.firstName || '',
-        lastName: session.mentee.lastName || '',
-        email: session.mentee.email
+        firstName: mentee.firstName || '',
+        lastName: mentee.lastName || '',
+        email: mentee.email
       }
     })
 
@@ -261,11 +250,10 @@ export const POST = withApiAuth<BookingResponse>(async (request, { userUlid }) =
           ulid: session.ulid,
           startTime: session.startTime,
           endTime: session.endTime,
-          durationMinutes: session.durationMinutes,
-          rateAtBooking: session.rateAtBooking,
-          currencyCode: session.currencyCode,
-          status: session.status,
-          schedulingUrl: schedulingLink.booking_url
+          durationMinutes: validatedData.durationMinutes,
+          rateAtBooking: validatedData.rate,
+          currencyCode: validatedData.currency,
+          status: session.status
         }
       },
       error: null

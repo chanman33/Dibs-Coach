@@ -1,67 +1,44 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { useEffect } from 'react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { SessionConfig } from '@/utils/types/browse-coaches'
 
 interface BookingModalProps {
   isOpen: boolean
   onClose: () => void
   coachName: string
-  calendlyUrl: string | null
-  eventTypeUrl: string | null
-  sessionConfig: {
-    durations: number[]
-    rates: Record<string, number>
-    currency: string
-    defaultDuration: number
-    allowCustomDuration: boolean
-    minimumDuration: number
-    maximumDuration: number
-    isActive: boolean
-  }
+  sessionConfig: SessionConfig
 }
 
-declare global {
-  interface Window {
-    Calendly: any
-  }
-}
-
-export function BookingModal({ isOpen, onClose, coachName, calendlyUrl, eventTypeUrl, sessionConfig }: BookingModalProps) {
-  useEffect(() => {
-    if (isOpen && calendlyUrl) {
-      // Initialize Calendly widget
-      const script = document.createElement('script')
-      script.src = 'https://assets.calendly.com/assets/external/widget.js'
-      script.async = true
-      document.body.appendChild(script)
-
-      return () => {
-        document.body.removeChild(script)
-      }
-    }
-  }, [isOpen, calendlyUrl])
-
-  useEffect(() => {
-    if (isOpen && calendlyUrl && window.Calendly) {
-      window.Calendly.initInlineWidget({
-        url: eventTypeUrl || calendlyUrl,
-        parentElement: document.getElementById('calendly-booking-widget'),
-        prefill: {},
-        utm: {}
-      })
-    }
-  }, [isOpen, calendlyUrl, eventTypeUrl])
-
-  if (!calendlyUrl) {
-    return null
+export function BookingModal({ isOpen, onClose, coachName, sessionConfig }: BookingModalProps) {
+  if (!sessionConfig?.isActive) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Booking Unavailable</DialogTitle>
+          </DialogHeader>
+          <Alert>
+            <AlertDescription>
+              This coach is not currently accepting bookings.
+            </AlertDescription>
+          </Alert>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] h-[80vh]">
+      <DialogContent className="max-w-3xl h-[80vh]">
         <DialogHeader>
           <DialogTitle>Book a Session with {coachName}</DialogTitle>
         </DialogHeader>
-        <div id="calendly-booking-widget" style={{ height: '100%', width: '100%' }} />
+        <div className="flex-1 overflow-auto">
+          {/* Cal.com integration will go here */}
+          <div className="flex items-center justify-center h-full">
+            <p>Calendar integration coming soon...</p>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   )

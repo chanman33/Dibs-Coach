@@ -636,7 +636,6 @@ model User {
   coachProfile          CoachProfile?
 
   // Existing integrations
-  calendlyIntegration CalendlyIntegration?
   coachingSchedules   CoachingAvailabilitySchedule[]
 
   // Session Relations
@@ -675,7 +674,6 @@ model User {
   supportTickets       SupportTicket[]    @relation("UserSupportTickets")
   subscriptions        Subscription[]
   invoices             Invoice[]
-  calendlyEvents       CalendlyEvent[]
 
   // Admin relations
   adminAuditLogs       AdminAuditLog[]    @relation("AdminAuditLogs")
@@ -732,10 +730,6 @@ model CoachProfile {
   yearsCoaching        Int?
   coachSkills         String[]  @default([])
   hourlyRate          Decimal?     @db.Decimal(10, 2)
-
-  // Calendly Integration
-  calendlyUrl         String?
-  eventTypeUrl        String?
 
   // Session Configuration
   isActive            Boolean      @default(true)
@@ -1252,7 +1246,6 @@ model Session {
   reviews                Review[]
   notes                  Note[]
   reminders              Reminder[]
-  calendlyEvent          CalendlyEvent? @relation("SessionCalendlyEvent")
   zoomSession            ZoomSession?
   disputes               Dispute[]      @relation("SessionDisputes")
 
@@ -1514,222 +1507,6 @@ model Reminder {
   @@index([sessionUlid])
 }
 
-model CalendlyIntegration {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  user                   User     @relation(fields: [userUlid], references: [ulid])
-  userId                 String    // Calendly user ID
-  eventTypeId            String?   // Default event type ID
-  accessToken            String
-  refreshToken           String
-  scope                  String
-  organization           String?   // Organization ID
-  expiresAt              DateTime  @db.Timestamptz
-  lastSyncAt             DateTime? @db.Timestamptz
-  failedRefreshCount     Int       @default(0)
-  status                 String    @default("active")
-  schedulingUrl          String    // Personal scheduling URL
-  organizationUrl        String?   // Optional - only for org accounts
-  createdAt              DateTime  @default(now()) @db.Timestamptz
-  updatedAt              DateTime  @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("CalendlyIntegration")
-}
-
-model Subscription {
-  ulid                   String   @id @db.Char(26)
-  subscriptionId         String   @unique
-  userUlid               String?  @db.Char(26)
-  organizationUlid       String?  @db.Char(26)
-  stripeCustomerId       String
-  status                 String
-  startDate              DateTime
-  endDate                DateTime?
-  planUlid               String   @db.Char(26)
-  defaultPaymentMethodId String?
-  quantity               Int      @default(1)
-  billingCycle          String   @default("monthly")
-  metadata               Json     @default("{}")
-
-  // Relations
-  user                   User?          @relation(fields: [userUlid], references: [ulid], onDelete: SetNull)
-  organization           Organization?  @relation(fields: [organizationUlid], references: [ulid], onDelete: SetNull)
-  plan                   SubscriptionPlan @relation(fields: [planUlid], references: [ulid], onDelete: Restrict)
-  invoices               Invoice[]
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([userUlid])
-  @@index([organizationUlid])
-  @@index([planUlid])
-}
-
-model SubscriptionPlan {
-  ulid                   String   @id @db.Char(26)
-  planId                 String   @unique
-  name                   String
-  description            String
-  type                   PlanType @default(INDIVIDUAL)
-  amount                 Decimal  @db.Decimal(10, 2)
-  currency               String   @default("USD")
-  interval               String
-  features               Json     @default("{}")
-  limits                 Json     @default("{}")
-  isActive               Boolean  @default(true)
-  metadata               Json     @default("{}")
-
-  subscriptions          Subscription[]
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([type])
-  @@index([isActive])
-}
-
-model Invoice {
-  ulid                   String   @id @db.Char(26)
-  invoiceId              String   @unique
-  subscriptionId         String
-  userUlid               String?  @db.Char(26)
-  amountPaid             Decimal  @db.Decimal(10, 2)
-  amountDue              Decimal? @db.Decimal(10, 2)
-  currency               String
-  status                 String
-  dueDate                DateTime?
-
-  subscription           Subscription? @relation(fields: [subscriptionId], references: [subscriptionId], onDelete: SetNull)
-  user                   User?        @relation(fields: [userUlid], references: [ulid], onDelete: SetNull)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([subscriptionId])
-  @@index([userUlid])
-}
-
-model CalendlyWebhookEvent {
-  ulid                   String   @id @db.Char(26)
-  eventType              String
-  payload                Json
-  processed              Boolean  @default(false)
-  error                  String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([eventType])
-  @@index([processed])
-}
-
-model CalendlyEvent {
-  ulid                   String   @id @db.Char(26)
-  eventUuid              String   @unique
-  userUlid               String   @db.Char(26)
-  status                 String
-  eventType              String
-  inviteeEmail           String
-  inviteeName            String
-  sessionUlid            String?  @unique @db.Char(26)
-
-  // Relationships
-  session                Session? @relation("SessionCalendlyEvent", fields: [sessionUlid], references: [ulid])
-  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([userUlid])
-  @@index([eventUuid])
-}
-
-model ZoomSession {
-  ulid                   String   @id @db.Char(26)
-  sessionUlid            String   @unique @db.Char(26)
-  topic                  String
-  status                 String
-  joinUrl                String?
-
-  // Relationships
-  session                Session  @relation(fields: [sessionUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([sessionUlid])
-}
-
-model Goal {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @db.Char(26)
-  title                  String
-  description            String?
-  target                 Float
-  current                Float      @default(0)
-  deadline               DateTime
-  type                   GoalType
-  status                 GoalStatus @default(IN_PROGRESS)
-
-  // Relationships
-  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt                DateTime @default(now())
-  updatedAt                DateTime @updatedAt
-
-  @@index([userUlid])
-  @@index([type])
-  @@index([status])
-}
-
-// Application-specific achievements
-model Achievement {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @db.Char(26)
-  type                   String   // e.g., "SESSION_MILESTONE", "RATING_MILESTONE"
-  milestone              String   // e.g., "10_SESSIONS", "100_FIVE_STAR_REVIEWS"
-  earnedAt               DateTime @default(now()) @db.Timestamptz
-  metadata               Json?    // Additional achievement-specific data
-
-  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now()) @db.Timestamptz
-  updatedAt              DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@index([type])
-  @@map("Achievement")
-}
-
-// Updated Professional Recognition model
-model ProfessionalRecognition {
-  ulid                   String   @id @db.Char(26)
-  userUlid              String   @db.Char(26)
-  type                  RecognitionType
-  title                 String
-  issuer                String
-  issueDate             DateTime @db.Timestamptz
-  expiryDate            DateTime? @db.Timestamptz
-  description           String?
-  verificationUrl       String?
-  certificateUrl        String?
-  status                CertificationStatus @default(ACTIVE)
-  industryType          String? // Field to indicate which industry the recognition belongs to (e.g., "REALTOR", "INVESTOR")
-  isVisible             Boolean @default(true) // Whether this recognition should be displayed on the profile
-
-  // Relations - simplified to just user and coach profile
-  user                  User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  coachProfile          CoachProfile? @relation(fields: [coachProfileUlid], references: [ulid])
-  coachProfileUlid      String? @db.Char(26)
-
-  createdAt              DateTime @default(now()) @db.Timestamptz
-  updatedAt              DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@index([coachProfileUlid])
-  @@map("ProfessionalRecognition")
-}
-
 model CoachingAvailabilitySchedule {
   ulid                   String   @id @db.Char(26)
   userUlid               String   @db.Char(26)
@@ -1750,7 +1527,6 @@ model CoachingAvailabilitySchedule {
   rules                  Json // Stored as JSONB - weekly schedule, breaks, etc.
 
   // Integration Settings
-  calendlyEnabled          Boolean @default(false)
   zoomEnabled              Boolean @default(false)
 
   // Metrics
@@ -2143,6 +1919,12 @@ model EnterpriseLeads {
 
   @@index([assignedToUlid])
   @@map("EnterpriseLeads")
+}
+
+model Settings {
+  // ... existing code ...
+  // Remove Calendly enabled flag
+  // ... existing code ...
 }
 
 

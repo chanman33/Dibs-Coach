@@ -24,7 +24,6 @@ const SessionSchema = z.object({
   notes: z.string().optional(),
   zoomMeetingId: z.string().optional(),
   zoomJoinUrl: z.string().url().optional(),
-  calendlyEventUri: z.string().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 })

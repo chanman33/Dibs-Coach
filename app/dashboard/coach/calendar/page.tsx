@@ -5,14 +5,12 @@ import { fetchCoachSessions } from '@/utils/actions/sessions'
 import { fetchUserDbId } from '@/utils/actions/user-profile-actions'
 import { CoachingCalendar } from '@/components/coaching/CoachingCalendar'
 import { useEffect, useState } from 'react'
-import { useCalendlyConnection } from '@/utils/hooks/useCalendly'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { startOfWeek, endOfWeek, addMonths } from 'date-fns'
 import { toast } from 'sonner'
 import { useUser } from '@clerk/nextjs'
 import { TransformedSession, SessionType } from '@/utils/types/session'
-import { ExtendedSession } from '@/utils/types/calendly'
-import { fetchCoachCalendlyStatus } from '@/utils/actions/calendly-actions'
+
 import { Button } from '@/components/ui/button'
 
 // Minimal styles to fix calendar issues without causing scrollbar problems

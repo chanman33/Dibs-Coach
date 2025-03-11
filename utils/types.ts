@@ -2,7 +2,6 @@
 export * from './types/user';
 export * from './types/session';
 export * from './types/payment';
-export * from './types/calendly';
 export * from './types/coach';
 export * from './types/zoom';
 export * from './types/realtor';

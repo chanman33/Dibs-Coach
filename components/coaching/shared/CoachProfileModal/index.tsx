@@ -1,138 +1,99 @@
-import { useState } from 'react'
-import Image from 'next/image'
-import { Calendar } from 'lucide-react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { DEFAULT_AVATARS } from '@/utils/constants'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Separator } from "@/components/ui/separator"
+import { BookingModal } from "../BookingModal"
+import { useState } from "react"
+import { SessionConfig } from "@/utils/types/browse-coaches"
 
-interface SessionConfig {
-  durations: number[]
-  rates: Record<string, number>
-  currency: string
-  defaultDuration: number
-  allowCustomDuration: boolean
-  minimumDuration: number
-  maximumDuration: number
-  isActive: boolean
-}
-
-export interface CoachProfileModalProps {
+interface CoachProfileModalProps {
   isOpen: boolean
   onClose: () => void
   coach: {
-    id: string
     firstName: string
     lastName: string
     profileImageUrl: string | null
-    specialties: string[]
     bio: string | null
+    coachingSpecialties: string[]
     hourlyRate: number | null
-    calendlyUrl?: string | null
-    eventTypeUrl?: string | null
-    sessionConfig?: SessionConfig
+    sessionConfig: SessionConfig
   }
-  variant?: 'public' | 'private'
 }
 
-export function CoachProfileModal({ isOpen, onClose, coach, variant = 'public' }: CoachProfileModalProps) {
-  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
-  const [imgError, setImgError] = useState(false)
+export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalProps) {
+  const [showBookingModal, setShowBookingModal] = useState(false)
 
-  const handleBookNowClick = () => {
-    setIsBookingModalOpen(true)
-    onClose() // Close the profile modal
+  const handleBookSession = () => {
+    setShowBookingModal(true)
   }
 
-  const finalImageUrl = imgError ? DEFAULT_AVATARS.COACH : coach.profileImageUrl || DEFAULT_AVATARS.COACH
+  const handleCloseBookingModal = () => {
+    setShowBookingModal(false)
+  }
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>{`${coach.firstName} ${coach.lastName}`}</DialogTitle>
-          <DialogDescription>{coach.specialties[0] || 'General Coach'}</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="flex items-center gap-4">
-            <Image 
-              src={finalImageUrl}
-              alt={`${coach.firstName} ${coach.lastName}`} 
-              width={100} 
-              height={100} 
-              className="rounded-full object-cover"
-              onError={() => setImgError(true)}
-            />
-          </div>
-          <p className="text-sm">{coach.bio || 'No bio available'}</p>
-          
-          {/* Session Rates */}
-          {coach.hourlyRate && (
-            <div>
-              <h4 className="font-semibold mb-2">Hourly Rate</h4>
-              <p className="text-sm">${coach.hourlyRate}/hour</p>
-            </div>
-          )}
-
-          {/* Session Config */}
-          {coach.sessionConfig && (
-            <div>
-              <h4 className="font-semibold mb-2">Available Session Lengths</h4>
-              <div className="space-y-2">
-                {coach.sessionConfig.durations.map((duration) => (
-                  <div key={duration} className="flex justify-between items-center text-sm">
-                    <span>{duration} minutes</span>
-                    <span className="font-medium">
-                      ${coach.sessionConfig?.rates[duration.toString()]}
-                    </span>
-                  </div>
-                ))}
-                {coach.sessionConfig.allowCustomDuration && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Custom durations available ({coach.sessionConfig.minimumDuration}-{coach.sessionConfig.maximumDuration} minutes)
-                  </p>
-                )}
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Coach Profile</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-6">
+            <div className="flex items-start gap-4">
+              <Avatar className="h-20 w-20">
+                <AvatarImage src={coach.profileImageUrl || undefined} />
+                <AvatarFallback>{coach.firstName?.[0]}{coach.lastName?.[0]}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <h2 className="text-2xl font-semibold">{coach.firstName} {coach.lastName}</h2>
+                <p className="text-sm text-muted-foreground mt-1">{coach.bio}</p>
               </div>
             </div>
-          )}
 
-          {/* Specialties */}
-          <div>
-            <h4 className="font-semibold mb-2">Specialties</h4>
-            <div className="flex flex-wrap gap-2">
-              {coach.specialties.length > 0 ? (
-                coach.specialties.map((specialty, index) => (
-                  <span key={index} className="bg-primary/10 text-primary text-xs py-1 px-2 rounded-full">
-                    {specialty}
-                  </span>
-                ))
-              ) : (
-                <span className="text-muted-foreground text-sm">No specialties listed</span>
-              )}
+            <div>
+              <h3 className="font-semibold mb-2">Specialties</h3>
+              <div className="flex flex-wrap gap-2">
+                {coach.coachingSpecialties.map((specialty, index) => (
+                  <Badge key={index} variant="secondary">{specialty}</Badge>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h3 className="font-semibold mb-2">Session Details</h3>
+              <div className="grid gap-2">
+                <div className="flex justify-between items-center">
+                  <span>Rate</span>
+                  <span className="font-medium">${coach.hourlyRate}/hour</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Duration</span>
+                  <span className="font-medium">{coach.sessionConfig.defaultDuration} minutes</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <Button
+                onClick={handleBookSession}
+                disabled={!coach.sessionConfig.isActive}
+              >
+                {!coach.sessionConfig.isActive ? "Booking Unavailable" : "Book a Session"}
+              </Button>
             </div>
           </div>
-          
-          {/* Availability */}
-          {variant === 'private' && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span>Available for booking</span>
-            </div>
-          )}
-        </div>
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={onClose}>Close</Button>
-          {variant === 'public' && (
-            <Button 
-              onClick={handleBookNowClick}
-              disabled={!coach.calendlyUrl || !coach.sessionConfig?.isActive}
-            >
-              {!coach.calendlyUrl ? "Booking Unavailable" : 
-               !coach.sessionConfig?.isActive ? "Not Accepting Bookings" : 
-               "Book Now"}
-            </Button>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <BookingModal
+        isOpen={showBookingModal}
+        onClose={handleCloseBookingModal}
+        coachName={`${coach.firstName} ${coach.lastName}`}
+        sessionConfig={coach.sessionConfig}
+      />
+    </>
   )
 } 

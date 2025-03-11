@@ -25,8 +25,6 @@ interface DbCoach {
     maximumDuration: number
     allowCustomDuration: boolean
     isActive: boolean
-    calendlyUrl: string | null
-    eventTypeUrl: string | null
   } | null
 }
 
@@ -129,8 +127,6 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
           maximumDuration,
           allowCustomDuration,
           isActive,
-          calendlyUrl,
-          eventTypeUrl,
           profileStatus
         `)
         .in('userUlid', coachUsers.map(u => u.ulid))
@@ -195,9 +191,7 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
             minimumDuration: profile.minimumDuration,
             maximumDuration: profile.maximumDuration,
             allowCustomDuration: profile.allowCustomDuration,
-            isActive: profile.isActive,
-            calendlyUrl: profile.calendlyUrl,
-            eventTypeUrl: profile.eventTypeUrl
+            isActive: profile.isActive
           }
         };
       }).filter(Boolean) as DbCoach[];
@@ -247,9 +241,7 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
             minimumDuration: coach.CoachProfile?.minimumDuration || 30,
             maximumDuration: coach.CoachProfile?.maximumDuration || 90,
             allowCustomDuration: coach.CoachProfile?.allowCustomDuration || false,
-            isActive: coach.CoachProfile?.isActive || false,
-            calendlyUrl: coach.CoachProfile?.calendlyUrl || null,
-            eventTypeUrl: coach.CoachProfile?.eventTypeUrl || null
+            isActive: coach.CoachProfile?.isActive || false
           };
           
           // Log incomplete profiles to help identify data quality issues

@@ -10,8 +10,6 @@ export interface BrowseCoachData {
   bio: string | null;
   coachingSpecialties: string[];
   hourlyRate: number | null;
-  calendlyUrl: string | null;
-  eventTypeUrl: string | null;
   isActive: boolean;
   yearsCoaching: number | null;
   totalSessions: number;
@@ -46,8 +44,6 @@ export const browseCoachSchema = z.object({
   bio: z.string().nullable(),
   coachingSpecialties: z.array(z.string()),
   hourlyRate: z.number().nullable(),
-  calendlyUrl: z.string().nullable(),
-  eventTypeUrl: z.string().nullable(),
   isActive: z.boolean(),
   yearsCoaching: z.number().nullable(),
   totalSessions: z.number(),

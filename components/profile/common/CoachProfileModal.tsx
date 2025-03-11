@@ -37,8 +37,6 @@ interface Coach {
   availability: string | null
   sessionLength: string | null
   specialties: string[]
-  calendlyUrl: string | null
-  eventTypeUrl: string | null
   sessionConfig: SessionConfig
 }
 
@@ -134,11 +132,9 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
             <Button variant="outline" onClick={onClose}>Close</Button>
             <Button 
               onClick={handleBookNowClick}
-              disabled={!coach.calendlyUrl || !coach.sessionConfig.isActive}
+              disabled={!coach.sessionConfig.isActive}
             >
-              {!coach.calendlyUrl ? "Booking Unavailable" : 
-               !coach.sessionConfig.isActive ? "Not Accepting Bookings" : 
-               "Book Now"}
+              {!coach.sessionConfig.isActive ? "Not Accepting Bookings" : "Book Now"}
             </Button>
           </div>
         </DialogContent>
@@ -149,8 +145,6 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
         onClose={() => setIsBookingModalOpen(false)}
         coachName={coach.name}
         coachId={coach.id}
-        calendlyUrl={coach.calendlyUrl}
-        eventTypeUrl={coach.eventTypeUrl}
         sessionConfig={coach.sessionConfig}
       />
     </>
