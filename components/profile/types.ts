@@ -29,6 +29,10 @@ export const coachProfileFormSchema = z.object({
     .min(100, "Minimum hourly rate is $100")
     .max(3000, "Maximum hourly rate is $3,000"),
   
+  // Coach Domain Expertise
+  coachRealEstateDomains: z.array(z.string()).optional(),
+  coachPrimaryDomain: z.string().nullable().optional(),
+  
   // Languages
   languages: z.array(z.string()).optional(),
   
@@ -70,6 +74,9 @@ export interface CoachProfileInitialData {
   coachingSpecialties?: string[] | null;
   hourlyRate?: number | undefined;
   yearsCoaching?: number | undefined;
+  // Coach Domain Expertise
+  coachRealEstateDomains?: string[] | null;
+  coachPrimaryDomain?: string | null;
   // Add completion-related fields
   status?: ProfileStatus;
   completionPercentage?: number;
@@ -112,5 +119,7 @@ export interface CoachProfileResponse {
   optionalMissingFields: string[];
   validationMessages: Record<string, string>;
   canPublish: boolean;
+  coachRealEstateDomains: string[];
+  coachPrimaryDomain: string | null;
   // ... other existing fields ...
 } 

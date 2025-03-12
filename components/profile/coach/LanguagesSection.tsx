@@ -29,7 +29,7 @@ export function LanguagesSection({ initialLanguages = ['en'], onLanguagesUpdate 
         }
 
         if (result.data) {
-          setLanguages(result.data.languages);
+          setLanguages(result.data.languages || ['en']);
         }
       } catch (error) {
         console.error("Failed to fetch languages:", error);
@@ -44,7 +44,7 @@ export function LanguagesSection({ initialLanguages = ['en'], onLanguagesUpdate 
   const handleLanguageChange = async (newValue: any) => {
     try {
       setIsUpdating(true);
-      const selectedCodes = newValue ? newValue.map((item: any) => item.value) : ['en'];
+      const selectedCodes = newValue ? newValue.map((item: any) => item.value) : [];
       
       if (selectedCodes.length === 0) {
         selectedCodes.push('en');
@@ -91,7 +91,7 @@ export function LanguagesSection({ initialLanguages = ['en'], onLanguagesUpdate 
           label: `${lang.name} (${lang.nativeName})`,
         }))}
         value={COMMON_LANGUAGES
-          .filter(lang => languages.includes(lang.code))
+          .filter(lang => (languages || []).includes(lang.code))
           .map(lang => ({
             value: lang.code,
             label: `${lang.name} (${lang.nativeName})`

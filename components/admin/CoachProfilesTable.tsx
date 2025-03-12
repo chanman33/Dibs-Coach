@@ -56,8 +56,8 @@ interface CoachProfile {
   firstName: string
   lastName: string
   profileStatus: ProfileStatus
-  realEstateDomains: string[]
-  primaryDomain: string | null
+  coachRealEstateDomains: string[]
+  coachPrimaryDomain: string | null
   completionPercentage: number
   hourlyRate: number
   updatedAt: string
@@ -79,8 +79,8 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
 
   const handleOpenDomains = (coach: CoachProfile) => {
     setSelectedCoach(coach)
-    setSelectedDomains(coach.realEstateDomains || [])
-    setSelectedPrimaryDomain(coach.primaryDomain)
+    setSelectedDomains(coach.coachRealEstateDomains || [])
+    setSelectedPrimaryDomain(coach.coachPrimaryDomain)
     setIsDialogOpen(true)
   }
 
@@ -144,7 +144,7 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
   const validateProfileRequirements = (profile: CoachProfile) => {
     const requirements = {
       profileCompletion: profile.completionPercentage >= 70,
-      hasValidDomains: profile.realEstateDomains.length >= 1,
+      hasValidDomains: profile.coachRealEstateDomains.length >= 1,
       hasValidRate: profile.hourlyRate > 0
     }
 
@@ -196,20 +196,20 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
               </TableCell>
               <TableCell>
                 <div className="flex gap-1 flex-wrap max-w-[200px]">
-                  {profile.realEstateDomains?.map((domain) => (
+                  {profile.coachRealEstateDomains?.map((domain) => (
                     <Badge key={domain} variant="outline">
                       {domain}
                     </Badge>
                   ))}
-                  {profile.realEstateDomains?.length === 0 && (
+                  {profile.coachRealEstateDomains?.length === 0 && (
                     <span className="text-xs text-muted-foreground italic">None specified</span>
                   )}
                 </div>
               </TableCell>
               <TableCell>
-                {profile.primaryDomain ? (
+                {profile.coachPrimaryDomain ? (
                   <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                    {profile.primaryDomain}
+                    {profile.coachPrimaryDomain}
                   </Badge>
                 ) : (
                   <span className="text-xs text-muted-foreground italic">None set</span>

@@ -132,7 +132,7 @@ function ProfilePageContent() {
   });
 
   console.log("[PROFILE_PAGE_DOMAINS_PASS]", {
-    domainsToPass: realEstateDomains,
+    domainsToPass: coachData?.coachRealEstateDomains,
     timestamp: new Date().toISOString(),
     source: 'client',
     componentId: 'ProfilePage'
@@ -142,7 +142,7 @@ function ProfilePageContent() {
     <ProfileTabsManager
       userCapabilities={userCapabilities}
       selectedSkills={selectedSkills}
-      realEstateDomains={realEstateDomains}
+      realEstateDomains={coachData?.coachRealEstateDomains as RealEstateDomain[]}
       generalUserInfo={generalData}
       onSubmitGeneral={handleGeneralSubmit}
       onSubmitCoach={handleProfileSubmit}

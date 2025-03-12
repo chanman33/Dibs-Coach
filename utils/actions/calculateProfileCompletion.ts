@@ -19,6 +19,8 @@ export type CoachProfileData = {
   hourlyRate?: number | null;
   yearsCoaching?: number | null;
   hasAvailabilitySchedule?: boolean | null;
+  coachRealEstateDomains?: string[] | null;
+  coachPrimaryDomain?: string | null;
   [key: string]: any;
 };
 
@@ -35,7 +37,8 @@ export const REQUIRED_FIELDS: Record<string, FieldConfig> = {
   coachingSpecialties: { weight: 15, required: true },
   hourlyRate: { weight: 10, required: true },
   yearsCoaching: { weight: 10, required: true },
-  hasAvailabilitySchedule: { weight: 15, required: true }
+  hasAvailabilitySchedule: { weight: 15, required: true },
+  coachRealEstateDomains: { weight: 10, required: true }
 };
 
 export const OPTIONAL_FIELDS: Record<string, FieldConfig> = {
@@ -170,6 +173,12 @@ function isFieldComplete(field: string, value: any): boolean {
     case 'coachingSpecialties':
       return Array.isArray(value) && value.length >= 1;
     
+    case 'coachRealEstateDomains':
+      return Array.isArray(value) && value.length >= 1;
+    
+    case 'coachPrimaryDomain':
+      return typeof value === 'string' && value.trim().length > 0;
+    
     case 'hourlyRate':
       // Must be explicitly set, not just default value
       return typeof value === 'number' && value >= 100 && value <= 3000;
@@ -196,6 +205,8 @@ export function getFieldDisplayName(fieldName: string): string {
     bio: 'Coach Bio',
     profileImageUrl: 'Profile Image',
     coachingSpecialties: 'Coaching Specialties',
+    coachRealEstateDomains: 'Real Estate Domains',
+    coachPrimaryDomain: 'Primary Domain',
     hourlyRate: 'Hourly Rate',
     yearsCoaching: 'Years of Experience',
     hasAvailabilitySchedule: 'Availability Schedule'

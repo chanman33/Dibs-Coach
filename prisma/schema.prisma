@@ -730,7 +730,11 @@ model CoachProfile {
   yearsCoaching        Int?
   coachSkills         String[]  @default([])
   hourlyRate          Decimal?     @db.Decimal(10, 2)
-
+  
+  // Coach Domain Expertise - specific domains they are approved to coach for
+  coachRealEstateDomains RealEstateDomain[] @default([])
+  coachPrimaryDomain     RealEstateDomain?  // Optional primary coaching domain
+  
   // Session Configuration
   isActive            Boolean      @default(true)
   defaultDuration     Int          @default(60)
@@ -739,6 +743,7 @@ model CoachProfile {
   maximumDuration     Int          @default(120)
   totalSessions       Int          @default(0)
   averageRating       Decimal?     @db.Decimal(3, 2)
+  eventTypeUrl        String?      // Add this field for calendar integration
   
   // Profile Visibility
   profileStatus       ProfileStatus @default(DRAFT)
@@ -753,6 +758,8 @@ model CoachProfile {
 
   @@index([userUlid])
   @@index([profileStatus])
+  @@index([coachRealEstateDomains])
+  @@index([coachPrimaryDomain])
   @@map("CoachProfile")
 }
 

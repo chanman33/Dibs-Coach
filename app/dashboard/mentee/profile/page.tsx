@@ -12,11 +12,13 @@ import { Badge } from "@/components/ui/badge"
 import { Loader2 } from "lucide-react"
 import type { ApplicationResponse } from "@/utils/types/coach-application"
 import type { GoalFormValues } from "@/utils/types/goals"
+import { updateUserProfile } from "@/utils/actions/user-profile-actions"
 import type { GeneralFormData } from "@/utils/actions/user-profile-actions"
 import type { ApiResponse, ApiError } from "@/utils/types/api"
 import { toast } from "sonner"
 import { COACH_APPLICATION_STATUS, type CoachApplicationStatus } from "@/utils/types/coach-application"
 import { createGoal } from "@/utils/actions/goals"
+import { fetchUserProfile } from "@/utils/actions/user-profile-actions"
 
 interface ProfileData {
   user: {
@@ -24,6 +26,9 @@ interface ProfileData {
     lastName: string | null
     displayName: string | null
     bio: string | null
+    realEstateDomains: string[]
+    primaryDomain: string | null
+    languages: string[]
   }
   realtorProfile: {
     yearsExperience: number | null
@@ -48,14 +53,16 @@ export default function AgentProfilePage() {
       });
 
       try {
-        const [profileResponse, applicationResponse] = await Promise.all([
+        const [profileResponse, applicationResponse, userProfileResponse] = await Promise.all([
           fetchRealtorProfile(),
-          getCoachApplication({})
+          getCoachApplication({}),
+          fetchUserProfile()
         ])
 
         console.log('[PROFILE_PAGE_FETCH_COMPLETE]', {
           hasProfileData: !!profileResponse.data,
           hasApplicationData: !!applicationResponse.data,
+          hasUserProfileData: !!userProfileResponse.data,
           applicationStatus: applicationResponse.data?.status,
           timestamp: new Date().toISOString()
         });
@@ -73,12 +80,22 @@ export default function AgentProfilePage() {
             lastName: profileResponse.data.user.lastName,
             timestamp: new Date().toISOString()
           });
+          
+          // Get user profile data for domains and languages
+          const userDomains = userProfileResponse.data?.realEstateDomains || [];
+          const userPrimaryDomain = userProfileResponse.data?.primaryDomain || null;
+          const userLanguages = userProfileResponse.data?.languages || [];
+          
           setProfileData({
             user: {
               firstName: profileResponse.data.user.firstName ?? null,
               lastName: profileResponse.data.user.lastName ?? null,
               displayName: profileResponse.data.user.displayName ?? null,
-              bio: profileResponse.data.user.bio ?? null
+              bio: profileResponse.data.user.bio ?? null,
+              // Use the data from the user profile response
+              realEstateDomains: userDomains,
+              primaryDomain: userPrimaryDomain,
+              languages: userLanguages
             },
             realtorProfile: {
               yearsExperience: profileResponse.data.realtorProfile.yearsExperience ?? null,
@@ -123,6 +140,27 @@ export default function AgentProfilePage() {
   const handleGeneralSubmit = async (formData: GeneralFormData): Promise<ApiResponse<GeneralFormData>> => {
     setIsSubmitting(true)
     try {
+      // First update the user profile with domains
+      const userProfileResponse = await updateUserProfile({
+        displayName: formData.displayName,
+        bio: formData.bio,
+        totalYearsRE: formData.totalYearsRE,
+        primaryMarket: formData.primaryMarket,
+        languages: formData.languages,
+        realEstateDomains: formData.realEstateDomains,
+        primaryDomain: formData.primaryDomain
+      });
+      
+      if (userProfileResponse.error) {
+        console.error('[UPDATE_USER_PROFILE_ERROR]', {
+          error: userProfileResponse.error,
+          timestamp: new Date().toISOString()
+        });
+        toast.error(userProfileResponse.error.message || 'Failed to update user profile');
+        return { data: null, error: userProfileResponse.error };
+      }
+      
+      // Then update the realtor profile
       const response = await updateRealtorProfile({
         user: {
           displayName: formData.displayName,
@@ -149,7 +187,10 @@ export default function AgentProfilePage() {
         user: {
           ...prev.user,
           displayName: formData.displayName,
-          bio: formData.bio
+          bio: formData.bio,
+          realEstateDomains: formData.realEstateDomains,
+          primaryDomain: formData.primaryDomain,
+          languages: formData.languages || []
         },
         realtorProfile: {
           ...prev.realtorProfile,
@@ -269,7 +310,9 @@ export default function AgentProfilePage() {
                 bio: profileData?.user.bio || "",
                 totalYearsRE: profileData?.realtorProfile.yearsExperience || 0,
                 primaryMarket: profileData?.realtorProfile.primaryMarket || "",
-                languages: []
+                languages: profileData?.user.languages || [],
+                realEstateDomains: profileData?.user.realEstateDomains || [],
+                primaryDomain: profileData?.user.primaryDomain || null
               }}
             />
           )}

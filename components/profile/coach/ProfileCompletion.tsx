@@ -45,6 +45,10 @@ const fieldLabels: Record<string, string> = {
   hourlyRate: 'Hourly Rate',
   yearsCoaching: 'Years of Coaching Experience',
   
+  // Coach Domain Expertise
+  coachRealEstateDomains: 'Real Estate Domains',
+  coachPrimaryDomain: 'Primary Domain',
+  
   // Scheduling
   hasAvailabilitySchedule: 'Availability Schedule',
   

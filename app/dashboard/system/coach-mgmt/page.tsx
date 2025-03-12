@@ -26,8 +26,8 @@ export default async function CoachManagementPage() {
     lastName: profile.lastName || '',
     email: profile.email || '',
     profileStatus: profile.profileStatus,
-    realEstateDomains: profile.realEstateDomains || [],
-    primaryDomain: profile.primaryDomain || null,
+    coachRealEstateDomains: profile.coachRealEstateDomains || [],
+    coachPrimaryDomain: profile.coachPrimaryDomain || null,
     completionPercentage: profile.completionPercentage,
     hourlyRate: profile.hourlyRate || 0,
     updatedAt: profile.updatedAt

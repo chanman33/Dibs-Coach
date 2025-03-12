@@ -23,7 +23,9 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
         bio,
         profileImageUrl,
         CoachProfile (
-          coachingSpecialties,
+          coachSkills,
+          coachRealEstateDomains,
+          coachPrimaryDomain,
           hourlyRate,
           averageRating,
           totalSessions
@@ -35,19 +37,26 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
 
     if (error) {
       console.error('[GET_PUBLIC_COACHES_ERROR]', error)
-      return { data: null, error: 'Failed to fetch coaches' }
+      return { 
+        data: null, 
+        error: {
+          code: 'DATABASE_ERROR',
+          message: 'Failed to fetch coaches'
+        }
+      }
     }
 
     const publicCoaches = coaches
       ?.filter(coach => coach.CoachProfile)
       .map(coach => ({
         ulid: coach.ulid,
+        userUlid: coach.ulid, // Using ulid as userUlid for compatibility
         firstName: coach.firstName,
         lastName: coach.lastName,
         displayName: coach.displayName,
         bio: coach.bio,
         profileImageUrl: coach.profileImageUrl,
-        coachingSpecialties: coach.CoachProfile?.coachingSpecialties || [],
+        coachingSpecialties: [], // Will be populated from coachSkills
         hourlyRate: coach.CoachProfile?.hourlyRate ?? null,
         averageRating: coach.CoachProfile?.averageRating ?? null,
         totalSessions: coach.CoachProfile?.totalSessions || 0
@@ -56,6 +65,12 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
     return { data: publicCoaches, error: null }
   } catch (error) {
     console.error('[GET_PUBLIC_COACHES_ERROR]', error)
-    return { data: null, error: 'Failed to fetch coaches' }
+    return { 
+      data: null, 
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to fetch coaches'
+      }
+    }
   }
 } 

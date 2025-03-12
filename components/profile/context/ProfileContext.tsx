@@ -10,7 +10,9 @@ import {
   updateUserProfile,
   updateUserLanguages,
   fetchUserProfile,
-  type GeneralFormData
+  type GeneralFormData,
+  UserCapabilitiesResponse,
+  UserProfileResponse
 } from "@/utils/actions/user-profile-actions";
 import {
   fetchCoachProfile,
@@ -29,6 +31,8 @@ interface GeneralData {
   primaryMarket: string;
   totalYearsRE: number;
   languages: string[];
+  realEstateDomains: string[];
+  primaryDomain: string | null;
 }
 
 interface ProfileContextType {
@@ -39,10 +43,15 @@ interface ProfileContextType {
     primaryMarket: string;
     totalYearsRE: number;
     languages: string[];
+    realEstateDomains: string[];
+    primaryDomain: string | null;
   };
   
   // Coach profile data
-  coachData: CoachProfileInitialData;
+  coachData: CoachProfileInitialData & {
+    coachRealEstateDomains?: string[];
+    coachPrimaryDomain?: string | null;
+  };
   
   // Domain-specific data
   realtorData: any;
@@ -126,11 +135,16 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     bio: null,
     primaryMarket: "",
     totalYearsRE: 0,
-    languages: []
+    languages: [],
+    realEstateDomains: [],
+    primaryDomain: null
   });
   
   // Coach profile data state
-  const [coachData, setCoachData] = useState<CoachProfileInitialData>({});
+  const [coachData, setCoachData] = useState<CoachProfileInitialData & {
+    coachRealEstateDomains?: string[];
+    coachPrimaryDomain?: string | null;
+  }>({});
   
   // Domain-specific data states
   const [realtorData, setRealtorData] = useState<any>(null);
@@ -184,159 +198,98 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [activeListings, setActiveListings] = useState<ListingWithRealtor[]>([]);
   const [successfulTransactions, setSuccessfulTransactions] = useState<ListingWithRealtor[]>([]);
 
-  // Fetch initial profile data with debouncing
-  const fetchProfileData = useCallback(async (forceFetch = false) => {
+  // Fetch all profile data
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    
     try {
-      // If last fetch was too recent and not forcing, return early
-      if (!forceFetch && lastFetchTimeRef.current && Date.now() - lastFetchTimeRef.current < 2000) {
-        return;
+      // Fetch user capabilities
+      const capabilitiesResult: ApiResponse<UserCapabilitiesResponse> = await fetchUserCapabilities();
+      if (capabilitiesResult.error) {
+        throw new Error(capabilitiesResult.error.message);
       }
-
-      setIsLoading(true);
-      setFetchError(null);
-
-      // 1. First fetch user capabilities and domains
-      const capabilities = await fetchUserCapabilities();
-      if (!capabilities.data) {
-        console.error("[USER_CAPABILITIES_ERROR]", {
-          error: capabilities.error,
-          timestamp: new Date().toISOString()
-        });
-        throw capabilities.error;
-      }
-
-      const userCaps = capabilities.data.capabilities || [];
-      const domains = capabilities.data.realEstateDomains || [];
       
-      console.log("[PROFILE_CONTEXT_DOMAINS_UPDATE]", {
-        currentDomains: realEstateDomains,
-        newDomains: domains,
-        hasChanged: JSON.stringify(domains) !== JSON.stringify(realEstateDomains),
-        timestamp: new Date().toISOString()
+      // Extract capabilities from the response
+      const capabilities = capabilitiesResult.data?.capabilities || [];
+      setUserCapabilities(capabilities);
+      
+      // Fetch user profile data
+      const userProfileResult: ApiResponse<UserProfileResponse> = await fetchUserProfile();
+      if (userProfileResult.error) {
+        throw new Error(userProfileResult.error.message);
+      }
+      
+      // Extract user data from the response
+      const userData = userProfileResult.data || {
+        displayName: '',
+        bio: null,
+        primaryMarket: '',
+        totalYearsRE: 0,
+        languages: [],
+        realEstateDomains: [],
+        primaryDomain: null,
+        capabilities: [],
+        coachProfile: null
+      };
+      
+      // Set general data
+      setGeneralData({
+        displayName: userData.displayName || '',
+        bio: userData.bio || null,
+        primaryMarket: userData.primaryMarket || '',
+        totalYearsRE: userData.totalYearsRE || 0,
+        languages: userData.languages || [],
+        realEstateDomains: userData.realEstateDomains || [],
+        primaryDomain: userData.primaryDomain || null
       });
-
-      // Only update capabilities and domains if they've changed
-      if (JSON.stringify(userCaps) !== JSON.stringify(userCapabilities)) {
-        setUserCapabilities(userCaps);
-      }
-      if (JSON.stringify(domains) !== JSON.stringify(realEstateDomains)) {
-        console.log("[PROFILE_CONTEXT_DOMAINS_CHANGED]", {
-          from: realEstateDomains,
-          to: domains,
-          timestamp: new Date().toISOString()
-        });
-        setRealEstateDomains(domains as RealEstateDomain[]);
-      }
-
-      // When domains are set in context
-      console.log("[PROFILE_CONTEXT_DOMAINS_SET]", {
-        domains,
-        timestamp: new Date().toISOString(),
-        source: 'client',
-        stack: new Error().stack
-      });
-
-      // 2. If user is not a coach, reset coach-related states and return early
-      if (!userCaps.includes('COACH')) {
-        console.log("[PROFILE_CONTEXT_RESET_NON_COACH]", {
-          userCaps,
-          timestamp: new Date().toISOString()
-        });
-        setCoachData({});
-        setProfileStatus('DRAFT');
-        setCompletionPercentage(0);
-        setMissingFields([]);
-        setCanPublish(false);
-        setSelectedSkills([]);
-        setRealEstateDomains([]);
-        setRecognitionsData([]);
-        setIsLoading(false);
-        return;
-      }
-
-      // 3. Fetch general profile data
-      const generalResult = await fetchUserProfile();
-      if (generalResult.error) {
-        console.error("[GENERAL_PROFILE_ERROR]", {
-          error: generalResult.error,
-          timestamp: new Date().toISOString()
-        });
-        throw generalResult.error;
-      }
-
-      if (generalResult.data) {
-        setGeneralData({
-          displayName: generalResult.data.displayName || "",
-          bio: generalResult.data.bio || null,
-          primaryMarket: generalResult.data.primaryMarket || "",
-          totalYearsRE: generalResult.data.totalYearsRE || 0,
-          languages: generalResult.data.languages || []
-        });
-      }
-
-      // 4. Fetch coach profile data
-      const coachResult = await fetchCoachProfile();
-      if (coachResult.error && coachResult.error.message !== 'User is not a coach') {
-        console.error("[COACH_PROFILE_ERROR]", {
-          error: coachResult.error,
-          timestamp: new Date().toISOString()
-        });
-        throw coachResult.error;
-      }
-
-      // 5. Update coach profile states
-      if (coachResult.data) {
-        console.log("[FETCH_PROFILE_DATA_RESPONSE]", {
-          data: coachResult.data,
-          timestamp: new Date().toISOString()
-        });
-
-        const {
-          coachSkills = [],
-          professionalRecognitions = [],
-          profileStatus: status = 'DRAFT',
-          completionPercentage = 0,
-          missingFields = [],
-          missingRequiredFields = [],
-          optionalMissingFields = [],
-          validationMessages = {},
-          canPublish = false
-        } = coachResult.data;
-
-        // Update all states with validation data
-        setCoachData(coachResult.data);
-        setProfileStatus(status);
-        setCompletionPercentage(completionPercentage);
-        setMissingFields(missingFields);
-        setMissingRequiredFields(missingRequiredFields);
-        setOptionalMissingFields(optionalMissingFields);
-        setValidationMessages(validationMessages);
-        setCanPublish(canPublish);
-        setSelectedSkills(coachSkills);
-        setRecognitionsData(professionalRecognitions);
-
-        console.log("[FETCH_PROFILE_DATA_STATE_UPDATE]", {
-          status,
-          completionPercentage,
-          missingFields,
-          missingRequiredFields,
-          optionalMissingFields,
-          validationMessages,
-          canPublish,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        // Reset states if no coach data
-        setCoachData({});
-        setProfileStatus('DRAFT');
-        setCompletionPercentage(0);
-        setMissingFields([]);
-        setMissingRequiredFields([]);
-        setOptionalMissingFields([]);
-        setValidationMessages({});
-        setCanPublish(false);
-        setSelectedSkills([]);
-        setRecognitionsData([]);
+      
+      // If user is a coach, fetch coach profile
+      if (capabilities.includes('COACH')) {
+        const coachProfileResult: ApiResponse<any> = await fetchCoachProfile();
+        if (coachProfileResult.error) {
+          console.error('[FETCH_COACH_PROFILE_ERROR]', coachProfileResult.error);
+        } else if (coachProfileResult.data) {
+          const coachProfileData = coachProfileResult.data;
+          
+          // Set coach data using the data we have
+          setCoachData({
+            firstName: userData.displayName?.split(' ')[0] || '',
+            lastName: userData.displayName?.split(' ').slice(1).join(' ') || '',
+            bio: userData.bio,
+            profileImageUrl: null, // We don't have this in either response
+            coachingSpecialties: coachProfileData.coachSkills,
+            hourlyRate: coachProfileData.hourlyRate,
+            yearsCoaching: coachProfileData.yearsCoaching,
+            coachRealEstateDomains: coachProfileData.coachRealEstateDomains || [],
+            coachPrimaryDomain: coachProfileData.coachPrimaryDomain || null,
+            status: coachProfileData.profileStatus,
+            completionPercentage: coachProfileData.completionPercentage,
+            missingFields: coachProfileData.missingFields,
+            missingRequiredFields: coachProfileData.missingRequiredFields,
+            optionalMissingFields: coachProfileData.optionalMissingFields,
+            validationMessages: coachProfileData.validationMessages,
+            canPublish: coachProfileData.canPublish
+          });
+          
+          // Set profile status and completion info
+          setProfileStatus(coachProfileData.profileStatus);
+          setCompletionPercentage(coachProfileData.completionPercentage);
+          setMissingFields(coachProfileData.missingFields);
+          setMissingRequiredFields(coachProfileData.missingRequiredFields);
+          setOptionalMissingFields(coachProfileData.optionalMissingFields);
+          setValidationMessages(coachProfileData.validationMessages);
+          setCanPublish(coachProfileData.canPublish);
+          
+          // Set selected skills
+          setSelectedSkills(coachProfileData.coachSkills);
+          
+          // Set real estate domains from coach-specific domains
+          setRealEstateDomains(coachProfileData.coachRealEstateDomains as RealEstateDomain[]);
+          
+          // Set professional recognitions
+          setRecognitionsData(coachProfileData.professionalRecognitions);
+        }
       }
 
       // Update lastFetchTimeRef correctly
@@ -351,11 +304,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       setFetchError(error instanceof Error ? error : new Error('Failed to fetch profile data'));
       setIsLoading(false);
     }
-  }, [userCapabilities, realEstateDomains]);
+  }, []);
 
   // Initial fetch only
   useEffect(() => {
-    fetchProfileData(true);
+    fetchData();
   }, []); // Empty dependency array for initial fetch only
 
   // Handle skills changes
@@ -364,6 +317,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   };
 
   // Save skills to the server
+  // Note: coachSkills are separate from coachRealEstateDomains
+  // coachSkills are coaching specialties like "Lead Generation Strategy"
+  // coachRealEstateDomains are real estate sectors like "REALTOR", "INVESTOR"
   const saveSkills = async (skills: string[]): Promise<boolean> => {
     try {
       setIsSubmitting(true);
@@ -372,7 +328,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         throw new Error(result.error.message);
       }
       setSelectedSkills(skills);
-      await fetchProfileData(true); // Force fetch after saving skills
+      await fetchData(); // Force fetch after saving skills to get updated profile data
       toast.success("Skills saved successfully");
       return true;
     } catch (error) {
@@ -393,7 +349,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         setGeneralData(prevData => ({
           ...prevData,
           ...result.data as GeneralFormData,
-          languages: (result.data as GeneralFormData).languages || prevData.languages
+          languages: (result.data as GeneralFormData).languages || []
         }));
         toast.success("General profile updated successfully");
         
@@ -501,10 +457,23 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       };
       
       // Update coach profile without languages
+      // This updates both coachSkills and coachRealEstateDomains if they're included in the data
       const result = await updateCoachProfile(formattedData);
       if (result.data) {
         const profileData = result.data as CoachProfileInitialData;
-        setCoachData(profileData);
+        
+        // Update coach data with the response
+        setCoachData({
+          ...profileData,
+          coachRealEstateDomains: profileData.coachRealEstateDomains || [],
+          coachPrimaryDomain: profileData.coachPrimaryDomain || null
+        });
+        
+        // Update real estate domains from coach-specific domains
+        if (profileData.coachRealEstateDomains) {
+          setRealEstateDomains(profileData.coachRealEstateDomains as RealEstateDomain[]);
+        }
+        
         updateCompletionStatus(result.data);
         toast.success("Coach profile updated successfully");
       } else if (result.error) {
@@ -796,7 +765,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         throw new Error(result.error.message);
       }
       setSelectedSkills(skills);
-      await fetchProfileData(true); // Force fetch after updating skills
+      await fetchData(); // Force fetch after updating skills to get updated profile data
       toast.success("Skills updated successfully");
     } catch (error) {
       console.error("[UPDATE_SKILLS_ERROR]", error);
@@ -829,7 +798,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         throw new Error(result.error.message);
       }
       setSelectedSkills(specialties);
-      await fetchProfileData(true); // Force fetch after saving specialties
+      await fetchData(); // Force fetch after saving specialties to get updated profile data
       toast.success("Specialties saved successfully");
       return true;
     } catch (error) {
@@ -845,7 +814,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       // Force fetch after update
-      await fetchProfileData(true);
+      await fetchData();
     } catch (error) {
       console.error("[PROFILE_UPDATE_ERROR]", error);
       toast.error("Failed to update profile");

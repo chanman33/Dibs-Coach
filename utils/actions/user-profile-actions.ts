@@ -16,6 +16,20 @@ export interface GeneralFormData {
   totalYearsRE: number
   primaryMarket: string
   languages?: string[]
+  realEstateDomains: string[]
+  primaryDomain: string | null
+}
+
+export interface UserProfileResponse {
+  displayName: string | null;
+  bio: string | null;
+  totalYearsRE: number;
+  primaryMarket: string | null;
+  languages: string[];
+  realEstateDomains: string[];
+  primaryDomain: string | null;
+  capabilities: string[];
+  coachProfile: any | null;
 }
 
 export interface CoachProfileFormData {
@@ -44,8 +58,8 @@ interface ProfessionalRecognition {
   updatedAt: string;
 }
 
-export const fetchUserProfile = withServerAction<GeneralFormData, void>(
-  async (_, { userUlid }) => {
+export const fetchUserProfile = withServerAction<UserProfileResponse, void>(
+  async (_, { userUlid }): Promise<ApiResponse<UserProfileResponse>> => {
     try {
       const supabase = await createAuthClient();
 
@@ -56,6 +70,7 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
           bio,
           totalYearsRE,
           realEstateDomains,
+          primaryDomain,
           primaryMarket,
           languages,
           capabilities,
@@ -76,6 +91,7 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
             bio: null,
             totalYearsRE: 0,
             realEstateDomains: [],
+            primaryDomain: null,
             primaryMarket: "",
             languages: [],
             capabilities: [],
@@ -95,6 +111,7 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
           bio: data.bio || null,
           totalYearsRE: data.totalYearsRE || 0,
           realEstateDomains: data.realEstateDomains || [],
+          primaryDomain: data.primaryDomain || null,
           primaryMarket: data.primaryMarket || "",
           languages: data.languages || [],
           capabilities: data.capabilities || [],
@@ -113,6 +130,7 @@ export const fetchUserProfile = withServerAction<GeneralFormData, void>(
           bio: null,
           totalYearsRE: 0,
           realEstateDomains: [],
+          primaryDomain: null,
           primaryMarket: "",
           languages: [],
           capabilities: [],
@@ -139,6 +157,8 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
         bio: data.bio,
         totalYearsRE: data.totalYearsRE,
         primaryMarket: data.primaryMarket,
+        realEstateDomains: data.realEstateDomains,
+        primaryDomain: data.primaryDomain,
         timestamp: new Date().toISOString()
       });
 
@@ -164,13 +184,40 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
       }
 
       // Update user data with explicit type checking
-      const updateData = {
+      const updateData: {
+        displayName: string | null;
+        bio: string | null;
+        totalYearsRE: number;
+        primaryMarket: string | null;
+        updatedAt: string;
+        realEstateDomains: any;
+        primaryDomain?: any;
+        languages?: any;
+      } = {
         displayName: data.displayName || null,
         bio: data.bio || null,
         totalYearsRE: typeof data.totalYearsRE === 'number' ? data.totalYearsRE : 0,
         primaryMarket: data.primaryMarket || null,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        realEstateDomains: data.realEstateDomains as any
       };
+
+      // If languages is provided, update it
+      if (data.languages !== undefined) {
+        updateData.languages = data.languages as any;
+      }
+
+      // Handle primaryDomain logic:
+      // 1. If realEstateDomains is empty, set primaryDomain to null
+      // 2. If primaryDomain is provided and exists in realEstateDomains, use it
+      // 3. Otherwise, use the first domain in realEstateDomains as the primary
+      if (data.realEstateDomains.length === 0) {
+        updateData.primaryDomain = null;
+      } else if (data.primaryDomain && data.realEstateDomains.includes(data.primaryDomain)) {
+        updateData.primaryDomain = data.primaryDomain as any;
+      } else {
+        updateData.primaryDomain = data.realEstateDomains[0] as any;
+      }
 
       const { data: updatedUser, error: userError } = await supabase
         .from("User")
@@ -203,6 +250,10 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
         timestamp: new Date().toISOString()
       });
 
+      // Revalidate relevant paths
+      revalidatePath('/dashboard/mentee/profile');
+      revalidatePath('/dashboard/coach/profile');
+      
       // Return the updated data
       return {
         data: {
@@ -210,7 +261,9 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
           bio: updatedUser.bio,
           totalYearsRE: updatedUser.totalYearsRE || 0,
           primaryMarket: updatedUser.primaryMarket || "",
-          languages: updatedUser.languages || []
+          languages: updatedUser.languages || [],
+          realEstateDomains: updatedUser.realEstateDomains || [],
+          primaryDomain: updatedUser.primaryDomain
         },
         error: null
       }
@@ -341,7 +394,7 @@ export interface UserCapabilitiesResponse {
 }
 
 export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, void>(
-  async (_, { userUlid }) => {
+  async (_, { userUlid }): Promise<ApiResponse<UserCapabilitiesResponse>> => {
     try {
       console.log("[FETCH_USER_CAPABILITIES_START]", {
         userUlid,
@@ -473,10 +526,13 @@ export const updateUserLanguages = withServerAction<{ success: boolean }, Langua
         });
       }
 
+      // Ensure languages is an array, even if empty
+      const languagesToUpdate = Array.isArray(data.languages) ? data.languages : [];
+
       const { data: updateData, error } = await supabase
         .from("User")
         .update({
-          languages: data.languages as any,
+          languages: languagesToUpdate as any,
           updatedAt: new Date().toISOString()
         })
         .eq("ulid", userUlid)
@@ -493,7 +549,7 @@ export const updateUserLanguages = withServerAction<{ success: boolean }, Langua
         console.error("[UPDATE_LANGUAGES_ERROR]", {
           userUlid,
           error,
-          attempted_languages: data.languages,
+          attempted_languages: languagesToUpdate,
           timestamp: new Date().toISOString()
         });
         return {
@@ -572,7 +628,7 @@ export const fetchUserLanguages = withServerAction<UserLanguagesResponse, void>(
         };
       }
 
-      // Ensure languages is always an array
+      // Ensure languages is always an array, but can be empty
       const languages = Array.isArray(userData?.languages) ? userData.languages : ['en'];
 
       console.log("[FETCH_USER_LANGUAGES_PROCESSED]", {
@@ -758,54 +814,102 @@ export const updateUserDomains = withServerAction<DomainUpdateData, DomainUpdate
       // Use targetUserUlid if provided, otherwise use the context userUlid
       const targetUlid = data.targetUserUlid || userUlid;
 
-      const updateData: any = {
-        realEstateDomains: data.realEstateDomains,
-        updatedAt: new Date().toISOString()
-      };
+      // First check if the user is a coach
+      const { data: userData, error: userError } = await supabase
+        .from('User')
+        .select('isCoach')
+        .eq('ulid', targetUlid)
+        .single();
+
+      if (userError) {
+        console.error("[USER_FETCH_ERROR]", { targetUlid, error: userError });
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch user data',
+            details: userError
+          }
+        };
+      }
 
       // Handle primaryDomain logic:
       // 1. If realEstateDomains is empty, set primaryDomain to null
       // 2. If primaryDomain is provided and exists in realEstateDomains, use it
       // 3. If primaryDomain is provided but not in realEstateDomains, use first domain
       // 4. If primaryDomain is not provided, keep first domain as primary
+      let primaryDomainValue = null;
       if (data.realEstateDomains.length === 0) {
         // If no domains, set primaryDomain to null
-        updateData.primaryDomain = null;
+        primaryDomainValue = null;
       } else if (data.primaryDomain !== undefined) {
         // If primaryDomain is explicitly provided
         if (data.primaryDomain && data.realEstateDomains.includes(data.primaryDomain)) {
           // Use provided primaryDomain if it's in the domains list
-          updateData.primaryDomain = data.primaryDomain;
+          primaryDomainValue = data.primaryDomain;
         } else {
           // Otherwise use the first domain as primary
-          updateData.primaryDomain = data.realEstateDomains[0];
+          primaryDomainValue = data.realEstateDomains[0];
         }
       } else {
         // If primaryDomain not provided, use first domain
-        updateData.primaryDomain = data.realEstateDomains[0];
+        primaryDomainValue = data.realEstateDomains[0];
       }
 
-      const { error } = await supabase
-        .from("User")
-        .update(updateData)
-        .eq("ulid", targetUlid);
+      if (userData.isCoach) {
+        // If user is a coach, update the CoachProfile table
+        const { error: coachError } = await supabase
+          .from("CoachProfile")
+          .update({
+            coachRealEstateDomains: data.realEstateDomains as any,
+            coachPrimaryDomain: primaryDomainValue as any,
+            updatedAt: new Date().toISOString()
+          })
+          .eq("userUlid", targetUlid);
 
-      if (error) {
-        console.error("[USER_DOMAINS_UPDATE_ERROR]", { targetUlid, error });
-        return {
-          data: null,
-          error: {
-            code: 'DATABASE_ERROR',
-            message: 'Failed to update user domains',
-            details: error
-          }
-        };
+        if (coachError) {
+          console.error("[COACH_DOMAINS_UPDATE_ERROR]", { targetUlid, error: coachError });
+          return {
+            data: null,
+            error: {
+              code: 'DATABASE_ERROR',
+              message: 'Failed to update coach domains',
+              details: coachError
+            }
+          };
+        }
+      } else {
+        // If not a coach, update the User table
+        const { error } = await supabase
+          .from("User")
+          .update({
+            realEstateDomains: data.realEstateDomains as any,
+            primaryDomain: primaryDomainValue as any,
+            updatedAt: new Date().toISOString()
+          })
+          .eq("ulid", targetUlid);
+
+        if (error) {
+          console.error("[USER_DOMAINS_UPDATE_ERROR]", { targetUlid, error });
+          return {
+            data: null,
+            error: {
+              code: 'DATABASE_ERROR',
+              message: 'Failed to update user domains',
+              details: error
+            }
+          };
+        }
       }
+
+      // Revalidate relevant paths
+      revalidatePath('/dashboard/coach/profile');
+      revalidatePath('/dashboard/system/coach-mgmt');
 
       return {
         data: {
           realEstateDomains: data.realEstateDomains,
-          primaryDomain: updateData.primaryDomain
+          primaryDomain: primaryDomainValue
         },
         error: null
       };

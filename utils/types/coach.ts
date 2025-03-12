@@ -260,6 +260,8 @@ export const CoachProfileSchema = z.object({
   id: z.number().optional(),
   bio: z.string().min(1, "Bio is required").max(1000, "Bio must be less than 1000 characters"),
   coachSkills: z.array(z.string()).optional().default([]),
+  coachRealEstateDomains: z.array(z.enum(Object.values(REAL_ESTATE_DOMAINS) as [string, ...string[]])).optional().default([]),
+  coachPrimaryDomain: z.enum(Object.values(REAL_ESTATE_DOMAINS) as [string, ...string[]]).optional().nullable(),
   yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater").optional(),
   certifications: z.array(z.string()).optional(),
   hourlyRate: z.number().min(0, "Hourly rate must be 0 or greater"),
@@ -275,6 +277,7 @@ export const CoachProfileSchema = z.object({
   marketingAreas: z.array(z.string()),
   testimonials: z.record(z.string(), z.any()),
   zoomLink: z.string().url().optional(),
+  eventTypeUrl: z.string().url().optional(),
   profileStatus: z.enum(Object.values(PROFILE_STATUS) as [string, ...string[]]).default(PROFILE_STATUS.DRAFT),
   completionPercentage: z.number().min(0).max(100).default(0),
 });
@@ -393,6 +396,8 @@ export interface PublicCoach {
   bio: string | null
   profileImageUrl: string | null
   coachingSpecialties: CoachSpecialtyEntry[]
+  coachRealEstateDomains?: RealEstateDomain[]
+  coachPrimaryDomain?: RealEstateDomain | null
   hourlyRate: number | null
   averageRating: number | null
   totalSessions: number

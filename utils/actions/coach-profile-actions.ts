@@ -22,7 +22,8 @@ export interface CoachProfileFormData {
   maximumDuration: number;
   allowCustomDuration: boolean;
   eventTypeUrl?: string;
-  realEstateDomains?: string[];
+  coachRealEstateDomains?: string[];
+  coachPrimaryDomain?: string | null;
   certifications?: string[];
   professionalRecognitions?: ProfessionalRecognition[];
   skipRevalidation?: boolean;
@@ -40,6 +41,8 @@ interface CoachProfileResponse {
   certifications: string[];
   professionalRecognitions: ProfessionalRecognition[];
   realEstateDomains: string[];
+  coachRealEstateDomains: string[];
+  coachPrimaryDomain: string | null;
   capabilities: string[];
   _rawCoachProfile: any;
   _rawRealtorProfile: any;
@@ -110,7 +113,25 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       const { data: coachProfile, error: coachError } = await supabase
         .from('CoachProfile')
         .select(`
-          *,
+          ulid,
+          userUlid,
+          yearsCoaching,
+          coachSkills,
+          hourlyRate,
+          isActive,
+          defaultDuration,
+          allowCustomDuration,
+          minimumDuration,
+          maximumDuration,
+          totalSessions,
+          averageRating,
+          profileStatus,
+          completionPercentage,
+          coachRealEstateDomains,
+          coachPrimaryDomain,
+          eventTypeUrl,
+          createdAt,
+          updatedAt,
           professionalRecognitions:ProfessionalRecognition (*)
         `)
         .eq('userUlid', userUlid)
@@ -189,6 +210,8 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         certifications: [],
         professionalRecognitions: activeRecognitions,
         realEstateDomains: userData?.realEstateDomains || [],
+        coachRealEstateDomains: coachProfile?.coachRealEstateDomains || [],
+        coachPrimaryDomain: coachProfile?.coachPrimaryDomain || null,
         capabilities: [],
         _rawCoachProfile: coachProfile || null,
         _rawRealtorProfile: null,
@@ -303,6 +326,25 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         profileStatus = PROFILE_STATUS.PUBLISHED;
       }
 
+      // Handle coachRealEstateDomains and coachPrimaryDomain
+      const coachDomains = formData.coachRealEstateDomains || formData.coachSkills || [];
+      let coachPrimaryDomain = formData.coachPrimaryDomain;
+      
+      // If no primary domain is specified but domains exist, use the first domain
+      if (coachPrimaryDomain === undefined && coachDomains.length > 0) {
+        coachPrimaryDomain = coachDomains[0];
+      }
+      
+      // If primary domain is specified but not in domains, use null
+      if (coachPrimaryDomain && !coachDomains.includes(coachPrimaryDomain)) {
+        coachPrimaryDomain = null;
+      }
+      
+      // If no domains, set primary domain to null
+      if (coachDomains.length === 0) {
+        coachPrimaryDomain = null;
+      }
+
       const coachProfileData = {
         userUlid,
         coachSkills: formData.coachSkills,
@@ -313,10 +355,12 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         minimumDuration: formData.minimumDuration,
         maximumDuration: formData.maximumDuration,
         allowCustomDuration: formData.allowCustomDuration,
+        coachRealEstateDomains: coachDomains,
+        coachPrimaryDomain: coachPrimaryDomain,
         profileStatus,
         completionPercentage: percentage,
         updatedAt: new Date().toISOString(),
-      }
+      } as any;
 
       console.log("[UPDATE_COACH_PROFILE_DATA]", {
         userUlid,
@@ -324,21 +368,8 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         timestamp: new Date().toISOString()
       });
 
-      // Update the User model with the coach skills as realEstateDomains
-      // This will also handle primaryDomain synchronization
-      const userDomainsResult = await updateUserDomains({
-        realEstateDomains: formData.coachSkills
-      });
-
-      if (userDomainsResult.error) {
-        console.error('[USER_DOMAINS_UPDATE_ERROR]', {
-          userUlid,
-          error: userDomainsResult.error,
-          timestamp: new Date().toISOString()
-        });
-        // Continue with coach profile update even if user domains update fails
-        // Just log the error but don't return
-      }
+      // No longer update the User model's realEstateDomains
+      // We're now using coach-specific domain fields
 
       const { error: updateError } = await supabase
         .from('CoachProfile')
@@ -361,13 +392,14 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         }
       }
 
-      // Only revalidate if this is not part of a larger form submission
+      // Only revalidate if not explicitly skipped
       if (!formData.skipRevalidation) {
-        revalidatePath('/dashboard/coach/profile');
+        revalidatePath('/dashboard/profile');
+        revalidatePath('/dashboard/coach');
       }
 
-      return { 
-        data: { 
+      return {
+        data: {
           success: true,
           completionPercentage: percentage,
           profileStatus,
@@ -380,7 +412,6 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
       console.error('[UPDATE_COACH_PROFILE_ERROR]', {
         userUlid,
         error,
-        formData,
         timestamp: new Date().toISOString()
       });
       return {
@@ -393,7 +424,7 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
       }
     }
   }
-)
+);
 
 interface UpdateProfileStatusResponse {
   success: boolean;
@@ -408,7 +439,7 @@ interface UpdateProfileStatusParams {
 interface CoachProfileRecord {
   profileStatus: ProfileStatus
   completionPercentage: number
-  realEstateDomains: string[]
+  coachRealEstateDomains: string[]
   hourlyRate: number
   updatedAt: string
 }
@@ -424,7 +455,7 @@ export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse,
         .select(`
           profileStatus,
           completionPercentage,
-          realEstateDomains,
+          coachRealEstateDomains,
           hourlyRate
         `)
         .eq('userUlid', userUlid)
@@ -464,7 +495,7 @@ export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse,
       if (data.status === PROFILE_STATUS.PUBLISHED) {
         const requirements = {
           completionMet: profile.completionPercentage >= PROFILE_REQUIREMENTS.MINIMUM_COMPLETION,
-          domainsMet: (profile.realEstateDomains?.length || 0) >= PROFILE_REQUIREMENTS.MINIMUM_DOMAINS,
+          domainsMet: (profile.coachRealEstateDomains?.length || 0) >= PROFILE_REQUIREMENTS.MINIMUM_DOMAINS,
           rateMet: PROFILE_REQUIREMENTS.REQUIRES_HOURLY_RATE ? (profile.hourlyRate || 0) > 0 : true
         }
 
@@ -604,6 +635,8 @@ export async function createCoachProfileIfNeeded(userUlid: string) {
         minimumDuration: 30,
         maximumDuration: 120,
         allowCustomDuration: false,
+        coachRealEstateDomains: [],
+        coachPrimaryDomain: null,
         profileStatus: 'DRAFT',
         completionPercentage: 0,
         isActive: true,

@@ -12,7 +12,8 @@ import { useState, useEffect } from 'react'
 import { USER_CAPABILITIES } from "@/utils/roles/roles"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useRouter } from "next/navigation"
-import { fetchUserCapabilities } from "@/utils/actions/user-actions"
+import { fetchUserCapabilities, type UserCapabilitiesResponse } from "@/utils/actions/user-profile-actions"
+import { type ApiResponse } from "@/utils/types/api"
 import { Loader2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
@@ -75,7 +76,7 @@ export default function Settings() {
           timestamp: new Date().toISOString()
         })
         try {
-          const result = await fetchUserCapabilities()
+          const result: ApiResponse<UserCapabilitiesResponse> = await fetchUserCapabilities()
           
           if (result.error) {
             throw result.error

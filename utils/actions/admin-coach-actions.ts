@@ -28,8 +28,8 @@ export interface CoachProfileData {
   profileImageUrl: string | null
   profileStatus: ProfileStatus
   completionPercentage: number
-  realEstateDomains: string[]
-  primaryDomain: string | null
+  coachRealEstateDomains: string[]
+  coachPrimaryDomain: string | null
   hourlyRate: number | null
   createdAt: string
   updatedAt: string
@@ -158,6 +158,8 @@ export const fetchCoachProfiles = withServerAction<CoachProfileData[]>(
           CoachProfile (
             ulid,
             coachSkills,
+            coachRealEstateDomains,
+            coachPrimaryDomain,
             hourlyRate,
             completionPercentage,
             profileStatus,
@@ -192,8 +194,9 @@ export const fetchCoachProfiles = withServerAction<CoachProfileData[]>(
           profileImageUrl: user.profileImageUrl,
           profileStatus: profile?.profileStatus || PROFILE_STATUS.DRAFT,
           completionPercentage: profile?.completionPercentage || 0,
-          realEstateDomains: user.realEstateDomains || [],
-          primaryDomain: (user as any).primaryDomain || null,
+          // Use coach-specific domains only
+          coachRealEstateDomains: profile?.coachRealEstateDomains || [],
+          coachPrimaryDomain: profile?.coachPrimaryDomain || null,
           hourlyRate: profile?.hourlyRate || null,
           createdAt: profile?.createdAt || '',
           updatedAt: profile?.updatedAt || ''
@@ -242,10 +245,11 @@ export const fetchCoachProfile = withServerAction<CoachProfileData, string>(
           lastName,
           email,
           profileImageUrl,
-          realEstateDomains,
           CoachProfile (
             ulid,
             coachSkills,
+            coachRealEstateDomains,
+            coachPrimaryDomain,
             hourlyRate,
             completionPercentage,
             profileStatus,
@@ -268,9 +272,19 @@ export const fetchCoachProfile = withServerAction<CoachProfileData, string>(
         }
       }
       
+      if (!data) {
+        return {
+          data: null,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'Coach profile not found'
+          }
+        }
+      }
+      
       const profile = Array.isArray(data.CoachProfile) ? data.CoachProfile[0] : data.CoachProfile
       
-      const coachProfile = {
+      const coachProfile: CoachProfileData = {
         userUlid: data.ulid,
         profileUlid: profile?.ulid || '',
         firstName: data.firstName || '',
@@ -279,8 +293,8 @@ export const fetchCoachProfile = withServerAction<CoachProfileData, string>(
         profileImageUrl: data.profileImageUrl,
         profileStatus: profile?.profileStatus || PROFILE_STATUS.DRAFT,
         completionPercentage: profile?.completionPercentage || 0,
-        realEstateDomains: data.realEstateDomains || [],
-        primaryDomain: (data as any).primaryDomain || null,
+        coachRealEstateDomains: profile?.coachRealEstateDomains || [],
+        coachPrimaryDomain: profile?.coachPrimaryDomain || null,
         hourlyRate: profile?.hourlyRate || null,
         createdAt: profile?.createdAt || '',
         updatedAt: profile?.updatedAt || ''
@@ -312,7 +326,7 @@ export async function refreshCoachManagement() {
 
 /**
  * Updates a coach's real estate domains
- * This replaces the previous updateCoachSpecialties function which had issues with type casting
+ * This updates the coach-specific domains in the CoachProfile model
  */
 export async function updateRealEstateDomains({
   coachUlid,
@@ -321,66 +335,26 @@ export async function updateRealEstateDomains({
   coachUlid: string
   domains: string[]
 }) {
-  'use server'
-  
   try {
     const supabase = await createAuthClient()
     
-    // Validate that all domains are valid RealEstateDomain values
-    const validDomains = domains.filter(domain => 
-      Object.values(REAL_ESTATE_DOMAINS).includes(domain as RealEstateDomain)
-    ) as RealEstateDomain[]
-    
-    // First fetch the existing user data to ensure we're not losing any information
-    const { data: existingUser, error: fetchError } = await supabase
-      .from('User')
-      .select('*')
-      .eq('ulid', coachUlid)
-      .single()
-    
-    if (fetchError) {
-      console.error('[FETCH_USER_ERROR]', fetchError)
-      return { 
-        data: null, 
-        error: { 
-          message: 'Failed to fetch user data',
-          details: fetchError.message
-        } 
-      }
-    }
-    
-    // Now perform the update with only the fields we want to change
-    const { data, error } = await supabase
-      .from('User')
-      .update({ 
-        realEstateDomains: validDomains,
+    // Update the coach profile with the new domains
+    const { error } = await supabase
+      .from('CoachProfile')
+      .update({
+        coachRealEstateDomains: domains as RealEstateDomain[],
         updatedAt: new Date().toISOString()
       })
-      .eq('ulid', coachUlid)
-      .select()
-      .single()
-
+      .eq('userUlid', coachUlid)
+    
     if (error) {
       console.error('[UPDATE_DOMAINS_ERROR]', error)
-      return { 
-        data: null, 
-        error: { 
-          message: 'Failed to update domains',
-          details: error.message
-        } 
-      }
+      return false
     }
-
-    revalidatePath('/dashboard/system/coach-mgmt')
-    return { data, error: null }
+    
+    return true
   } catch (error) {
     console.error('[UPDATE_DOMAINS_ERROR]', error)
-    return { 
-      data: null, 
-      error: { 
-        message: 'Failed to update domains',
-        details: error instanceof Error ? error.message : String(error)
-      } 
-    }
+    return false
   }
 } 

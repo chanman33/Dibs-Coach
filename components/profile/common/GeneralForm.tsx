@@ -8,6 +8,11 @@ import { Card } from "@/components/ui/card"
 import { toast } from "sonner"
 import type { ApiResponse } from "@/utils/types/api"
 import type { GeneralFormData } from "@/utils/actions/user-profile-actions"
+import { Checkbox } from "@/components/ui/checkbox"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
+import { Home, Building, FileText, FileCheck, Shield, Wallet, Building2 } from "lucide-react"
 
 // Validation schema matching database types
 const generalFormSchema = z.object({
@@ -19,8 +24,54 @@ const generalFormSchema = z.object({
     .transform(val => val || null),
   totalYearsRE: z.number().min(0, "Years must be 0 or greater"),
   primaryMarket: z.string().min(1, "Primary market is required"),
-  languages: z.array(z.string()).optional()
+  languages: z.array(z.string()).optional(),
+  realEstateDomains: z.array(z.string()),
+  primaryDomain: z.string().nullable()
 })
+
+// Domain options with icons
+const DOMAIN_OPTIONS = [
+  {
+    id: REAL_ESTATE_DOMAINS.REALTOR,
+    label: "Real Estate Agent",
+    icon: <Home className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.INVESTOR,
+    label: "Real Estate Investor",
+    icon: <Wallet className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.MORTGAGE,
+    label: "Mortgage Professional",
+    icon: <FileText className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.PROPERTY_MANAGER,
+    label: "Property Manager",
+    icon: <Building className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.TITLE_ESCROW,
+    label: "Title & Escrow",
+    icon: <FileCheck className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.INSURANCE,
+    label: "Insurance",
+    icon: <Shield className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.COMMERCIAL,
+    label: "Commercial Real Estate",
+    icon: <Building2 className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.PRIVATE_CREDIT,
+    label: "Private Credit",
+    icon: <Wallet className="h-4 w-4" />
+  }
+];
 
 interface GeneralFormProps {
   onSubmit: (data: GeneralFormData) => Promise<ApiResponse<GeneralFormData>>
@@ -31,6 +82,8 @@ interface GeneralFormProps {
     totalYearsRE?: number
     primaryMarket?: string | null
     languages?: string[]
+    realEstateDomains?: string[]
+    primaryDomain?: string | null
   }
   isSubmitting?: boolean
 }
@@ -44,31 +97,44 @@ export default function GeneralForm({
   initialData,
   isSubmitting = false
 }: GeneralFormProps) {
+  // Ensure languages is always initialized as an array
   const [formData, setFormData] = useState<GeneralFormData>({
     displayName: initialData?.displayName || "",
     bio: initialData?.bio || null,
     totalYearsRE: initialData?.totalYearsRE ?? 0,
     primaryMarket: initialData?.primaryMarket || "",
-    languages: initialData?.languages || [],
+    languages: Array.isArray(initialData?.languages) ? initialData.languages : [],
+    realEstateDomains: Array.isArray(initialData?.realEstateDomains) 
+      ? initialData.realEstateDomains 
+      : [],
+    primaryDomain: initialData?.primaryDomain || null,
   })
   const [errors, setErrors] = useState<FormErrors>({})
   const [touched, setTouched] = useState<{ [key: string]: boolean }>({})
 
   useEffect(() => {
     if (initialData) {
-      setFormData(prev => {
-        const newData = {
-          ...prev,
-          displayName: initialData.displayName || prev.displayName || "",
-          bio: initialData.bio || prev.bio || null,
-          totalYearsRE: initialData.totalYearsRE ?? prev.totalYearsRE ?? 0,
-          primaryMarket: initialData.primaryMarket || prev.primaryMarket || "",
-          languages: initialData.languages || prev.languages || [],
-        };
-        return newData;
-      })
+      setFormData(prev => ({
+        ...prev,
+        displayName: initialData.displayName || prev.displayName || "",
+        bio: initialData.bio || prev.bio || null,
+        totalYearsRE: initialData.totalYearsRE ?? prev.totalYearsRE ?? 0,
+        primaryMarket: initialData.primaryMarket || prev.primaryMarket || "",
+        languages: initialData.languages || prev.languages || [],
+        realEstateDomains: Array.isArray(initialData.realEstateDomains)
+          ? initialData.realEstateDomains
+          : prev.realEstateDomains,
+        primaryDomain: initialData.primaryDomain || prev.primaryDomain || null,
+      }))
     }
   }, [initialData])
+
+  useEffect(() => {
+    console.log('Form Data Updated:', {
+      realEstateDomains: formData.realEstateDomains,
+      primaryDomain: formData.primaryDomain
+    })
+  }, [formData.realEstateDomains, formData.primaryDomain])
 
   const validateField = (name: keyof GeneralFormData, value: any) => {
     try {
@@ -95,6 +161,53 @@ export default function GeneralForm({
     validateField(name as keyof GeneralFormData, newValue)
   }
 
+  const handleDomainChange = (domain: string, checked: boolean) => {
+    setFormData(prev => {
+      let newDomains = [...(prev.realEstateDomains || [])];
+      
+      if (checked) {
+        // Add domain if it doesn't exist
+        if (!newDomains.includes(domain)) {
+          newDomains.push(domain);
+        }
+      } else {
+        // Remove domain
+        newDomains = newDomains.filter(d => d !== domain);
+        
+        // If removing the primary domain, reset it
+        if (prev.primaryDomain === domain) {
+          return {
+            ...prev,
+            realEstateDomains: newDomains,
+            primaryDomain: newDomains.length > 0 ? newDomains[0] : null
+          };
+        }
+      }
+      
+      return {
+        ...prev,
+        realEstateDomains: newDomains
+      };
+    });
+  }
+
+  const handlePrimaryDomainChange = (domain: string) => {
+    // Ensure the domain is in the selected domains list
+    setFormData(prev => {
+      let newDomains = [...(prev.realEstateDomains || [])];
+      
+      if (!newDomains.includes(domain)) {
+        newDomains.push(domain);
+      }
+      
+      return {
+        ...prev,
+        realEstateDomains: newDomains,
+        primaryDomain: domain
+      };
+    });
+  }
+
   const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name } = e.target
     validateField(name as keyof GeneralFormData, formData[name as keyof GeneralFormData])
@@ -104,7 +217,13 @@ export default function GeneralForm({
     e.preventDefault()
     
     try {
-      const validatedData = generalFormSchema.parse(formData)
+      // Ensure languages is always an array
+      const dataToSubmit = {
+        ...formData,
+        languages: formData.languages || []
+      };
+      
+      const validatedData = generalFormSchema.parse(dataToSubmit)
       const result = await onSubmit(validatedData)
 
       if (result?.error) {
@@ -247,6 +366,80 @@ export default function GeneralForm({
                 The geographic area where you primarily operate.
               </p>
             </div>
+          </div>
+
+          {/* Real Estate Domains Section */}
+          <div className="mt-6">
+            <h4 className="text-sm font-medium mb-2">Real Estate Domains</h4>
+            <p className="text-xs text-muted-foreground mb-4">
+              Select the real estate domains that apply to you. This helps us provide specialized tools and resources.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {DOMAIN_OPTIONS.map((domain) => (
+                <div 
+                  key={domain.id}
+                  className={`flex items-center space-x-3 p-3 rounded-lg border ${
+                    (formData.realEstateDomains || []).includes(domain.id) 
+                      ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' 
+                      : 'bg-background border-input hover:bg-muted/50'
+                  }`}
+                >
+                  <Checkbox
+                    id={`domain-${domain.id}`}
+                    checked={(formData.realEstateDomains || []).includes(domain.id)}
+                    onCheckedChange={(checked) => handleDomainChange(domain.id, !!checked)}
+                    disabled={isSubmitting}
+                  />
+                  <label
+                    htmlFor={`domain-${domain.id}`}
+                    className="flex items-center gap-2 text-sm font-medium leading-none cursor-pointer"
+                  >
+                    {domain.icon}
+                    <span>{domain.label}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+            
+            {(formData.realEstateDomains || []).length > 0 && (
+              <div className="mt-6">
+                <h4 className="text-sm font-medium mb-2">Primary Domain</h4>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Select your primary real estate domain. This will be highlighted on your profile.
+                </p>
+                
+                <RadioGroup 
+                  value={formData.primaryDomain || ''} 
+                  onValueChange={handlePrimaryDomainChange}
+                  className="grid grid-cols-1 md:grid-cols-2 gap-3"
+                  disabled={isSubmitting}
+                >
+                  {(formData.realEstateDomains || []).map((domainId) => {
+                    const domain = DOMAIN_OPTIONS.find(d => d.id === domainId);
+                    return domain ? (
+                      <div 
+                        key={domain.id}
+                        className={`flex items-center space-x-3 p-3 rounded-lg border ${
+                          formData.primaryDomain === domain.id 
+                            ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800' 
+                            : 'bg-background border-input'
+                        }`}
+                      >
+                        <RadioGroupItem value={domain.id} id={`primary-${domain.id}`} />
+                        <label
+                          htmlFor={`primary-${domain.id}`}
+                          className="flex items-center gap-2 text-sm font-medium leading-none cursor-pointer"
+                        >
+                          {domain.icon}
+                          <span>{domain.label}</span>
+                        </label>
+                      </div>
+                    ) : null;
+                  })}
+                </RadioGroup>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end mt-6 sm:mt-8">

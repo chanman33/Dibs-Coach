@@ -131,7 +131,7 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
   const prevSpecialtiesRef = useRef<string>(JSON.stringify(realEstateDomains));
 
   const buildDomainSubTabs = useCallback((
-    realEstateDomains: RealEstateDomain[] | undefined,
+    realEstateDomains: RealEstateDomain[],
     realtorListingsContent: React.ReactNode,
     realtorFormContent: React.ReactNode,
     propertyManagerFormContent: React.ReactNode,

@@ -19,8 +19,8 @@ interface CoachProfile {
   firstName: string
   lastName: string
   profileStatus: ProfileStatus
-  realEstateDomains: string[]
-  primaryDomain: string | null
+  coachRealEstateDomains: string[]
+  coachPrimaryDomain: string | null
   completionPercentage: number
   hourlyRate: number
   updatedAt: string
@@ -111,7 +111,7 @@ export default function CoachManagementClient({
   const filterProfiles = (profileList: CoachProfile[]) => {
     return profileList.filter(profile => {
       const nameMatch = `${profile.firstName} ${profile.lastName}`.toLowerCase().includes(searchQuery.toLowerCase());
-      const domainMatch = domainFilter === 'all' || profile.realEstateDomains.includes(domainFilter);
+      const domainMatch = domainFilter === 'all' || profile.coachRealEstateDomains.includes(domainFilter);
       return nameMatch && domainMatch;
     });
   }
