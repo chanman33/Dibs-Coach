@@ -23,6 +23,7 @@ import { CommercialProfileForm } from "@/components/profile/industry/commercial/
 import { CommercialListings } from "@/components/profile/industry/commercial/CommercialListings";
 import { PrivateCreditProfileForm } from "@/components/profile/industry/private-credit/PrivateCreditProfileForm";
 import { CreditListings } from "@/components/profile/industry/private-credit/CreditListings";
+import { ProfessionalRecognition } from "@/utils/types/recognition";
 
 // Extended type for coach data that includes profile completion info
 interface ExtendedCoachData extends CoachProfileInitialData {
@@ -50,6 +51,7 @@ function ProfilePageContent() {
     updateCoachData,
     updateGeneralData,
     updateGoalsData,
+    updateRecognitionsData,
     onSkillsChange,
     saveSkills,
     activeListings,
@@ -90,6 +92,14 @@ function ProfilePageContent() {
   const handleGoalsSubmit = useCallback(async (goals: Goal[]) => {
     await updateGoalsData(goals);
   }, [updateGoalsData]);
+
+  const handleRecognitionsSubmit = useCallback(async (recognitions: ProfessionalRecognition[]) => {
+    console.log("[HANDLE_RECOGNITIONS_SUBMIT]", {
+      recognitionsCount: recognitions.length,
+      timestamp: new Date().toISOString()
+    });
+    await updateRecognitionsData(recognitions);
+  }, [updateRecognitionsData]);
 
   // Show loading state
   if (isLoading) {
@@ -242,10 +252,7 @@ function ProfilePageContent() {
         <CreditListings />
       }
       initialRecognitions={recognitionsData}
-      onSubmitRecognitions={async (recognitions) => {
-        // TODO: Implement recognitions submission
-        console.log("Submitting recognitions:", recognitions);
-      }}
+      onSubmitRecognitions={handleRecognitionsSubmit}
       initialGoals={goalsData}
       onSubmitGoals={handleGoalsSubmit}
       isSubmitting={isSubmitting}

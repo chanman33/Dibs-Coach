@@ -131,8 +131,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           coachPrimaryDomain,
           eventTypeUrl,
           createdAt,
-          updatedAt,
-          professionalRecognitions:ProfessionalRecognition (*)
+          updatedAt
         `)
         .eq('userUlid', userUlid)
         .single();
@@ -148,6 +147,32 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           }
         };
       }
+
+      // Fetch professional recognitions directly by userUlid
+      const { data: recognitionsData, error: recognitionsError } = await supabase
+        .from('ProfessionalRecognition')
+        .select('*')
+        .eq('userUlid', userUlid);
+
+      if (recognitionsError) {
+        console.error('[FETCH_RECOGNITIONS_ERROR]', recognitionsError);
+        return {
+          data: null,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch professional recognitions',
+            details: recognitionsError
+          }
+        };
+      }
+
+      // Log the raw query results for debugging
+      console.log("[FETCH_RECOGNITIONS_QUERY_RESULT]", {
+        userUlid,
+        count: recognitionsData?.length || 0,
+        data: recognitionsData,
+        timestamp: new Date().toISOString()
+      });
 
       // Check for availability schedule
       const { data: availabilitySchedules, error: availabilityError } = await supabase
@@ -170,19 +195,64 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       }
 
       // Filter active recognitions and convert dates
-      const activeRecognitions = ((coachProfile?.professionalRecognitions || []) as any[])
-        .filter(rec => rec.status === 'ACTIVE' && rec.isVisible)
+      console.log("[FETCH_COACH_PROFILE_RECOGNITIONS]", {
+        rawRecognitions: recognitionsData || [],
+        timestamp: new Date().toISOString()
+      });
+
+      const activeRecognitions = ((recognitionsData || []) as any[])
+        .filter(rec => {
+          // Check if the recognition should be visible
+          // The isVisible property is now a direct field
+          const isVisible = rec.isVisible !== false; // Default to true if not specified
+          const status = rec.status || 'ACTIVE'; // Default to ACTIVE if no status
+          
+          console.log("[RECOGNITION_FILTER]", {
+            ulid: rec.ulid,
+            title: rec.title,
+            isVisible,
+            industryType: rec.industryType,
+            status,
+            include: (status === 'ACTIVE' || !rec.status) && isVisible,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Include recognitions that are active AND visible
+          return (status === 'ACTIVE' || !rec.status) && isVisible;
+        })
         .map(rec => {
-          const issueDate = new Date(rec.issueDate);
+          // Convert string dates to Date objects
+          const issueDate = rec.issueDate ? new Date(rec.issueDate) : new Date();
           const expiryDate = rec.expiryDate ? new Date(rec.expiryDate) : null;
           
+          // Ensure all required fields are present
           return {
-            ...rec,
+            ulid: rec.ulid,
+            userUlid: rec.userUlid,
+            coachUlid: rec.coachUlid,
+            title: rec.title || '',
+            type: rec.type as "AWARD" | "ACHIEVEMENT",
+            issuer: rec.issuer || '',
             issueDate,
             expiryDate,
-            type: rec.type as "AWARD" | "ACHIEVEMENT"
+            description: rec.description || null,
+            verificationUrl: rec.verificationUrl || null,
+            isVisible: rec.isVisible !== false,
+            industryType: rec.industryType || null,
+            metadata: rec.metadata || {}
           } satisfies ProfessionalRecognition;
         });
+
+      console.log("[FETCH_COACH_PROFILE_ACTIVE_RECOGNITIONS]", {
+        activeCount: activeRecognitions.length,
+        activeRecognitions: JSON.stringify(activeRecognitions, (key, value) => {
+          if (value instanceof Date) {
+            return value.toISOString();
+          }
+          return value;
+        }, 2),
+        timestamp: new Date().toISOString()
+      });
 
       const profileData = {
         firstName: userData?.firstName,

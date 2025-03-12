@@ -287,8 +287,13 @@ enum AchievementType {
 }
 
 enum RecognitionType {
-  AWARD        // e.g., "Top Producer Award"
-  ACHIEVEMENT  // e.g., "Sold $10M in Properties"
+  AWARD         // e.g., "Top Producer Award"
+  ACHIEVEMENT   // e.g., "Sold $10M in Properties"
+  CERTIFICATION // e.g., "Certified Residential Specialist (CRS)"
+  DESIGNATION   // e.g., "Accredited Buyer's Representative (ABR)"
+  LICENSE       // e.g., "Real Estate Broker License"
+  EDUCATION     // e.g., "Master's in Real Estate Development"
+  MEMBERSHIP    // e.g., "Member of National Association of Realtors"
 }
 
 // System & Activity Enums
@@ -1963,6 +1968,8 @@ model ProfessionalRecognition {
   issueDate       DateTime         @db.Timestamptz
   expiryDate      DateTime?        @db.Timestamptz
   verificationUrl String?
+  isVisible       Boolean          @default(true)
+  industryType    String?
   metadata        Json?            @db.JsonB
   
   // Relations
@@ -1973,7 +1980,7 @@ model ProfessionalRecognition {
   updatedAt       DateTime         @updatedAt @db.Timestamptz
 
   @@index([userUlid])
-  @@index([coachUlid])
+  @@index([industryType])
   @@map("ProfessionalRecognition")
 }
 

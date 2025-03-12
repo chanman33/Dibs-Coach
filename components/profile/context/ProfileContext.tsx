@@ -5,6 +5,7 @@ import { CoachProfileFormValues, CoachProfileInitialData } from "../types";
 import { ProfileStatus } from "@/utils/types/coach";
 import { ProfessionalRecognition } from "@/utils/types/recognition";
 import { toast } from "sonner";
+import { updateRecognitions } from "@/utils/actions/recognition-actions";
 import { 
   fetchUserCapabilities,
   updateUserProfile,
@@ -710,17 +711,69 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updateRecognitionsData = async (data: ProfessionalRecognition[]) => {
     setIsSubmitting(true);
     try {
-      // TODO: Implement recognitions update
-      setRecognitionsData(data);
-      toast.success("Professional recognitions updated successfully");
+      console.log("[PROFILE_CONTEXT_UPDATE_RECOGNITIONS]", {
+        recognitionsCount: data.length,
+        recognitions: JSON.stringify(data, (key, value) => {
+          // Handle Date objects for logging
+          if (value instanceof Date) {
+            return value.toISOString();
+          }
+          return value;
+        }, 2),
+        timestamp: new Date().toISOString()
+      });
       
-      // Fetch updated coach profile to get new completion status
-      const coachProfileResult = await fetchCoachProfile();
-      if (coachProfileResult.data) {
-        updateCompletionStatus(coachProfileResult.data);
+      // Call the server action to update recognitions
+      const result = await updateRecognitions(data);
+      
+      console.log("[PROFILE_CONTEXT_RECOGNITION_RESULT]", {
+        success: !result.error,
+        error: result.error,
+        data: result.data ? {
+          recognitionsCount: result.data.recognitions.length
+        } : null,
+        timestamp: new Date().toISOString()
+      });
+      
+      if (result.error) {
+        console.error("[UPDATE_RECOGNITIONS_ERROR]", {
+          error: result.error,
+          message: result.error.message,
+          details: result.error.details,
+          timestamp: new Date().toISOString()
+        });
+        toast.error(result.error.message || "Failed to update professional recognitions");
+        return;
+      }
+      
+      if (result.data) {
+        setRecognitionsData(result.data.recognitions);
+        toast.success("Professional recognitions updated successfully");
+        
+        // Fetch updated coach profile to get new completion status
+        console.log("[PROFILE_CONTEXT_FETCHING_COACH_PROFILE]", {
+          timestamp: new Date().toISOString()
+        });
+        
+        const coachProfileResult = await fetchCoachProfile();
+        
+        console.log("[PROFILE_CONTEXT_COACH_PROFILE_RESULT]", {
+          success: !coachProfileResult.error,
+          error: coachProfileResult.error,
+          hasData: !!coachProfileResult.data,
+          timestamp: new Date().toISOString()
+        });
+        
+        if (coachProfileResult.data) {
+          updateCompletionStatus(coachProfileResult.data);
+        }
       }
     } catch (error) {
-      console.error("[UPDATE_RECOGNITIONS_ERROR]", error);
+      console.error("[UPDATE_RECOGNITIONS_ERROR]", {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       toast.error("Failed to update professional recognitions");
     } finally {
       setIsSubmitting(false);
