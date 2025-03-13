@@ -4,7 +4,7 @@ import { ColumnDef } from "@tanstack/react-table"
 import { LeadListItem } from "@/utils/types/leads"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MoreHorizontal, ExternalLink, Copy, Edit, Trash2 } from "lucide-react"
+import { MoreHorizontal, Edit, MessageSquare } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -117,11 +117,16 @@ export const columns: ColumnDef<LeadListItem>[] = [
     },
   },
   {
-    accessorKey: "createdAt",
-    header: "Created",
+    accessorKey: "lastContactedAt",
+    header: "Last Interaction",
     cell: ({ row }) => {
-      const date = new Date(row.getValue("createdAt") as string)
-      return <div>{date.toLocaleDateString()}</div>
+      const date = row.original.lastContactedAt 
+        ? new Date(row.original.lastContactedAt) 
+        : null
+      
+      return date 
+        ? <div>{date.toLocaleDateString()}</div>
+        : <div className="text-muted-foreground">No interaction</div>
     },
   },
   {
@@ -137,27 +142,18 @@ export const columns: ColumnDef<LeadListItem>[] = [
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-            <DropdownMenuItem
-              onClick={() => navigator.clipboard.writeText(row.original.ulid)}
-              className="flex items-center cursor-pointer"
-            >
-              <Copy className="h-4 w-4 mr-2" />
-              Copy ID
+            <DropdownMenuItem className="cursor-pointer">
+              <Link href={`/dashboard/system/lead-mgmt/${row.original.ulid}`} className="flex items-center w-full">
+                <Edit className="h-4 w-4 mr-2" />
+                Update Lead
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="cursor-pointer">
-              <Link href={`/dashboard/system/lead-mgmt/${row.original.ulid}`} className="flex items-center w-full">
-                <ExternalLink className="h-4 w-4 mr-2" />
-                View Details
+              <Link href={`/dashboard/system/lead-mgmt/${row.original.ulid}?tab=new-interaction`} className="flex items-center w-full">
+                <MessageSquare className="h-4 w-4 mr-2" />
+                New Interaction
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem className="flex items-center cursor-pointer">
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Lead
-            </DropdownMenuItem>
-            <DropdownMenuItem className="text-[#C00000] flex items-center cursor-pointer">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete Lead
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

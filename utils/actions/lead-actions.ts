@@ -193,11 +193,34 @@ export async function updateLead(ulid: string, data: Partial<Lead>) {
   try {
     const supabase = createAuthClient()
     
+    // Format dates properly
+    let nextFollowUpDate = data.nextFollowUpDate || null
+    
+    // If nextFollowUpDate is provided but not in ISO format, convert it
+    if (nextFollowUpDate && !nextFollowUpDate.endsWith('Z')) {
+      try {
+        nextFollowUpDate = new Date(nextFollowUpDate).toISOString()
+      } catch (e) {
+        console.error("Date conversion error:", e)
+        nextFollowUpDate = null
+      }
+    }
+    
+    // Handle assignedToUlid - ensure it's either a valid ULID or null
+    // Create a new object without the assignedToUlid to avoid type issues
+    const { assignedToUlid, ...restData } = data
+    
+    // Prepare the final assignedToUlid value
+    const finalAssignedToUlid = assignedToUlid && assignedToUlid.trim() !== '' 
+      ? assignedToUlid 
+      : null
+    
     const updateData: LeadUpdate = {
-      ...data,
+      ...restData,
+      assignedToUlid: finalAssignedToUlid,
       updatedAt: new Date().toISOString(),
       lastContactedAt: data.lastContactedAt || null,
-      nextFollowUpDate: data.nextFollowUpDate || null,
+      nextFollowUpDate: nextFollowUpDate,
       metadata: data.metadata as Json
     }
     
