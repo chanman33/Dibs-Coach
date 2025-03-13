@@ -35,8 +35,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { MoreHorizontal, UserCog, Loader2 } from "lucide-react"
-import { updateUserStatus, fetchUsers, User } from "@/utils/actions/admin-actions"
+import { updateUserStatus, updateUserCapability, fetchUsers, User } from "@/utils/actions/admin-actions"
 import { useToast } from "@/components/ui/use-toast"
+import { USER_CAPABILITIES } from "@/utils/roles/roles"
 
 interface UserManagementTableProps {
   users: User[]
@@ -47,7 +48,9 @@ export function UserManagementTable({ users, onRefresh }: UserManagementTablePro
   const [loading, setLoading] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [showStatusDialog, setShowStatusDialog] = useState(false)
+  const [showCapabilityDialog, setShowCapabilityDialog] = useState(false)
   const [newStatus, setNewStatus] = useState<'active' | 'inactive' | 'suspended'>('active')
+  const [capabilityAction, setCapabilityAction] = useState<'add' | 'remove'>('add')
   const { toast } = useToast()
 
   const handleStatusUpdate = async () => {
@@ -87,10 +90,54 @@ export function UserManagementTable({ users, onRefresh }: UserManagementTablePro
     }
   }
 
+  const handleCapabilityUpdate = async () => {
+    if (!selectedUser) return
+
+    try {
+      setLoading(selectedUser.ulid)
+      const result = await updateUserCapability({
+        userUlid: selectedUser.ulid,
+        capability: USER_CAPABILITIES.COACH,
+        action: capabilityAction
+      })
+
+      if (result.error) {
+        toast({
+          title: "Error",
+          description: result.error.message,
+          variant: "destructive"
+        })
+        return
+      }
+
+      toast({
+        title: "Success",
+        description: `User ${capabilityAction === 'add' ? 'granted' : 'removed'} COACH capability successfully`
+      })
+      onRefresh()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update user capability",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(null)
+      setSelectedUser(null)
+      setShowCapabilityDialog(false)
+    }
+  }
+
   const openStatusDialog = (user: User, status: 'active' | 'inactive' | 'suspended') => {
     setSelectedUser(user)
     setNewStatus(status)
     setShowStatusDialog(true)
+  }
+
+  const openCapabilityDialog = (user: User, action: 'add' | 'remove') => {
+    setSelectedUser(user)
+    setCapabilityAction(action)
+    setShowCapabilityDialog(true)
   }
 
   return (
@@ -175,6 +222,21 @@ export function UserManagementTable({ users, onRefresh }: UserManagementTablePro
                         >
                           Suspend User
                         </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>Capabilities</DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={() => openCapabilityDialog(user, 'add')}
+                          disabled={user.isCoach}
+                        >
+                          Add Coach Capability
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => openCapabilityDialog(user, 'remove')}
+                          disabled={!user.isCoach}
+                          className="text-red-600"
+                        >
+                          Remove Coach Capability
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TooltipProvider>
@@ -203,6 +265,30 @@ export function UserManagementTable({ users, onRefresh }: UserManagementTablePro
             <AlertDialogAction
               onClick={handleStatusUpdate}
               className={newStatus === 'suspended' ? 'bg-red-600 hover:bg-red-700' : undefined}
+            >
+              Continue
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showCapabilityDialog} onOpenChange={setShowCapabilityDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {capabilityAction === 'add' ? 'Add' : 'Remove'} Coach Capability
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {capabilityAction === 'add' 
+                ? 'Are you sure you want to add the Coach capability to this user? This will allow them to function as a coach in the system.'
+                : 'Are you sure you want to remove the Coach capability from this user? This will prevent them from functioning as a coach in the system.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCapabilityUpdate}
+              className={capabilityAction === 'remove' ? 'bg-red-600 hover:bg-red-700' : undefined}
             >
               Continue
             </AlertDialogAction>

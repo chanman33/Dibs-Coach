@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
-import { CoachProfileStatusManager } from '@/components/admin/CoachProfileStatusManager'
+import { CoachProfileStatusManager } from '@/components/system/CoachProfileStatusManager'
 import { fetchCoachProfile, updateCoachProfileStatus } from '@/utils/actions/admin-coach-actions'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -81,7 +81,7 @@ export default async function CoachProfilePage({ params }: CoachProfilePageProps
 
   const completionStatus = getProfileCompletionStatus(profile.completionPercentage);
 
-  const validDomains = (profile.realEstateDomains || []).filter((domain): domain is RealEstateDomain => 
+  const validDomains = (profile.coachRealEstateDomains || []).filter((domain: string): domain is RealEstateDomain => 
     REAL_ESTATE_DOMAINS.includes(domain as RealEstateDomain)
   );
 
@@ -158,8 +158,8 @@ export default async function CoachProfilePage({ params }: CoachProfilePageProps
                     Real Estate Domains
                   </h3>
                   <div className="flex flex-wrap gap-2">
-                    {profile.realEstateDomains.length > 0 ? (
-                      profile.realEstateDomains.map((domain) => (
+                    {profile.coachRealEstateDomains.length > 0 ? (
+                      profile.coachRealEstateDomains.map((domain: string) => (
                         <Badge key={domain} variant="secondary">{domain}</Badge>
                       ))
                     ) : (

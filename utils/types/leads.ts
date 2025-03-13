@@ -19,6 +19,7 @@ export const LEAD_PRIORITY = {
   HIGH: "HIGH"
 } as const
 
+// Keeping the enum for future use, but not using it in the schema for now
 export const LEAD_SOURCE = {
   CONTACT_FORM_AUTH: "CONTACT_FORM_AUTH",
   CONTACT_FORM_PUBLIC: "CONTACT_FORM_PUBLIC",
@@ -56,7 +57,6 @@ export const leadSchema = z.object({
   multipleOffices: z.boolean().default(false),
   status: z.enum(Object.keys(LEAD_STATUS) as [string, ...string[]]).default("NEW"),
   priority: z.enum(Object.keys(LEAD_PRIORITY) as [string, ...string[]]).default("MEDIUM"),
-  source: z.enum(["CONTACT_FORM_AUTH", "CONTACT_FORM_PUBLIC", "REFERRAL", "WEBSITE", "SOCIAL_MEDIA", "EVENT", "OTHER"]).default("CONTACT_FORM_AUTH"),
   assignedToUlid: z.string().optional(),
   notes: z.array(z.object({
     id: z.string(),
@@ -95,11 +95,6 @@ export interface LeadDetails extends Lead {
   ulid: string
   createdAt: string
   updatedAt: string
-  user?: {
-    ulid: string
-    fullName: string
-    email: string
-  }
   assignedTo?: {
     ulid: string
     fullName: string

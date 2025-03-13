@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { UserManagementTable } from "./_components/user-management-table"
+import { UserManagementTable } from "../_components/user-management-table"
 import { fetchUsers, User } from "@/utils/actions/admin-actions"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"

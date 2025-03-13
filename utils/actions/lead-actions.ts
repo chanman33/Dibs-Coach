@@ -25,9 +25,8 @@ export async function createLead(data: {
   multipleOffices: boolean
   status?: keyof typeof LEAD_STATUS
   priority?: keyof typeof LEAD_PRIORITY
-  source?: keyof typeof LEAD_SOURCE
-  userId?: string
   notes?: LeadNote[]
+  assignedToUlid?: string
 }) {
   try {
     const supabase = createAuthClient()
@@ -38,7 +37,6 @@ export async function createLead(data: {
       .from("EnterpriseLeads")
       .insert({
         ulid: leadUlid,
-        userId: data.userId,
         companyName: data.companyName,
         website: data.website,
         industry: data.industry,
@@ -50,7 +48,7 @@ export async function createLead(data: {
         multipleOffices: data.multipleOffices,
         status: data.status || "NEW",
         priority: data.priority || "MEDIUM",
-        source: data.source || "CONTACT_FORM_AUTH",
+        assignedToUlid: data.assignedToUlid,
         notes: data.notes as unknown as Json,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -148,7 +146,7 @@ export async function getLead(ulid: string) {
     
     const { data, error } = await supabase
       .from("EnterpriseLeads")
-      .select("*, user:User!userUlid (ulid, firstName, lastName, email), assignedTo:User!assignedToUlid (ulid, firstName, lastName, email)")
+      .select("*, assignedTo:User!assignedToUlid (ulid, firstName, lastName, email)")
       .eq("ulid", ulid)
       .single()
     
@@ -169,7 +167,6 @@ export async function getLead(ulid: string) {
       multipleOffices: data.multipleOffices,
       status: data.status as keyof typeof LEAD_STATUS,
       priority: data.priority as keyof typeof LEAD_PRIORITY,
-      source: data.source as keyof typeof LEAD_SOURCE,
       assignedToUlid: data.assignedToUlid || undefined,
       notes: (data.notes as LeadNote[] | null) || undefined,
       lastContactedAt: data.lastContactedAt || undefined,
@@ -177,11 +174,6 @@ export async function getLead(ulid: string) {
       metadata: data.metadata as Record<string, unknown> | undefined,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
-      user: data.user ? {
-        ulid: data.user.ulid,
-        fullName: `${data.user.firstName || ""} ${data.user.lastName || ""}`.trim(),
-        email: data.user.email
-      } : undefined,
       assignedTo: data.assignedTo ? {
         ulid: data.assignedTo.ulid,
         fullName: `${data.assignedTo.firstName || ""} ${data.assignedTo.lastName || ""}`.trim(),
@@ -295,6 +287,7 @@ export async function getLeadStats() {
   try {
     const supabase = createAuthClient()
     
+    // Only query for fields we know exist
     const { data, error } = await supabase
       .from("EnterpriseLeads")
       .select("status, priority")

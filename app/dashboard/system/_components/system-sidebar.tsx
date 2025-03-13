@@ -13,6 +13,8 @@ import {
   Activity,
   DollarSign,
   FileText,
+  Briefcase,
+  BarChart3,
 } from "lucide-react"
 
 export function SystemSidebar() {
@@ -61,6 +63,17 @@ export function SystemSidebar() {
             </NavLink>
             <NavLink href="/dashboard/system/permissions" icon={Shield}>
               Roles & Permissions
+            </NavLink>
+
+            <Separator className="my-2" />
+
+            {/* CRM */}
+            <div className="text-xs uppercase text-gray-500 mt-2 mb-1">CRM</div>
+            <NavLink href="/dashboard/system/lead-mgmt" icon={Briefcase}>
+              Lead Management
+            </NavLink>
+            <NavLink href="/dashboard/system/lead-analytics" icon={BarChart3}>
+              Lead Analytics
             </NavLink>
 
             <Separator className="my-2" />

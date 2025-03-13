@@ -1,7 +1,7 @@
 'use client'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { CoachProfilesTable } from '@/components/admin/CoachProfilesTable'
+import { CoachProfilesTable } from '@/components/system/CoachProfilesTable'
 import { updateCoachProfileStatus, refreshCoachManagement } from '@/utils/actions/admin-coach-actions'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -11,8 +11,6 @@ import { toast } from 'sonner'
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { removeUserCapability } from '@/utils/permissions'
-import { USER_CAPABILITIES } from '@/utils/roles/roles'
 
 interface CoachProfile {
   userUlid: string
@@ -92,21 +90,6 @@ export default function CoachManagementClient({
     }
   }
 
-  const handleRemoveCoachCapability = async (coachId: string) => {
-    try {
-      const success = await removeUserCapability(coachId, USER_CAPABILITIES.COACH)
-      if (success) {
-        toast.success('Coach capability removed successfully')
-        await handleRefresh() // Refresh the list
-      } else {
-        toast.error('Failed to remove coach capability')
-      }
-    } catch (error) {
-      console.error('[REMOVE_COACH_ERROR]', error)
-      toast.error('Failed to remove coach capability')
-    }
-  }
-
   // Filter profiles based on search query and domain filter
   const filterProfiles = (profileList: CoachProfile[]) => {
     return profileList.filter(profile => {
@@ -140,6 +123,9 @@ export default function CoachManagementClient({
         </div>
         <p className="text-muted-foreground">
           Manage coach profiles and their visibility status
+        </p>
+        <p className="text-sm text-muted-foreground mt-1">
+          Note: To add or remove coach capabilities, please use the <a href="/dashboard/system/user-mgmt" className="text-primary hover:underline">User Management</a> page.
         </p>
       </div>
 
@@ -240,21 +226,18 @@ export default function CoachManagementClient({
                 <CoachProfilesTable 
                   profiles={getCurrentProfiles()}
                   onUpdateStatus={handleUpdateStatus}
-                  onRemoveCoach={handleRemoveCoachCapability}
                 />
               </TabsContent>
               <TabsContent value="published">
                 <CoachProfilesTable 
                   profiles={getCurrentProfiles()}
                   onUpdateStatus={handleUpdateStatus}
-                  onRemoveCoach={handleRemoveCoachCapability}
                 />
               </TabsContent>
               <TabsContent value="draft">
                 <CoachProfilesTable 
                   profiles={getCurrentProfiles()}
                   onUpdateStatus={handleUpdateStatus}
-                  onRemoveCoach={handleRemoveCoachCapability}
                 />
               </TabsContent>
             </Tabs>

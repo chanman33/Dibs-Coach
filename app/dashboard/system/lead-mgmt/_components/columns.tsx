@@ -1,8 +1,10 @@
+"use client"
+
 import { ColumnDef } from "@tanstack/react-table"
 import { LeadListItem } from "@/utils/types/leads"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { MoreHorizontal } from "lucide-react"
+import { MoreHorizontal, ExternalLink, Copy, Edit, Trash2 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +15,16 @@ import {
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 
+// Excel-inspired colors
+const excelBlue = "#4472C4"
+const excelLightBlue = "#5B9BD5"
+const excelRed = "#C00000"
+const excelGreen = "#70AD47"
+const excelYellow = "#FFC000"
+const excelOrange = "#ED7D31"
+const excelGray = "#A5A5A5"
+const excelDarkGray = "#7F7F7F"
+
 export const columns: ColumnDef<LeadListItem>[] = [
   {
     accessorKey: "companyName",
@@ -22,7 +34,7 @@ export const columns: ColumnDef<LeadListItem>[] = [
       return (
         <Link
           href={`/dashboard/system/lead-mgmt/${row.original.ulid}`}
-          className="font-medium hover:underline"
+          className="font-medium text-[#4472C4] hover:underline flex items-center"
         >
           {companyName}
         </Link>
@@ -30,11 +42,12 @@ export const columns: ColumnDef<LeadListItem>[] = [
     },
   },
   {
-    accessorKey: "fullName",
+    id: "contact",
     header: "Contact",
+    accessorFn: (row) => `${row.fullName} ${row.email}`, // For sorting/filtering
     cell: ({ row }) => {
-      const fullName = row.getValue("fullName") as string
-      const email = row.getValue("email") as string
+      const fullName = row.original.fullName
+      const email = row.original.email
       return (
         <div>
           <div className="font-medium">{fullName}</div>
@@ -48,17 +61,21 @@ export const columns: ColumnDef<LeadListItem>[] = [
     header: "Status",
     cell: ({ row }) => {
       const status = row.getValue("status") as string
+      
+      // Excel-inspired status colors
       const statusColors: Record<string, string> = {
-        NEW: "bg-blue-100 text-blue-800",
-        CONTACTED: "bg-yellow-100 text-yellow-800",
-        QUALIFIED: "bg-green-100 text-green-800",
-        PROPOSAL: "bg-purple-100 text-purple-800",
-        NEGOTIATION: "bg-indigo-100 text-indigo-800",
-        WON: "bg-emerald-100 text-emerald-800",
-        LOST: "bg-red-100 text-red-800",
+        NEW: "bg-[#4472C4] text-white",
+        CONTACTED: "bg-[#ED7D31] text-white",
+        QUALIFIED: "bg-[#A5A5A5] text-white",
+        PROPOSAL: "bg-[#FFC000] text-white",
+        NEGOTIATION: "bg-[#5B9BD5] text-white",
+        WON: "bg-[#70AD47] text-white",
+        LOST: "bg-[#C00000] text-white",
+        ARCHIVED: "bg-[#7F7F7F] text-white"
       }
+      
       return (
-        <Badge className={statusColors[status] || "bg-gray-100 text-gray-800"}>
+        <Badge className={`${statusColors[status] || "bg-gray-100 text-gray-800"} font-medium`}>
           {status}
         </Badge>
       )
@@ -69,13 +86,16 @@ export const columns: ColumnDef<LeadListItem>[] = [
     header: "Priority",
     cell: ({ row }) => {
       const priority = row.getValue("priority") as string
+      
+      // Excel-inspired priority colors
       const priorityColors: Record<string, string> = {
-        HIGH: "bg-red-100 text-red-800",
-        MEDIUM: "bg-yellow-100 text-yellow-800",
-        LOW: "bg-green-100 text-green-800",
+        HIGH: "bg-[#C00000] text-white",
+        MEDIUM: "bg-[#FFC000] text-white",
+        LOW: "bg-[#70AD47] text-white",
       }
+      
       return (
-        <Badge className={priorityColors[priority] || "bg-gray-100 text-gray-800"}>
+        <Badge className={`${priorityColors[priority] || "bg-gray-100 text-gray-800"} font-medium`}>
           {priority}
         </Badge>
       )
@@ -119,17 +139,24 @@ export const columns: ColumnDef<LeadListItem>[] = [
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
               onClick={() => navigator.clipboard.writeText(row.original.ulid)}
+              className="flex items-center cursor-pointer"
             >
+              <Copy className="h-4 w-4 mr-2" />
               Copy ID
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <Link href={`/dashboard/system/lead-mgmt/${row.original.ulid}`}>
+            <DropdownMenuItem className="cursor-pointer">
+              <Link href={`/dashboard/system/lead-mgmt/${row.original.ulid}`} className="flex items-center w-full">
+                <ExternalLink className="h-4 w-4 mr-2" />
                 View Details
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>Edit Lead</DropdownMenuItem>
-            <DropdownMenuItem className="text-red-600">
+            <DropdownMenuItem className="flex items-center cursor-pointer">
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Lead
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-[#C00000] flex items-center cursor-pointer">
+              <Trash2 className="h-4 w-4 mr-2" />
               Delete Lead
             </DropdownMenuItem>
           </DropdownMenuContent>

@@ -3,9 +3,9 @@ import { getLeads, getLeadStats } from "@/utils/actions/lead-actions"
 import { DataTable } from "@/components/ui/data-table"
 import { Card, CardContent } from "@/components/ui/card"
 import { LEAD_STATUS, LEAD_PRIORITY, type LeadStatus, type LeadPriority } from "@/utils/types/leads"
-import { LeadFilters } from "./lead-filters"
-import { LeadStats } from "./lead-stats"
-import { columns } from "./columns"
+import { LeadFilters } from "./_components/lead-filters"
+import { LeadStats } from "./_components/lead-stats"
+import { columns } from "./_components/columns"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -17,8 +17,13 @@ export default async function LeadsPage({
 }) {
   const page = Number(searchParams.page) || 1
   const limit = Number(searchParams.limit) || 10
-  const status = (searchParams.status as LeadStatus) || undefined
-  const priority = (searchParams.priority as LeadPriority) || undefined
+  
+  // Handle 'all' value for status and priority
+  const statusParam = searchParams.status as string
+  const priorityParam = searchParams.priority as string
+  
+  const status = statusParam && statusParam !== 'all' ? (statusParam as LeadStatus) : undefined
+  const priority = priorityParam && priorityParam !== 'all' ? (priorityParam as LeadPriority) : undefined
   const search = searchParams.search as string || undefined
 
   const [leadsResponse, statsResponse] = await Promise.all([
@@ -33,13 +38,11 @@ export default async function LeadsPage({
   ])
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="container space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Leads</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Lead Management</h1>
       </div>
 
-      {/* Lead Stats */}
-      <LeadStats stats={statsResponse.data} />
 
       {/* Lead Filters */}
       <LeadFilters

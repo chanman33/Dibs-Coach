@@ -68,10 +68,9 @@ interface CoachProfile {
 interface CoachProfilesTableProps {
   profiles: CoachProfile[]
   onUpdateStatus: (coachId: string, newStatus: ProfileStatus) => void
-  onRemoveCoach: (coachId: string) => Promise<void>
 }
 
-export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: CoachProfilesTableProps) {
+export function CoachProfilesTable({ profiles, onUpdateStatus }: CoachProfilesTableProps) {
   const [selectedCoach, setSelectedCoach] = useState<CoachProfile | null>(null)
   const [selectedDomains, setSelectedDomains] = useState<string[]>([])
   const [selectedPrimaryDomain, setSelectedPrimaryDomain] = useState<string | null>(null)
@@ -254,26 +253,17 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
                       {profile.profileStatus === 'PUBLISHED' && (
                         <>
                           <DropdownMenuItem 
-                            onClick={() => handleStatusUpdate(profile, 'DRAFT')}
+                            onClick={() => handleStatusUpdate(profile, 'SUSPENDED')}
+                            className="text-yellow-600 focus:text-yellow-600"
                           >
-                            Unpublish to Draft
+                            Suspend Profile
                           </DropdownMenuItem>
-                          {profile.isSystemOwner && (
-                            <>
-                              <DropdownMenuItem 
-                                onClick={() => handleStatusUpdate(profile, 'SUSPENDED')}
-                                className="text-yellow-600 focus:text-yellow-600"
-                              >
-                                Suspend Profile
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => handleStatusUpdate(profile, 'ARCHIVED')}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                Archive Profile
-                              </DropdownMenuItem>
-                            </>
-                          )}
+                          <DropdownMenuItem 
+                            onClick={() => handleStatusUpdate(profile, 'ARCHIVED')}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            Archive Profile
+                          </DropdownMenuItem>
                         </>
                       )}
 
@@ -312,15 +302,6 @@ export function CoachProfilesTable({ profiles, onUpdateStatus, onRemoveCoach }: 
                       >
                         <Tags className="h-4 w-4 mr-2" />
                         Update Domains
-                      </DropdownMenuItem>
-
-                      {/* Remove Coach Capability - moved to bottom */}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={() => onRemoveCoach(profile.userUlid)}
-                        className="text-destructive focus:text-destructive"
-                      >
-                        Remove Coach Capability
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
