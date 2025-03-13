@@ -24,6 +24,8 @@ import {
 import { type ApiResponse } from "@/utils/types/api";
 import { type RealEstateDomain } from "@/utils/types/coach";
 import { type ListingWithRealtor, type CreateListing } from "@/utils/types/listing";
+import { useUser } from "@clerk/nextjs";
+import config from "@/config";
 
 // Define the shape of the general data
 interface GeneralData {
@@ -52,6 +54,7 @@ interface ProfileContextType {
   coachData: CoachProfileInitialData & {
     coachRealEstateDomains?: string[];
     coachPrimaryDomain?: string | null;
+    coachSkills?: string[];
   };
   
   // Domain-specific data
@@ -123,6 +126,10 @@ interface ProfileContextType {
   // Listings handlers
   onSubmitListing: (data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null }>;
   onUpdateListing: (ulid: string, data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null }>;
+  
+  // Clerk user data
+  clerkUser: any | null;
+  isClerkLoaded: boolean;
 }
 
 // Create the context with a default value
@@ -130,6 +137,11 @@ const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 
 // Provider component
 export function ProfileProvider({ children }: { children: ReactNode }) {
+  // Get Clerk user data for profile image
+  const { user: clerkUser, isLoaded: isClerkLoaded } = config.auth.enabled 
+    ? useUser()
+    : { user: null, isLoaded: true };
+    
   // General profile data state
   const [generalData, setGeneralData] = useState<GeneralData>({
     displayName: "",
@@ -145,6 +157,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [coachData, setCoachData] = useState<CoachProfileInitialData & {
     coachRealEstateDomains?: string[];
     coachPrimaryDomain?: string | null;
+    coachSkills?: string[];
   }>({});
   
   // Domain-specific data states
@@ -200,11 +213,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [successfulTransactions, setSuccessfulTransactions] = useState<ListingWithRealtor[]>([]);
 
   // Fetch all profile data
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (): Promise<boolean> => {
     setIsLoading(true);
     setFetchError(null);
     
     try {
+      console.log("[PROFILE_FETCH_START]", {
+        timestamp: new Date().toISOString()
+      });
+      
       // Fetch user capabilities
       const capabilitiesResult: ApiResponse<UserCapabilitiesResponse> = await fetchUserCapabilities();
       if (capabilitiesResult.error) {
@@ -214,6 +231,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // Extract capabilities from the response
       const capabilities = capabilitiesResult.data?.capabilities || [];
       setUserCapabilities(capabilities);
+      
+      console.log("[PROFILE_CAPABILITIES_LOADED]", {
+        capabilities,
+        timestamp: new Date().toISOString()
+      });
       
       // Fetch user profile data
       const userProfileResult: ApiResponse<UserProfileResponse> = await fetchUserProfile();
@@ -247,30 +269,40 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       
       // If user is a coach, fetch coach profile
       if (capabilities.includes('COACH')) {
+        console.log("[PROFILE_FETCH_COACH_START]", {
+          timestamp: new Date().toISOString()
+        });
+        
         const coachProfileResult: ApiResponse<any> = await fetchCoachProfile();
         if (coachProfileResult.error) {
           console.error('[FETCH_COACH_PROFILE_ERROR]', coachProfileResult.error);
         } else if (coachProfileResult.data) {
-          const coachProfileData = coachProfileResult.data;
+          const coachProfileData = coachProfileResult.data as any & { 
+            coachSkills?: string[],
+            coachRealEstateDomains?: string[],
+            slogan?: string,
+            coachPrimaryDomain?: string | null
+          };
+          
+          console.log("[PROFILE_FETCH_COACH_DATA]", {
+            coachSkills: coachProfileData.coachSkills,
+            coachRealEstateDomains: coachProfileData.coachRealEstateDomains,
+            slogan: coachProfileData.slogan,
+            coachPrimaryDomain: coachProfileData.coachPrimaryDomain,
+            timestamp: new Date().toISOString()
+          });
           
           // Set coach data using the data we have
           setCoachData({
+            ...coachProfileData,
             firstName: userData.displayName?.split(' ')[0] || '',
             lastName: userData.displayName?.split(' ').slice(1).join(' ') || '',
             bio: userData.bio,
-            profileImageUrl: null, // We don't have this in either response
-            coachingSpecialties: coachProfileData.coachSkills,
-            hourlyRate: coachProfileData.hourlyRate,
-            yearsCoaching: coachProfileData.yearsCoaching,
+            profileImageUrl: clerkUser?.imageUrl || null, // Use Clerk profile image URL
             coachRealEstateDomains: coachProfileData.coachRealEstateDomains || [],
             coachPrimaryDomain: coachProfileData.coachPrimaryDomain || null,
-            status: coachProfileData.profileStatus,
-            completionPercentage: coachProfileData.completionPercentage,
-            missingFields: coachProfileData.missingFields,
-            missingRequiredFields: coachProfileData.missingRequiredFields,
-            optionalMissingFields: coachProfileData.optionalMissingFields,
-            validationMessages: coachProfileData.validationMessages,
-            canPublish: coachProfileData.canPublish
+            coachSkills: coachProfileData.coachSkills || coachProfileData.coachingSpecialties || [],
+            slogan: coachProfileData.slogan
           });
           
           // Set profile status and completion info
@@ -283,10 +315,18 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           setCanPublish(coachProfileData.canPublish);
           
           // Set selected skills
-          setSelectedSkills(coachProfileData.coachSkills);
+          setSelectedSkills(coachProfileData.coachSkills || coachProfileData.coachingSpecialties || []);
           
           // Set real estate domains from coach-specific domains
-          setRealEstateDomains(coachProfileData.coachRealEstateDomains as RealEstateDomain[]);
+          setRealEstateDomains(coachProfileData.coachRealEstateDomains as RealEstateDomain[] || []);
+          
+          console.log("[PROFILE_FETCH_COACH_STATE_UPDATED]", {
+            selectedSkills: coachProfileData.coachSkills || coachProfileData.coachingSpecialties,
+            realEstateDomains: coachProfileData.coachRealEstateDomains,
+            slogan: coachProfileData.slogan,
+            coachPrimaryDomain: coachProfileData.coachPrimaryDomain,
+            timestamp: new Date().toISOString()
+          });
           
           // Set professional recognitions
           setRecognitionsData(coachProfileData.professionalRecognitions);
@@ -296,6 +336,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // Update lastFetchTimeRef correctly
       lastFetchTimeRef.current = Date.now();
       setIsLoading(false);
+      return true;
     } catch (error) {
       console.error("[PROFILE_FETCH_ERROR]", {
         error,
@@ -304,6 +345,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       });
       setFetchError(error instanceof Error ? error : new Error('Failed to fetch profile data'));
       setIsLoading(false);
+      return false;
     }
   }, []);
 
@@ -314,7 +356,41 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   // Handle skills changes
   const onSkillsChange = (skills: string[]) => {
+    console.log("[SKILLS_CHANGE]", {
+      previousSkills: selectedSkills,
+      newSkills: skills,
+      realEstateDomains,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Log the current state of coachData before updating
+    console.log("[SKILLS_CHANGE_COACH_DATA_BEFORE]", {
+      yearsCoaching: coachData.yearsCoaching,
+      hourlyRate: coachData.hourlyRate,
+      coachSkills: coachData.coachSkills,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Update the selected skills state
     setSelectedSkills(skills);
+    
+    // IMPORTANT: Update coachData with the new skills while preserving other properties
+    // Create an updated data object to hold the new state
+    const updatedData = {
+      ...coachData,
+      coachSkills: skills
+    };
+    
+    // Update the coach data state with the new skills
+    setCoachData(updatedData);
+    
+    // Log the updated state of coachData after updating
+    console.log("[SKILLS_CHANGE_COACH_DATA_AFTER]", {
+      yearsCoaching: updatedData.yearsCoaching,
+      hourlyRate: updatedData.hourlyRate,
+      coachSkills: updatedData.coachSkills,
+      timestamp: new Date().toISOString()
+    });
   };
 
   // Save skills to the server
@@ -323,17 +399,45 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // coachRealEstateDomains are real estate sectors like "REALTOR", "INVESTOR"
   const saveSkills = async (skills: string[]): Promise<boolean> => {
     try {
+      console.log("[SAVE_SKILLS_START]", {
+        skills,
+        currentSelectedSkills: selectedSkills,
+        currentRealEstateDomains: realEstateDomains,
+        timestamp: new Date().toISOString()
+      });
+      
       setIsSubmitting(true);
       const result = await saveCoachSkills({ skills });
       if (result.error) {
         throw new Error(result.error.message);
       }
+      
+      // Update local state immediately
       setSelectedSkills(skills);
-      await fetchData(); // Force fetch after saving skills to get updated profile data
+      
+      // Force a complete refresh of all profile data
+      const refreshResult = await fetchData();
+      
+      console.log("[SAVE_SKILLS_COMPLETE]", {
+        skills,
+        updatedSelectedSkills: selectedSkills,
+        updatedRealEstateDomains: realEstateDomains,
+        fetchResult: refreshResult ? "success" : "no data returned",
+        timestamp: new Date().toISOString()
+      });
+      
       toast.success("Skills saved successfully");
       return true;
     } catch (error) {
-      console.error("[SAVE_SKILLS_ERROR]", error);
+      console.error("[SAVE_SKILLS_ERROR]", {
+        error,
+        skills,
+        currentState: {
+          selectedSkills,
+          realEstateDomains
+        },
+        timestamp: new Date().toISOString()
+      });
       toast.error("Failed to save skills");
       return false;
     } finally {
@@ -429,59 +533,124 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   };
   
   const updateCoachData = async (data: CoachProfileFormValues) => {
-    setIsSubmitting(true);
     try {
-      // First update languages in User model if they've changed
-      if (data.languages) {
-        const languageUpdateResult = await updateUserLanguages({
-          languages: data.languages
-        });
-        if (languageUpdateResult.error) {
-          toast.error("Failed to update languages");
-          return;
-        }
-      }
-
-      // Remove languages from coach profile data since it's handled separately
-      const { languages, ...coachProfileData } = data;
+      setIsSubmitting(true);
       
-      // Ensure professional recognitions are properly typed
-      const formattedData = {
-        ...coachProfileData,
-        professionalRecognitions: coachProfileData.professionalRecognitions?.map(rec => ({
+      console.log("[UPDATE_COACH_DATA_START]", {
+        formData: data,
+        currentState: {
+          yearsCoaching: coachData.yearsCoaching,
+          hourlyRate: coachData.hourlyRate,
+          coachSkills: coachData.coachSkills
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      // Process professional recognitions to convert string dates to Date objects
+      const processedRecognitions = data.professionalRecognitions ? 
+        data.professionalRecognitions.map(rec => ({
           ...rec,
-          issueDate: new Date(rec.issueDate),
-          expiryDate: rec.expiryDate ? new Date(rec.expiryDate) : null,
-          createdAt: rec.createdAt ? new Date(rec.createdAt) : undefined,
-          updatedAt: rec.updatedAt ? new Date(rec.updatedAt) : undefined
-        }))
-      };
+          issueDate: typeof rec.issueDate === 'string' ? new Date(rec.issueDate) : rec.issueDate,
+          expiryDate: rec.expiryDate ? (typeof rec.expiryDate === 'string' ? new Date(rec.expiryDate) : rec.expiryDate) : null,
+          isVisible: rec.isVisible !== undefined ? rec.isVisible : true
+        })) : [];
       
-      // Update coach profile without languages
-      // This updates both coachSkills and coachRealEstateDomains if they're included in the data
-      const result = await updateCoachProfile(formattedData);
+      // Create the API data object with the correct type casting
+      // Use type assertion to avoid TypeScript errors
+      const apiData = {
+        coachSkills: data.coachSkills || [],
+        yearsCoaching: data.yearsCoaching || 0,
+        hourlyRate: data.hourlyRate || 100,
+        defaultDuration: data.defaultDuration || 60,
+        minimumDuration: data.minimumDuration || 30,
+        maximumDuration: data.maximumDuration || 120,
+        allowCustomDuration: data.allowCustomDuration || false,
+        professionalRecognitions: processedRecognitions,
+        coachRealEstateDomains: data.coachRealEstateDomains || [],
+        coachPrimaryDomain: data.coachPrimaryDomain || null,
+        slogan: data.slogan || ""
+      } as any; // Use type assertion to avoid TypeScript errors
+      
+      
+      // Call the API to update the coach profile
+      const result = await updateCoachProfile(apiData);
+      
       if (result.data) {
-        const profileData = result.data as CoachProfileInitialData;
+        // Add type assertion to include coachSkills, coachRealEstateDomains, slogan, and coachPrimaryDomain
+        const profileData = result.data as CoachProfileInitialData & { 
+          coachSkills?: string[],
+          coachRealEstateDomains?: string[],
+          slogan?: string,
+          coachPrimaryDomain?: string | null
+        };
         
-        // Update coach data with the response
+        // Log the response data for debugging
+        console.log("[UPDATE_COACH_DATA_RESPONSE]", {
+          coachSkills: profileData.coachSkills || profileData.coachingSpecialties,
+          coachRealEstateDomains: profileData.coachRealEstateDomains,
+          slogan: profileData.slogan,
+          coachPrimaryDomain: profileData.coachPrimaryDomain,
+          yearsCoaching: profileData.yearsCoaching,
+          hourlyRate: profileData.hourlyRate,
+          timestamp: new Date().toISOString()
+        });
+        
+        // If values are missing in the response but were in the form data,
+        // use the form data values to ensure they're not lost
+        const domains = profileData.coachRealEstateDomains || data.coachRealEstateDomains || [];
+        const skills = profileData.coachSkills || profileData.coachingSpecialties || data.coachSkills || [];
+        const slogan = profileData.slogan !== undefined ? profileData.slogan : data.slogan;
+        const primaryDomain = profileData.coachPrimaryDomain !== undefined ? profileData.coachPrimaryDomain : data.coachPrimaryDomain;
+        
+        // IMPORTANT: Explicitly preserve yearsCoaching and hourlyRate from form data if not in response
+        const yearsCoaching = profileData.yearsCoaching !== undefined ? profileData.yearsCoaching : data.yearsCoaching || 0;
+        const hourlyRate = profileData.hourlyRate !== undefined ? profileData.hourlyRate : data.hourlyRate || 100;
+        
+        console.log("[UPDATE_COACH_DATA_PRESERVED_VALUES]", {
+          formYearsCoaching: data.yearsCoaching,
+          formHourlyRate: data.hourlyRate,
+          responseYearsCoaching: profileData.yearsCoaching,
+          responseHourlyRate: profileData.hourlyRate,
+          finalYearsCoaching: yearsCoaching,
+          finalHourlyRate: hourlyRate,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Update coach data with the response, preserving important values
         setCoachData({
           ...profileData,
-          coachRealEstateDomains: profileData.coachRealEstateDomains || [],
-          coachPrimaryDomain: profileData.coachPrimaryDomain || null
+          coachRealEstateDomains: domains,
+          coachPrimaryDomain: primaryDomain,
+          coachSkills: skills,
+          slogan: slogan,
+          yearsCoaching: yearsCoaching,
+          hourlyRate: hourlyRate
         });
         
-        // Update real estate domains from coach-specific domains
-        if (profileData.coachRealEstateDomains) {
-          setRealEstateDomains(profileData.coachRealEstateDomains as RealEstateDomain[]);
-        }
+        // Update selected skills state
+        setSelectedSkills(skills);
         
-        updateCompletionStatus(result.data);
-        toast.success("Coach profile updated successfully");
-      } else if (result.error) {
-        toast.error(String(result.error));
+        // Update real estate domains from coach-specific domains
+        setRealEstateDomains(domains as RealEstateDomain[]);
+        
+        console.log("[UPDATE_COACH_DATA_STATE_UPDATED]", {
+          selectedSkills: skills,
+          realEstateDomains: domains,
+          slogan: slogan,
+          coachPrimaryDomain: primaryDomain,
+          yearsCoaching: yearsCoaching,
+          hourlyRate: hourlyRate,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Update completion status
+        updateCompletionStatus(profileData);
       }
     } catch (error) {
-      console.error("[UPDATE_COACH_ERROR]", error);
+      console.error("[UPDATE_COACH_DATA_ERROR]", {
+        error: error instanceof Error ? error.message : error,
+        timestamp: new Date().toISOString()
+      });
       toast.error("Failed to update coach profile");
     } finally {
       setIsSubmitting(false);
@@ -972,7 +1141,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     activeListings,
     successfulTransactions,
     onSubmitListing,
-    onUpdateListing
+    onUpdateListing,
+    clerkUser: clerkUser || null,
+    isClerkLoaded
   };
   
   return (

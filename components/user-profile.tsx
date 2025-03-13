@@ -25,6 +25,33 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
+import { useState } from "react"
+
+// Default image placeholder
+const DEFAULT_IMAGE_URL = '/placeholder.svg';
+
+// Utility function to handle Clerk profile image URLs
+const getProfileImageUrl = (url: string | null | undefined): string => {
+  // For missing URLs, use placeholder
+  if (!url) return DEFAULT_IMAGE_URL;
+
+  // For placeholder images, use our default placeholder
+  if (url.includes('placeholder')) return DEFAULT_IMAGE_URL;
+
+  // Handle Clerk OAuth URLs
+  if (url.includes('oauth_google')) {
+    // Try img.clerk.com domain first
+    return url.replace('images.clerk.dev', 'img.clerk.com');
+  }
+
+  // Handle other Clerk URLs
+  if (url.includes('clerk.dev') || url.includes('clerk.com')) {
+    return url;
+  }
+
+  // For all other URLs, ensure HTTPS
+  return url.startsWith('https://') ? url : `https://${url}`;
+};
 
 const MOCK_USER = {
     firstName: "Dev",
@@ -36,6 +63,7 @@ const MOCK_USER = {
 export function UserProfile() {
     const router = useRouter()
     const pathname = usePathname()
+    const [imgError, setImgError] = useState(false)
     
     // Only use Clerk's useUser if auth is enabled
     const { user, isLoaded } = config.auth.enabled 
@@ -50,12 +78,24 @@ export function UserProfile() {
         return null;
     }
 
+    // Get the profile image URL with proper handling
+    const profileImageUrl = imgError ? DEFAULT_IMAGE_URL : getProfileImageUrl(user.imageUrl);
 
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild className="w-[2.25rem] h-[2.25rem]">
                 <Avatar>
-                    <AvatarImage src={user.imageUrl} alt={user.fullName || "User Profile"} />
+                    <AvatarImage 
+                        src={profileImageUrl} 
+                        alt={user.fullName || "User Profile"} 
+                        onError={(e) => {
+                            console.error("[USER_PROFILE_IMAGE_ERROR]", {
+                                originalUrl: user.imageUrl,
+                                error: e
+                            });
+                            setImgError(true);
+                        }}
+                    />
                     <AvatarFallback>{user.firstName?.[0] || "U"}</AvatarFallback>
                 </Avatar>
             </DropdownMenuTrigger>

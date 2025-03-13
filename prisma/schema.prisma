@@ -740,6 +740,9 @@ model CoachProfile {
   coachRealEstateDomains RealEstateDomain[] @default([])
   coachPrimaryDomain     RealEstateDomain?  // Optional primary coaching domain
   
+  // Display information
+  slogan              String?      // Coach's byline or slogan
+  
   // Session Configuration
   isActive            Boolean      @default(true)
   defaultDuration     Int          @default(60)

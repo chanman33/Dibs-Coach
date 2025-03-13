@@ -24,9 +24,11 @@ import { CommercialListings } from "@/components/profile/industry/commercial/Com
 import { PrivateCreditProfileForm } from "@/components/profile/industry/private-credit/PrivateCreditProfileForm";
 import { CreditListings } from "@/components/profile/industry/private-credit/CreditListings";
 import { ProfessionalRecognition } from "@/utils/types/recognition";
+import { useUser } from "@clerk/nextjs";
+import config from "@/config";
 
 // Extended type for coach data that includes profile completion info
-interface ExtendedCoachData extends CoachProfileInitialData {
+interface ExtendedCoachData extends Omit<CoachProfileInitialData, 'displayName' | 'slogan'> {
   status: ProfileStatus;
   completionPercentage: number;
   missingFields: string[];
@@ -34,6 +36,10 @@ interface ExtendedCoachData extends CoachProfileInitialData {
   optionalMissingFields: string[];
   validationMessages: Record<string, string>;
   canPublish: boolean;
+  coachRealEstateDomains?: string[];
+  coachSkills: string[];
+  displayName?: string;
+  slogan?: string;
 }
 
 function ProfilePageContent() {
@@ -75,6 +81,11 @@ function ProfilePageContent() {
     privateCreditData,
     updatePrivateCreditData,
   } = useProfileContext();
+
+  // Get Clerk user data for profile image
+  const { user: clerkUser, isLoaded: isClerkLoaded } = config.auth.enabled 
+    ? useUser()
+    : { user: null, isLoaded: true };
 
   const handleProfileSubmit = useCallback(async (data: CoachProfileFormValues) => {
     console.log("[HANDLE_PROFILE_SUBMIT]", {
@@ -134,10 +145,15 @@ function ProfilePageContent() {
     optionalMissingFields: coachData?.optionalMissingFields || [],
     validationMessages: coachData?.validationMessages || {},
     canPublish: coachData?.canPublish || false,
+    coachRealEstateDomains: coachData?.coachRealEstateDomains || [],
+    coachSkills: coachData?.coachSkills || [],
+    displayName: coachData?.displayName || undefined,
+    slogan: coachData?.slogan || undefined,
   };
 
   console.log("[PROFILE_PAGE_RENDER]", {
     extendedCoachData,
+    slogan: coachData?.slogan,
     timestamp: new Date().toISOString()
   });
 
@@ -152,7 +168,7 @@ function ProfilePageContent() {
     <ProfileTabsManager
       userCapabilities={userCapabilities}
       selectedSkills={selectedSkills}
-      realEstateDomains={coachData?.coachRealEstateDomains as RealEstateDomain[]}
+      realEstateDomains={(coachData?.coachRealEstateDomains || []) as RealEstateDomain[]}
       generalUserInfo={generalData}
       onSubmitGeneral={handleGeneralSubmit}
       onSubmitCoach={handleProfileSubmit}
@@ -170,6 +186,12 @@ function ProfilePageContent() {
           canPublish={extendedCoachData.canPublish}
           onSkillsChange={onSkillsChange}
           saveSkills={saveSkills}
+          userInfo={{
+            firstName: generalData?.displayName?.split(' ')[0] || undefined,
+            lastName: generalData?.displayName?.split(' ').slice(1).join(' ') || undefined,
+            bio: generalData?.bio || undefined,
+            profileImageUrl: clerkUser?.imageUrl || undefined
+          }}
         />
       }
       realtorFormContent={

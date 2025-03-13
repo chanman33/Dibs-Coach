@@ -268,7 +268,7 @@ export default function GeneralForm({
         <div className="mb-4 sm:mb-6">
           <h3 className="text-base sm:text-lg font-semibold">General Profile Information</h3>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            This information will be displayed on your public profile.
+            This information will be displayed on your public profile to coaches and your team if connected.
           </p>
         </div>
         

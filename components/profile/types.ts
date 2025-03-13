@@ -19,6 +19,8 @@ export const DOMAIN_SPECIALTIES = [
 // Form validation schema
 export const coachProfileFormSchema = z.object({
   // Coach Profile Fields
+  displayName: z.string().min(1, "Display name is required").optional(),
+  slogan: z.string().optional(),
   specialties: z.array(z.string()).optional(),
   coachSkills: z.array(z.string()).default([]),
   yearsCoaching: z.number()
@@ -69,9 +71,12 @@ export type CoachProfileFormValues = z.infer<typeof coachProfileFormSchema>;
 export interface CoachProfileInitialData {
   firstName?: string | null;
   lastName?: string | null;
+  displayName?: string;
   bio?: string | null;
   profileImageUrl?: string | null;
+  slogan?: string;
   coachingSpecialties?: string[] | null;
+  coachSkills?: string[] | null;
   hourlyRate?: number | undefined;
   yearsCoaching?: number | undefined;
   // Coach Domain Expertise
@@ -121,5 +126,6 @@ export interface CoachProfileResponse {
   canPublish: boolean;
   coachRealEstateDomains: string[];
   coachPrimaryDomain: string | null;
+  slogan?: string;
   // ... other existing fields ...
 } 

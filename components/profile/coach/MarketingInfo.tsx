@@ -2,8 +2,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { updateMarketingInfo, removeTestimonial } from "@/utils/actions/marketing-actions"
+import { updateMarketingInfo } from "@/utils/actions/marketing-actions"
 import { toast } from "sonner"
 import type { MarketingInfo as MarketingInfoType } from "@/utils/types/marketing"
 
@@ -19,16 +18,14 @@ export default function MarketingInformation({
   isSubmitting = false 
 }: MarketingInformationProps) {
   const [formData, setFormData] = useState<MarketingInfoType>({
-    slogan: initialData?.slogan ?? "",
     websiteUrl: initialData?.websiteUrl ?? "",
     facebookUrl: initialData?.facebookUrl ?? "",
     instagramUrl: initialData?.instagramUrl ?? "",
     linkedinUrl: initialData?.linkedinUrl ?? "",
     youtubeUrl: initialData?.youtubeUrl ?? "",
     marketingAreas: initialData?.marketingAreas ?? [],
-    testimonials: initialData?.testimonials?.length ? initialData.testimonials : [{ author: "", content: "" }],
+    testimonials: [],
   })
-  const [isRemoving, setIsRemoving] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -42,65 +39,13 @@ export default function MarketingInformation({
     setFormData({ ...formData, [name]: finalValue })
   }
 
-  const handleTestimonialChange = (index: number, field: string, value: string) => {
-    const updatedTestimonials = formData.testimonials.map((testimonial, i) =>
-      i === index ? { ...testimonial, [field]: value } : testimonial,
-    )
-    setFormData({ ...formData, testimonials: updatedTestimonials })
-  }
-
-  const addTestimonial = () => {
-    setFormData({
-      ...formData,
-      testimonials: [...formData.testimonials, { author: "", content: "" }],
-    })
-  }
-
-  const handleRemoveTestimonial = async (index: number) => {
-    try {
-      setIsRemoving(true)
-      
-      // Only call the server action if there's more than one testimonial
-      if (formData.testimonials.length > 1) {
-        const result = await removeTestimonial({ index })
-        
-        if (result.error) {
-          toast.error(result.error.message)
-          return
-        }
-
-        if (result.data) {
-          const updatedTestimonials = formData.testimonials.filter((_, i) => i !== index)
-          setFormData(prev => ({
-            ...prev,
-            testimonials: updatedTestimonials
-          }))
-          toast.success("Testimonial removed successfully")
-        }
-      }
-    } catch (error) {
-      console.error("[REMOVE_TESTIMONIAL_ERROR]", error)
-      toast.error("Failed to remove testimonial")
-    } finally {
-      setIsRemoving(false)
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     try {
-      // Filter out empty testimonials before submitting
       const dataToSubmit = {
         ...formData,
-        testimonials: formData.testimonials.filter(
-          t => t.author.trim() !== "" || t.content.trim() !== ""
-        ),
-      }
-
-      // Ensure at least one non-empty testimonial
-      if (dataToSubmit.testimonials.length === 0) {
-        dataToSubmit.testimonials = [{ author: "", content: "" }]
+        testimonials: []
       }
 
       if (externalSubmit) {
@@ -121,16 +66,6 @@ export default function MarketingInformation({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="slogan">Byline or Slogan</Label>
-        <Input 
-          id="slogan" 
-          name="slogan" 
-          value={formData.slogan} 
-          onChange={handleChange}
-          placeholder="A short, catchy tagline that captures your unique value proposition (e.g., 'Turning Top Agents into Market Leaders')"
-        />
-      </div>
       <div>
         <Label htmlFor="websiteUrl">Website URL</Label>
         <Input 
@@ -194,41 +129,9 @@ export default function MarketingInformation({
           placeholder="e.g. Downtown, Suburbs, Beachfront"
         />
       </div>
-      <div>
-        <h3 className="text-lg font-semibold mb-2">Testimonials</h3>
-        {formData.testimonials.map((testimonial, index) => (
-          <div key={index} className="space-y-2 p-4 border rounded mb-4">
-            <div className="flex justify-between items-center">
-              <Label>Testimonial {index + 1}</Label>
-              {formData.testimonials.length > 1 && (
-                <Button 
-                  type="button" 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => handleRemoveTestimonial(index)}
-                  disabled={isRemoving}
-                >
-                  {isRemoving ? "Removing..." : "Remove"}
-                </Button>
-              )}
-            </div>
-            <Input
-              placeholder="Author"
-              value={testimonial.author}
-              onChange={(e) => handleTestimonialChange(index, "author", e.target.value)}
-            />
-            <Textarea
-              placeholder="Testimonial Content"
-              value={testimonial.content}
-              onChange={(e) => handleTestimonialChange(index, "content", e.target.value)}
-            />
-          </div>
-        ))}
-        <Button type="button" variant="outline" onClick={addTestimonial}>
-          Add Another Testimonial
-        </Button>
-      </div>
-      <Button type="submit">Save Marketing Information</Button>
+      <Button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? "Saving..." : "Save Marketing Information"}
+      </Button>
     </form>
   )
 }

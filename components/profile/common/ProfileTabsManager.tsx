@@ -311,7 +311,8 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
     commercialFormContent,
     commercialListingsContent,
     privateCreditFormContent,
-    creditListingsContent
+    creditListingsContent,
+    selectedSkills
   ]);
 
   // Memoize all tabs to prevent unnecessary rebuilds
@@ -345,7 +346,6 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
           initialRecognitions={initialRecognitions}
           onSubmit={onSubmitRecognitions}
           isSubmitting={isSubmitting}
-          selectedSkills={selectedSkills}
         />
       ),
       requiredCapabilities: ["COACH"],
@@ -460,7 +460,7 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
       };
     }
     return tab;
-  }, [filteredTabs, activeTab, coachFormContent, realEstateDomains, realtorListingsContent, realtorFormContent, propertyManagerFormContent, propertyManagerListingsContent, investorFormContent, investorListingsContent, mortgageFormContent, titleEscrowFormContent, insuranceFormContent, commercialFormContent, commercialListingsContent, privateCreditFormContent, creditListingsContent, buildDomainSubTabs]);
+  }, [filteredTabs, activeTab, coachFormContent, realEstateDomains, realtorListingsContent, realtorFormContent, propertyManagerFormContent, propertyManagerListingsContent, investorFormContent, investorListingsContent, mortgageFormContent, titleEscrowFormContent, insuranceFormContent, commercialFormContent, commercialListingsContent, privateCreditFormContent, creditListingsContent, buildDomainSubTabs, selectedSkills]);
 
   // Get the active content based on current tab/subtab
   const activeContent = useMemo(() => {

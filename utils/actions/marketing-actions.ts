@@ -1,7 +1,7 @@
 "use server"
 
 import { createAuthClient } from "@/utils/auth"
-import { marketingInfoSchema, type UpdateMarketingInfo } from "@/utils/types/marketing"
+import { marketingInfoSchema, type UpdateMarketingInfo, type Testimonial } from "@/utils/types/marketing"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import { revalidatePath } from "next/cache"
 
@@ -12,9 +12,9 @@ export const removeTestimonial = withServerAction<{ success: true, data: any[] }
 
       const supabase = await createAuthClient()
 
-      // Get realtor profile and current testimonials
+      // Get marketing profile and current testimonials
       const { data: profileData, error: profileError } = await supabase
-        .from("RealtorProfile")
+        .from("MarketingProfile")
         .select("ulid, testimonials")
         .eq("userUlid", userUlid)
         .single()
@@ -25,18 +25,30 @@ export const removeTestimonial = withServerAction<{ success: true, data: any[] }
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Realtor profile not found'
+            message: 'Marketing profile not found'
           }
         }
       }
 
       // Remove the testimonial at the specified index
-      const updatedTestimonials = [...(profileData.testimonials || [])]
-      updatedTestimonials.splice(index, 1)
+      let updatedTestimonials: Testimonial[] = [];
+      
+      if (profileData.testimonials) {
+        // If testimonials is a JSON object, parse it if it's a string or use it directly if it's already an object
+        const currentTestimonials = typeof profileData.testimonials === 'string' 
+          ? JSON.parse(profileData.testimonials) 
+          : profileData.testimonials;
+          
+        // Ensure it's an array
+        if (Array.isArray(currentTestimonials)) {
+          updatedTestimonials = [...currentTestimonials];
+          updatedTestimonials.splice(index, 1);
+        }
+      }
 
       // Update the database with the new testimonials array
       const { error: updateError } = await supabase
-        .from("RealtorProfile")
+        .from("MarketingProfile")
         .update({
           testimonials: updatedTestimonials,
           updatedAt: new Date().toISOString(),
@@ -90,9 +102,9 @@ export const updateMarketingInfo = withServerAction<{ success: true }, UpdateMar
       // Get supabase client
       const supabase = await createAuthClient()
 
-      // Get realtor profile ID
+      // Get marketing profile ID
       const { data: profileData, error: profileError } = await supabase
-        .from("RealtorProfile")
+        .from("MarketingProfile")
         .select("ulid")
         .eq("userUlid", userUlid)
         .single()
@@ -103,23 +115,22 @@ export const updateMarketingInfo = withServerAction<{ success: true }, UpdateMar
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Realtor profile not found'
+            message: 'Marketing profile not found'
           }
         }
       }
 
       // Update marketing information
       const { error: updateError } = await supabase
-        .from("RealtorProfile")
+        .from("MarketingProfile")
         .update({
-          slogan: data.slogan,
           websiteUrl: data.websiteUrl,
           facebookUrl: data.facebookUrl,
           instagramUrl: data.instagramUrl,
           linkedinUrl: data.linkedinUrl,
           youtubeUrl: data.youtubeUrl,
-          marketingAreas: data.marketingAreas ? data.marketingAreas.split(",").map(area => area.trim()) : [],
-          testimonials: data.testimonials,
+          marketingAreas: Array.isArray(data.marketingAreas) ? data.marketingAreas : [],
+          testimonials: Array.isArray(data.testimonials) ? data.testimonials : [],
           updatedAt: new Date().toISOString(),
         })
         .eq("ulid", profileData.ulid)

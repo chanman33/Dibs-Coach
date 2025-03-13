@@ -31,16 +31,73 @@ import {
   Calendar,
   Building,
   Trophy,
-  BookOpen
+  BookOpen,
+  Home,
+  Wallet,
+  FileText,
+  FileCheck,
+  Shield,
+  Building2
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/utils/cn";
+import { REAL_ESTATE_DOMAINS, type RealEstateDomain } from "@/utils/types/coach";
+
+// Domain options with human-readable labels
+const DOMAIN_OPTIONS = [
+  {
+    id: REAL_ESTATE_DOMAINS.REALTOR,
+    label: "Real Estate Agent",
+    icon: <Home className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.INVESTOR,
+    label: "Real Estate Investor",
+    icon: <Wallet className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.MORTGAGE,
+    label: "Mortgage Professional",
+    icon: <FileText className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.PROPERTY_MANAGER,
+    label: "Property Manager",
+    icon: <Building className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.TITLE_ESCROW,
+    label: "Title & Escrow",
+    icon: <FileCheck className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.INSURANCE,
+    label: "Insurance",
+    icon: <Shield className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.COMMERCIAL,
+    label: "Commercial Real Estate",
+    icon: <Building2 className="h-4 w-4" />
+  },
+  {
+    id: REAL_ESTATE_DOMAINS.PRIVATE_CREDIT,
+    label: "Private Credit",
+    icon: <Wallet className="h-4 w-4" />
+  }
+];
+
+// Helper function to get domain label from ID
+const getDomainLabel = (domainId: string): string => {
+  const domain = DOMAIN_OPTIONS.find(d => d.id === domainId);
+  return domain ? domain.label : domainId;
+};
 
 interface RecognitionsTabProps {
   initialRecognitions: ProfessionalRecognition[];
   onSubmit: (recognitions: ProfessionalRecognition[]) => Promise<void>;
   isSubmitting: boolean;
-  selectedSkills: string[];
+  selectedSkills?: string[];
 }
 
 // Helper function to format dates for input fields
@@ -369,21 +426,8 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
     }));
   };
 
-  // Common real estate domains to use as fallback if selectedSkills is empty
-  const realEstateDomains = [
-    "Residential",
-    "Commercial",
-    "Investment",
-    "Property Management",
-    "Mortgage",
-    "Title & Escrow",
-    "Insurance",
-    "Development",
-    "Appraisal"
-  ];
-
-  // Use selectedSkills if available, otherwise use the fallback domains
-  const industryOptions = selectedSkills.length > 0 ? selectedSkills : realEstateDomains;
+  // Use the proper real estate domains from the REAL_ESTATE_DOMAINS constant
+  const domainOptions = Object.values(REAL_ESTATE_DOMAINS);
 
   const handleSubmit = async () => {
     try {
@@ -497,7 +541,7 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
                       </Badge>
                       {industryType && (
                         <Badge variant="secondary" className="text-xs">
-                          {industryType}
+                          {getDomainLabel(industryType)}
                         </Badge>
                       )}
                     </div>
@@ -695,9 +739,9 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none_general">None (General)</SelectItem>
-                      {industryOptions.map((skill) => (
-                        <SelectItem key={skill} value={skill}>
-                          {skill}
+                      {domainOptions.map((domain) => (
+                        <SelectItem key={domain} value={domain}>
+                          {getDomainLabel(domain)}
                         </SelectItem>
                       ))}
                     </SelectContent>

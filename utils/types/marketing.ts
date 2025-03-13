@@ -17,7 +17,6 @@ const optionalUrlSchema = z.union([
 
 // Schema for marketing information
 export const marketingInfoSchema = z.object({
-  slogan: z.string().optional(),
   websiteUrl: optionalUrlSchema,
   facebookUrl: optionalUrlSchema.refine(
     (val) => !val || val === "" || val.includes("facebook.com"),
@@ -41,6 +40,7 @@ export const marketingInfoSchema = z.object({
       testimonials.filter(t => t.author.trim() !== "" || t.content.trim() !== "")
     )
     .default([])
+    .optional()
 })
 
 // Schema for updating marketing information

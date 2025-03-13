@@ -27,6 +27,8 @@ export interface CoachProfileFormData {
   certifications?: string[];
   professionalRecognitions?: ProfessionalRecognition[];
   skipRevalidation?: boolean;
+  displayName?: string;
+  slogan?: string;
 }
 
 interface CoachProfileResponse {
@@ -38,6 +40,7 @@ interface CoachProfileResponse {
   maximumDuration: number;
   allowCustomDuration: boolean;
   eventTypeUrl: string;
+  slogan: string;
   certifications: string[];
   professionalRecognitions: ProfessionalRecognition[];
   realEstateDomains: string[];
@@ -130,6 +133,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           coachRealEstateDomains,
           coachPrimaryDomain,
           eventTypeUrl,
+          slogan,
           createdAt,
           updatedAt
         `)
@@ -254,6 +258,15 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         timestamp: new Date().toISOString()
       });
 
+      // Log the coach profile data for debugging
+      console.log("[PROFILE_FIELD_CHECK]", {
+        slogan: coachProfile?.slogan,
+        coachSkills: coachProfile?.coachSkills,
+        coachRealEstateDomains: coachProfile?.coachRealEstateDomains,
+        coachPrimaryDomain: coachProfile?.coachPrimaryDomain,
+        timestamp: new Date().toISOString()
+      });
+
       const profileData = {
         firstName: userData?.firstName,
         lastName: userData?.lastName,
@@ -277,6 +290,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         maximumDuration: coachProfile?.maximumDuration || 120,
         allowCustomDuration: coachProfile?.allowCustomDuration || false,
         eventTypeUrl: coachProfile?.eventTypeUrl || "",
+        slogan: coachProfile?.slogan || "",
         certifications: [],
         professionalRecognitions: activeRecognitions,
         realEstateDomains: userData?.realEstateDomains || [],
@@ -318,6 +332,10 @@ interface UpdateCoachProfileResponse {
   profileStatus: ProfileStatus;
   canPublish: boolean;
   missingFields: string[];
+  slogan?: string;
+  coachPrimaryDomain?: string | null;
+  coachSkills?: string[];
+  coachRealEstateDomains?: string[];
 }
 
 export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, CoachProfileFormData>(
@@ -427,6 +445,8 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         allowCustomDuration: formData.allowCustomDuration,
         coachRealEstateDomains: coachDomains,
         coachPrimaryDomain: coachPrimaryDomain,
+        displayName: formData.displayName,
+        slogan: formData.slogan,
         profileStatus,
         completionPercentage: percentage,
         updatedAt: new Date().toISOString(),
@@ -435,6 +455,8 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
       console.log("[UPDATE_COACH_PROFILE_DATA]", {
         userUlid,
         coachProfileData,
+        slogan: formData.slogan,
+        coachPrimaryDomain,
         timestamp: new Date().toISOString()
       });
 
@@ -474,7 +496,11 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           completionPercentage: percentage,
           profileStatus,
           canPublish,
-          missingFields
+          missingFields,
+          slogan: formData.slogan,
+          coachPrimaryDomain,
+          coachSkills: formData.coachSkills,
+          coachRealEstateDomains: coachDomains
         },
         error: null
       }

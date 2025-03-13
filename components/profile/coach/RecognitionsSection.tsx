@@ -83,7 +83,6 @@ export function RecognitionsSection({
         initialRecognitions={recognitions}
         onSubmit={handleSubmit}
         isSubmitting={isSubmitting}
-        selectedSkills={selectedSpecialties}
       />
     </div>
   );
