@@ -10,7 +10,7 @@ export default function CoachLayout({
   return (
     <div className="flex h-screen">
       <CoachSidebar />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1">
         {children}
       </main>
     </div>

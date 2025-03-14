@@ -6,9 +6,5 @@ export const metadata = {
 }
 
 export default function CoachLibraryPage() {
-  return (
-    <div className="h-full flex-1 flex-col space-y-8 p-8 md:flex">
-      <Library />
-    </div>
-  )
+  return <Library />
 }
