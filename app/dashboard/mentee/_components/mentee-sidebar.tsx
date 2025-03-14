@@ -16,7 +16,8 @@ import {
   ChevronUp,
   Calculator,
   Target,
-  Bot
+  Bot,
+  BookOpen
 } from "lucide-react"
 import { useAuthContext } from "@/components/auth/providers"
 import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
@@ -35,7 +36,7 @@ export function MenteeSidebar() {
         if (result.data) {
           const { realEstateDomains } = result.data
           const isRealtor = realEstateDomains?.includes(REAL_ESTATE_DOMAINS.REALTOR) || false
-          
+
           setHasRealtorDomain(isRealtor)
         }
       } catch (error) {
@@ -93,7 +94,17 @@ export function MenteeSidebar() {
                 </span>
               </div>
             </NavLink>
-
+            
+            {/* Resource Library */}
+            <Separator className="my-3" />
+            <NavLink href="/dashboard/resource-library" icon={BookOpen}>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">Library</span>
+                <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded dark:bg-green-900 dark:text-green-300">
+                  Learn
+                </span>
+              </div>
+            </NavLink>
 
             {/* Shared Tools */}
             <Separator className="my-3" />
@@ -104,7 +115,7 @@ export function MenteeSidebar() {
               <NavLink href="/dashboard/mentee/tools/ai-listings" icon={Building2}>
                 AI Listing Generator
               </NavLink> */}
-              
+
               {/* Income Calculator - Only show if user has REALTOR domain */}
               {hasRealtorDomain && (
                 <NavLink href="/dashboard/mentee/tools/income-calc" icon={Calculator}>

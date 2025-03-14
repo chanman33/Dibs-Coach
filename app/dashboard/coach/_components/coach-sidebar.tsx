@@ -19,6 +19,7 @@ import {
   Calculator,
   Bot,
   GraduationCap,
+  BookOpen,
 } from "lucide-react"
 import { useAuthContext } from "@/components/auth/providers"
 import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
@@ -92,6 +93,18 @@ export function CoachSidebar() {
                 <span className="font-semibold">Browse Coaches</span>
                 <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
                   Grow
+                </span>
+              </div>
+            </NavLink>
+
+            {/* Resource Library */}
+            <Separator className="my-3" />
+            
+            <NavLink href="/dashboard/coach/library" icon={BookOpen}>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">Library</span>
+                <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded dark:bg-green-900 dark:text-green-300">
+                  Learn
                 </span>
               </div>
             </NavLink>
