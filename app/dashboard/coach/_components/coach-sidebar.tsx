@@ -64,8 +64,8 @@ export function CoachSidebar() {
   )
 
   return (
-    <div className="lg:block hidden border-r h-full">
-      <div className="flex h-full max-h-screen flex-col gap-2">
+    <div className="lg:block hidden border-r h-screen sticky top-0">
+      <div className="flex h-full flex-col gap-2">
         <div className="flex h-[55px] items-center justify-between border-b px-3 w-full">
           <Link className="flex items-center gap-2 font-semibold ml-1" href="/dashboard/coach">
             <span>Coach Portal</span>
