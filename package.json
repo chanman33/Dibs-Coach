@@ -11,15 +11,16 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "seed": "yarn tsx prisma/seed.ts",
-    "seed-admin": "tsx prisma/seed-admin.ts",
-    "seed-leads": "node scripts/seed-leads-direct.js",
+    "seed-leads": "yarn tsx prisma/seed-leads.ts",
     "seed-leads:sql": "node scripts/seed-leads.js",
+    "seed-coaches:sql": "node scripts/seed-coaches.js",
     "db:push": "yarn prisma db push",
     "db:studio": "yarn prisma studio",
     "update-types:win": "dotenv -e .env -- supabase gen types typescript --project-id %SUPABASE_PROJECT_ID% > types/supabase.ts",
     "update-types:mac": "dotenv -e .env -- cross-env-shell supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" > types/supabase.ts",
     "update-types": "yarn update-types:win",
-    "update-types:ps": "powershell -Command \"$env:SUPABASE_PROJECT_ID=(Get-Content .env | Select-String 'SUPABASE_PROJECT_ID' | ForEach-Object { $_.ToString().Split('=')[1].Trim() }); supabase gen types typescript --project-id $env:SUPABASE_PROJECT_ID > types/supabase.ts\""
+    "update-types:ps": "powershell -Command \"$env:SUPABASE_PROJECT_ID=(Get-Content .env | Select-String 'SUPABASE_PROJECT_ID' | ForEach-Object { $_.ToString().Split('=')[1].Trim() }); supabase gen types typescript --project-id $env:SUPABASE_PROJECT_ID > types/supabase.ts\"",
+    "seed-coaches": "tsx prisma/seed-coaches.ts"
   },
   "prisma": {
     "seed": "yarn tsx prisma/seed.ts"

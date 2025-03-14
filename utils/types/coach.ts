@@ -80,9 +80,9 @@ export const REAL_ESTATE_DOMAINS = {
 // Add domain activation configuration
 export const ACTIVE_DOMAINS = {
   [REAL_ESTATE_DOMAINS.REALTOR]: true,
-  [REAL_ESTATE_DOMAINS.INVESTOR]: false,
+  [REAL_ESTATE_DOMAINS.INVESTOR]: true,
   [REAL_ESTATE_DOMAINS.MORTGAGE]: true,
-  [REAL_ESTATE_DOMAINS.PROPERTY_MANAGER]: false,
+  [REAL_ESTATE_DOMAINS.PROPERTY_MANAGER]: true,
   [REAL_ESTATE_DOMAINS.TITLE_ESCROW]: false,
   [REAL_ESTATE_DOMAINS.INSURANCE]: false,
   [REAL_ESTATE_DOMAINS.COMMERCIAL]: false,
@@ -249,12 +249,6 @@ export const COACH_SPECIALTIES = {
 export type SpecialtyCategory = keyof typeof COACH_SPECIALTIES;
 export type Specialty = typeof COACH_SPECIALTIES[SpecialtyCategory][number];
 
-// Add new type for stored specialty
-export interface CoachSpecialtyEntry {
-  category: SpecialtyCategory;
-  specialty: Specialty;
-}
-
 // Now the schema can use these types
 export const CoachProfileSchema = z.object({
   id: z.number().optional(),
@@ -398,10 +392,16 @@ export interface PublicCoach {
   bio: string | null
   profileImageUrl: string | null
   slogan: string | null
-  coachingSpecialties: CoachSpecialtyEntry[]
-  coachRealEstateDomains?: RealEstateDomain[]
-  coachPrimaryDomain?: RealEstateDomain | null
+  coachSkills: string[]
+  coachRealEstateDomains: RealEstateDomain[]
+  coachPrimaryDomain: RealEstateDomain | null
   hourlyRate: number | null
   averageRating: number | null
   totalSessions: number
+  sessionConfig?: {
+    defaultDuration: number
+    minimumDuration: number
+    maximumDuration: number
+    allowCustomDuration: boolean
+  }
 } 

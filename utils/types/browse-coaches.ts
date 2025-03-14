@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
+import { RealEstateDomain } from "./coach";
 
 export interface BrowseCoachData {
   ulid: string;
@@ -8,7 +9,9 @@ export interface BrowseCoachData {
   lastName: string;
   profileImageUrl: string | null;
   bio: string | null;
-  coachingSpecialties: string[];
+  coachSkills: string[];
+  coachRealEstateDomains: RealEstateDomain[];
+  coachPrimaryDomain: RealEstateDomain | null;
   hourlyRate: number | null;
   isActive: boolean;
   yearsCoaching: number | null;
@@ -18,6 +21,9 @@ export interface BrowseCoachData {
   minimumDuration: number;
   maximumDuration: number;
   allowCustomDuration: boolean;
+  slogan: string | null;
+  profileStatus: string;
+  completionPercentage: number;
 }
 
 export interface BrowseCoachesProps {
@@ -42,7 +48,9 @@ export const browseCoachSchema = z.object({
   lastName: z.string(),
   profileImageUrl: z.string().nullable(),
   bio: z.string().nullable(),
-  coachingSpecialties: z.array(z.string()),
+  coachSkills: z.array(z.string()),
+  coachRealEstateDomains: z.array(z.any()),
+  coachPrimaryDomain: z.any().nullable(),
   hourlyRate: z.number().nullable(),
   isActive: z.boolean(),
   yearsCoaching: z.number().nullable(),
@@ -51,5 +59,8 @@ export const browseCoachSchema = z.object({
   defaultDuration: z.number(),
   minimumDuration: z.number(),
   maximumDuration: z.number(),
-  allowCustomDuration: z.boolean()
+  allowCustomDuration: z.boolean(),
+  slogan: z.string().nullable(),
+  profileStatus: z.string(),
+  completionPercentage: z.number()
 }); 

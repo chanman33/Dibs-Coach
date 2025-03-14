@@ -11,6 +11,7 @@ import { CoachProfileModal } from '@/components/profile/common/CoachProfileModal
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { useBrowseCoaches } from '@/utils/hooks/useBrowseCoaches'
 import { BrowseCoachData } from '@/utils/types/browse-coaches'
+import { CoachFilters } from '@/components/coaching/shared/SearchAndFilter/types'
 
 export interface BrowseCoachesProps {
   role: keyof typeof USER_CAPABILITIES;
@@ -29,10 +30,18 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
 
   const [selectedCoach, setSelectedCoach] = useState<BrowseCoachData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [filters, setFilters] = useState<CoachFilters>({});
 
   const handleCoachClick = (coach: BrowseCoachData) => {
     setSelectedCoach(coach);
     setIsModalOpen(true);
+  };
+
+  const handleFiltersChange = (newFilters: CoachFilters) => {
+    setFilters(newFilters);
+    if (newFilters.domain?.length) {
+      handleFilter(newFilters.domain[0]);
+    }
   };
 
   if (error) {
@@ -55,7 +64,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
           userId={coach.userId}
           name={`${coach.firstName} ${coach.lastName}`}
           imageUrl={coach.profileImageUrl || ''}
-          specialty={coach.coachingSpecialties?.[0] || 'General Coach'}
+          specialty={coach.coachSkills?.[0] || 'General Coach'}
           bio={coach.bio || ''}
           experience={coach.yearsCoaching 
             ? `${coach.yearsCoaching} years of coaching experience` 
@@ -63,9 +72,9 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
           certifications={[]}
           availability={coach.isActive ? "Available" : "Unavailable"}
           sessionLength={`${coach.defaultDuration} minutes`}
-          specialties={coach.coachingSpecialties || []}
-          calendlyUrl={coach.calendlyUrl || ''}
-          eventTypeUrl={coach.eventTypeUrl || ''}
+          coachSkills={coach.coachSkills || []}
+          coachRealEstateDomains={coach.coachRealEstateDomains || []}
+          coachPrimaryDomain={coach.coachPrimaryDomain}
           isBooked={isBooked}
           onProfileClick={() => handleCoachClick(coach)}
           sessionConfig={{
@@ -90,6 +99,76 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
       ))}
     </div>
   );
+
+  // Dedicated function for rendering recommended coaches with consistent formatting
+  const renderRecommendedCoaches = (coaches: BrowseCoachData[]) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      {coaches.map(coach => (
+        <PrivateCoachCard
+          key={coach.ulid}
+          id={coach.ulid}
+          userId={coach.userId}
+          name={`${coach.firstName} ${coach.lastName}`}
+          imageUrl={coach.profileImageUrl || ''}
+          specialty={coach.coachSkills?.[0] || 'General Coach'}
+          bio={coach.bio || ''}
+          experience={coach.yearsCoaching 
+            ? `${coach.yearsCoaching} years of coaching experience` 
+            : null}
+          certifications={[]}
+          availability={coach.isActive ? "Available" : "Unavailable"}
+          sessionLength={`${coach.defaultDuration} minutes`}
+          coachSkills={coach.coachSkills || []}
+          coachRealEstateDomains={coach.coachRealEstateDomains || []}
+          coachPrimaryDomain={coach.coachPrimaryDomain}
+          isBooked={false}
+          onProfileClick={() => handleCoachClick(coach)}
+          sessionConfig={{
+            durations: [
+              coach.minimumDuration,
+              coach.defaultDuration,
+              coach.maximumDuration
+            ].filter(Boolean), // Filter out any falsy values
+            rates: {
+              [coach.minimumDuration]: (coach.hourlyRate || 0) * (coach.minimumDuration / 60),
+              [coach.defaultDuration]: (coach.hourlyRate || 0) * (coach.defaultDuration / 60),
+              [coach.maximumDuration]: (coach.hourlyRate || 0) * (coach.maximumDuration / 60)
+            },
+            currency: 'USD',
+            defaultDuration: coach.defaultDuration || 60,
+            allowCustomDuration: coach.allowCustomDuration || false,
+            minimumDuration: coach.minimumDuration || 30,
+            maximumDuration: coach.maximumDuration || 90,
+            isActive: coach.isActive
+          }}
+        />
+      ))}
+    </div>
+  );
+
+  // Helper function to get top recommended coaches
+  const getTopRecommendedCoaches = (coaches: BrowseCoachData[], count: number = 3): BrowseCoachData[] => {
+    // Filter out coaches that are already booked
+    const availableCoaches = coaches.filter(coach => 
+      !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid)
+    );
+    
+    // Sort by a combination of factors to get the best recommendations
+    return availableCoaches
+      .sort((a, b) => {
+        // First prioritize by rating
+        const ratingDiff = (b.averageRating || 0) - (a.averageRating || 0);
+        if (ratingDiff !== 0) return ratingDiff;
+        
+        // Then by experience
+        const experienceDiff = (b.yearsCoaching || 0) - (a.yearsCoaching || 0);
+        if (experienceDiff !== 0) return experienceDiff;
+        
+        // Then by total sessions
+        return (b.totalSessions || 0) - (a.totalSessions || 0);
+      })
+      .slice(0, count);
+  };
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
@@ -139,12 +218,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
             </CardHeader>
             <CardContent className="pt-4">
               <FilterSidebar
-                onFiltersChange={filters => {
-                  if (filters.domain?.length) {
-                    handleFilter(filters.domain[0]);
-                  }
-                  // TODO: Implement other filter handlers
-                }}
+                onFiltersChange={handleFiltersChange}
                 domains={allSpecialties.map(specialty => ({
                   label: specialty,
                   value: specialty
@@ -175,7 +249,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
                     )
                     .map(coach => ({
                       ...coach,
-                      specialty: coach.coachingSpecialties?.[0] || 'General Coach'
+                      specialty: coach.coachSkills?.[0] || 'General Coach'
                     }))
                   )}
                 </div>
@@ -203,19 +277,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : filteredRecommendedCoaches.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {renderCoaches(filteredRecommendedCoaches
-                .filter(coach => 
-                  !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid)
-                )
-                .slice(0, 3)
-                .map(coach => ({
-                  ...coach,
-                  rating: coach.averageRating,
-                  specialty: coach.coachingSpecialties?.[0] || 'General Coach'
-                }))
-              )}
-            </div>
+            renderRecommendedCoaches(getTopRecommendedCoaches(filteredRecommendedCoaches))
           ) : (
             <p className="text-center text-muted-foreground py-12">
               No recommended coaches available at the moment. Please check back later!
@@ -233,7 +295,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
             userId: selectedCoach.userId,
             name: `${selectedCoach.firstName} ${selectedCoach.lastName}`,
             imageUrl: selectedCoach.profileImageUrl || '',
-            specialty: selectedCoach.coachingSpecialties?.[0] || 'General Coach',
+            specialty: selectedCoach.coachSkills?.[0] || 'General Coach',
             bio: selectedCoach.bio || '',
             experience: selectedCoach.yearsCoaching 
               ? `${selectedCoach.yearsCoaching} years of coaching experience` 
@@ -241,9 +303,9 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
             certifications: [],
             availability: selectedCoach.isActive ? "Available" : "Unavailable",
             sessionLength: `${selectedCoach.defaultDuration} minutes`,
-            specialties: selectedCoach.coachingSpecialties || [],
-            calendlyUrl: selectedCoach.calendlyUrl || '',
-            eventTypeUrl: selectedCoach.eventTypeUrl || '',
+            coachSkills: selectedCoach.coachSkills || [],
+            coachRealEstateDomains: selectedCoach.coachRealEstateDomains || [],
+            coachPrimaryDomain: selectedCoach.coachPrimaryDomain,
             sessionConfig: {
               durations: [
                 selectedCoach.minimumDuration,

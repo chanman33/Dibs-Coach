@@ -101,9 +101,9 @@ export default function CoachCarousel() {
                       id={coach.ulid}
                       name={`${coach.firstName || ''} ${coach.lastName || ''}`}
                       imageUrl={coach.profileImageUrl || ''}
-                      specialty={coach.coachingSpecialties[0] || 'Real Estate Coach'}
+                      specialty={coach.coachSkills?.[0] || 'Real Estate Coach'}
                       bio={coach.bio || ''}
-                      specialties={coach.coachingSpecialties || []}
+                      coachSkills={coach.coachSkills || []}
                       rating={coach.averageRating ?? undefined}
                       reviewCount={coach.totalSessions}
                       hourlyRate={coach.hourlyRate as number | undefined}

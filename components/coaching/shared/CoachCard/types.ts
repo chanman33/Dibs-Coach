@@ -1,3 +1,5 @@
+import { RealEstateDomain } from "@/utils/types/coach";
+
 export interface BaseCoachCardProps {
   id: string;
   name: string;
@@ -20,24 +22,24 @@ export interface SessionConfig {
 
 export interface PrivateCoachCardProps extends BaseCoachCardProps {
   userId: string;
-  specialties: string[];
+  coachSkills: string[];
+  coachRealEstateDomains?: RealEstateDomain[];
+  coachPrimaryDomain?: RealEstateDomain | null;
   experience: string | null;
   certifications: string[];
   availability: string;
   sessionLength: string;
-  calendlyUrl: string | null;
-  eventTypeUrl: string | null;
   isBooked: boolean;
   onProfileClick: () => void;
   sessionConfig: SessionConfig;
 }
 
 export interface PublicCoachCardProps extends BaseCoachCardProps {
-  specialties: string[];
+  coachSkills: string[];
+  coachRealEstateDomains?: RealEstateDomain[];
+  coachPrimaryDomain?: RealEstateDomain | null;
   rating?: number;
   reviewCount?: number;
   hourlyRate?: number | null;
-  calendlyUrl?: string | null;
-  eventTypeUrl?: string | null;
   sessionConfig?: SessionConfig;
 } 

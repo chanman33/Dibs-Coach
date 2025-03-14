@@ -11,7 +11,8 @@ import {
   PiggyBank, 
   FileText, 
   Building2,
-  Landmark 
+  Landmark,
+  Briefcase
 } from 'lucide-react';
 import {
   Collapsible,
@@ -21,7 +22,7 @@ import {
 import { FilterSidebarProps, CoachFilters } from './types';
 import { cn } from '@/lib/utils';
 import { ChevronDown, X } from 'lucide-react';
-import { REAL_ESTATE_DOMAINS, ACTIVE_DOMAINS } from '@/utils/types/coach';
+import { REAL_ESTATE_DOMAINS, ACTIVE_DOMAINS, RealEstateDomain } from '@/utils/types/coach';
 
 const INDUSTRY_DOMAINS = [
   { label: 'Realtor', value: 'realtor', icon: Home },
@@ -34,7 +35,7 @@ const INDUSTRY_DOMAINS = [
 ];
 
 // Map the industry domains to their corresponding REAL_ESTATE_DOMAINS values
-const DOMAIN_VALUE_MAP = {
+const DOMAIN_VALUE_MAP: Record<string, RealEstateDomain> = {
   'realtor': REAL_ESTATE_DOMAINS.REALTOR,
   'mortgage': REAL_ESTATE_DOMAINS.MORTGAGE,
   'commercial_re': REAL_ESTATE_DOMAINS.COMMERCIAL,
@@ -42,7 +43,19 @@ const DOMAIN_VALUE_MAP = {
   'investor': REAL_ESTATE_DOMAINS.INVESTOR,
   'private_credit': REAL_ESTATE_DOMAINS.PRIVATE_CREDIT,
   'title_escrow': REAL_ESTATE_DOMAINS.TITLE_ESCROW,
-} as const;
+};
+
+// Create a reverse mapping for display purposes
+const REAL_ESTATE_DOMAIN_DISPLAY: Record<RealEstateDomain, { label: string, icon: React.ComponentType<{ className?: string }> }> = {
+  [REAL_ESTATE_DOMAINS.REALTOR]: { label: 'Realtor', icon: Home },
+  [REAL_ESTATE_DOMAINS.MORTGAGE]: { label: 'Mortgage Officer', icon: Landmark },
+  [REAL_ESTATE_DOMAINS.COMMERCIAL]: { label: 'Commercial Real Estate', icon: Building },
+  [REAL_ESTATE_DOMAINS.PROPERTY_MANAGER]: { label: 'Property Management', icon: LandPlot },
+  [REAL_ESTATE_DOMAINS.INVESTOR]: { label: 'Investor', icon: PiggyBank },
+  [REAL_ESTATE_DOMAINS.PRIVATE_CREDIT]: { label: 'Private Credit', icon: FileText },
+  [REAL_ESTATE_DOMAINS.TITLE_ESCROW]: { label: 'Title & Escrow', icon: Building2 },
+  [REAL_ESTATE_DOMAINS.INSURANCE]: { label: 'Insurance', icon: Briefcase },
+};
 
 const PRICE_RANGES = [
   { label: '$50 - $100/hr', value: '50-100', count: 45 },
@@ -67,17 +80,15 @@ export function FilterSidebar({
   const [filters, setFilters] = useState<CoachFilters>(initialFilters);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
   const [openSections, setOpenSections] = useState({
-    domains: true, // Industry dropdown is open by default
+    realEstateDomains: true, // Real Estate Domains is open by default
     price: false,  // Price is collapsed by default
     rating: false, // Rating is collapsed by default
   });
 
-  // Filter domains based on ACTIVE_DOMAINS configuration
-  const displayDomains = (domains && domains.length > 0 ? domains : INDUSTRY_DOMAINS)
-    .filter(domain => {
-      const realEstateDomain = DOMAIN_VALUE_MAP[domain.value as keyof typeof DOMAIN_VALUE_MAP];
-      return ACTIVE_DOMAINS[realEstateDomain];
-    });
+  // Get active real estate domains
+  const activeRealEstateDomains = Object.entries(REAL_ESTATE_DOMAINS)
+    .filter(([_, value]) => ACTIVE_DOMAINS[value])
+    .map(([_, value]) => value);
 
   useEffect(() => {
     const count = Object.values(filters).reduce((acc, value) => {
@@ -89,14 +100,14 @@ export function FilterSidebar({
     setActiveFilterCount(count);
   }, [filters]);
 
-  const handleDomainChange = (checked: boolean, domain: string) => {
-    const updatedDomains = checked
-      ? [...(filters.domain || []), domain]
-      : (filters.domain || []).filter((d) => d !== domain);
+  const handleRealEstateDomainChange = (checked: boolean, domain: RealEstateDomain) => {
+    const updatedRealEstateDomains = checked
+      ? [...(filters.realEstateDomain || []), domain]
+      : (filters.realEstateDomain || []).filter((d) => d !== domain);
 
     setFilters((prev) => ({
       ...prev,
-      domain: updatedDomains,
+      realEstateDomain: updatedRealEstateDomains,
     }));
   };
 
@@ -204,21 +215,23 @@ export function FilterSidebar({
 
       <div className="space-y-4">
         <Collapsible
-          open={openSections.domains}
+          open={openSections.realEstateDomains}
           className="space-y-2"
         >
-          {renderFilterHeader('Industry', 'domains', filters.domain?.length)}
+          {renderFilterHeader('Real Estate Domains', 'realEstateDomains', filters.realEstateDomain?.length)}
           <CollapsibleContent className="pt-2">
             <div className="grid grid-cols-1 gap-1.5">
-              {displayDomains.map((domain) => {
-                if (!domain.icon) return null;
-                const Icon = domain.icon;
-                const isSelected = (filters.domain || []).includes(domain.value);
+              {activeRealEstateDomains.map((domain) => {
+                const domainInfo = REAL_ESTATE_DOMAIN_DISPLAY[domain];
+                if (!domainInfo) return null;
+                
+                const Icon = domainInfo.icon;
+                const isSelected = (filters.realEstateDomain || []).includes(domain);
                 
                 return (
                   <button
-                    key={domain.value}
-                    onClick={() => handleDomainChange(!isSelected, domain.value)}
+                    key={domain}
+                    onClick={() => handleRealEstateDomainChange(!isSelected, domain)}
                     className={cn(
                       "flex items-center w-full px-2 py-1.5 rounded-md text-sm",
                       "hover:bg-muted/50 transition-colors",
@@ -226,7 +239,7 @@ export function FilterSidebar({
                     )}
                   >
                     <Icon className="h-4 w-4 mr-2 flex-shrink-0" />
-                    <span className="truncate">{domain.label}</span>
+                    <span className="truncate">{domainInfo.label}</span>
                   </button>
                 );
               })}

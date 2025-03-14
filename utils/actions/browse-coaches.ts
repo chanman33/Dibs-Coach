@@ -3,7 +3,7 @@
 import { createAuthClient } from '@/utils/auth'
 import { BrowseCoachData } from '@/utils/types/browse-coaches'
 import { withServerAction } from '@/utils/middleware/withServerAction'
-import { ACTIVE_DOMAINS, REAL_ESTATE_DOMAINS } from '@/utils/types/coach'
+import { ACTIVE_DOMAINS, REAL_ESTATE_DOMAINS, RealEstateDomain } from '@/utils/types/coach'
 
 interface DbCoach {
   ulid: string
@@ -15,7 +15,9 @@ interface DbCoach {
   capabilities: string[]
   CoachProfile: {
     ulid: string
-    coachingSpecialties: string[]
+    coachSkills: string[]
+    coachRealEstateDomains: string[]
+    coachPrimaryDomain: string | null
     hourlyRate: number | null
     yearsCoaching: number | null
     totalSessions: number
@@ -25,6 +27,9 @@ interface DbCoach {
     maximumDuration: number
     allowCustomDuration: boolean
     isActive: boolean
+    slogan: string | null
+    profileStatus: string
+    completionPercentage: number
   } | null
 }
 
@@ -117,7 +122,9 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
         .select(`
           ulid,
           userUlid,
-          coachingSpecialties,
+          coachSkills,
+          coachRealEstateDomains,
+          coachPrimaryDomain,
           hourlyRate,
           yearsCoaching,
           totalSessions,
@@ -127,7 +134,9 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
           maximumDuration,
           allowCustomDuration,
           isActive,
-          profileStatus
+          profileStatus,
+          slogan,
+          completionPercentage
         `)
         .in('userUlid', coachUsers.map(u => u.ulid))
         .eq('profileStatus', 'PUBLISHED')
@@ -152,11 +161,12 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
         .map(([domain]) => domain);
 
       const filteredCoachProfiles = coachProfilesData.filter(profile => {
-        // Check if the coach has any specialties in active domains
-        return profile.coachingSpecialties.some((specialty: string) => 
-          activeDomainsArray.some(domain => 
-            specialty.toUpperCase().includes(domain)
-          )
+        // Check if the coach has any skills in active domains or if their primary domain is active
+        return (
+          (profile.coachRealEstateDomains && profile.coachRealEstateDomains.some((domain: string) => 
+            activeDomainsArray.includes(domain)
+          )) || 
+          (profile.coachPrimaryDomain && activeDomainsArray.includes(profile.coachPrimaryDomain))
         );
       });
 
@@ -182,7 +192,9 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
           capabilities: user.capabilities,
           CoachProfile: {
             ulid: profile.ulid,
-            coachingSpecialties: profile.coachingSpecialties,
+            coachSkills: profile.coachSkills,
+            coachRealEstateDomains: profile.coachRealEstateDomains,
+            coachPrimaryDomain: profile.coachPrimaryDomain,
             hourlyRate: profile.hourlyRate,
             yearsCoaching: profile.yearsCoaching,
             totalSessions: profile.totalSessions,
@@ -191,7 +203,10 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
             minimumDuration: profile.minimumDuration,
             maximumDuration: profile.maximumDuration,
             allowCustomDuration: profile.allowCustomDuration,
-            isActive: profile.isActive
+            isActive: profile.isActive,
+            slogan: profile.slogan,
+            profileStatus: profile.profileStatus,
+            completionPercentage: profile.completionPercentage
           }
         };
       }).filter(Boolean) as DbCoach[];
@@ -232,7 +247,9 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
             lastName: coach.lastName,
             profileImageUrl: coach.profileImageUrl,
             bio: coach.bio,
-            coachingSpecialties: coach.CoachProfile?.coachingSpecialties || [],
+            coachSkills: coach.CoachProfile?.coachSkills || [],
+            coachRealEstateDomains: (coach.CoachProfile?.coachRealEstateDomains || []) as RealEstateDomain[],
+            coachPrimaryDomain: coach.CoachProfile?.coachPrimaryDomain as RealEstateDomain | null,
             hourlyRate: coach.CoachProfile?.hourlyRate || null,
             yearsCoaching: coach.CoachProfile?.yearsCoaching || null,
             totalSessions: coach.CoachProfile?.totalSessions || 0,
@@ -241,7 +258,10 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
             minimumDuration: coach.CoachProfile?.minimumDuration || 30,
             maximumDuration: coach.CoachProfile?.maximumDuration || 90,
             allowCustomDuration: coach.CoachProfile?.allowCustomDuration || false,
-            isActive: coach.CoachProfile?.isActive || false
+            isActive: coach.CoachProfile?.isActive || false,
+            slogan: coach.CoachProfile?.slogan || null,
+            profileStatus: coach.CoachProfile?.profileStatus || 'DRAFT',
+            completionPercentage: coach.CoachProfile?.completionPercentage || 0
           };
           
           // Log incomplete profiles to help identify data quality issues
@@ -249,7 +269,7 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
           if (!transformedCoach.firstName || !transformedCoach.lastName) incompleteFields.push('name');
           if (!transformedCoach.bio) incompleteFields.push('bio');
           if (!transformedCoach.profileImageUrl) incompleteFields.push('profileImage');
-          if (!transformedCoach.coachingSpecialties.length) incompleteFields.push('specialties');
+          if (!transformedCoach.coachSkills.length) incompleteFields.push('skills');
           if (!transformedCoach.hourlyRate) incompleteFields.push('hourlyRate');
           
           if (incompleteFields.length > 0) {

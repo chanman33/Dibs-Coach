@@ -58,7 +58,9 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
         bio: coach.bio,
         profileImageUrl: coach.profileImageUrl,
         slogan: coach.CoachProfile?.slogan || null,
-        coachingSpecialties: [], // Will be populated from coachSkills
+        coachSkills: coach.CoachProfile?.coachSkills || [],
+        coachRealEstateDomains: coach.CoachProfile?.coachRealEstateDomains || [],
+        coachPrimaryDomain: coach.CoachProfile?.coachPrimaryDomain || null,
         hourlyRate: coach.CoachProfile?.hourlyRate ?? null,
         averageRating: coach.CoachProfile?.averageRating ?? null,
         totalSessions: coach.CoachProfile?.totalSessions || 0

@@ -1,0 +1,403 @@
+-- Seed data for Coach profiles
+-- This file contains mock data for development purposes
+
+-- Clear existing data (optional, comment out if you want to keep existing data)
+-- DELETE FROM "CoachProfile";
+-- DELETE FROM "User" WHERE "isCoach" = true;
+
+-- Generate ULIDs for users and coach profiles
+-- Note: In production, ULIDs would be generated programmatically
+
+-- Insert mock users with coach capability
+INSERT INTO "User" (
+  "ulid",
+  "userId",
+  "firstName",
+  "lastName",
+  "displayName",
+  "email",
+  "profileImageUrl",
+  "bio",
+  "status",
+  "isCoach",
+  "capabilities",
+  "realEstateDomains",
+  "primaryDomain",
+  "totalYearsRE",
+  "languages",
+  "createdAt",
+  "updatedAt"
+) VALUES
+-- Coach 1: Sarah Johnson
+(
+  '01HXYZ1ABCDEFGHIJKLMNOPQ1',
+  'user_abcdef123456789012345',
+  'Sarah',
+  'Johnson',
+  'Sarah J.',
+  'sarah.johnson@example.com',
+  'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
+  'With over 10 years of experience in real estate, I specialize in helping agents scale their business through effective lead generation and client relationship management. My coaching approach focuses on practical strategies that can be implemented immediately.',
+  'ACTIVE',
+  true,
+  ARRAY['COACH'],
+  ARRAY['REALTOR', 'INVESTOR'],
+  'REALTOR',
+  10,
+  ARRAY['en'],
+  NOW(),
+  NOW()
+),
+
+-- Coach 2: Michael Chen
+(
+  '01HXYZ1ABCDEFGHIJKLMNOPQ2',
+  'user_bcdefg123456789012345',
+  'Michael',
+  'Chen',
+  'Mike Chen',
+  'michael.chen@example.com',
+  'https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
+  'I help real estate professionals build sustainable businesses through effective systems and processes. My background in both technology and real estate gives me a unique perspective on how to leverage digital tools for maximum efficiency.',
+  'ACTIVE',
+  true,
+  ARRAY['COACH'],
+  ARRAY['REALTOR', 'PROPERTY_MANAGER'],
+  'REALTOR',
+  12,
+  ARRAY['en', 'zh'],
+  NOW(),
+  NOW()
+),
+
+-- Coach 3: Jessica Martinez
+(
+  '01HXYZ1ABCDEFGHIJKLMNOPQ3',
+  'user_cdefgh123456789012345',
+  'Jessica',
+  'Martinez',
+  'Jess Martinez',
+  'jessica.martinez@example.com',
+  'https://images.unsplash.com/photo-1580489944761-15a19d654956?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
+  'As a former top-producing agent, I now dedicate my time to helping new agents establish themselves in competitive markets. I believe in a holistic approach to real estate success that balances business growth with personal wellbeing.',
+  'ACTIVE',
+  true,
+  ARRAY['COACH'],
+  ARRAY['REALTOR'],
+  'REALTOR',
+  8,
+  ARRAY['en', 'es'],
+  NOW(),
+  NOW()
+),
+
+-- Coach 4: David Wilson
+(
+  '01HXYZ1ABCDEFGHIJKLMNOPQ4',
+  'user_defghi123456789012345',
+  'David',
+  'Wilson',
+  'Dave Wilson',
+  'david.wilson@example.com',
+  'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
+  'I specialize in commercial real estate investment strategies and portfolio development. My coaching focuses on helping agents transition into commercial real estate and building investment portfolios for long-term wealth.',
+  'ACTIVE',
+  true,
+  ARRAY['COACH'],
+  ARRAY['COMMERCIAL', 'INVESTOR'],
+  'COMMERCIAL',
+  15,
+  ARRAY['en'],
+  NOW(),
+  NOW()
+),
+
+-- Coach 5: Olivia Taylor
+(
+  '01HXYZ1ABCDEFGHIJKLMNOPQ5',
+  'user_efghij123456789012345',
+  'Olivia',
+  'Taylor',
+  'Liv Taylor',
+  'olivia.taylor@example.com',
+  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
+  'I help real estate professionals master the art of luxury property marketing and sales. My background in high-end real estate and marketing provides a foundation for strategies that elevate your business to attract affluent clients.',
+  'ACTIVE',
+  true,
+  ARRAY['COACH'],
+  ARRAY['REALTOR'],
+  'REALTOR',
+  9,
+  ARRAY['en', 'fr'],
+  NOW(),
+  NOW()
+),
+
+-- Coach 6: James Rodriguez
+(
+  '01HXYZ1ABCDEFGHIJKLMNOPQ6',
+  'user_fghijk123456789012345',
+  'James',
+  'Rodriguez',
+  'James R.',
+  'james.rodriguez@example.com',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
+  'With a background in finance and real estate, I specialize in helping agents understand the financial aspects of real estate and building wealth through strategic investments. My coaching emphasizes financial literacy and wealth-building.',
+  'ACTIVE',
+  true,
+  ARRAY['COACH'],
+  ARRAY['MORTGAGE', 'INVESTOR'],
+  'MORTGAGE',
+  11,
+  ARRAY['en', 'es'],
+  NOW(),
+  NOW()
+),
+
+-- Coach 7: Emma Clark
+(
+  '01HXYZ1ABCDEFGHIJKLMNOPQ7',
+  'user_ghijkl123456789012345',
+  'Emma',
+  'Clark',
+  'Emma C.',
+  'emma.clark@example.com',
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
+  'I focus on helping real estate professionals develop effective communication and negotiation skills. My background in psychology and real estate sales provides insights into client behavior and effective persuasion techniques.',
+  'ACTIVE',
+  true,
+  ARRAY['COACH'],
+  ARRAY['REALTOR', 'PROPERTY_MANAGER'],
+  'REALTOR',
+  7,
+  ARRAY['en'],
+  NOW(),
+  NOW()
+),
+
+-- Coach 8: Robert Kim
+(
+  '01HXYZ1ABCDEFGHIJKLMNOPQ8',
+  'user_hijklm123456789012345',
+  'Robert',
+  'Kim',
+  'Rob Kim',
+  'robert.kim@example.com',
+  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
+  'I specialize in digital marketing strategies for real estate professionals. My coaching focuses on leveraging social media, content marketing, and digital advertising to generate leads and build a strong online presence.',
+  'ACTIVE',
+  true,
+  ARRAY['COACH'],
+  ARRAY['REALTOR', 'COMMERCIAL'],
+  'REALTOR',
+  8,
+  ARRAY['en', 'ko'],
+  NOW(),
+  NOW()
+);
+
+-- Insert coach profiles
+INSERT INTO "CoachProfile" (
+  "ulid",
+  "userUlid",
+  "coachSkills",
+  "hourlyRate",
+  "yearsCoaching",
+  "totalSessions",
+  "averageRating",
+  "coachRealEstateDomains",
+  "coachPrimaryDomain",
+  "slogan",
+  "defaultDuration",
+  "minimumDuration",
+  "maximumDuration",
+  "allowCustomDuration",
+  "isActive",
+  "profileStatus",
+  "completionPercentage",
+  "createdAt",
+  "updatedAt"
+) VALUES
+-- Coach Profile 1: Sarah Johnson
+(
+  '01HXYZ2ABCDEFGHIJKLMNOPQ1',
+  '01HXYZ1ABCDEFGHIJKLMNOPQ1',
+  ARRAY['Lead Generation Strategy', 'Client Acquisition & Retention', 'Listing Presentation Mastery'],
+  150,
+  5,
+  120,
+  4.8,
+  ARRAY['REALTOR', 'INVESTOR'],
+  'REALTOR',
+  'Helping agents build sustainable businesses through effective lead generation',
+  60,
+  30,
+  90,
+  false,
+  true,
+  'PUBLISHED',
+  100,
+  NOW(),
+  NOW()
+),
+
+-- Coach Profile 2: Michael Chen
+(
+  '01HXYZ2ABCDEFGHIJKLMNOPQ2',
+  '01HXYZ1ABCDEFGHIJKLMNOPQ2',
+  ARRAY['Process Automation & Systems', 'Digital Tools & Innovation', 'Team Leadership & Management'],
+  175,
+  7,
+  210,
+  4.9,
+  ARRAY['REALTOR', 'PROPERTY_MANAGER'],
+  'REALTOR',
+  'Building efficient real estate businesses through systems and technology',
+  60,
+  30,
+  120,
+  true,
+  true,
+  'PUBLISHED',
+  100,
+  NOW(),
+  NOW()
+),
+
+-- Coach Profile 3: Jessica Martinez
+(
+  '01HXYZ2ABCDEFGHIJKLMNOPQ3',
+  '01HXYZ1ABCDEFGHIJKLMNOPQ3',
+  ARRAY['First-Time Buyer Guidance', 'Personal Brand Development', 'Social Media Influence'],
+  125,
+  3,
+  85,
+  4.7,
+  ARRAY['REALTOR'],
+  'REALTOR',
+  'Helping new agents establish themselves in competitive markets',
+  60,
+  30,
+  90,
+  false,
+  true,
+  'PUBLISHED',
+  100,
+  NOW(),
+  NOW()
+),
+
+-- Coach Profile 4: David Wilson
+(
+  '01HXYZ2ABCDEFGHIJKLMNOPQ4',
+  '01HXYZ1ABCDEFGHIJKLMNOPQ4',
+  ARRAY['Investment Analysis', 'Property Valuation Strategy', 'Multiple Income Stream Development'],
+  200,
+  10,
+  175,
+  4.9,
+  ARRAY['COMMERCIAL', 'INVESTOR'],
+  'COMMERCIAL',
+  'Building wealth through commercial real estate investment strategies',
+  60,
+  45,
+  120,
+  true,
+  true,
+  'PUBLISHED',
+  100,
+  NOW(),
+  NOW()
+),
+
+-- Coach Profile 5: Olivia Taylor
+(
+  '01HXYZ2ABCDEFGHIJKLMNOPQ5',
+  '01HXYZ1ABCDEFGHIJKLMNOPQ5',
+  ARRAY['Luxury Market Strategy', 'High-Net-Worth Client Services', 'Content Strategy & Branding'],
+  225,
+  6,
+  130,
+  4.8,
+  ARRAY['REALTOR'],
+  'REALTOR',
+  'Mastering the art of luxury property marketing and sales',
+  60,
+  30,
+  90,
+  false,
+  true,
+  'PUBLISHED',
+  100,
+  NOW(),
+  NOW()
+),
+
+-- Coach Profile 6: James Rodriguez
+(
+  '01HXYZ2ABCDEFGHIJKLMNOPQ6',
+  '01HXYZ1ABCDEFGHIJKLMNOPQ6',
+  ARRAY['Loan Structure Strategy', 'Investment Analysis', 'Multiple Income Stream Development'],
+  185,
+  8,
+  155,
+  4.7,
+  ARRAY['MORTGAGE', 'INVESTOR'],
+  'MORTGAGE',
+  'Financial literacy and wealth-building for real estate professionals',
+  60,
+  30,
+  120,
+  true,
+  true,
+  'PUBLISHED',
+  100,
+  NOW(),
+  NOW()
+),
+
+-- Coach Profile 7: Emma Clark
+(
+  '01HXYZ2ABCDEFGHIJKLMNOPQ7',
+  '01HXYZ1ABCDEFGHIJKLMNOPQ7',
+  ARRAY['Client Communication Strategy', 'Conflict Resolution', 'Time Management & Productivity'],
+  140,
+  4,
+  95,
+  4.6,
+  ARRAY['REALTOR', 'PROPERTY_MANAGER'],
+  'REALTOR',
+  'Developing effective communication and negotiation skills for real estate success',
+  60,
+  30,
+  90,
+  false,
+  true,
+  'PUBLISHED',
+  100,
+  NOW(),
+  NOW()
+),
+
+-- Coach Profile 8: Robert Kim
+(
+  '01HXYZ2ABCDEFGHIJKLMNOPQ8',
+  '01HXYZ1ABCDEFGHIJKLMNOPQ8',
+  ARRAY['Digital Marketing Mastery', 'Social Media Influence', 'Video Marketing Mastery'],
+  160,
+  5,
+  110,
+  4.8,
+  ARRAY['REALTOR', 'COMMERCIAL'],
+  'REALTOR',
+  'Leveraging digital marketing to generate leads and build a strong online presence',
+  60,
+  30,
+  90,
+  false,
+  true,
+  'PUBLISHED',
+  100,
+  NOW(),
+  NOW()
+); 

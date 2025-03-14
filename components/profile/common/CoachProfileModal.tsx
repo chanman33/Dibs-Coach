@@ -5,6 +5,7 @@ import { Star, Calendar, Clock, Award } from 'lucide-react'
 import Image from "next/image"
 import { BookingModal } from "@/components/dashboard/BookingModal"
 import { formatCurrency } from "@/utils/format"
+import { RealEstateDomain } from "@/utils/types/coach"
 
 const DEFAULT_IMAGE_URL = '/placeholder.svg'
 
@@ -36,7 +37,9 @@ interface Coach {
   certifications: string[] | null
   availability: string | null
   sessionLength: string | null
-  specialties: string[]
+  coachSkills: string[]
+  coachRealEstateDomains?: RealEstateDomain[]
+  coachPrimaryDomain?: RealEstateDomain | null
   sessionConfig: SessionConfig
 }
 
@@ -110,19 +113,38 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold mb-2">Specialties</h4>
+              <h4 className="font-semibold mb-2">Skills</h4>
               <div className="flex flex-wrap gap-2">
-                {Array.isArray(coach.specialties) && coach.specialties.length > 0 ? (
-                  coach.specialties.map((specialty, index) => (
+                {Array.isArray(coach.coachSkills) && coach.coachSkills.length > 0 ? (
+                  coach.coachSkills.map((skill, index) => (
                     <span key={index} className="bg-primary/10 text-primary text-xs py-1 px-2 rounded-full">
-                      {specialty}
+                      {skill}
                     </span>
                   ))
                 ) : (
-                  <span className="text-muted-foreground text-sm">No specialties listed</span>
+                  <span className="text-muted-foreground text-sm">No skills listed</span>
                 )}
               </div>
             </div>
+            
+            {coach.coachRealEstateDomains && coach.coachRealEstateDomains.length > 0 && (
+              <div>
+                <h4 className="font-semibold mb-2">Real Estate Domains</h4>
+                <div className="flex flex-wrap gap-2">
+                  {coach.coachRealEstateDomains.map((domain, index) => (
+                    <span key={index} className="bg-secondary/20 text-secondary-foreground text-xs py-1 px-2 rounded-full">
+                      {domain}
+                    </span>
+                  ))}
+                  {coach.coachPrimaryDomain && (
+                    <span className="bg-primary/20 text-primary text-xs py-1 px-2 rounded-full font-medium">
+                      {coach.coachPrimaryDomain} (Primary)
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            
             <div className="flex items-center gap-2 text-sm">
               <Calendar className="h-4 w-4" />
               <span>Availability: {coach.availability || 'Not specified'}</span>

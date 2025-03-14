@@ -1,7 +1,6 @@
 import Provider from '@/app/provider'
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
-import AuthWrapper from '@/components/wrapper/auth-wrapper'
 import { Analytics } from "@vercel/analytics/react"
 import { GeistSans } from 'geist/font/sans'
 import type { Metadata } from 'next'
@@ -34,12 +33,17 @@ export default function CoachesLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <NavBar />
-      <main className="flex-1 w-full">
-        {children}
-      </main>
-      <CoachesFooter />
-    </div>
+    <Provider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <div className="flex min-h-screen flex-col bg-background">
+          <NavBar />
+          <main className="flex-1 w-full">
+            {children}
+          </main>
+          <CoachesFooter />
+          <Toaster />
+        </div>
+      </ThemeProvider>
+    </Provider>
   )
 }

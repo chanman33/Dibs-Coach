@@ -31,8 +31,8 @@ export function BaseCoachCard({
   }, [name, imageUrl, specialty, bio, renderFooter]);
 
   return (
-    <Card className="h-full">
-      <CardHeader className="flex flex-row items-center gap-4">
+    <Card className="h-full flex flex-col">
+      <CardHeader className="flex flex-row items-center gap-4 pb-3">
         <Avatar className="h-16 w-16">
           <AvatarImage 
             src={imageUrl} 
@@ -55,12 +55,12 @@ export function BaseCoachCard({
         </div>
       </CardHeader>
       
-      <CardContent>
+      <CardContent className="flex-grow pb-4">
         <p className="text-sm text-muted-foreground line-clamp-3">{bio}</p>
       </CardContent>
 
       {renderFooter && (
-        <CardFooter>{renderFooter()}</CardFooter>
+        <CardFooter className="pt-0 border-t">{renderFooter()}</CardFooter>
       )}
     </Card>
   )

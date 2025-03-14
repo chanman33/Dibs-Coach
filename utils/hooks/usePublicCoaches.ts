@@ -16,45 +16,53 @@ export function usePublicCoaches() {
 
     async function fetchCoaches() {
       try {
-        // First, let's check a few users to understand the capabilities structure
-        console.log('[PUBLIC_COACHES_CAPABILITIES_CHECK_START]');
-        const { data: userCapabilities, error: capabilitiesError } = await supabase
-          .from('User')
-          .select('ulid, capabilities, isCoach')
-          .limit(10);
-          
-        console.log('[PUBLIC_COACHES_CAPABILITIES_CHECK]', {
-          users: userCapabilities?.map(user => ({
-            ulid: user.ulid,
-            capabilities: user.capabilities,
-            isCoach: user.isCoach
-          })),
-          error: capabilitiesError,
-          timestamp: new Date().toISOString()
-        });
-
         // First get active users with COACH capability
         console.log('[PUBLIC_COACHES_USERS_QUERY_START]');
-        const { data: activeUsers, error: activeUsersError } = await supabase
-          .from('User')
-          .select(`
-            ulid,
-            firstName,
-            lastName,
-            displayName,
-            profileImageUrl,
-            bio,
-            capabilities,
-            isCoach
-          `)
-          .eq('status', 'ACTIVE');
+        
+        // Wrap in try-catch to handle potential Supabase client errors
+        let activeUsers;
+        let activeUsersError;
+        
+        try {
+          const response = await supabase
+            .from('User')
+            .select(`
+              ulid,
+              firstName,
+              lastName,
+              displayName,
+              profileImageUrl,
+              bio,
+              capabilities,
+              isCoach
+            `)
+            .eq('status', 'ACTIVE');
+            
+          activeUsers = response.data;
+          activeUsersError = response.error;
+        } catch (clientError) {
+          console.error('[PUBLIC_COACHES_SUPABASE_CLIENT_ERROR]', {
+            error: clientError,
+            message: clientError instanceof Error ? clientError.message : 'Unknown client error',
+            timestamp: new Date().toISOString()
+          });
+          throw new Error('Failed to connect to the database. Please try again later.');
+        }
           
         if (activeUsersError) {
           console.error('[PUBLIC_COACHES_USERS_QUERY_ERROR]', {
             error: activeUsersError,
             timestamp: new Date().toISOString()
           });
-          throw activeUsersError;
+          throw new Error(`Failed to fetch active users: ${activeUsersError.message}`);
+        }
+        
+        if (!activeUsers || activeUsers.length === 0) {
+          console.log('[PUBLIC_COACHES_NO_ACTIVE_USERS]', {
+            timestamp: new Date().toISOString()
+          });
+          setCoaches([]);
+          return;
         }
         
         console.log('[PUBLIC_COACHES_USERS_QUERY_COMPLETE]', {
@@ -63,10 +71,10 @@ export function usePublicCoaches() {
         });
         
         // Filter users with COACH capability
-        const coachUsers = activeUsers?.filter(user => 
+        const coachUsers = activeUsers.filter(user => 
           (Array.isArray(user.capabilities) && user.capabilities.includes('COACH')) || 
           user.isCoach === true
-        ) || [];
+        );
         
         console.log('[PUBLIC_COACHES_COACH_USERS]', {
           count: coachUsers.length,
@@ -86,40 +94,91 @@ export function usePublicCoaches() {
           return;
         }
         
+        // Get the list of coach ULIDs
+        const coachUlids = coachUsers.map(u => u.ulid);
+        
         // Now get coach profiles for these users
-        console.log('[PUBLIC_COACHES_PROFILES_QUERY_START]');
-        const { data: coachProfiles, error: profilesError } = await supabase
-          .from('CoachProfile')
-          .select(`
-            ulid,
-            userUlid,
-            coachingSpecialties,
-            hourlyRate,
-            isActive,
-            averageRating,
-            totalSessions,
-            profileStatus
-          `)
-          .eq('isActive', true)
-          .eq('profileStatus', 'PUBLISHED')
-          .in('userUlid', coachUsers.map(u => u.ulid));
+        console.log('[PUBLIC_COACHES_PROFILES_QUERY_START]', {
+          coachCount: coachUlids.length,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Split into smaller batches if there are many coaches
+        // Supabase has a limit on the number of items in an 'in' clause
+        const BATCH_SIZE = 30; // Reduced batch size to avoid potential limits
+        let allCoachProfiles: any[] = [];
+        let batchErrors = 0;
+        
+        for (let i = 0; i < coachUlids.length; i += BATCH_SIZE) {
+          const batchUlids = coachUlids.slice(i, i + BATCH_SIZE);
+          const batchNumber = Math.floor(i/BATCH_SIZE) + 1;
           
-        if (profilesError) {
-          console.error('[PUBLIC_COACHES_PROFILES_QUERY_ERROR]', {
-            error: profilesError,
+          console.log(`[PUBLIC_COACHES_PROFILES_BATCH_${batchNumber}]`, {
+            batchSize: batchUlids.length,
             timestamp: new Date().toISOString()
           });
-          throw profilesError;
+          
+          if (batchUlids.length === 0) continue;
+          
+          try {
+            const { data: batchProfiles, error: batchError } = await supabase
+              .from('CoachProfile')
+              .select(`
+                ulid,
+                userUlid,
+                coachSkills,
+                hourlyRate,
+                isActive,
+                averageRating,
+                totalSessions,
+                profileStatus,
+                coachRealEstateDomains,
+                coachPrimaryDomain,
+                slogan,
+                defaultDuration,
+                minimumDuration,
+                maximumDuration,
+                allowCustomDuration
+              `)
+              .eq('isActive', true)
+              .eq('profileStatus', 'PUBLISHED')
+              .in('userUlid', batchUlids);
+              
+            if (batchError) {
+              console.error(`[PUBLIC_COACHES_PROFILES_BATCH_${batchNumber}_ERROR]`, {
+                error: batchError,
+                timestamp: new Date().toISOString()
+              });
+              batchErrors++;
+              continue; // Skip this batch but continue with others
+            }
+            
+            if (batchProfiles && batchProfiles.length > 0) {
+              allCoachProfiles = [...allCoachProfiles, ...batchProfiles];
+            }
+          } catch (batchError) {
+            console.error(`[PUBLIC_COACHES_PROFILES_BATCH_${batchNumber}_EXCEPTION]`, {
+              error: batchError,
+              timestamp: new Date().toISOString()
+            });
+            batchErrors++;
+            // Continue with other batches
+          }
+        }
+        
+        // If all batches failed, throw an error
+        if (batchErrors > 0 && batchErrors === Math.ceil(coachUlids.length / BATCH_SIZE)) {
+          throw new Error('Failed to fetch coach profiles. Please try again later.');
         }
         
         console.log('[PUBLIC_COACHES_PUBLISHED_PROFILES]', {
           totalCoaches: coachUsers.length,
-          publishedCount: coachProfiles?.length || 0,
-          unpublishedCount: coachUsers.length - (coachProfiles?.length || 0),
+          publishedCount: allCoachProfiles.length,
+          unpublishedCount: coachUsers.length - allCoachProfiles.length,
           timestamp: new Date().toISOString()
         });
         
-        if (!coachProfiles || coachProfiles.length === 0) {
+        if (allCoachProfiles.length === 0) {
           console.log('[PUBLIC_COACHES_NO_PROFILES]', {
             timestamp: new Date().toISOString()
           });
@@ -129,44 +188,36 @@ export function usePublicCoaches() {
         
         // Combine user data with coach profile data
         console.log('[PUBLIC_COACHES_TRANSFORM_START]', {
-          count: coachProfiles.length,
+          count: allCoachProfiles.length,
           timestamp: new Date().toISOString()
         });
         
-        const transformedCoaches = coachProfiles.map(profile => {
+        const transformedCoaches = allCoachProfiles.map(profile => {
           const user = coachUsers.find(u => u.ulid === profile.userUlid);
           if (!user) return null;
           
           const transformed = {
             ulid: profile.ulid,
             userUlid: user.ulid,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            displayName: user.displayName,
-            profileImageUrl: user.profileImageUrl,
-            bio: user.bio,
-            coachingSpecialties: profile.coachingSpecialties || [],
-            hourlyRate: profile.hourlyRate,
-            averageRating: profile.averageRating,
-            totalSessions: profile.totalSessions || 0
+            firstName: user.firstName || '',
+            lastName: user.lastName || '',
+            displayName: user.displayName || '',
+            profileImageUrl: user.profileImageUrl || '',
+            bio: user.bio || '',
+            coachSkills: Array.isArray(profile.coachSkills) ? profile.coachSkills : [],
+            coachRealEstateDomains: Array.isArray(profile.coachRealEstateDomains) ? profile.coachRealEstateDomains : [],
+            coachPrimaryDomain: profile.coachPrimaryDomain || null,
+            slogan: profile.slogan || null,
+            hourlyRate: profile.hourlyRate || null,
+            averageRating: profile.averageRating || null,
+            totalSessions: profile.totalSessions || 0,
+            sessionConfig: {
+              defaultDuration: profile.defaultDuration || 60,
+              minimumDuration: profile.minimumDuration || 30,
+              maximumDuration: profile.maximumDuration || 90,
+              allowCustomDuration: profile.allowCustomDuration || false
+            }
           };
-          
-          // Log incomplete profiles to help identify data quality issues
-          const incompleteFields = [];
-          if (!transformed.firstName || !transformed.lastName) incompleteFields.push('name');
-          if (!transformed.bio) incompleteFields.push('bio');
-          if (!transformed.profileImageUrl) incompleteFields.push('profileImage');
-          if (!transformed.coachingSpecialties.length) incompleteFields.push('specialties');
-          if (!transformed.hourlyRate) incompleteFields.push('hourlyRate');
-          
-          if (incompleteFields.length > 0) {
-            console.log('[PUBLIC_COACHES_INCOMPLETE_PROFILE]', {
-              coachUlid: profile.ulid,
-              userUlid: user.ulid,
-              incompleteFields,
-              timestamp: new Date().toISOString()
-            });
-          }
           
           return transformed;
         }).filter(Boolean) as PublicCoach[];

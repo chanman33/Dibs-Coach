@@ -1,4 +1,5 @@
 import { LucideIcon } from 'lucide-react';
+import { RealEstateDomain } from '@/utils/types/coach';
 
 export interface FilterOption {
   label: string;
@@ -9,6 +10,7 @@ export interface FilterOption {
 
 export interface CoachFilters {
   domain?: string[];
+  realEstateDomain?: RealEstateDomain[];
   priceRange?: {
     min: number;
     max: number;

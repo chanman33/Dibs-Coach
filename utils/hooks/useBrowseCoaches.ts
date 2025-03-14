@@ -123,9 +123,9 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
         // Extract all unique specialties
         const specialties = new Set<string>();
         validCoaches.forEach(coach => {
-          if (coach.coachingSpecialties && Array.isArray(coach.coachingSpecialties)) {
-            coach.coachingSpecialties.forEach(specialty => {
-              if (specialty) specialties.add(specialty);
+          if (coach.coachSkills && Array.isArray(coach.coachSkills)) {
+            coach.coachSkills.forEach(skill => {
+              if (skill) specialties.add(skill);
             });
           }
         });
@@ -195,7 +195,7 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
         
         // Filter by specialty
         const specialtyMatch = selectedSpecialty
-          ? coach.coachingSpecialties?.includes(selectedSpecialty)
+          ? coach.coachSkills?.includes(selectedSpecialty)
           : true;
         
         return nameMatch && specialtyMatch;

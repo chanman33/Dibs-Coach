@@ -15,7 +15,7 @@ interface CoachProfileModalProps {
     lastName: string
     profileImageUrl: string | null
     bio: string | null
-    coachingSpecialties: string[]
+    coachSkills: string[]
     hourlyRate: number | null
     sessionConfig: SessionConfig
   }
@@ -52,10 +52,10 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
             </div>
 
             <div>
-              <h3 className="font-semibold mb-2">Specialties</h3>
+              <h3 className="font-semibold mb-2">Skills</h3>
               <div className="flex flex-wrap gap-2">
-                {coach.coachingSpecialties.map((specialty, index) => (
-                  <Badge key={index} variant="secondary">{specialty}</Badge>
+                {coach.coachSkills.map((skill, index) => (
+                  <Badge key={index} variant="secondary">{skill}</Badge>
                 ))}
               </div>
             </div>
