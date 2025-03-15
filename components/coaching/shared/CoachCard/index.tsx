@@ -37,6 +37,7 @@ export function BaseCoachCard({
           <AvatarImage 
             src={imageUrl} 
             alt={name} 
+            className="object-cover" 
             onError={() => {
               if (process.env.NODE_ENV === 'development') {
                 console.log('[COACH_CARD_IMAGE_ERROR]', {

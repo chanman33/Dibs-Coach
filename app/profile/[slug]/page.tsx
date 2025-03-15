@@ -15,17 +15,77 @@ import { BookingModal } from '@/components/coaching/shared/BookingModal'
 import { SimilarCoaches } from '@/components/coaching/public/SimilarCoaches'
 import { PublicCoach, RealEstateDomain } from '@/utils/types/coach'
 import Link from 'next/link'
+import { useUser } from '@clerk/nextjs'
+import { USER_CAPABILITIES } from '@/utils/roles/roles'
 
 export default function CoachProfilePage() {
   // Use the useParams hook to get the slug parameter
   const params = useParams();
   const slug = params.slug as string;
+  const router = useRouter();
   
   const [coach, setCoach] = useState<PublicCoach | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [referrer, setReferrer] = useState<string>('/coaches')
   const supabase = createClient()
+  const { user, isLoaded } = useUser()
+
+  // Determine the correct back link based on user role
+  useEffect(() => {
+    try {
+      // First check if we have a referrer in the URL query parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const fromParam = urlParams.get('from');
+      
+      // Log the navigation context for debugging
+      console.log('[PROFILE_NAVIGATION_CONTEXT]', {
+        fromParam,
+        userLoaded: isLoaded,
+        hasUser: !!user,
+        userRole: user?.publicMetadata?.role,
+        userCapabilities: user?.publicMetadata?.capabilities,
+        pathname: window.location.pathname,
+        timestamp: new Date().toISOString()
+      });
+      
+      // If we have a valid 'from' parameter, use it as the referrer
+      if (fromParam && fromParam.startsWith('/')) {
+        setReferrer(fromParam);
+        return;
+      }
+      
+      // If no 'from' parameter, determine based on user role and capabilities
+      if (isLoaded && user) {
+        // Get user role and capabilities from metadata
+        const userRole = user.publicMetadata?.role as string;
+        const userCapabilities = user.publicMetadata?.capabilities as string[] || [];
+        
+        // Determine the appropriate route based on capabilities
+        if (userCapabilities.includes(USER_CAPABILITIES.COACH)) {
+          setReferrer('/dashboard/coach/browse-coaches');
+        } else if (userCapabilities.includes(USER_CAPABILITIES.MENTEE)) {
+          setReferrer('/dashboard/mentee/browse-coaches');
+        } else {
+          // Fallback to public route if no specific capability
+          setReferrer('/coaches');
+        }
+      } else {
+        // Default to public route for unauthenticated users
+        setReferrer('/coaches');
+      }
+    } catch (error) {
+      console.error('[PROFILE_NAVIGATION_ERROR]', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
+      // Default to public route if there's an error
+      setReferrer('/coaches');
+    }
+  }, [isLoaded, user]);
 
   // Update document title when coach data is loaded
   useEffect(() => {
@@ -219,7 +279,7 @@ export default function CoachProfilePage() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
       {/* Back to Browsing Coaches Button */}
       <div className="mb-6 mt-0">
-        <Link href="/coaches">
+        <Link href={referrer}>
           <Button variant="ghost" className="flex items-center gap-2 pl-0 hover:pl-2 transition-all">
             <ArrowLeft className="h-4 w-4" />
             Back to Browsing Coaches

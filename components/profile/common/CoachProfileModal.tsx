@@ -62,10 +62,39 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
   }
 
   const handleViewProfileClick = () => {
-    // Use profileSlug if available, otherwise use id
-    const profilePath = coach.profileSlug || coach.id
-    router.push(`/profile/${profilePath}`)
-    onClose() // Close the profile modal
+    try {
+      // Get the current path
+      const currentPath = window.location.pathname;
+      
+      // Log navigation event with detailed context
+      console.log('[PROFILE_MODAL_NAVIGATION]', {
+        action: 'view_full_profile',
+        from: currentPath,
+        to: `/profile/${coach.profileSlug || coach.id}`,
+        coachId: coach.id,
+        coachName: coach.name,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Use profileSlug if available, otherwise use id
+      const profilePath = coach.profileSlug || coach.id;
+      router.push(`/profile/${profilePath}?from=${encodeURIComponent(currentPath)}`);
+      onClose(); // Close the profile modal
+    } catch (error) {
+      // Log the error with detailed context
+      console.error('[PROFILE_MODAL_NAVIGATION_ERROR]', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        coachId: coach.id,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Navigate anyway even if there's an error
+      const profilePath = coach.profileSlug || coach.id;
+      router.push(`/profile/${profilePath}`);
+      onClose();
+    }
   }
 
   const finalImageUrl = imgError ? DEFAULT_IMAGE_URL : getImageUrl(coach.imageUrl)

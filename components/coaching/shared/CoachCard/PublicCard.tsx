@@ -2,16 +2,40 @@ import { Button } from '@/components/ui/button'
 import { BaseCoachCard } from '.'
 import { PublicCoachCardProps } from './types'
 import { RatingDisplay } from '../RatingDisplay'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BookingModal } from '../BookingModal'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 export function PublicCoachCard(props: PublicCoachCardProps) {
   const { rating, reviewCount, coachSkills, profileSlug, id, ...baseProps } = props
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const pathname = usePathname()
 
   // Determine the profile path - use profileSlug if available, otherwise use id
   const profilePath = profileSlug || id;
+
+  // Handle navigation to coach profile
+  const handleProfileClick = () => {
+    try {
+      // Log navigation event with detailed context
+      console.log('[PUBLIC_COACH_NAVIGATION]', {
+        action: 'view_profile',
+        from: pathname,
+        to: `/profile/${profilePath}`,
+        coachId: id,
+        coachName: props.name,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('[PUBLIC_COACH_NAVIGATION_ERROR]', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        coachId: id,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
 
   return (
     <>
@@ -42,7 +66,11 @@ export function PublicCoachCard(props: PublicCoachCardProps) {
               </div>
             )}
 
-            <Link href={`/profile/${profilePath}`} className="block w-full">
+            <Link 
+              href={`/profile/${profilePath}?from=${encodeURIComponent(pathname)}`} 
+              className="block w-full" 
+              onClick={handleProfileClick}
+            >
               <Button 
                 className="w-full" 
                 variant="secondary"

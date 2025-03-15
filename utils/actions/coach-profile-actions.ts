@@ -137,6 +137,8 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           coachPrimaryDomain,
           eventTypeUrl,
           slogan,
+          profileSlug,
+          lastSlugUpdateAt,
           createdAt,
           updatedAt
         `)
@@ -154,6 +156,9 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           }
         };
       }
+
+      // Safely cast coachProfile to avoid type errors
+      const safeCoachProfile = coachError ? null : (coachProfile as any);
 
       // Fetch professional recognitions directly by userUlid
       const { data: recognitionsData, error: recognitionsError } = await supabase
@@ -263,10 +268,11 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
 
       // Log the coach profile data for debugging
       console.log("[PROFILE_FIELD_CHECK]", {
-        slogan: coachProfile?.slogan,
-        coachSkills: coachProfile?.coachSkills,
-        coachRealEstateDomains: coachProfile?.coachRealEstateDomains,
-        coachPrimaryDomain: coachProfile?.coachPrimaryDomain,
+        slogan: safeCoachProfile?.slogan,
+        coachSkills: safeCoachProfile?.coachSkills,
+        coachRealEstateDomains: safeCoachProfile?.coachRealEstateDomains,
+        coachPrimaryDomain: safeCoachProfile?.coachPrimaryDomain,
+        profileSlug: safeCoachProfile?.profileSlug,
         timestamp: new Date().toISOString()
       });
 
@@ -275,39 +281,42 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         lastName: userData?.lastName,
         bio: userData?.bio,
         profileImageUrl: userData?.profileImageUrl,
-        coachingSpecialties: coachProfile?.coachSkills || [],
-        hourlyRate: coachProfile?.hourlyRate || null,
-        yearsCoaching: coachProfile?.yearsCoaching || null,
-        eventTypeUrl: coachProfile?.eventTypeUrl || null,
-        hasAvailabilitySchedule: availabilitySchedules && availabilitySchedules.length > 0
+        coachingSpecialties: safeCoachProfile?.coachSkills || [],
+        hourlyRate: safeCoachProfile?.hourlyRate || null,
+        yearsCoaching: safeCoachProfile?.yearsCoaching || null,
+        eventTypeUrl: safeCoachProfile?.eventTypeUrl || null,
+        hasAvailabilitySchedule: availabilitySchedules && availabilitySchedules.length > 0,
+        coachRealEstateDomains: safeCoachProfile?.coachRealEstateDomains || [],
+        coachPrimaryDomain: safeCoachProfile?.coachPrimaryDomain || null,
+        profileSlug: safeCoachProfile?.profileSlug || null
       };
       
       const { percentage, missingFields, canPublish } = calculateProfileCompletion(profileData);
 
       const responseData: CoachProfileResponse = {
-        coachSkills: coachProfile?.coachSkills || [],
-        yearsCoaching: coachProfile?.yearsCoaching || 0,
-        hourlyRate: Number(coachProfile?.hourlyRate) || 0,
-        defaultDuration: coachProfile?.defaultDuration || 60,
-        minimumDuration: coachProfile?.minimumDuration || 30,
-        maximumDuration: coachProfile?.maximumDuration || 120,
-        allowCustomDuration: coachProfile?.allowCustomDuration || false,
-        eventTypeUrl: coachProfile?.eventTypeUrl || "",
-        slogan: coachProfile?.slogan || "",
-        profileSlug: (coachProfile as any)?.profileSlug || null,
-        lastSlugUpdateAt: coachProfile?.updatedAt || null,
+        coachSkills: safeCoachProfile?.coachSkills || [],
+        yearsCoaching: safeCoachProfile?.yearsCoaching || 0,
+        hourlyRate: Number(safeCoachProfile?.hourlyRate) || 0,
+        defaultDuration: safeCoachProfile?.defaultDuration || 60,
+        minimumDuration: safeCoachProfile?.minimumDuration || 30,
+        maximumDuration: safeCoachProfile?.maximumDuration || 120,
+        allowCustomDuration: safeCoachProfile?.allowCustomDuration || false,
+        eventTypeUrl: safeCoachProfile?.eventTypeUrl || "",
+        slogan: safeCoachProfile?.slogan || "",
+        profileSlug: safeCoachProfile?.profileSlug || null,
+        lastSlugUpdateAt: safeCoachProfile?.lastSlugUpdateAt || null,
         certifications: [],
         professionalRecognitions: activeRecognitions,
         realEstateDomains: userData?.realEstateDomains || [],
-        coachRealEstateDomains: coachProfile?.coachRealEstateDomains || [],
-        coachPrimaryDomain: coachProfile?.coachPrimaryDomain || null,
+        coachRealEstateDomains: safeCoachProfile?.coachRealEstateDomains || [],
+        coachPrimaryDomain: safeCoachProfile?.coachPrimaryDomain || null,
         capabilities: [],
-        _rawCoachProfile: coachProfile || null,
+        _rawCoachProfile: safeCoachProfile || null,
         _rawRealtorProfile: null,
         _rawMortgageProfile: null,
         _rawInsuranceProfile: null,
         _rawPropertyManagerProfile: null,
-        profileStatus: coachProfile?.profileStatus || "DRAFT",
+        profileStatus: safeCoachProfile?.profileStatus || "DRAFT",
         completionPercentage: percentage,
         canPublish,
         missingFields,

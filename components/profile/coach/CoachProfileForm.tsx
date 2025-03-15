@@ -628,7 +628,7 @@ export function CoachProfileForm({
                           )}
                           
                           <FormDescription>
-                            <p>Create a custom URL for your profile. Only lowercase letters, numbers, and hyphens are allowed.</p>
+                            Create a custom URL for your profile. Only lowercase letters, numbers, and hyphens are allowed.
                             <ul className="list-disc pl-5 mt-1 space-y-1">
                               <li>Keep it short and memorable (3-15 characters is ideal)</li>
                               <li>Include your name or expertise (e.g., "john-smith-realtor")</li>

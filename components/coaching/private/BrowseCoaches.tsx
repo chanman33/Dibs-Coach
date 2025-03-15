@@ -35,9 +35,39 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
   const router = useRouter();
 
   const handleCoachClick = (coach: BrowseCoachData) => {
-    // Navigate to the coach profile page using the profileSlug if available, otherwise use the ulid
-    const profilePath = coach.profileSlug || coach.ulid;
-    router.push(`/profile/${profilePath}`);
+    try {
+      // Get the current path
+      const currentPath = window.location.pathname;
+      
+      // Log for debugging with detailed context
+      console.log('[COACH_NAVIGATION]', {
+        action: 'view_profile',
+        from: currentPath,
+        to: `/profile/${coach.profileSlug || coach.ulid}`,
+        coachId: coach.ulid,
+        coachName: `${coach.firstName} ${coach.lastName}`,
+        role,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Navigate to the coach profile page with the current path as a query parameter
+      const profilePath = coach.profileSlug || coach.ulid;
+      router.push(`/profile/${profilePath}?from=${encodeURIComponent(currentPath)}`);
+    } catch (error) {
+      // Log the error with detailed context
+      console.error('[COACH_NAVIGATION_ERROR]', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        coachId: coach.ulid,
+        role,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Navigate anyway even if there's an error
+      const profilePath = coach.profileSlug || coach.ulid;
+      router.push(`/profile/${profilePath}`);
+    }
   };
 
   const handleFiltersChange = (newFilters: CoachFilters) => {
