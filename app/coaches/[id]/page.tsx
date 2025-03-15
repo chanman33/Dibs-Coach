@@ -193,13 +193,19 @@ export default function CoachProfilePage({ params }: { params: { id: string } })
                   </Badge>
                 )}
                 
-                {coach.averageRating !== null && (
+                {coach.averageRating !== null ? (
                   <div className="mt-3">
                     <RatingDisplay 
                       rating={coach.averageRating} 
                       reviewCount={coach.totalSessions}
                       size="md"
                     />
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      New Coach
+                    </span>
                   </div>
                 )}
                 
@@ -438,9 +444,16 @@ export default function CoachProfilePage({ params }: { params: { id: string } })
                       </p>
                     </div>
                   ) : (
-                    <p className="text-center text-muted-foreground py-8">
-                      No reviews yet. Be the first to work with {coach.firstName}!
-                    </p>
+                    <div className="text-center py-8">
+                      <div className="flex justify-center mb-4">
+                        <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                          New Coach
+                        </span>
+                      </div>
+                      <p className="text-muted-foreground">
+                        No reviews yet. Be the first to work with {coach.firstName}!
+                      </p>
+                    </div>
                   )}
                 </CardContent>
               </Card>

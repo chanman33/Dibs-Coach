@@ -22,6 +22,7 @@ export function PublicCoachCard(props: PublicCoachCardProps) {
                 rating={rating} 
                 reviewCount={reviewCount}
                 size="sm"
+                showNewCoachBadge={reviewCount === 0}
               />
             )}
             

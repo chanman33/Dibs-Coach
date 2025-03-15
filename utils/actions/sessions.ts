@@ -233,4 +233,101 @@ export const fetchCoachSessions = withServerAction<TransformedSession[]>(
       }
     }
   }
+)
+
+export const fetchUpcomingSessions = withServerAction<TransformedSession[]>(
+  async (_, { userUlid, roleContext }) => {
+    try {
+      if (!roleContext.capabilities?.includes('COACH')) {
+        return {
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only coaches can access this endpoint'
+          }
+        }
+      }
+
+      const supabase = await createAuthClient()
+
+      // Calculate date range for next 7 days
+      const now = new Date()
+      const sevenDaysLater = new Date(now)
+      sevenDaysLater.setDate(now.getDate() + 7)
+
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('Session')
+        .select(`
+          ulid,
+          menteeUlid,
+          coachUlid,
+          startTime,
+          endTime,
+          status,
+          sessionType,
+          zoomMeetingUrl,
+          paymentStatus,
+          createdAt,
+          mentee:User!Session_menteeUlid_fkey (
+            ulid,
+            firstName,
+            lastName,
+            email,
+            profileImageUrl
+          )
+        `)
+        .eq('coachUlid', userUlid)
+        .eq('status', 'SCHEDULED')
+        .gte('startTime', now.toISOString())
+        .lte('startTime', sevenDaysLater.toISOString())
+        .order('startTime', { ascending: true })
+        .limit(5) // Limit to 5 upcoming sessions
+
+      if (sessionsError) {
+        console.error('[FETCH_UPCOMING_SESSIONS_ERROR]', { userUlid, error: sessionsError })
+        return {
+          data: [],
+          error: null
+        }
+      }
+
+      if (!sessions || sessions.length === 0) {
+        return {
+          data: [],
+          error: null
+        }
+      }
+
+      // Transform and validate the data
+      const transformedSessions = (sessions as unknown as DbSessionWithMentee[]).map((session): TransformedSession => ({
+        ulid: session.ulid,
+        durationMinutes: Math.round(
+          (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)
+        ),
+        status: session.status,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        createdAt: session.createdAt,
+        userRole: 'coach',
+        otherParty: session.mentee,
+        sessionType: session.sessionType,
+        zoomMeetingUrl: session.zoomMeetingUrl,
+        paymentStatus: session.paymentStatus
+      }))
+
+      // Validate transformed sessions
+      const validatedSessions = z.array(TransformedSessionSchema).parse(transformedSessions)
+
+      return {
+        data: validatedSessions,
+        error: null
+      }
+    } catch (error) {
+      console.error('[FETCH_UPCOMING_SESSIONS_ERROR]', error)
+      return {
+        data: [],
+        error: null
+      }
+    }
+  }
 ) 
