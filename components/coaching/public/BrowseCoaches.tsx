@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { usePublicCoaches } from '@/utils/hooks/usePublicCoaches'
 import { CoachFilters } from '@/components/coaching/shared/SearchAndFilter/types'
 import { RealEstateDomain } from '@/utils/types/coach'
+import Link from 'next/link'
 
 const COACHES_PER_PAGE = 6
 
@@ -149,6 +150,7 @@ export function BrowseCoaches({ showFeatured = true }: BrowseCoachesProps) {
                     rating={coach.averageRating ?? undefined}
                     reviewCount={coach.totalSessions}
                     hourlyRate={coach.hourlyRate}
+                    profileSlug={coach.profileSlug}
                   />
                 ))}
               </div>
@@ -240,6 +242,7 @@ export function BrowseCoaches({ showFeatured = true }: BrowseCoachesProps) {
                         rating={coach.averageRating ?? undefined}
                         reviewCount={coach.totalSessions}
                         hourlyRate={coach.hourlyRate}
+                        profileSlug={coach.profileSlug}
                       />
                     ))}
                   </div>

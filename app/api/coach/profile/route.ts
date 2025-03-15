@@ -70,7 +70,42 @@ export const POST = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
     const validatedData = CoachProfileSchema.parse(body);
 
     // Extract languages from validated data to update User model
-    const { languages, ...coachProfileData } = validatedData;
+    const { languages, profileSlug, ...coachProfileData } = validatedData;
+
+    // Handle profile slug if provided
+    let profileSlugData = {};
+    if (profileSlug) {
+      // Format the slug - lowercase, replace spaces with hyphens, remove special chars
+      const formattedSlug = profileSlug
+        .toLowerCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/-+/g, '-') // Replace multiple hyphens with a single one
+        .replace(/^-|-$/g, ''); // Remove leading and trailing hyphens
+
+      // Check if the slug is already taken by another coach
+      const { data: slugCheck } = await supabase
+        .from('CoachProfile')
+        .select('ulid')
+        .eq('profileSlug', formattedSlug)
+        .single();
+
+      if (slugCheck) {
+        return NextResponse.json<ApiResponse<never>>({ 
+          data: null,
+          error: {
+            code: 'SLUG_TAKEN',
+            message: 'This profile URL is already taken. Please choose another one.'
+          }
+        }, { status: 400 });
+      }
+
+      // If all checks pass, prepare the slug update
+      profileSlugData = {
+        profileSlug: formattedSlug,
+        lastSlugUpdateAt: new Date().toISOString(),
+      };
+    }
 
     // Update languages in User model if provided
     if (languages && languages.length > 0) {
@@ -145,6 +180,7 @@ export const POST = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       .from("CoachProfile")
       .insert({
         ...coachProfileData,
+        ...profileSlugData,
         userUlid,
         updatedAt: new Date().toISOString()
       })
@@ -185,8 +221,75 @@ export const PUT = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
     const data = await req.json();
     const validatedData = UpdateCoachProfileSchema.parse(data);
 
-    // Extract languages from validated data to update User model
-    const { languages, ...coachProfileData } = validatedData;
+    // Extract languages and profileSlug from validated data
+    const { languages, profileSlug, ...coachProfileData } = validatedData;
+
+    // Handle profile slug updates with rate limiting
+    let profileSlugUpdate = {};
+    if (profileSlug !== undefined) {
+      // Get current profile to check last slug update time
+      const { data: currentProfile } = await supabase
+        .from('CoachProfile')
+        .select('profileSlug, lastSlugUpdateAt')
+        .eq('userUlid', userUlid)
+        .single();
+
+      // Only process if the slug is actually changing
+      if (profileSlug !== currentProfile?.profileSlug) {
+        // Format the slug - lowercase, replace spaces with hyphens, remove special chars
+        const formattedSlug = profileSlug
+          ? profileSlug
+              .toLowerCase()
+              .replace(/\s+/g, '-')
+              .replace(/[^a-z0-9-]/g, '')
+              .replace(/-+/g, '-') // Replace multiple hyphens with a single one
+              .replace(/^-|-$/g, '') // Remove leading and trailing hyphens
+          : null;
+
+        // Check for rate limiting - allow updates once per 24 hours
+        if (currentProfile?.lastSlugUpdateAt) {
+          const lastUpdate = new Date(currentProfile.lastSlugUpdateAt);
+          const now = new Date();
+          const hoursSinceLastUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
+          
+          if (hoursSinceLastUpdate < 24) {
+            return NextResponse.json<ApiResponse<never>>({ 
+              data: null,
+              error: {
+                code: 'RATE_LIMITED',
+                message: 'You can only update your profile URL once every 24 hours.'
+              }
+            }, { status: 429 });
+          }
+        }
+        
+        // Check if the slug is already taken by another coach
+        if (formattedSlug) {
+          const { data: slugCheck } = await supabase
+            .from('CoachProfile')
+            .select('ulid')
+            .eq('profileSlug', formattedSlug)
+            .neq('userUlid', userUlid)
+            .single();
+            
+          if (slugCheck) {
+            return NextResponse.json<ApiResponse<never>>({ 
+              data: null,
+              error: {
+                code: 'SLUG_TAKEN',
+                message: 'This profile URL is already taken. Please choose another one.'
+              }
+            }, { status: 400 });
+          }
+        }
+        
+        // If all checks pass, prepare the slug update
+        profileSlugUpdate = {
+          profileSlug: formattedSlug,
+          lastSlugUpdateAt: new Date().toISOString(),
+        };
+      }
+    }
 
     // Update languages in User model if provided
     if (languages && languages.length > 0) {
@@ -232,11 +335,12 @@ export const PUT = withApiAuth<CoachProfile>(async (req, { userUlid }) => {
       }, { status: 404 });
     }
 
-    // Update coach profile with remaining data (excluding languages)
+    // Update coach profile with remaining data
     const { data: updatedProfile, error: updateError } = await supabase
       .from("CoachProfile")
       .update({
         ...coachProfileData,
+        ...profileSlugUpdate,
         updatedAt: new Date().toISOString()
       })
       .eq("userUlid", userUlid)

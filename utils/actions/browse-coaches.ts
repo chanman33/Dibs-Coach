@@ -30,6 +30,7 @@ interface DbCoach {
     slogan: string | null
     profileStatus: string
     completionPercentage: number
+    profileSlug: string | null
   } | null
 }
 
@@ -136,7 +137,8 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
           isActive,
           profileStatus,
           slogan,
-          completionPercentage
+          completionPercentage,
+          profileSlug
         `)
         .in('userUlid', coachUsers.map(u => u.ulid))
         .eq('profileStatus', 'PUBLISHED')
@@ -206,7 +208,8 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
             isActive: profile.isActive,
             slogan: profile.slogan,
             profileStatus: profile.profileStatus,
-            completionPercentage: profile.completionPercentage
+            completionPercentage: profile.completionPercentage,
+            profileSlug: profile.profileSlug
           }
         };
       }).filter(Boolean) as DbCoach[];
@@ -261,7 +264,8 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
             isActive: coach.CoachProfile?.isActive || false,
             slogan: coach.CoachProfile?.slogan || null,
             profileStatus: coach.CoachProfile?.profileStatus || 'DRAFT',
-            completionPercentage: coach.CoachProfile?.completionPercentage || 0
+            completionPercentage: coach.CoachProfile?.completionPercentage || 0,
+            profileSlug: coach.CoachProfile?.profileSlug || null
           };
           
           // Log incomplete profiles to help identify data quality issues

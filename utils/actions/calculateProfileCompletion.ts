@@ -21,6 +21,7 @@ export type CoachProfileData = {
   hasAvailabilitySchedule?: boolean | null;
   coachRealEstateDomains?: string[] | null;
   coachPrimaryDomain?: string | null;
+  profileSlug?: string | null;
   [key: string]: any;
 };
 
@@ -38,7 +39,8 @@ export const REQUIRED_FIELDS: Record<string, FieldConfig> = {
   hourlyRate: { weight: 10, required: true },
   yearsCoaching: { weight: 10, required: true },
   hasAvailabilitySchedule: { weight: 15, required: true },
-  coachRealEstateDomains: { weight: 10, required: true }
+  coachRealEstateDomains: { weight: 10, required: true },
+  profileSlug: { weight: 10, required: true }
 };
 
 export const OPTIONAL_FIELDS: Record<string, FieldConfig> = {
@@ -190,6 +192,9 @@ function isFieldComplete(field: string, value: any): boolean {
     case 'hasAvailabilitySchedule':
       return value === true;
     
+    case 'profileSlug':
+      return typeof value === 'string' && value.trim().length >= 3;
+    
     default:
       return false;
   }
@@ -209,7 +214,8 @@ export function getFieldDisplayName(fieldName: string): string {
     coachPrimaryDomain: 'Primary Domain',
     hourlyRate: 'Hourly Rate',
     yearsCoaching: 'Years of Experience',
-    hasAvailabilitySchedule: 'Availability Schedule'
+    hasAvailabilitySchedule: 'Availability Schedule',
+    profileSlug: 'Custom Profile URL'
   };
 
   return displayNames[fieldName] || fieldName;

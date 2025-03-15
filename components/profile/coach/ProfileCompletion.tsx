@@ -39,6 +39,7 @@ const fieldLabels: Record<string, string> = {
   lastName: 'Last Name',
   bio: 'Biography',
   profileImageUrl: 'Profile Image',
+  profileSlug: 'Custom Profile URL',
   
   // Coaching Details
   coachingSpecialties: 'Coaching Specialties',
@@ -118,8 +119,8 @@ export function ProfileCompletion({
       {
         title: 'Basic Information',
         description: 'Personal details and bio',
-        fields: ['firstName', 'lastName', 'bio', 'profileImageUrl'],
-        requiredFields: ['firstName', 'lastName', 'bio', 'profileImageUrl'],
+        fields: ['firstName', 'lastName', 'bio', 'profileImageUrl', 'profileSlug'],
+        requiredFields: ['firstName', 'lastName', 'bio', 'profileImageUrl', 'profileSlug'],
         isComplete: (fields: string[]) => {
           const missing = fields.filter(field => missingFields.includes(field));
           const invalid = fields.filter(field => validationMessages[field]);

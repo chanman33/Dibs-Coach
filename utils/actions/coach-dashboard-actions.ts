@@ -17,6 +17,8 @@ export interface CoachDashboardStats {
   }
   rating: number
   reviewCount: number
+  profileSlug?: string | null
+  userUlid?: string
 }
 
 /**
@@ -50,7 +52,20 @@ export const fetchCoachDashboardStats = withServerAction<CoachDashboardStats>(
           total: 0
         },
         rating: 0,
-        reviewCount: 0
+        reviewCount: 0,
+        profileSlug: null,
+        userUlid
+      }
+
+      // Get coach profile data for the slug
+      const { data: coachProfile, error: coachProfileError } = await supabase
+        .from('CoachProfile')
+        .select('profileSlug')
+        .eq('userUlid', userUlid)
+        .single()
+
+      if (coachProfileError && !coachProfileError.message.includes('No rows found')) {
+        console.error('[COACH_DASHBOARD_PROFILE_ERROR]', coachProfileError)
       }
 
       // Get unique mentees from sessions
@@ -60,9 +75,14 @@ export const fetchCoachDashboardStats = withServerAction<CoachDashboardStats>(
         .eq('coachUlid', userUlid)
 
       if (sessionsError) {
-        console.error('[FETCH_COACH_DASHBOARD_ERROR]', { userUlid, error: sessionsError })
-        // Return default stats instead of error
-        return { data: defaultStats, error: null }
+        console.error('[COACH_DASHBOARD_SESSIONS_ERROR]', sessionsError)
+        return {
+          data: {
+            ...defaultStats,
+            profileSlug: (coachProfile as any)?.profileSlug || null
+          },
+          error: null
+        }
       }
 
       // Get unique mentee ULIDs
@@ -210,40 +230,38 @@ export const fetchCoachDashboardStats = withServerAction<CoachDashboardStats>(
         ? 0 
         : parseFloat((reviews?.reduce((sum, review) => sum + review.rating, 0) / reviewCount).toFixed(1))
 
+      // Calculate stats
+      const stats = {
+        totalClients,
+        newClientsThisMonth,
+        revenue,
+        revenueGrowth,
+        menteeRetention: {
+          percentage: retentionPercentage,
+          count: menteesWithThreePlusSessions,
+          total: totalMenteesWithSessions
+        },
+        rating,
+        reviewCount
+      }
+
       return {
         data: {
-          totalClients,
-          newClientsThisMonth,
-          revenue,
-          revenueGrowth,
-          menteeRetention: {
-            percentage: retentionPercentage,
-            count: menteesWithThreePlusSessions,
-            total: totalMenteesWithSessions
-          },
-          rating,
-          reviewCount
+          ...stats,
+          profileSlug: (coachProfile as any)?.profileSlug || null,
+          userUlid
         },
         error: null
       }
     } catch (error) {
-      console.error('[FETCH_COACH_DASHBOARD_ERROR]', error)
-      // Return default stats instead of error
+      console.error('[COACH_DASHBOARD_ERROR]', error)
       return {
-        data: {
-          totalClients: 0,
-          newClientsThisMonth: 0,
-          revenue: 0,
-          revenueGrowth: 0,
-          menteeRetention: {
-            percentage: 0,
-            count: 0,
-            total: 0
-          },
-          rating: 0,
-          reviewCount: 0
-        },
-        error: null
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
       }
     }
   },

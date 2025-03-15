@@ -21,6 +21,7 @@ export const coachProfileFormSchema = z.object({
   // Coach Profile Fields
   displayName: z.string().min(1, "Display name is required").optional(),
   slogan: z.string().optional(),
+  profileSlug: z.string().nullable().optional(),
   specialties: z.array(z.string()).optional(),
   coachSkills: z.array(z.string()).default([]),
   yearsCoaching: z.number()
@@ -75,6 +76,7 @@ export interface CoachProfileInitialData {
   bio?: string | null;
   profileImageUrl?: string | null;
   slogan?: string;
+  profileSlug?: string | null;
   coachingSpecialties?: string[] | null;
   coachSkills?: string[] | null;
   hourlyRate?: number | undefined;
@@ -127,5 +129,6 @@ export interface CoachProfileResponse {
   coachRealEstateDomains: string[];
   coachPrimaryDomain: string | null;
   slogan?: string;
+  profileSlug?: string | null;
   // ... other existing fields ...
 } 

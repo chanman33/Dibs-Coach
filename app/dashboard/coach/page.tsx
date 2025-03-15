@@ -76,7 +76,9 @@ function CoachDashboard() {
     if (!coachProfileId) return;
     
     const shareText = "I'm offering coaching services on Dibs! Check out my profile and book a session with me.";
-    const shareUrl = window.location.origin + "/coaches/" + coachProfileId;
+    // Use the custom slug if available, otherwise use the profile ID
+    const profilePath = dashboardStats?.profileSlug || coachProfileId;
+    const shareUrl = `${window.location.origin}/coaches/${profilePath}`;
     let shareLink = '';
     
     switch (platform) {

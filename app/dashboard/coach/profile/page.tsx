@@ -40,6 +40,7 @@ interface ExtendedCoachData extends Omit<CoachProfileInitialData, 'displayName' 
   coachSkills: string[];
   displayName?: string;
   slogan?: string;
+  profileSlug?: string | null;
 }
 
 function ProfilePageContent() {
@@ -149,11 +150,13 @@ function ProfilePageContent() {
     coachSkills: coachData?.coachSkills || [],
     displayName: coachData?.displayName || undefined,
     slogan: coachData?.slogan || undefined,
+    profileSlug: coachData?.profileSlug || null,
   };
 
   console.log("[PROFILE_PAGE_RENDER]", {
     extendedCoachData,
     slogan: coachData?.slogan,
+    profileSlug: coachData?.profileSlug,
     timestamp: new Date().toISOString()
   });
 

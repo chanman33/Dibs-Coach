@@ -29,7 +29,7 @@ async function seedCoaches() {
     console.log('Starting coach data seeding...');
     
     // Read the SQL file
-    const sqlFilePath = path.join(__dirname, '../prisma/seed-coaches.sql');
+    const sqlFilePath = path.join(__dirname, '../prisma/sql/seed-coaches.sql');
     const sql = fs.readFileSync(sqlFilePath, 'utf8');
     
     // Execute the SQL

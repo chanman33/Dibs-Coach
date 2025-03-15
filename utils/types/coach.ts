@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ProfessionalRecognition } from "@/utils/types/recognition";
 
 // Define Profile Status enum
 export const PROFILE_STATUS = {
@@ -13,6 +14,24 @@ export const PROFILE_STATUS = {
 } as const;
 
 export type ProfileStatus = typeof PROFILE_STATUS[keyof typeof PROFILE_STATUS];
+
+// Add a schema for profile slug validation
+export const profileSlugSchema = z.string()
+  .min(3, "URL must be at least 3 characters")
+  .max(30, "URL must be at most 30 characters")
+  .regex(/^[a-z0-9-]+$/, "URL can only contain lowercase letters, numbers, and hyphens")
+  .refine(
+    (value) => !value.startsWith('-') && !value.endsWith('-'),
+    "URL cannot start or end with a hyphen"
+  )
+  .refine(
+    (value) => !/--/.test(value),
+    "URL cannot contain consecutive hyphens"
+  )
+  .refine(
+    (value) => !['admin', 'system', 'dashboard', 'profile', 'settings', 'login', 'signup', 'signin', 'signout', 'register', 'auth', 'api'].includes(value),
+    "This URL is reserved and cannot be used"
+  );
 
 // Profile state transition validation with role-based permissions
 export interface StatusTransition {
@@ -298,6 +317,8 @@ export interface CoachProfile {
   completionPercentage: number
   hourlyRate: number
   updatedAt: string
+  profileSlug?: string
+  lastSlugUpdateAt?: string
 }
 
 export const UpdateCoachProfileSchema = CoachProfileSchema.partial().extend({
@@ -392,6 +413,7 @@ export interface PublicCoach {
   bio: string | null
   profileImageUrl: string | null
   slogan: string | null
+  profileSlug: string | null
   coachSkills: string[]
   coachRealEstateDomains: RealEstateDomain[]
   coachPrimaryDomain: RealEstateDomain | null
@@ -404,4 +426,23 @@ export interface PublicCoach {
     maximumDuration: number
     allowCustomDuration: boolean
   }
+}
+
+export interface CoachProfileFormData {
+  coachSkills: string[];
+  yearsCoaching: number;
+  hourlyRate: number;
+  defaultDuration: number;
+  minimumDuration: number;
+  maximumDuration: number;
+  allowCustomDuration: boolean;
+  eventTypeUrl?: string;
+  coachRealEstateDomains?: string[];
+  coachPrimaryDomain?: string | null;
+  certifications?: string[];
+  professionalRecognitions?: ProfessionalRecognition[];
+  skipRevalidation?: boolean;
+  displayName?: string;
+  slogan?: string;
+  profileSlug?: string;
 } 

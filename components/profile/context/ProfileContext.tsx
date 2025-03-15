@@ -55,6 +55,7 @@ interface ProfileContextType {
     coachRealEstateDomains?: string[];
     coachPrimaryDomain?: string | null;
     coachSkills?: string[];
+    profileSlug?: string | null;
   };
   
   // Domain-specific data
@@ -158,6 +159,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     coachRealEstateDomains?: string[];
     coachPrimaryDomain?: string | null;
     coachSkills?: string[];
+    profileSlug?: string | null;
   }>({});
   
   // Domain-specific data states
@@ -281,7 +283,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             coachSkills?: string[],
             coachRealEstateDomains?: string[],
             slogan?: string,
-            coachPrimaryDomain?: string | null
+            coachPrimaryDomain?: string | null,
+            profileSlug?: string | null
           };
           
           console.log("[PROFILE_FETCH_COACH_DATA]", {
@@ -289,6 +292,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             coachRealEstateDomains: coachProfileData.coachRealEstateDomains,
             slogan: coachProfileData.slogan,
             coachPrimaryDomain: coachProfileData.coachPrimaryDomain,
+            profileSlug: coachProfileData.profileSlug,
             timestamp: new Date().toISOString()
           });
           
@@ -302,7 +306,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             coachRealEstateDomains: coachProfileData.coachRealEstateDomains || [],
             coachPrimaryDomain: coachProfileData.coachPrimaryDomain || null,
             coachSkills: coachProfileData.coachSkills || coachProfileData.coachingSpecialties || [],
-            slogan: coachProfileData.slogan
+            slogan: coachProfileData.slogan,
+            profileSlug: coachProfileData.profileSlug
           });
           
           // Set profile status and completion info
@@ -325,6 +330,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
             realEstateDomains: coachProfileData.coachRealEstateDomains,
             slogan: coachProfileData.slogan,
             coachPrimaryDomain: coachProfileData.coachPrimaryDomain,
+            profileSlug: coachProfileData.profileSlug,
             timestamp: new Date().toISOString()
           });
           
@@ -541,7 +547,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         currentState: {
           yearsCoaching: coachData.yearsCoaching,
           hourlyRate: coachData.hourlyRate,
-          coachSkills: coachData.coachSkills
+          coachSkills: coachData.coachSkills,
+          profileSlug: coachData.profileSlug
         },
         timestamp: new Date().toISOString()
       });
@@ -568,7 +575,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         professionalRecognitions: processedRecognitions,
         coachRealEstateDomains: data.coachRealEstateDomains || [],
         coachPrimaryDomain: data.coachPrimaryDomain || null,
-        slogan: data.slogan || ""
+        slogan: data.slogan || "",
+        profileSlug: data.profileSlug || null
       } as any; // Use type assertion to avoid TypeScript errors
       
       
@@ -581,7 +589,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           coachSkills?: string[],
           coachRealEstateDomains?: string[],
           slogan?: string,
-          coachPrimaryDomain?: string | null
+          coachPrimaryDomain?: string | null,
+          profileSlug?: string | null
         };
         
         // Log the response data for debugging
@@ -590,6 +599,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           coachRealEstateDomains: profileData.coachRealEstateDomains,
           slogan: profileData.slogan,
           coachPrimaryDomain: profileData.coachPrimaryDomain,
+          profileSlug: profileData.profileSlug,
           yearsCoaching: profileData.yearsCoaching,
           hourlyRate: profileData.hourlyRate,
           timestamp: new Date().toISOString()
@@ -601,6 +611,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         const skills = profileData.coachSkills || profileData.coachingSpecialties || data.coachSkills || [];
         const slogan = profileData.slogan !== undefined ? profileData.slogan : data.slogan;
         const primaryDomain = profileData.coachPrimaryDomain !== undefined ? profileData.coachPrimaryDomain : data.coachPrimaryDomain;
+        const profileSlug = profileData.profileSlug !== undefined ? profileData.profileSlug : data.profileSlug;
         
         // IMPORTANT: Explicitly preserve yearsCoaching and hourlyRate from form data if not in response
         const yearsCoaching = profileData.yearsCoaching !== undefined ? profileData.yearsCoaching : data.yearsCoaching || 0;
@@ -609,10 +620,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         console.log("[UPDATE_COACH_DATA_PRESERVED_VALUES]", {
           formYearsCoaching: data.yearsCoaching,
           formHourlyRate: data.hourlyRate,
+          formProfileSlug: data.profileSlug,
           responseYearsCoaching: profileData.yearsCoaching,
           responseHourlyRate: profileData.hourlyRate,
+          responseProfileSlug: profileData.profileSlug,
           finalYearsCoaching: yearsCoaching,
           finalHourlyRate: hourlyRate,
+          finalProfileSlug: profileSlug,
           timestamp: new Date().toISOString()
         });
         
@@ -623,6 +637,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           coachPrimaryDomain: primaryDomain,
           coachSkills: skills,
           slogan: slogan,
+          profileSlug: profileSlug,
           yearsCoaching: yearsCoaching,
           hourlyRate: hourlyRate
         });
@@ -640,6 +655,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           coachPrimaryDomain: primaryDomain,
           yearsCoaching: yearsCoaching,
           hourlyRate: hourlyRate,
+          profileSlug: profileSlug,
           timestamp: new Date().toISOString()
         });
         

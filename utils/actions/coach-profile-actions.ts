@@ -4,7 +4,7 @@ import { createAuthClient } from "../auth"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { revalidatePath } from "next/cache"
-import { PROFILE_STATUS, type ProfileStatus, ALLOWED_STATUS_TRANSITIONS, PROFILE_REQUIREMENTS, canTransitionTo, RealEstateDomain } from "@/utils/types/coach"
+import { PROFILE_STATUS, type ProfileStatus, ALLOWED_STATUS_TRANSITIONS, PROFILE_REQUIREMENTS, canTransitionTo, RealEstateDomain, profileSlugSchema } from "@/utils/types/coach"
 import { calculateProfileCompletion, PUBLICATION_THRESHOLD } from "@/utils/actions/calculateProfileCompletion"
 import { auth } from "@clerk/nextjs/server"
 import { ProfessionalRecognition } from "@/utils/types/recognition"
@@ -29,6 +29,7 @@ export interface CoachProfileFormData {
   skipRevalidation?: boolean;
   displayName?: string;
   slogan?: string;
+  profileSlug?: string;
 }
 
 interface CoachProfileResponse {
@@ -41,6 +42,8 @@ interface CoachProfileResponse {
   allowCustomDuration: boolean;
   eventTypeUrl: string;
   slogan: string;
+  profileSlug: string | null;
+  lastSlugUpdateAt: string | null;
   certifications: string[];
   professionalRecognitions: ProfessionalRecognition[];
   realEstateDomains: string[];
@@ -291,6 +294,8 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         allowCustomDuration: coachProfile?.allowCustomDuration || false,
         eventTypeUrl: coachProfile?.eventTypeUrl || "",
         slogan: coachProfile?.slogan || "",
+        profileSlug: (coachProfile as any)?.profileSlug || null,
+        lastSlugUpdateAt: coachProfile?.updatedAt || null,
         certifications: [],
         professionalRecognitions: activeRecognitions,
         realEstateDomains: userData?.realEstateDomains || [],
@@ -333,6 +338,7 @@ interface UpdateCoachProfileResponse {
   canPublish: boolean;
   missingFields: string[];
   slogan?: string;
+  profileSlug?: string | null;
   coachPrimaryDomain?: string | null;
   coachSkills?: string[];
   coachRealEstateDomains?: string[];
@@ -342,138 +348,164 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
   async (formData, { userUlid }) => {
     try {
       console.log("[UPDATE_COACH_PROFILE_START]", {
-        userUlid,
-        formData,
+        formData: {
+          coachSkills: formData.coachSkills,
+          yearsCoaching: formData.yearsCoaching,
+          hourlyRate: formData.hourlyRate,
+          defaultDuration: formData.defaultDuration,
+          minimumDuration: formData.minimumDuration,
+          maximumDuration: formData.maximumDuration,
+          allowCustomDuration: formData.allowCustomDuration,
+          eventTypeUrl: formData.eventTypeUrl,
+          slogan: formData.slogan,
+          profileSlug: formData.profileSlug,
+        },
         timestamp: new Date().toISOString()
       });
 
-      const supabase = await createAuthClient()
-      
-      // Get existing coach profile to check status
-      const { data: existingProfile, error: existingProfileError } = await supabase
+      const supabase = await createAuthClient();
+
+      // Get existing coach profile
+      const { data: coachProfileData, error: profileError } = await supabase
         .from('CoachProfile')
-        .select('profileStatus, ulid')
+        .select('*')
         .eq('userUlid', userUlid)
         .single();
 
-      if (existingProfileError) {
+      if (profileError) {
         console.error('[UPDATE_COACH_PROFILE_ERROR]', {
+          error: profileError,
           userUlid,
-          error: existingProfileError,
           timestamp: new Date().toISOString()
         });
+
         return {
           data: null,
           error: {
             code: 'DATABASE_ERROR',
             message: 'Failed to fetch coach profile',
-            details: { error: existingProfileError }
+            details: { error: profileError }
+          }
+        };
+      }
+
+      // Handle profile slug update with rate limiting
+      let profileSlug = formData.profileSlug;
+      let lastSlugUpdateAt = (coachProfileData as any)?.lastSlugUpdateAt;
+      
+      if (profileSlug !== undefined && profileSlug !== (coachProfileData as any)?.profileSlug) {
+        // Validate the slug format
+        try {
+          if (profileSlug) {
+            profileSlugSchema.parse(profileSlug);
+          }
+        } catch (error) {
+          console.error('[UPDATE_COACH_PROFILE_SLUG_VALIDATION_ERROR]', error);
+          return {
+            data: null,
+            error: {
+              code: 'INVALID_SLUG',
+              message: 'Invalid profile URL format. URLs can only contain lowercase letters, numbers, and hyphens.'
+            }
+          };
+        }
+        
+        // Check for rate limiting - allow updates once per 24 hours
+        if (lastSlugUpdateAt) {
+          const lastUpdate = new Date(lastSlugUpdateAt);
+          const now = new Date();
+          const hoursSinceLastUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
+          
+          if (hoursSinceLastUpdate < 24) {
+            return {
+              data: null,
+              error: {
+                code: 'RATE_LIMITED',
+                message: 'You can only update your profile URL once every 24 hours. A consistent URL helps improve your visibility in search results and makes it easier for mentees to find and share your profile. Consider keeping it static for better traffic and brand recognition.'
+              }
+            };
           }
         }
-      }
-
-      // Get user data for profile completion calculation
-      const { data: userData, error: userError } = await supabase
-        .from('User')
-        .select('firstName, lastName, bio, profileImageUrl')
-        .eq('ulid', userUlid)
-        .single();
-
-      if (userError) {
-        console.error('[UPDATE_COACH_USER_ERROR]', {
-          userUlid,
-          error: userError,
-          timestamp: new Date().toISOString()
-        });
-        return {
-          data: null,
-          error: {
-            code: 'DATABASE_ERROR',
-            message: 'Failed to fetch user data',
-            details: { error: userError }
+        
+        // Check if the slug is already taken
+        if (profileSlug) {
+          const { data: existingProfile, error: slugCheckError } = await supabase
+            .from('CoachProfile')
+            .select('ulid')
+            .eq('profileSlug', profileSlug)
+            .neq('userUlid', userUlid)
+            .maybeSingle();
+            
+          if (slugCheckError) {
+            console.error('[UPDATE_COACH_PROFILE_SLUG_CHECK_ERROR]', slugCheckError);
+            return {
+              data: null,
+              error: {
+                code: 'DATABASE_ERROR',
+                message: 'Error checking profile URL availability.'
+              }
+            };
           }
+          
+          if (existingProfile) {
+            return {
+              data: null,
+              error: {
+                code: 'SLUG_TAKEN',
+                message: 'This profile URL is already taken. Please choose another one.'
+              }
+            };
+          }
+          
+          // If we get here, the slug is available
+          console.log('[UPDATE_COACH_PROFILE_SLUG_AVAILABLE]', {
+            profileSlug,
+            timestamp: new Date().toISOString()
+          });
         }
+        
+        // Update the lastSlugUpdateAt timestamp
+        lastSlugUpdateAt = new Date().toISOString();
       }
 
-      const profileData = {
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        bio: userData.bio,
-        profileImageUrl: userData.profileImageUrl,
-        coachingSpecialties: formData.coachSkills,
-        hourlyRate: formData.hourlyRate,
-        yearsCoaching: formData.yearsCoaching,
-        eventTypeUrl: formData.eventTypeUrl,
-      };
-      
-      const { percentage, missingFields, canPublish } = calculateProfileCompletion(profileData);
-      
-      // Determine profile status
-      let profileStatus: ProfileStatus = PROFILE_STATUS.DRAFT;
-      if (canPublish && existingProfile?.profileStatus === PROFILE_STATUS.PUBLISHED) {
-        profileStatus = PROFILE_STATUS.PUBLISHED;
-      }
-
-      // Handle coachRealEstateDomains and coachPrimaryDomain
-      const coachDomains = formData.coachRealEstateDomains || formData.coachSkills || [];
-      let coachPrimaryDomain = formData.coachPrimaryDomain;
-      
-      // If no primary domain is specified but domains exist, use the first domain
-      if (coachPrimaryDomain === undefined && coachDomains.length > 0) {
-        coachPrimaryDomain = coachDomains[0];
-      }
-      
-      // If primary domain is specified but not in domains, use null
-      if (coachPrimaryDomain && !coachDomains.includes(coachPrimaryDomain)) {
-        coachPrimaryDomain = null;
-      }
-      
-      // If no domains, set primary domain to null
-      if (coachDomains.length === 0) {
-        coachPrimaryDomain = null;
-      }
-
-      const coachProfileData = {
-        userUlid,
-        coachSkills: formData.coachSkills,
-        yearsCoaching: formData.yearsCoaching,
-        hourlyRate: formData.hourlyRate,
-        eventTypeUrl: formData.eventTypeUrl,
-        defaultDuration: formData.defaultDuration,
-        minimumDuration: formData.minimumDuration,
-        maximumDuration: formData.maximumDuration,
-        allowCustomDuration: formData.allowCustomDuration,
-        coachRealEstateDomains: coachDomains,
-        coachPrimaryDomain: coachPrimaryDomain,
-        displayName: formData.displayName,
-        slogan: formData.slogan,
-        profileStatus,
-        completionPercentage: percentage,
-        updatedAt: new Date().toISOString(),
-      } as any;
-
-      console.log("[UPDATE_COACH_PROFILE_DATA]", {
-        userUlid,
-        coachProfileData,
-        slogan: formData.slogan,
-        coachPrimaryDomain,
-        timestamp: new Date().toISOString()
+      // Calculate profile completion percentage
+      const { percentage, canPublish, missingFields } = calculateProfileCompletion({
+        ...coachProfileData,
+        ...formData
       });
 
-      // No longer update the User model's realEstateDomains
-      // We're now using coach-specific domain fields
+      // Get the coach's primary domain
+      const coachPrimaryDomain = coachProfileData?.coachPrimaryDomain || null;
+      
+      // Get the coach's domains
+      const coachRealEstateDomains = coachProfileData?.coachRealEstateDomains || [];
 
+      // Update the coach profile
       const { error: updateError } = await supabase
         .from('CoachProfile')
-        .update(coachProfileData)
-        .eq('ulid', existingProfile.ulid);
+        .update({
+          coachSkills: formData.coachSkills || [],
+          yearsCoaching: formData.yearsCoaching,
+          hourlyRate: formData.hourlyRate,
+          defaultDuration: formData.defaultDuration,
+          minimumDuration: formData.minimumDuration,
+          maximumDuration: formData.maximumDuration,
+          allowCustomDuration: formData.allowCustomDuration,
+          eventTypeUrl: formData.eventTypeUrl,
+          slogan: formData.slogan,
+          profileSlug: profileSlug,
+          lastSlugUpdateAt: profileSlug !== (coachProfileData as any)?.profileSlug ? lastSlugUpdateAt : undefined,
+          completionPercentage: percentage
+        })
+        .eq('userUlid', userUlid);
 
       if (updateError) {
         console.error('[UPDATE_COACH_PROFILE_ERROR]', {
-          userUlid,
           error: updateError,
+          userUlid,
           timestamp: new Date().toISOString()
         });
+
         return {
           data: null,
           error: {
@@ -481,35 +513,38 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
             message: 'Failed to update coach profile',
             details: { error: updateError }
           }
-        }
+        };
       }
 
-      // Only revalidate if not explicitly skipped
+      // Revalidate the coach profile page
       if (!formData.skipRevalidation) {
-        revalidatePath('/dashboard/profile');
-        revalidatePath('/dashboard/coach');
+        revalidatePath('/dashboard/coach/profile');
       }
 
       return {
         data: {
           success: true,
           completionPercentage: percentage,
-          profileStatus,
+          profileStatus: coachProfileData?.profileStatus || 'DRAFT',
           canPublish,
           missingFields,
           slogan: formData.slogan,
+          profileSlug: profileSlug,
           coachPrimaryDomain,
           coachSkills: formData.coachSkills,
-          coachRealEstateDomains: coachDomains
+          coachRealEstateDomains
         },
         error: null
-      }
+      };
     } catch (error) {
       console.error('[UPDATE_COACH_PROFILE_ERROR]', {
-        userUlid,
-        error,
+        error: error instanceof Error ? {
+          message: error.message,
+          stack: error.stack
+        } : error,
         timestamp: new Date().toISOString()
       });
+
       return {
         data: null,
         error: {
@@ -517,7 +552,7 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           message: 'An unexpected error occurred',
           details: error instanceof Error ? { message: error.message } : undefined
         }
-      }
+      };
     }
   }
 );
@@ -667,7 +702,7 @@ export async function createCoachProfileIfNeeded(userUlid: string) {
     // First check if user has COACH capability and isCoach flag
     const { data: userData, error: userError } = await supabase
       .from('User')
-      .select('isCoach, capabilities')
+      .select('isCoach, capabilities, firstName, lastName, displayName')
       .eq('ulid', userUlid)
       .single();
 
@@ -718,6 +753,37 @@ export async function createCoachProfileIfNeeded(userUlid: string) {
       return { data: null, error: { message: 'Failed to generate valid ULID' } };
     }
 
+    // Generate a default slug based on the user's name
+    let defaultSlug = null;
+    if (userData) {
+      // Use displayName if available, otherwise use firstName + lastName
+      const nameToUse = userData.displayName || 
+        (userData.firstName && userData.lastName ? 
+          `${userData.firstName} ${userData.lastName}` : 
+          (userData.firstName || userData.lastName || 'coach'));
+      
+      // Convert to slug format: lowercase, replace spaces with hyphens, remove special chars
+      defaultSlug = nameToUse
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '') // Remove special characters
+        .replace(/\s+/g, '-')     // Replace spaces with hyphens
+        .replace(/-+/g, '-')      // Replace multiple hyphens with single hyphen
+        .substring(0, 50);        // Limit length
+      
+      // Ensure slug is at least 3 characters
+      if (defaultSlug.length < 3) {
+        defaultSlug = `${defaultSlug}-coach`.substring(0, 50);
+      }
+      
+      console.log('[CREATE_COACH_PROFILE_SLUG]', {
+        nameToUse,
+        defaultSlug,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const currentTime = new Date().toISOString();
+
     // Create new coach profile with default values
     const { data: newProfile, error: createError } = await supabase
       .from('CoachProfile')
@@ -737,8 +803,10 @@ export async function createCoachProfileIfNeeded(userUlid: string) {
         completionPercentage: 0,
         isActive: true,
         totalSessions: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        profileSlug: defaultSlug,
+        lastSlugUpdateAt: currentTime,
+        createdAt: currentTime,
+        updatedAt: currentTime
       })
       .select()
       .single();

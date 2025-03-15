@@ -8,17 +8,1193 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// User & Role Enums
-enum UserRole {
-  SYSTEM_OWNER      // Full system access: User management, system configuration, analytics, billing
-  SYSTEM_MODERATOR  // Limited system access: Content moderation, support tickets, basic user management
-  USER              // Standard user with basic platform access
+model User {
+  ulid                     String                         @id @db.Char(26)
+  userId                   String                         @unique
+  email                    String                         @unique
+  firstName                String?
+  lastName                 String?
+  phoneNumber              String?
+  displayName              String?
+  bio                      String?
+  systemRole               UserRole                       @default(USER)
+  capabilities             UserCapability[]
+  isCoach                  Boolean                        @default(false)
+  isMentee                 Boolean                        @default(false)
+  stripeCustomerId         String?                        @unique
+  stripeConnectAccountId   String?                        @unique
+  createdAt                DateTime                       @default(now()) @db.Timestamptz(6)
+  updatedAt                DateTime                       @updatedAt @db.Timestamptz(6)
+  status                   UserStatus                     @default(ACTIVE)
+  profileImageUrl          String?
+  realEstateDomains        RealEstateDomain[]             @default([])
+  primaryDomain            RealEstateDomain?
+  totalYearsRE             Int                            @default(0)
+  languages                Language[]                     @default([en])
+  primaryMarket            String?
+  aiThreads                AIThread[]
+  achievements             Achievement[]
+  adminAuditLogs           AdminAuditLog[]                @relation("AdminAuditLogs")
+  applications             CoachApplication[]             @relation("Applicant")
+  reviewedApplications     CoachApplication[]             @relation("Reviewer")
+  coachProfile             CoachProfile?
+  coachingSchedules        CoachingAvailabilitySchedule[]
+  commercialProfile        CommercialProfile?
+  assignedLeads            EnterpriseLeads[]              @relation("AssignedLeads")
+  goals                    Goal[]
+  insuranceProfile         InsuranceProfile?
+  investorProfile          InvestorProfile?
+  invoices                 Invoice[]
+  mortgageProfile          LoanOfficerProfile?
+  marketingProfile         MarketingProfile?
+  menteeProfile            MenteeProfile?
+  messagesReceived         Message[]                      @relation("Recipient")
+  messagesSent             Message[]                      @relation("Sender")
+  authoredNotes            Note[]                         @relation("AuthorNotes")
+  relatedNotes             Note[]                         @relation("RelatedUserNotes")
+  organizationMemberships  OrganizationMember[]
+  paymentsReceived         Payment[]                      @relation("Payee")
+  paymentsMade             Payment[]                      @relation("Payer")
+  payouts                  Payout[]                       @relation("PayoutPayee")
+  privateCreditProfile     PrivateCreditProfile?
+  professionalRecognitions ProfessionalRecognition[]
+  propertyManagerProfile   PropertyManagerProfile?
+  realtorProfile           RealtorProfile?
+  referralsReceived        Referral[]                     @relation("Referee")
+  referralsGiven           Referral[]                     @relation("Referrer")
+  reminders                Reminder[]
+  reviewsReceived          Review[]                       @relation("Reviewee")
+  reviewsGiven             Review[]                       @relation("Reviewer")
+  coachingSessions         Session[]                      @relation("CoachSessions")
+  sessions                 Session[]                      @relation("UserSessions")
+  setupIntents             SetupIntent[]
+  stripeAccount            StripeConnectedAccount?
+  paymentMethods           StripePaymentMethod[]
+  subscriptions            Subscription[]
+  supportTickets           SupportTicket[]                @relation("UserSupportTickets")
+  titleEscrowProfile       TitleEscrowProfile?
+  receivedTransactions     Transaction[]                  @relation("TransactionCoach")
+  sentTransactions         Transaction[]                  @relation("TransactionPayer")
+
+  @@index([userId])
+  @@index([email])
+  @@index([systemRole])
+  @@index([isCoach])
+  @@index([isMentee])
+  @@index([status])
+  @@index([realEstateDomains])
+  @@index([primaryDomain])
+  @@index([primaryMarket])
+  @@map("User")
 }
 
-// User capabilities (can have multiple)
+model MenteeProfile {
+  ulid              String    @id @db.Char(26)
+  userUlid          String    @unique @db.Char(26)
+  focusAreas        String[]
+  experienceLevel   String?
+  learningStyle     String?
+  sessionsCompleted Int       @default(0)
+  isActive          Boolean   @default(true)
+  lastSessionDate   DateTime?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(6)
+  user              User      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("MenteeProfile")
+}
+
+model CoachProfile {
+  ulid                     String                    @id @db.Char(26)
+  userUlid                 String                    @unique @db.Char(26)
+  yearsCoaching            Int?
+  coachSkills              String[]                  @default([])
+  hourlyRate               Decimal?                  @db.Decimal(10, 2)
+  isActive                 Boolean                   @default(true)
+  defaultDuration          Int                       @default(60)
+  allowCustomDuration      Boolean                   @default(false)
+  minimumDuration          Int                       @default(30)
+  maximumDuration          Int                       @default(120)
+  totalSessions            Int                       @default(0)
+  averageRating            Decimal?                  @db.Decimal(3, 2)
+  profileStatus            ProfileStatus             @default(DRAFT)
+  completionPercentage     Int                       @default(0)
+  createdAt                DateTime                  @default(now()) @db.Timestamptz(6)
+  updatedAt                DateTime                  @updatedAt @db.Timestamptz(6)
+  coachPrimaryDomain       RealEstateDomain?
+  coachRealEstateDomains   RealEstateDomain[]        @default([])
+  eventTypeUrl             String?
+  slogan                   String?
+  lastSlugUpdateAt         DateTime?                 @db.Timestamptz(6)
+  profileSlug              String?                   @unique
+  user                     User                      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  professionalRecognitions ProfessionalRecognition[]
+
+  @@index([userUlid])
+  @@index([profileStatus])
+  @@index([coachRealEstateDomains])
+  @@index([coachPrimaryDomain])
+  @@index([profileSlug])
+  @@map("CoachProfile")
+}
+
+model Organization {
+  ulid              String               @id @db.Char(26)
+  name              String
+  description       String?
+  status            String               @default("ACTIVE")
+  type              OrgType              @default(INDIVIDUAL)
+  industry          OrgIndustry?
+  level             OrgLevel             @default(LOCAL)
+  tier              OrgTier              @default(FREE)
+  parentUlid        String?              @db.Char(26)
+  metadata          Json?
+  primaryDomain     RealEstateDomain?
+  domains           RealEstateDomain[]
+  licenseNumbers    Json?
+  serviceAreas      String[]
+  specializations   String[]
+  certifications    String[]
+  totalTransactions Int?
+  transactionVolume Decimal?             @db.Decimal(12, 2)
+  activeAgents      Int?
+  createdAt         DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime             @updatedAt @db.Timestamptz(6)
+  marketingProfile  MarketingProfile?
+  parent            Organization?        @relation("OrganizationHierarchy", fields: [parentUlid], references: [ulid])
+  children          Organization[]       @relation("OrganizationHierarchy")
+  members           OrganizationMember[]
+  regions           Region[]
+  rolePermissions   RolePermission[]
+  subscriptions     Subscription[]
+
+  @@index([status])
+  @@index([type])
+  @@index([level])
+  @@index([parentUlid])
+  @@index([primaryDomain])
+  @@map("Organization")
+}
+
+model Region {
+  ulid             String       @id @db.Char(26)
+  organizationUlid String       @db.Char(26)
+  name             String
+  type             String
+  parentUlid       String?      @db.Char(26)
+  metadata         Json?
+  createdAt        DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(6)
+  organization     Organization @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+  parent           Region?      @relation("RegionHierarchy", fields: [parentUlid], references: [ulid])
+  children         Region[]     @relation("RegionHierarchy")
+
+  @@index([organizationUlid])
+  @@index([parentUlid])
+  @@map("Region")
+}
+
+model OrganizationMember {
+  ulid              String       @id @db.Char(26)
+  organizationUlid  String       @db.Char(26)
+  userUlid          String       @db.Char(26)
+  role              OrgRole      @default(MEMBER)
+  scope             String?      @default("LOCAL")
+  status            String       @default("ACTIVE")
+  customPermissions Json?
+  metadata          Json?
+  createdAt         DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime     @updatedAt @db.Timestamptz(6)
+  organization      Organization @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+  user              User         @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@unique([organizationUlid, userUlid])
+  @@index([organizationUlid])
+  @@index([userUlid])
+  @@index([role])
+  @@index([status])
+  @@map("OrganizationMember")
+}
+
+model RolePermission {
+  ulid             String       @id @db.Char(26)
+  organizationUlid String       @db.Char(26)
+  role             OrgRole
+  permissions      Json
+  metadata         Json?
+  createdAt        DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(6)
+  organization     Organization @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+
+  @@unique([organizationUlid, role])
+  @@index([organizationUlid])
+  @@index([role])
+  @@map("RolePermission")
+}
+
+model MarketingProfile {
+  ulid               String        @id @db.Char(26)
+  userUlid           String?       @unique @db.Char(26)
+  organizationUlid   String?       @unique @db.Char(26)
+  slogan             String?
+  brandColors        Json?
+  logoUrl            String?
+  brandGuidelines    Json?
+  websiteUrl         String?
+  blogUrl            String?
+  socialMediaLinks   Json
+  marketingAreas     String[]
+  targetAudience     String[]
+  geographicFocus    Json?
+  testimonials       Json?
+  pressFeatures      Json?
+  marketingMaterials Json?
+  brandAssets        Json?
+  marketingTeam      Json?
+  campaignHistory    Json?
+  googleAnalyticsId  String?
+  facebookPixelId    String?
+  createdAt          DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime      @updatedAt @db.Timestamptz(6)
+  organization       Organization? @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
+  user               User?         @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@index([organizationUlid])
+  @@map("MarketingProfile")
+}
+
+model RealtorProfile {
+  ulid            String    @id @db.Char(26)
+  userUlid        String    @unique @db.Char(26)
+  yearsExperience Int?
+  propertyTypes   String[]
+  specializations String[]
+  certifications  String[]
+  companyName     String?
+  geographicFocus Json?
+  primaryMarket   String?
+  mlsId           String?   @unique
+  mlsName         String?
+  mlsStatus       String?   @default("ACTIVE")
+  memberKey       String?   @unique
+  memberStatus    String?
+  designations    String[]
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(6)
+  listings        Listing[]
+  user            User      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("RealtorProfile")
+}
+
+model LoanOfficerProfile {
+  ulid                  String     @id @db.Char(26)
+  userUlid              String     @unique @db.Char(26)
+  yearsExperience       Int?
+  nmls                  String?    @unique
+  lenderName            String?
+  branchLocation        String?
+  loanTypes             LoanType[]
+  specializations       String[]
+  certifications        String[]
+  closedLoansCount      Int?
+  totalLoanVolume       Decimal?   @db.Decimal(12, 2)
+  averageLoanSize       Decimal?   @db.Decimal(12, 2)
+  geographicFocus       Json?
+  primaryMarket         String?
+  licensedStates        String[]
+  minLoanAmount         Decimal?   @db.Decimal(12, 2)
+  maxLoanAmount         Decimal?   @db.Decimal(12, 2)
+  typicalTurnaroundDays Int?
+  createdAt             DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime   @updatedAt @db.Timestamptz(6)
+  user                  User       @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("LoanOfficerProfile")
+}
+
+model InvestorProfile {
+  ulid                   String               @id @db.Char(26)
+  userUlid               String               @unique @db.Char(26)
+  yearsExperience        Int?
+  companyName            String?
+  investmentStrategies   InvestmentStrategy[]
+  specializations        String[]
+  certifications         String[]
+  minInvestmentAmount    Decimal?             @db.Decimal(12, 2)
+  maxInvestmentAmount    Decimal?             @db.Decimal(12, 2)
+  targetRoi              Decimal?             @db.Decimal(5, 2)
+  preferredPropertyTypes String[]
+  propertiesOwned        Int?
+  totalPortfolioValue    Decimal?             @db.Decimal(12, 2)
+  completedDeals         Int?
+  geographicFocus        Json?
+  primaryMarket          String?
+  targetMarkets          String[]
+  createdAt              DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime             @updatedAt @db.Timestamptz(6)
+  user                   User                 @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("InvestorProfile")
+}
+
+model PropertyManagerProfile {
+  ulid               String                @id @db.Char(26)
+  userUlid           String                @unique @db.Char(26)
+  yearsExperience    Int?
+  companyName        String?
+  licenseNumber      String?               @unique
+  managerTypes       PropertyManagerType[]
+  specializations    String[]
+  certifications     String[]
+  propertiesManaged  Int?
+  totalUnits         Int?
+  squareFeetManaged  Decimal?              @db.Decimal(12, 2)
+  occupancyRate      Decimal?              @db.Decimal(5, 2)
+  geographicFocus    Json?
+  primaryMarket      String?
+  serviceZips        String[]
+  minimumUnits       Int?
+  propertyTypes      String[]
+  services           String[]
+  managementSoftware String?
+  createdAt          DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime              @updatedAt @db.Timestamptz(6)
+  user               User                  @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("PropertyManagerProfile")
+}
+
+model TitleEscrowProfile {
+  ulid                   String            @id @db.Char(26)
+  userUlid               String            @unique @db.Char(26)
+  yearsExperience        Int?
+  companyName            String?
+  licenseNumber          String?           @unique
+  titleEscrowTypes       TitleEscrowType[]
+  specializations        String[]
+  certifications         String[]
+  closingsCompleted      Int?
+  averageClosingTime     Int?
+  totalTransactionVolume Decimal?          @db.Decimal(12, 2)
+  geographicFocus        Json?
+  primaryMarket          String?
+  licensedStates         String[]
+  createdAt              DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime          @updatedAt @db.Timestamptz(6)
+  user                   User              @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("TitleEscrowProfile")
+}
+
+model InsuranceProfile {
+  ulid                String          @id @db.Char(26)
+  userUlid            String          @unique @db.Char(26)
+  yearsExperience     Int?
+  companyName         String?
+  licenseNumber       String?         @unique
+  insuranceTypes      InsuranceType[]
+  specializations     String[]
+  certifications      String[]
+  policiesIssued      Int?
+  totalPremiumVolume  Decimal?        @db.Decimal(12, 2)
+  claimProcessingTime Int?
+  geographicFocus     Json?
+  primaryMarket       String?
+  licensedStates      String[]
+  createdAt           DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime        @updatedAt @db.Timestamptz(6)
+  user                User            @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("InsuranceProfile")
+}
+
+model CommercialProfile {
+  ulid                   String                   @id @db.Char(26)
+  userUlid               String                   @unique @db.Char(26)
+  yearsExperience        Int?
+  companyName            String?
+  licenseNumber          String?                  @unique
+  specializations        String[]
+  certifications         String[]
+  propertyTypes          CommercialPropertyType[]
+  dealTypes              CommercialDealType[]
+  typicalDealSize        Decimal?                 @db.Decimal(12, 2)
+  totalTransactionVolume Decimal?                 @db.Decimal(12, 2)
+  completedDeals         Int?
+  averageDealSize        Decimal?                 @db.Decimal(12, 2)
+  geographicFocus        Json?
+  primaryMarket          String?
+  serviceAreas           String[]
+  createdAt              DateTime                 @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime                 @updatedAt @db.Timestamptz(6)
+  user                   User                     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("CommercialProfile")
+}
+
+model PrivateCreditProfile {
+  ulid              String                  @id @db.Char(26)
+  userUlid          String                  @unique @db.Char(26)
+  yearsExperience   Int?
+  companyName       String?
+  licenseNumber     String?                 @unique
+  specializations   String[]
+  certifications    String[]
+  minLoanAmount     Decimal?                @db.Decimal(12, 2)
+  maxLoanAmount     Decimal?                @db.Decimal(12, 2)
+  typicalTermLength Int?
+  interestRateRange Json?
+  loanTypes         PrivateCreditLoanType[]
+  totalLoanVolume   Decimal?                @db.Decimal(12, 2)
+  activeLoans       Int?
+  averageLoanSize   Decimal?                @db.Decimal(12, 2)
+  geographicFocus   Json?
+  primaryMarket     String?
+  licensedStates    String[]
+  createdAt         DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime                @updatedAt @db.Timestamptz(6)
+  user              User                    @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("PrivateCreditProfile")
+}
+
+model Session {
+  ulid                  String        @id @db.Char(26)
+  menteeUlid            String        @db.Char(26)
+  coachUlid             String        @db.Char(26)
+  startTime             DateTime      @db.Timestamptz(6)
+  endTime               DateTime      @db.Timestamptz(6)
+  status                SessionStatus @default(SCHEDULED)
+  sessionType           SessionType?
+  sessionNotes          String?
+  zoomMeetingId         String?
+  zoomMeetingUrl        String?
+  priceAmount           Float?
+  currency              String?       @default("usd")
+  platformFeeAmount     Float?
+  coachPayoutAmount     Float?
+  stripePaymentIntentId String?
+  paymentStatus         String?       @default("pending")
+  payoutStatus          String?
+  createdAt             DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime      @updatedAt @db.Timestamptz(6)
+  disputes              Dispute[]     @relation("SessionDisputes")
+  notes                 Note[]
+  payment               Payment?      @relation("SessionPayment")
+  reminders             Reminder[]
+  reviews               Review[]
+  coach                 User          @relation("CoachSessions", fields: [coachUlid], references: [ulid])
+  mentee                User          @relation("UserSessions", fields: [menteeUlid], references: [ulid])
+  transaction           Transaction?
+  zoomSession           ZoomSession?
+
+  @@index([menteeUlid])
+  @@index([coachUlid])
+  @@map("Session")
+}
+
+model Payment {
+  ulid            String        @id @db.Char(26)
+  sessionUlid     String?       @unique @db.Char(26)
+  payerUlid       String        @db.Char(26)
+  payeeUlid       String        @db.Char(26)
+  amount          Decimal       @db.Decimal(10, 2)
+  currency        Currency      @default(USD)
+  status          PaymentStatus @default(PENDING)
+  stripePaymentId String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  chargebacks     Chargeback[]
+  disputes        Dispute[]     @relation("PaymentDisputes")
+  payee           User          @relation("Payee", fields: [payeeUlid], references: [ulid])
+  payer           User          @relation("Payer", fields: [payerUlid], references: [ulid])
+  session         Session?      @relation("SessionPayment", fields: [sessionUlid], references: [ulid])
+  refunds         Refund[]
+
+  @@index([sessionUlid])
+  @@index([payerUlid])
+  @@index([payeeUlid])
+}
+
+model Review {
+  ulid         String   @id @db.Char(26)
+  reviewerUlid String   @db.Char(26)
+  revieweeUlid String   @db.Char(26)
+  sessionUlid  String?  @db.Char(26)
+  rating       Int
+  comment      String?
+  status       String   @default("published")
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  reviewee     User     @relation("Reviewee", fields: [revieweeUlid], references: [ulid], onDelete: Cascade)
+  reviewer     User     @relation("Reviewer", fields: [reviewerUlid], references: [ulid], onDelete: Cascade)
+  session      Session? @relation(fields: [sessionUlid], references: [ulid])
+
+  @@index([reviewerUlid])
+  @@index([revieweeUlid])
+  @@index([sessionUlid])
+}
+
+model CoachApplication {
+  ulid               String                 @id @db.Char(26)
+  applicantUlid      String                 @db.Char(26)
+  status             CoachApplicationStatus @default(PENDING)
+  yearsOfExperience  Int
+  superPower         String
+  aboutYou           String?
+  realEstateDomains  String[]               @default([])
+  primaryDomain      String?
+  resumeUrl          String?
+  linkedIn           String?
+  primarySocialMedia String?
+  reviewerUlid       String?                @db.Char(26)
+  reviewDate         DateTime?
+  reviewNotes        String?
+  isDraft            Boolean                @default(false)
+  lastSavedAt        DateTime?              @db.Timestamptz(6)
+  draftData          Json?
+  draftVersion       Int                    @default(1)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  applicant          User                   @relation("Applicant", fields: [applicantUlid], references: [ulid], onDelete: Cascade)
+  reviewer           User?                  @relation("Reviewer", fields: [reviewerUlid], references: [ulid])
+
+  @@index([applicantUlid])
+  @@index([reviewerUlid])
+  @@index([isDraft, applicantUlid])
+}
+
+model Note {
+  ulid            String   @id @db.Char(26)
+  authorUlid      String   @db.Char(26)
+  relatedUserUlid String?  @db.Char(26)
+  sessionUlid     String?  @db.Char(26)
+  content         String
+  visibility      String   @default("private")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  author          User     @relation("AuthorNotes", fields: [authorUlid], references: [ulid], onDelete: Cascade)
+  relatedUser     User?    @relation("RelatedUserNotes", fields: [relatedUserUlid], references: [ulid])
+  session         Session? @relation(fields: [sessionUlid], references: [ulid])
+
+  @@index([authorUlid])
+  @@index([relatedUserUlid])
+  @@index([sessionUlid])
+}
+
+model SupportTicket {
+  ulid        String       @id @db.Char(26)
+  userUlid    String       @db.Char(26)
+  title       String
+  description String
+  status      TicketStatus @default(OPEN)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  user        User         @relation("UserSupportTickets", fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+}
+
+model Payout {
+  ulid             String       @id @db.Char(26)
+  payeeUlid        String       @db.Char(26)
+  amount           Decimal      @db.Decimal(10, 2)
+  currency         String       @default("USD")
+  stripeTransferId String?
+  status           PayoutStatus @default(PENDING)
+  scheduledDate    DateTime
+  processedAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  payee            User         @relation("PayoutPayee", fields: [payeeUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([payeeUlid])
+}
+
+model Dispute {
+  ulid                  String   @id @db.Char(26)
+  stripeDisputeId       String   @unique
+  sessionUlid           String?  @db.Char(26)
+  amount                Int
+  currency              String
+  status                String
+  reason                String
+  evidenceDueBy         DateTime
+  evidence              Json
+  stripePaymentIntentId String
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  paymentUlid           String?  @db.Char(26)
+  payment               Payment? @relation("PaymentDisputes", fields: [paymentUlid], references: [ulid])
+  session               Session? @relation("SessionDisputes", fields: [sessionUlid], references: [ulid])
+
+  @@index([sessionUlid])
+  @@index([stripeDisputeId])
+  @@map("Dispute")
+}
+
+model Chargeback {
+  ulid        String   @id @db.Char(26)
+  paymentUlid String   @db.Char(26)
+  reason      String?
+  status      String   @default("open")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  payment     Payment  @relation(fields: [paymentUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([paymentUlid])
+}
+
+model Refund {
+  ulid        String       @id @db.Char(26)
+  paymentUlid String       @db.Char(26)
+  reason      String?
+  status      RefundStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  payment     Payment      @relation(fields: [paymentUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([paymentUlid])
+}
+
+model Message {
+  ulid          String   @id @db.Char(26)
+  senderUlid    String   @db.Char(26)
+  recipientUlid String   @db.Char(26)
+  content       String
+  readStatus    String   @default("unread")
+  sentAt        DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  recipient     User     @relation("Recipient", fields: [recipientUlid], references: [ulid], onDelete: Cascade)
+  sender        User     @relation("Sender", fields: [senderUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([senderUlid])
+  @@index([recipientUlid])
+}
+
+model Referral {
+  ulid         String   @id @db.Char(26)
+  referrerUlid String   @db.Char(26)
+  refereeUlid  String   @db.Char(26)
+  referralCode String   @unique
+  status       String   @default("pending")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  referee      User     @relation("Referee", fields: [refereeUlid], references: [ulid], onDelete: Cascade)
+  referrer     User     @relation("Referrer", fields: [referrerUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([referrerUlid])
+  @@index([refereeUlid])
+}
+
+model Reminder {
+  ulid        String   @id @db.Char(26)
+  userUlid    String   @db.Char(26)
+  sessionUlid String?  @db.Char(26)
+  message     String
+  remindAt    DateTime
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  session     Session? @relation(fields: [sessionUlid], references: [ulid])
+  user        User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@index([sessionUlid])
+}
+
+model StripePaymentMethod {
+  ulid                  String   @id @db.Char(26)
+  userUlid              String   @db.Char(26)
+  stripePaymentMethodId String
+  type                  String
+  isDefault             Boolean  @default(false)
+  metadata              Json     @default("{}")
+  createdAt             DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(6)
+  user                  User     @relation(fields: [userUlid], references: [ulid])
+
+  @@unique([userUlid, stripePaymentMethodId])
+  @@index([userUlid])
+  @@map("StripePaymentMethod")
+}
+
+model SetupIntent {
+  ulid                String   @id @db.Char(26)
+  userUlid            String   @db.Char(26)
+  stripeSetupIntentId String
+  status              String
+  createdAt           DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @db.Timestamptz(6)
+  user                User     @relation(fields: [userUlid], references: [ulid])
+
+  @@index([userUlid])
+  @@map("SetupIntent")
+}
+
+model StripeConnectedAccount {
+  ulid               String    @id @db.Char(26)
+  userUlid           String    @unique @db.Char(26)
+  stripeAccountId    String    @unique
+  country            String
+  defaultCurrency    String    @default("usd")
+  payoutsEnabled     Boolean   @default(false)
+  detailsSubmitted   Boolean   @default(false)
+  chargesEnabled     Boolean   @default(false)
+  requiresOnboarding Boolean   @default(true)
+  deauthorizedAt     DateTime? @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(6)
+  user               User      @relation(fields: [userUlid], references: [ulid])
+
+  @@map("StripeConnectedAccount")
+}
+
+model Transaction {
+  ulid                  String   @id @db.Char(26)
+  type                  String
+  status                String
+  amount                Float
+  currency              String
+  stripePaymentIntentId String?
+  stripeTransferId      String?
+  platformFee           Float?
+  coachPayout           Float?
+  sessionUlid           String?  @unique @db.Char(26)
+  payerUlid             String   @db.Char(26)
+  coachUlid             String   @db.Char(26)
+  metadata              Json     @default("{}")
+  createdAt             DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(6)
+  coach                 User     @relation("TransactionCoach", fields: [coachUlid], references: [ulid])
+  payer                 User     @relation("TransactionPayer", fields: [payerUlid], references: [ulid])
+  session               Session? @relation(fields: [sessionUlid], references: [ulid])
+
+  @@index([payerUlid])
+  @@index([coachUlid])
+  @@index([sessionUlid])
+  @@map("Transaction")
+}
+
+model SystemHealth {
+  ulid           String   @id @db.Char(26)
+  status         Int
+  activeSessions Int
+  pendingReviews Int
+  securityAlerts Int
+  uptime         Float
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@map("SystemHealth")
+}
+
+model AdminMetrics {
+  ulid              String   @id @db.Char(26)
+  totalUsers        Int
+  activeUsers       Int
+  totalCoaches      Int
+  activeCoaches     Int
+  pendingCoaches    Int
+  totalSessions     Int
+  completedSessions Int
+  totalRevenue      Float
+  monthlyRevenue    Float
+  createdAt         DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@map("AdminMetrics")
+}
+
+model SystemActivity {
+  ulid        String   @id @db.Char(26)
+  type        String
+  title       String
+  description String
+  severity    String?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([type, createdAt])
+  @@index([severity, createdAt])
+  @@map("SystemActivity")
+}
+
+model SystemAlerts {
+  ulid      String   @id @db.Char(26)
+  type      String
+  title     String
+  message   String
+  severity  String
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([type, createdAt])
+  @@index([severity, createdAt])
+  @@map("SystemAlerts")
+}
+
+model AdminActivity {
+  ulid        String   @id @db.Char(26)
+  type        String
+  title       String
+  description String
+  userUlid    String?  @db.Char(26)
+  severity    String
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([type])
+  @@index([createdAt])
+  @@map("AdminActivity")
+}
+
+model AdminAuditLog {
+  ulid       String   @id @db.Char(26)
+  adminUlid  String   @db.Char(26)
+  action     String
+  targetType String
+  targetUlid String   @db.Char(26)
+  details    Json
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  admin      User     @relation("AdminAuditLogs", fields: [adminUlid], references: [ulid])
+
+  @@index([adminUlid])
+  @@index([action])
+  @@index([createdAt])
+  @@map("AdminAuditLog")
+}
+
+model Listing {
+  ulid                  String              @id @db.Char(26)
+  listingKey            String?             @unique
+  parcelNumber          String?             @db.VarChar(50)
+  taxLot                String?             @db.VarChar(50)
+  taxBlock              String?             @db.VarChar(50)
+  taxMapNumber          String?             @db.VarChar(50)
+  taxLegalDescription   String?             @db.VarChar(1000)
+  propertyType          PropertyType
+  propertySubType       PropertySubType?
+  status                ListingStatus       @default(Active)
+  streetNumber          String              @db.VarChar(25)
+  streetName            String              @db.VarChar(50)
+  unitNumber            String?             @db.VarChar(25)
+  city                  String              @db.VarChar(150)
+  stateOrProvince       String              @db.VarChar(50)
+  postalCode            String              @db.VarChar(10)
+  listPrice             Decimal             @db.Decimal(12, 2)
+  originalListPrice     Decimal?            @db.Decimal(12, 2)
+  closePrice            Decimal?            @db.Decimal(12, 2)
+  listingContractDate   DateTime?           @db.Timestamptz(6)
+  closeDate             DateTime?           @db.Timestamptz(6)
+  statusChangeTimestamp DateTime?           @db.Timestamptz(6)
+  priceChangeTimestamp  DateTime?           @db.Timestamptz(6)
+  modificationTimestamp DateTime?           @db.Timestamptz(6)
+  createdAt             DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @db.Timestamptz(6)
+  bedroomsTotal         Int?
+  bathroomsTotal        Decimal?            @db.Decimal(3, 1)
+  livingArea            Decimal?            @db.Decimal(12, 2)
+  lotSize               Decimal?            @db.Decimal(12, 2)
+  lotSizeDimensions     String?             @db.VarChar(50)
+  lotDimensionsSource   String?             @db.VarChar(50)
+  yearBuilt             Int?
+  stories               Int?
+  architecturalStyle    ArchitecturalStyle?
+  basement              BasementType?
+  roofType              RoofType?
+  view                  ViewType[]
+  parkingTotal          Decimal?            @db.Decimal(12, 2)
+  garageSpaces          Decimal?            @db.Decimal(12, 2)
+  furnished             FurnishedStatus?
+  appliances            String[]
+  interiorFeatures      String[]
+  exteriorFeatures      String[]
+  heating               String[]
+  cooling               String[]
+  isWaterfront          Boolean             @default(false)
+  hasFireplace          Boolean             @default(false)
+  hasPatio              Boolean             @default(false)
+  hasDeck               Boolean             @default(false)
+  hasPorch              Boolean             @default(false)
+  propertyCondition     PropertyCondition[]
+  listingTerms          ListingTerms[]
+  listingAgreement      ListingAgreement?
+  schoolDistrict        String?             @db.VarChar(100)
+  elementarySchool      String?             @db.VarChar(100)
+  middleSchool          String?             @db.VarChar(100)
+  highSchool            String?             @db.VarChar(100)
+  taxYear               Int?
+  taxAnnualAmount       Decimal?            @db.Decimal(12, 2)
+  hoaName               String?             @db.VarChar(100)
+  hoaFeeAmount          Decimal?            @db.Decimal(12, 2)
+  hoaFeeFrequency       String?             @db.VarChar(50)
+  electricityAvailable  Boolean             @default(true)
+  gasAvailable          Boolean             @default(true)
+  sewerAvailable        Boolean             @default(true)
+  waterAvailable        Boolean             @default(true)
+  zoning                String?             @db.VarChar(25)
+  zoningDescription     String?             @db.VarChar(255)
+  publicRemarks         String?             @db.VarChar(4000)
+  privateRemarks        String?             @db.VarChar(4000)
+  photos                Json?
+  virtualTours          Json?
+  isFeatured            Boolean             @default(false)
+  featuredOrder         Int?
+  mlsLink               String?             @db.VarChar(1000)
+  publicListingUrl      String?             @db.VarChar(1000)
+  source                String              @default("MANUAL")
+  mlsSource             String?
+  mlsId                 String?
+  realtorProfileUlid    String              @db.Char(26)
+  realtorProfile        RealtorProfile      @relation(fields: [realtorProfileUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([realtorProfileUlid])
+  @@index([listingKey])
+  @@index([status])
+  @@index([isFeatured])
+  @@map("Listing")
+}
+
+model AIThread {
+  ulid      String      @id @db.Char(26)
+  userUlid  String      @db.Char(26)
+  title     String
+  category  String
+  status    String      @default("ACTIVE")
+  createdAt DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime    @updatedAt @db.Timestamptz(6)
+  messages  AIMessage[]
+  user      User        @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("AIThread")
+}
+
+model AIMessage {
+  ulid       String   @id @db.Char(26)
+  threadUlid String   @db.Char(26)
+  role       String
+  content    String
+  model      String
+  tokens     Int      @default(0)
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
+  thread     AIThread @relation(fields: [threadUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([threadUlid])
+  @@map("AIMessage")
+}
+
+model EnterpriseLeads {
+  ulid             String      @id @db.Char(26)
+  assignedToUlid   String?     @db.Char(26)
+  companyName      String
+  website          String?
+  industry         OrgIndustry
+  fullName         String
+  jobTitle         String
+  email            String
+  phone            String
+  teamSize         String
+  multipleOffices  Boolean     @default(false)
+  status           String      @default("NEW")
+  priority         String      @default("MEDIUM")
+  notes            Json?
+  lastContactedAt  DateTime?
+  nextFollowUpDate DateTime?
+  metadata         Json?
+  createdAt        DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime    @updatedAt @db.Timestamptz(6)
+  assignedTo       User?       @relation("AssignedLeads", fields: [assignedToUlid], references: [ulid])
+
+  @@index([assignedToUlid])
+  @@map("EnterpriseLeads")
+}
+
+model Settings {
+  ulid        String   @id @db.Char(26)
+  key         String   @unique
+  value       Json
+  description String?
+  metadata    Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+
+  @@map("Settings")
+}
+
+model Goal {
+  ulid        String     @id @db.Char(26)
+  userUlid    String     @db.Char(26)
+  type        GoalType
+  status      GoalStatus @default(IN_PROGRESS)
+  title       String
+  description String?
+  target      Json?
+  progress    Json?
+  startDate   DateTime   @db.Timestamptz(6)
+  dueDate     DateTime   @db.Timestamptz(6)
+  completedAt DateTime?  @db.Timestamptz(6)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(6)
+  user        User       @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("Goal")
+}
+
+model Achievement {
+  ulid        String          @id @db.Char(26)
+  userUlid    String          @db.Char(26)
+  type        AchievementType
+  title       String
+  description String?
+  metadata    Json?
+  awardedAt   DateTime        @db.Timestamptz(6)
+  createdAt   DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime        @updatedAt @db.Timestamptz(6)
+  user        User            @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("Achievement")
+}
+
+model ProfessionalRecognition {
+  ulid            String          @id @db.Char(26)
+  userUlid        String          @db.Char(26)
+  coachUlid       String?         @db.Char(26)
+  type            RecognitionType
+  title           String
+  description     String?
+  issuer          String?
+  issueDate       DateTime        @db.Timestamptz(6)
+  expiryDate      DateTime?       @db.Timestamptz(6)
+  verificationUrl String?
+  metadata        Json?
+  createdAt       DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(6)
+  industryType    String?
+  isVisible       Boolean         @default(true)
+  coach           CoachProfile?   @relation(fields: [coachUlid], references: [ulid])
+  user            User            @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@index([industryType])
+  @@map("ProfessionalRecognition")
+}
+
+model Subscription {
+  ulid                 String        @id @db.Char(26)
+  userUlid             String?       @db.Char(26)
+  organizationUlid     String?       @db.Char(26)
+  stripeSubscriptionId String        @unique
+  status               String
+  planType             PlanType
+  currentPeriodStart   DateTime      @db.Timestamptz(6)
+  currentPeriodEnd     DateTime      @db.Timestamptz(6)
+  cancelAtPeriodEnd    Boolean       @default(false)
+  canceledAt           DateTime?     @db.Timestamptz(6)
+  metadata             Json?
+  createdAt            DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime      @updatedAt @db.Timestamptz(6)
+  invoices             Invoice[]
+  organization         Organization? @relation(fields: [organizationUlid], references: [ulid])
+  user                 User?         @relation(fields: [userUlid], references: [ulid])
+
+  @@index([userUlid])
+  @@index([organizationUlid])
+  @@map("Subscription")
+}
+
+model Invoice {
+  ulid             String       @id @db.Char(26)
+  subscriptionUlid String       @db.Char(26)
+  stripeInvoiceId  String       @unique
+  amount           Decimal      @db.Decimal(10, 2)
+  currency         String
+  status           String
+  dueDate          DateTime     @db.Timestamptz(6)
+  paidAt           DateTime?    @db.Timestamptz(6)
+  metadata         Json?
+  userUlid         String?      @db.Char(26)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(6)
+  subscription     Subscription @relation(fields: [subscriptionUlid], references: [ulid], onDelete: Cascade)
+  user             User?        @relation(fields: [userUlid], references: [ulid])
+
+  @@index([subscriptionUlid])
+  @@index([userUlid])
+  @@map("Invoice")
+}
+
+model ZoomSession {
+  ulid        String   @id @db.Char(26)
+  sessionUlid String   @unique @db.Char(26)
+  sessionName String
+  hostUlid    String   @db.Char(26)
+  startUrl    String?
+  joinUrl     String?
+  status      String   @default("scheduled")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+  session     Session  @relation(fields: [sessionUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([sessionUlid])
+  @@map("ZoomSession")
+}
+
+model CoachingAvailabilitySchedule {
+  ulid                String   @id @db.Char(26)
+  userUlid            String   @db.Char(26)
+  name                String
+  timezone            String
+  rules               Json
+  isDefault           Boolean  @default(false)
+  active              Boolean  @default(true)
+  allowCustomDuration Boolean  @default(true)
+  averageRating       Decimal? @db.Decimal(3, 2)
+  bufferAfter         Int      @default(0)
+  bufferBefore        Int      @default(0)
+  calendlyEnabled     Boolean  @default(false)
+  defaultDuration     Int      @default(60)
+  maximumDuration     Int      @default(120)
+  minimumDuration     Int      @default(30)
+  totalSessions       Int      @default(0)
+  zoomEnabled         Boolean  @default(false)
+  createdAt           DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @db.Timestamptz(6)
+  user                User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@map("CoachingAvailabilitySchedule")
+}
+
+enum UserRole {
+  SYSTEM_OWNER
+  SYSTEM_MODERATOR
+  USER
+}
+
 enum UserCapability {
-  COACH    // Can provide coaching services
-  MENTEE   // Can receive coaching services
+  COACH
+  MENTEE
 }
 
 enum UserStatus {
@@ -28,72 +1204,64 @@ enum UserStatus {
 }
 
 enum OrgType {
-  INDIVIDUAL    // Single professional
-  TEAM         // Small team
-  BUSINESS     // Small to medium business
-  ENTERPRISE   // Large organization
-  FRANCHISE    // Franchise operation
-  NETWORK      // Network of affiliated businesses
+  INDIVIDUAL
+  TEAM
+  BUSINESS
+  ENTERPRISE
+  FRANCHISE
+  NETWORK
 }
 
-// New enum for industry types
 enum OrgIndustry {
-  REAL_ESTATE_SALES     // Real estate brokerage and sales
-  MORTGAGE_LENDING      // Mortgage and lending services
-  PROPERTY_MANAGEMENT   // Property management services
-  REAL_ESTATE_INVESTMENT // Real estate investment
-  TITLE_ESCROW         // Title and escrow services
-  INSURANCE            // Real estate insurance
-  COMMERCIAL          // Commercial real estate
-  PRIVATE_CREDIT      // Private credit lending
-  OTHER               // Other real estate related services
+  REAL_ESTATE_SALES
+  MORTGAGE_LENDING
+  PROPERTY_MANAGEMENT
+  REAL_ESTATE_INVESTMENT
+  TITLE_ESCROW
+  INSURANCE
+  COMMERCIAL
+  PRIVATE_CREDIT
+  OTHER
 }
 
 enum OrgStatus {
-  ACTIVE        // Fully operational
-  INACTIVE      // Temporarily suspended
-  SUSPENDED     // Administratively suspended
-  PENDING       // Awaiting approval/setup
-  ARCHIVED      // Historical record
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING
+  ARCHIVED
 }
 
 enum OrgTier {
-  FREE          // Basic features
-  STARTER       // Essential features
-  PROFESSIONAL  // Full feature set
-  ENTERPRISE    // Custom solutions
-  PARTNER       // Special partner tier
+  FREE
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+  PARTNER
 }
 
 enum OrgRole {
-  // Global Level Roles
-  GLOBAL_OWNER         // Full system access across all organizations
-  GLOBAL_DIRECTOR      // Strategic oversight across regions
-  GLOBAL_MANAGER       // Cross-regional program management
-  
-  // Regional Level Roles
-  REGIONAL_OWNER       // Regional strategic leadership
-  REGIONAL_DIRECTOR    // Regional operations oversight
-  REGIONAL_MANAGER     // Regional operations management
-  
-  // Local Level Roles
-  LOCAL_OWNER          // Local office ownership/leadership
-  LOCAL_DIRECTOR       // Local office direction
-  LOCAL_MANAGER        // Local team/office management
-  
-  // Standard Roles
-  OWNER               // Organization owner
-  DIRECTOR            // Organization director
-  MANAGER             // Team/department manager
-  MEMBER              // Standard member
-  GUEST               // Limited access member
+  GLOBAL_OWNER
+  GLOBAL_DIRECTOR
+  GLOBAL_MANAGER
+  REGIONAL_OWNER
+  REGIONAL_DIRECTOR
+  REGIONAL_MANAGER
+  LOCAL_OWNER
+  LOCAL_DIRECTOR
+  LOCAL_MANAGER
+  OWNER
+  DIRECTOR
+  MANAGER
+  MEMBER
+  GUEST
 }
 
 enum OrgLevel {
-  GLOBAL      // Parent company (e.g., REMAX, COMPASS)
-  REGIONAL    // Regional operations (e.g., Western US)
-  LOCAL       // Local operations (e.g., Utah Real Estate)
-  BRANCH      // Branch/satellite office
+  GLOBAL
+  REGIONAL
+  LOCAL
+  BRANCH
 }
 
 enum MemberStatus {
@@ -109,7 +1277,6 @@ enum InviteStatus {
   EXPIRED
 }
 
-// Domain Expertise Enums
 enum RealEstateDomain {
   REALTOR
   INVESTOR
@@ -158,7 +1325,6 @@ enum CertificationStatus {
   PENDING
 }
 
-// Session & Payment Enums
 enum SessionStatus {
   SCHEDULED
   COMPLETED
@@ -203,14 +1369,12 @@ enum Currency {
   GBP
 }
 
-// Subscription & Plan Enums
 enum PlanType {
   INDIVIDUAL
   TEAM
   ENTERPRISE
 }
 
-// Application & Review Enums
 enum ApplicationStatus {
   PENDING
   APPROVED
@@ -229,7 +1393,6 @@ enum ReviewStatus {
   HIDDEN
 }
 
-// Goal & Achievement Enums
 enum GoalStatus {
   IN_PROGRESS
   COMPLETED
@@ -237,19 +1400,14 @@ enum GoalStatus {
 }
 
 enum GoalType {
-  // Financial Goals
   sales_volume
   commission_income
   gci
   avg_sale_price
-  
-  // Transaction Goals
   listings
   buyer_transactions
   closed_deals
   days_on_market
-  
-  // Coaching & Mentorship Goals
   coaching_sessions
   group_sessions
   session_revenue
@@ -258,25 +1416,17 @@ enum GoalType {
   response_time
   session_completion
   mentee_milestones
-  
-  // Client Goals
   new_clients
   referrals
   client_retention
   reviews
-  
-  // Market Presence
   market_share
   territory_expansion
   social_media
   website_traffic
-  
-  // Professional Development
   certifications
   training_hours
   networking_events
-  
-  // Other
   custom
 }
 
@@ -287,16 +1437,15 @@ enum AchievementType {
 }
 
 enum RecognitionType {
-  AWARD         // e.g., "Top Producer Award"
-  ACHIEVEMENT   // e.g., "Sold $10M in Properties"
-  CERTIFICATION // e.g., "Certified Residential Specialist (CRS)"
-  DESIGNATION   // e.g., "Accredited Buyer's Representative (ABR)"
-  LICENSE       // e.g., "Real Estate Broker License"
-  EDUCATION     // e.g., "Master's in Real Estate Development"
-  MEMBERSHIP    // e.g., "Member of National Association of Realtors"
+  AWARD
+  ACHIEVEMENT
+  CERTIFICATION
+  DESIGNATION
+  LICENSE
+  EDUCATION
+  MEMBERSHIP
 }
 
-// System & Activity Enums
 enum ActivityType {
   USER
   COACH
@@ -322,7 +1471,6 @@ enum DisputeStatus {
   REJECTED
 }
 
-// Property & Listing Enums
 enum ListingStatus {
   Active
   ActiveUnderContract
@@ -348,7 +1496,6 @@ enum PropertyType {
 }
 
 enum PropertySubType {
-  // Residential subtypes
   Apartment
   Cabin
   Condominium
@@ -360,8 +1507,6 @@ enum PropertySubType {
   Townhouse
   Triplex
   Quadruplex
-  
-  // Commercial subtypes
   Hotel
   CommercialIndustrial
   CommercialMixedUse
@@ -370,31 +1515,21 @@ enum PropertySubType {
   Retail
   Restaurant
   Warehouse
-  
-  // Land subtypes
   AgriculturalLand
   CommercialLand
   IndustrialLand
   LandMixedUse
   ResidentialLand
-  
-  // Farm subtypes
   Equestrian
   Ranch
   TimberLand
   Vineyard
-  
-  // Business Opportunity subtypes
   BusinessOnly
   BusinessWithProperty
   BusinessWithRealEstate
-  
-  // ManufacturedInPark subtypes
   DoubleWide
   SingleWide
   TripleWide
-  
-  // Other
   Other
 }
 
@@ -465,7 +1600,6 @@ enum ViewType {
   Woods
 }
 
-// Add after the existing enums
 enum SocialMediaPlatform {
   FACEBOOK
   INSTAGRAM
@@ -477,7 +1611,6 @@ enum SocialMediaPlatform {
   OTHER
 }
 
-// Add new enums for loan officer, investor, and property manager
 enum LoanType {
   CONVENTIONAL
   FHA
@@ -514,7 +1647,6 @@ enum PropertyManagerType {
   OTHER
 }
 
-// Add new enums for Title/Escrow and Insurance
 enum TitleEscrowType {
   TITLE_AGENT
   ESCROW_OFFICER
@@ -534,25 +1666,23 @@ enum InsuranceType {
   OTHER
 }
 
-// Language enum based on COMMON_LANGUAGES
 enum Language {
-  en      // English
-  es      // Spanish
-  zh      // Chinese
-  tl      // Tagalog
-  vi      // Vietnamese
-  ar      // Arabic
-  fr      // French
-  ko      // Korean
-  ru      // Russian
-  de      // German
-  hi      // Hindi
-  pt      // Portuguese
-  it      // Italian
-  ja      // Japanese
+  en
+  es
+  zh
+  tl
+  vi
+  ar
+  fr
+  ko
+  ru
+  de
+  hi
+  pt
+  it
+  ja
 }
 
-// Add new enums for Commercial and lending
 enum CommercialPropertyType {
   OFFICE
   RETAIL
@@ -586,1513 +1716,8 @@ enum PrivateCreditLoanType {
   OTHER
 }
 
-
-// Profile status enum
 enum ProfileStatus {
-  DRAFT     // Profile is incomplete or being edited
-  PUBLISHED // Profile is publicly visible
-  ARCHIVED // Profile is hidden
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }
-
-// Models
-model User {
-  ulid                   String   @id @db.Char(26)
-  userId                 String   @unique // Clerk ID
-  email                  String   @unique
-  firstName              String?
-  lastName               String?
-  phoneNumber            String?
-  displayName            String?
-  bio                    String?  @db.Text  // Added bio field
-  systemRole            UserRole  @default(USER)
-  capabilities          UserCapability[] // Add capabilities field
-  isCoach               Boolean   @default(false)  // Quick access flag
-  isMentee              Boolean   @default(false)  // Quick access flag
-  stripeCustomerId       String?  @unique
-  stripeConnectAccountId String?  @unique
-  createdAt              DateTime @default(now()) @db.Timestamptz
-  updatedAt              DateTime @updatedAt @db.Timestamptz
-
-  // Application-specific fields
-  status               UserStatus @default(ACTIVE)
-  profileImageUrl      String?
-
-  // Industry specialties - direct access for better extensibility
-  realEstateDomains     RealEstateDomain[]  @default([])
-  primaryDomain         RealEstateDomain?    // Optional primary domain
-  totalYearsRE         Int       @default(0) 
-  languages            Language[] @default([en]) // Array of language codes, default to English
-  primaryMarket        String?
-
-  // Industry Profiles
-  realtorProfile          RealtorProfile?
-  investorProfile         InvestorProfile?
-  mortgageProfile         LoanOfficerProfile?
-  propertyManagerProfile  PropertyManagerProfile?
-  titleEscrowProfile     TitleEscrowProfile?
-  insuranceProfile       InsuranceProfile?
-  commercialProfile      CommercialProfile?
-  privateCreditProfile   PrivateCreditProfile?
-
-  
-
-  // Profile Relations
-  menteeProfile         MenteeProfile?
-  coachProfile          CoachProfile?
-
-  // Existing integrations
-  coachingSchedules   CoachingAvailabilitySchedule[]
-
-  // Session Relations
-  sessions             Session[]               @relation("UserSessions")
-  coachingSessions     Session[]               @relation("CoachSessions")
-  paymentMethods       StripePaymentMethod[]
-  setupIntents         SetupIntent[]
-  stripeAccount        StripeConnectedAccount?
-  sentTransactions     Transaction[]           @relation("TransactionPayer")
-  receivedTransactions Transaction[]           @relation("TransactionCoach")
-
-  // Keep existing relations
-  paymentsMade     Payment[]     @relation("Payer")
-  paymentsReceived Payment[]     @relation("Payee")
-  payouts          Payout[]      @relation("PayoutPayee")
-  reviewsGiven     Review[]      @relation("Reviewer")
-  reviewsReceived  Review[]      @relation("Reviewee")
-  goals            Goal[]
-  achievements     Achievement[]
-
-  // Message Relations
-  messagesSent     Message[] @relation("Sender")
-  messagesReceived Message[] @relation("Recipient")
-  aiThreads        AIThread[]
-
-  // Referral Relations
-  referralsGiven    Referral[] @relation("Referrer")
-  referralsReceived Referral[] @relation("Referee")
-
-  // Other Relations
-  applications         CoachApplication[] @relation("Applicant")
-  reviewedApplications CoachApplication[] @relation("Reviewer")
-  authoredNotes        Note[]             @relation("AuthorNotes")
-  relatedNotes         Note[]             @relation("RelatedUserNotes")
-  reminders            Reminder[]
-  supportTickets       SupportTicket[]    @relation("UserSupportTickets")
-  subscriptions        Subscription[]
-  invoices             Invoice[]
-
-  // Admin relations
-  adminAuditLogs       AdminAuditLog[]    @relation("AdminAuditLogs")
-
-  // Organization Relations
-  organizationMemberships OrganizationMember[]
-  
-  // Professional Recognitions
-  professionalRecognitions ProfessionalRecognition[]
-
-  // New fields
-  marketingProfile       MarketingProfile?
-
-  // Lead Relations
-  assignedLeads       EnterpriseLeads[] @relation("AssignedLeads")
-
-  @@index([userId])
-  @@index([email])
-  @@index([systemRole])
-  @@index([isCoach])
-  @@index([isMentee])
-  @@index([status])
-  @@index([realEstateDomains])
-  @@index([primaryDomain])
-  @@index([primaryMarket])
-  @@map("User")
-}
-
-// Mentee-specific profile data
-model MenteeProfile {
-  ulid               String   @id @db.Char(26)
-  userUlid           String   @unique @db.Char(26)
-  focusAreas         String[]
-  experienceLevel    String?
-  learningStyle      String?
-  sessionsCompleted  Int      @default(0)
-  isActive           Boolean  @default(true)
-  lastSessionDate    DateTime?
-
-  // Relations
-  user               User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt          DateTime @default(now()) @db.Timestamptz
-  updatedAt          DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("MenteeProfile")
-}
-
-// Coach-specific profile data
-model CoachProfile {
-  ulid                String       @id @db.Char(26)
-  userUlid            String       @unique @db.Char(26)
-  yearsCoaching        Int?
-  coachSkills         String[]  @default([])
-  hourlyRate          Decimal?     @db.Decimal(10, 2)
-  
-  // Coach Domain Expertise - specific domains they are approved to coach for
-  coachRealEstateDomains RealEstateDomain[] @default([])
-  coachPrimaryDomain     RealEstateDomain?  // Optional primary coaching domain
-  
-  // Display information
-  slogan              String?      // Coach's byline or slogan
-  
-  // Session Configuration
-  isActive            Boolean      @default(true)
-  defaultDuration     Int          @default(60)
-  allowCustomDuration Boolean      @default(false)
-  minimumDuration     Int          @default(30)
-  maximumDuration     Int          @default(120)
-  totalSessions       Int          @default(0)
-  averageRating       Decimal?     @db.Decimal(3, 2)
-  eventTypeUrl        String?      // Add this field for calendar integration
-  
-  // Profile Visibility
-  profileStatus       ProfileStatus @default(DRAFT)
-  completionPercentage Int          @default(0)
-
-  // Relations
-  user               User          @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  professionalRecognitions ProfessionalRecognition[]
-
-  createdAt          DateTime      @default(now()) @db.Timestamptz
-  updatedAt          DateTime      @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@index([profileStatus])
-  @@index([coachRealEstateDomains])
-  @@index([coachPrimaryDomain])
-  @@map("CoachProfile")
-}
-
-// Organization and Team Management Models
-model Organization {
-  ulid                String   @id @db.Char(26)
-  name                String
-  description         String?
-  status             String    @default("ACTIVE")
-  type               OrgType   @default(INDIVIDUAL)
-  industry           OrgIndustry? // New field for industry type
-  level              OrgLevel  @default(LOCAL)
-  tier               OrgTier   @default(FREE)
-  parentUlid         String?   @db.Char(26)
-  metadata           Json?     @db.JsonB
-  
-  // Domain-specific fields
-  primaryDomain      RealEstateDomain?    // Primary business focus
-  domains            RealEstateDomain[]    // All domains the org operates in
-  licenseNumbers     Json?     @db.JsonB  // Store multiple licenses by state/type
-  serviceAreas       String[]  // Geographic service areas
-  specializations    String[]  // Domain-specific specializations
-  certifications     String[]  // Professional certifications
-  
-  // Business metrics
-  totalTransactions  Int?      // Total number of transactions
-  transactionVolume  Decimal?  @db.Decimal(12,2)  // Total transaction volume
-  activeAgents       Int?      // Number of active agents/officers
-  
-  // Existing relations
-  rolePermissions    RolePermission[]
-  members            OrganizationMember[]
-  subscriptions      Subscription[]
-  
-  // New relations for hierarchy
-  parent             Organization?  @relation("OrganizationHierarchy", fields: [parentUlid], references: [ulid])
-  children           Organization[] @relation("OrganizationHierarchy")
-  
-  // Add the regions relation
-  regions            Region[]
-  
-  // Existing timestamps
-  createdAt          DateTime     @default(now()) @db.Timestamptz
-  updatedAt          DateTime     @updatedAt @db.Timestamptz
-
-  // New fields
-  marketingProfile   MarketingProfile?
-
-  @@index([status])
-  @@index([type])
-  @@index([level])
-  @@index([parentUlid])
-  @@index([primaryDomain])
-  @@map("Organization")
-}
-
-// Optional: Add a Region model for better geographic organization
-model Region {
-  ulid              String   @id @db.Char(26)
-  organizationUlid  String   @db.Char(26)
-  name              String
-  type              String   // e.g., "STATE", "METRO_AREA", "COUNTRY"
-  parentUlid        String?  @db.Char(26)
-  metadata          Json?    @db.JsonB
-  
-  organization      Organization @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
-  parent            Region?      @relation("RegionHierarchy", fields: [parentUlid], references: [ulid])
-  children          Region[]     @relation("RegionHierarchy")
-  
-  createdAt         DateTime     @default(now()) @db.Timestamptz
-  updatedAt         DateTime     @updatedAt @db.Timestamptz
-
-  @@index([organizationUlid])
-  @@index([parentUlid])
-  @@map("Region")
-}
-
-model OrganizationMember {
-  ulid              String        @id @db.Char(26)
-  organizationUlid  String        @db.Char(26)
-  userUlid         String        @db.Char(26)
-  role             OrgRole       @default(MEMBER)
-  scope            String?       @default("LOCAL")
-  status           String        @default("ACTIVE")
-  customPermissions Json?        @db.JsonB
-  metadata         Json?         @db.JsonB
-  
-  organization     Organization  @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
-  user            User          @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  
-  createdAt       DateTime      @default(now()) @db.Timestamptz
-  updatedAt       DateTime      @updatedAt @db.Timestamptz
-
-  @@unique([organizationUlid, userUlid])
-  @@index([organizationUlid])
-  @@index([userUlid])
-  @@index([role])
-  @@index([status])
-  @@map("OrganizationMember")
-}
-
-model RolePermission {
-  ulid              String        @id @db.Char(26)
-  organizationUlid  String        @db.Char(26)
-  role             OrgRole
-  permissions      Json          @db.JsonB
-  metadata         Json?         @db.JsonB
-  
-  organization     Organization  @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
-  
-  createdAt       DateTime      @default(now()) @db.Timestamptz
-  updatedAt       DateTime      @updatedAt @db.Timestamptz
-
-  @@unique([organizationUlid, role])
-  @@index([organizationUlid])
-  @@index([role])
-  @@map("RolePermission")
-}
-
-// Add before the RealtorProfile model
-model MarketingProfile {
-  ulid              String   @id @db.Char(26)
-  userUlid          String?  @unique @db.Char(26)  // Make unique
-  organizationUlid  String?  @unique @db.Char(26)  // Make unique
-  
-  // Branding
-  slogan            String?
-  brandColors       Json?    @db.JsonB
-  logoUrl           String?
-  brandGuidelines   Json?    @db.JsonB  // Added for organizations
-  
-  // Web Presence
-  websiteUrl        String?
-  blogUrl           String?
-  
-  // Social Media Links (structured)
-  socialMediaLinks  Json     @db.JsonB
-  
-  // Marketing Areas & Focus
-  marketingAreas    String[]
-  targetAudience    String[]
-  geographicFocus   Json?    @db.JsonB
-  
-  // Content
-  testimonials      Json?    @db.JsonB
-  pressFeatures     Json?    @db.JsonB
-  marketingMaterials Json?   @db.JsonB
-  
-  // Organization-specific fields
-  brandAssets       Json?    @db.JsonB  // Store logos, images, templates
-  marketingTeam     Json?    @db.JsonB  // Team structure and contacts
-  campaignHistory   Json?    @db.JsonB  // Track marketing campaigns
-  
-  // Analytics Integration
-  googleAnalyticsId String?
-  facebookPixelId   String?
-  
-  // Relations
-  user              User?          @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  organization      Organization?  @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
-  
-  // Timestamps
-  createdAt         DateTime @default(now()) @db.Timestamptz
-  updatedAt         DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@index([organizationUlid])
-  @@map("MarketingProfile")
-}
-
-// Base profile for all realtors (both coaches and mentees)
-model RealtorProfile {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  yearsExperience        Int?
-  
-  // Professional Information
-  propertyTypes          String[]
-  specializations        String[]
-  certifications         String[]
-  companyName           String?
-  
-  // Geographic Focus
-  geographicFocus        Json?
-  primaryMarket          String?
-  
-  // Relations
-  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  listings             Listing[]
-
-  // MLS Integration fields
-  mlsId                String?  @unique
-  mlsName              String?
-  mlsStatus            String?  @default("ACTIVE")
-
-  // RESO Member fields
-  memberKey             String?  @unique
-  memberStatus          String?
-  designations          String[]
-  
-  createdAt            DateTime @default(now()) @db.Timestamptz
-  updatedAt            DateTime @updatedAt @db.Timestamptz
-  
-  @@index([userUlid])
-  @@map("RealtorProfile")
-}
-
-// Add after RealtorProfile model
-model LoanOfficerProfile {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  yearsExperience        Int?
-  
-  // Professional Information
-  nmls                   String?  @unique  // National Mortgage Licensing System ID
-  lenderName             String?
-  branchLocation         String?
-  loanTypes              LoanType[]
-  specializations        String[]
-  certifications         String[]
-  
-  // Performance Metrics
-  closedLoansCount       Int?
-  totalLoanVolume        Decimal? @db.Decimal(12,2)
-  averageLoanSize        Decimal? @db.Decimal(12,2)
-  
-  // Geographic Focus
-  geographicFocus        Json?    @db.JsonB
-  primaryMarket          String?
-  licensedStates         String[]
-
-  // Lending Parameters
-  minLoanAmount         Decimal? @db.Decimal(12,2)
-  maxLoanAmount         Decimal? @db.Decimal(12,2)
-  typicalTurnaroundDays Int?
-  
-  // Relations
-  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt            DateTime @default(now()) @db.Timestamptz
-  updatedAt            DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("LoanOfficerProfile")
-}
-
-model InvestorProfile {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  yearsExperience        Int?
-  
-  // Professional Information
-  companyName            String?
-  investmentStrategies   InvestmentStrategy[]
-  specializations        String[]
-  certifications         String[]
-  
-  // Investment Criteria
-  minInvestmentAmount    Decimal? @db.Decimal(12,2)
-  maxInvestmentAmount    Decimal? @db.Decimal(12,2)
-  targetRoi              Decimal? @db.Decimal(5,2)  // Percentage
-  preferredPropertyTypes String[]
-  
-  // Portfolio Metrics
-  propertiesOwned        Int?
-  totalPortfolioValue    Decimal? @db.Decimal(12,2)
-  completedDeals         Int?
-  
-  // Geographic Focus
-  geographicFocus        Json?    @db.JsonB
-  primaryMarket          String?
-  targetMarkets          String[]
-  
-  // Relations
-  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt            DateTime @default(now()) @db.Timestamptz
-  updatedAt            DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("InvestorProfile")
-}
-
-model PropertyManagerProfile {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  yearsExperience        Int?
-  
-  // Professional Information
-  companyName            String?
-  licenseNumber          String?  @unique
-  managerTypes           PropertyManagerType[]
-  specializations        String[]
-  certifications         String[]
-  
-  // Portfolio Metrics
-  propertiesManaged      Int?
-  totalUnits             Int?
-  squareFeetManaged      Decimal? @db.Decimal(12,2)
-  occupancyRate          Decimal? @db.Decimal(5,2)  // Percentage
-  
-  // Service Areas
-  geographicFocus        Json?    @db.JsonB
-  primaryMarket          String?
-  serviceZips            String[]
-  
-  // Management Details
-  minimumUnits           Int?
-  propertyTypes          String[]
-  services               String[]
-  managementSoftware     String?
-  
-  // Relations
-  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt            DateTime @default(now()) @db.Timestamptz
-  updatedAt            DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("PropertyManagerProfile")
-}
-
-// Add TitleEscrowProfile model
-model TitleEscrowProfile {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  yearsExperience        Int?
-  
-  // Professional Information
-  companyName            String?
-  licenseNumber          String?  @unique
-  titleEscrowTypes       TitleEscrowType[]
-  specializations        String[]
-  certifications         String[]
-  
-  // Performance Metrics
-  closingsCompleted      Int?
-  averageClosingTime     Int?     // in days
-  totalTransactionVolume Decimal? @db.Decimal(12,2)
-  
-  // Geographic Focus
-  geographicFocus        Json?    @db.JsonB
-  primaryMarket          String?
-  licensedStates         String[]
-  
-  // Relations
-  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now()) @db.Timestamptz
-  updatedAt              DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("TitleEscrowProfile")
-}
-
-// Add InsuranceProfile model
-model InsuranceProfile {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  yearsExperience        Int?
-  
-  // Professional Information
-  companyName            String?
-  licenseNumber          String?  @unique
-  insuranceTypes         InsuranceType[]
-  specializations        String[]
-  certifications         String[]
-  
-  // Performance Metrics
-  policiesIssued         Int?
-  totalPremiumVolume     Decimal? @db.Decimal(12,2)
-  claimProcessingTime    Int?     // in days
-  
-  // Geographic Focus
-  geographicFocus        Json?    @db.JsonB
-  primaryMarket          String?
-  licensedStates         String[]
-  
-  // Relations
-  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now()) @db.Timestamptz
-  updatedAt              DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("InsuranceProfile")
-}
-
-// Commercial Real Estate Profile
-model CommercialProfile {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  yearsExperience        Int?
-  
-  // Professional Information
-  companyName            String?
-  licenseNumber          String?  @unique
-  specializations        String[]
-  certifications         String[]
-  
-  // Property Types & Focus
-  propertyTypes          CommercialPropertyType[]
-  dealTypes              CommercialDealType[]
-  typicalDealSize        Decimal? @db.Decimal(12,2)
-  
-  // Transaction History
-  totalTransactionVolume Decimal? @db.Decimal(12,2)
-  completedDeals         Int?
-  averageDealSize        Decimal? @db.Decimal(12,2)
-  
-  // Geographic Focus
-  geographicFocus        Json?    @db.JsonB
-  primaryMarket          String?
-  serviceAreas           String[]
-  
-  // Relations
-  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt            DateTime @default(now()) @db.Timestamptz
-  updatedAt            DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("CommercialProfile")
-}
-
-// Private Credit Profile
-model PrivateCreditProfile {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  yearsExperience        Int?
-  
-  // Professional Information
-  companyName            String?
-  licenseNumber          String?  @unique
-  specializations        String[]
-  certifications         String[]
-  
-  // Lending Parameters
-  minLoanAmount         Decimal? @db.Decimal(12,2)
-  maxLoanAmount         Decimal? @db.Decimal(12,2)
-  typicalTermLength     Int?     // In months
-  interestRateRange     Json?    @db.JsonB  // {min: number, max: number}
-  loanTypes             PrivateCreditLoanType[]
-  
-  // Portfolio Metrics
-  totalLoanVolume       Decimal? @db.Decimal(12,2)
-  activeLoans           Int?
-  averageLoanSize       Decimal? @db.Decimal(12,2)
-  
-  // Geographic Focus
-  geographicFocus        Json?    @db.JsonB
-  primaryMarket          String?
-  licensedStates         String[]
-  
-  // Relations
-  user                 User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt            DateTime @default(now()) @db.Timestamptz
-  updatedAt            DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("PrivateCreditProfile")
-}
-
-model Session {
-  ulid                   String   @id @db.Char(26)
-  menteeUlid             String   @db.Char(26)
-  coachUlid              String   @db.Char(26)
-  startTime              DateTime @db.Timestamptz
-  endTime                DateTime @db.Timestamptz
-  status                 SessionStatus @default(SCHEDULED)
-  sessionType            SessionType?
-  sessionNotes           String?
-  zoomMeetingId          String?
-  zoomMeetingUrl         String?
-
-  // Payment fields
-  priceAmount            Float?
-  currency               String? @default("usd")
-  platformFeeAmount      Float?
-  coachPayoutAmount      Float?
-  stripePaymentIntentId  String?
-  paymentStatus          String? @default("pending")
-  payoutStatus           String?
-
-  // Relationships
-  mentee                 User           @relation("UserSessions", fields: [menteeUlid], references: [ulid])
-  coach                  User           @relation("CoachSessions", fields: [coachUlid], references: [ulid])
-  transaction            Transaction?
-  payment                Payment?       @relation("SessionPayment")
-  reviews                Review[]
-  notes                  Note[]
-  reminders              Reminder[]
-  zoomSession            ZoomSession?
-  disputes               Dispute[]      @relation("SessionDisputes")
-
-  createdAt              DateTime @default(now()) @db.Timestamptz
-  updatedAt              DateTime @updatedAt @db.Timestamptz
-
-  @@index([menteeUlid])
-  @@index([coachUlid])
-  @@map("Session")
-}
-
-model Payment {
-  ulid                   String   @id @db.Char(26)
-  sessionUlid            String?  @unique @db.Char(26)
-  payerUlid              String   @db.Char(26)
-  payeeUlid              String   @db.Char(26)
-  amount                 Decimal  @db.Decimal(10, 2)
-  currency               Currency @default(USD)
-  status                 PaymentStatus @default(PENDING)
-  stripePaymentId        String?
-
-  session                Session? @relation("SessionPayment", fields: [sessionUlid], references: [ulid])
-  payer                  User     @relation("Payer", fields: [payerUlid], references: [ulid])
-  payee                  User     @relation("Payee", fields: [payeeUlid], references: [ulid])
-  disputes               Dispute[] @relation("PaymentDisputes")
-  chargebacks            Chargeback[]
-  refunds                Refund[]
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([sessionUlid])
-  @@index([payerUlid])
-  @@index([payeeUlid])
-}
-
-model Review {
-  ulid                   String   @id @db.Char(26)
-  reviewerUlid           String   @db.Char(26)
-  revieweeUlid           String   @db.Char(26)
-  sessionUlid            String?  @db.Char(26)
-  rating                 Int
-  comment                String?
-  status                 String   @default("published")
-  isVerified             Boolean  @default(false)
-
-  reviewer               User     @relation("Reviewer", fields: [reviewerUlid], references: [ulid], onDelete: Cascade)
-  reviewee               User     @relation("Reviewee", fields: [revieweeUlid], references: [ulid], onDelete: Cascade)
-  session                Session? @relation(fields: [sessionUlid], references: [ulid], onDelete: SetNull)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([reviewerUlid])
-  @@index([revieweeUlid])
-  @@index([sessionUlid])
-}
-
-model CoachApplication {
-  // Core identifiers
-  ulid                   String   @id @db.Char(26)
-  applicantUlid          String   @db.Char(26)
-  status                 CoachApplicationStatus @default(PENDING)
-
-  // Professional Experience
-  yearsOfExperience     Int      // Required field
-  superPower            String   // Required field
-  aboutYou              String?  // Optional field
-
-  // Domain Expertise
-  realEstateDomains     String[] @default([])
-  primaryDomain         String?
-
-  // Professional Links
-  resumeUrl             String?
-  linkedIn              String?
-  primarySocialMedia    String?
-
-  // Review Information
-  reviewerUlid          String?  @db.Char(26)
-  reviewDate            DateTime?
-  reviewNotes           String?
-  
-  // Draft Management
-  isDraft               Boolean   @default(false)
-  lastSavedAt           DateTime? @db.Timestamptz
-  draftData             Json?
-  draftVersion          Int       @default(1)
-
-  // Timestamps
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  // Relations
-  applicant             User      @relation("Applicant", fields: [applicantUlid], references: [ulid], onDelete: Cascade)
-  reviewer              User?     @relation("Reviewer", fields: [reviewerUlid], references: [ulid], onDelete: SetNull)
-
-  // Indexes
-  @@index([applicantUlid])
-  @@index([reviewerUlid])
-  @@index([isDraft, applicantUlid])
-}
-
-model Note {
-  ulid                   String   @id @db.Char(26)
-  authorUlid             String   @db.Char(26)
-  relatedUserUlid        String?  @db.Char(26)
-  sessionUlid            String?  @db.Char(26)
-  content                String
-  visibility             String   @default("private")
-
-  author                 User     @relation("AuthorNotes", fields: [authorUlid], references: [ulid], onDelete: Cascade)
-  relatedUser            User?    @relation("RelatedUserNotes", fields: [relatedUserUlid], references: [ulid], onDelete: SetNull)
-  session                Session? @relation(fields: [sessionUlid], references: [ulid], onDelete: SetNull)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([authorUlid])
-  @@index([relatedUserUlid])
-  @@index([sessionUlid])
-}
-
-model SupportTicket {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @db.Char(26)
-  title                  String
-  description            String
-  status                 TicketStatus @default(OPEN)
-
-  user                   User     @relation("UserSupportTickets", fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([userUlid])
-}
-
-model Payout {
-  ulid                   String   @id @db.Char(26)
-  payeeUlid              String   @db.Char(26)
-  amount                 Decimal  @db.Decimal(10, 2)
-  currency               String   @default("USD")
-  stripeTransferId       String?
-  status                 PayoutStatus @default(PENDING)
-  scheduledDate          DateTime
-  processedAt            DateTime?
-
-  payee                  User     @relation("PayoutPayee", fields: [payeeUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([payeeUlid])
-}
-
-model Dispute {
-  ulid                   String   @id @db.Char(26)
-  stripeDisputeId        String   @unique
-  sessionUlid            String?  @db.Char(26)
-  session                Session? @relation("SessionDisputes", fields: [sessionUlid], references: [ulid], onDelete: SetNull)
-  amount                 Int
-  currency               String
-  status                 String
-  reason                 String
-  evidenceDueBy          DateTime
-  evidence               Json
-  stripePaymentIntentId  String
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  // Payment relation
-  paymentUlid            String?  @db.Char(26)
-  payment                Payment? @relation("PaymentDisputes", fields: [paymentUlid], references: [ulid], onDelete: SetNull)
-
-  @@index([sessionUlid])
-  @@index([stripeDisputeId])
-  @@map("Dispute")
-}
-
-model Chargeback {
-  ulid                   String   @id @db.Char(26)
-  paymentUlid            String   @db.Char(26)
-  reason                 String?
-  status                 String   @default("open")
-
-  payment                Payment  @relation(fields: [paymentUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([paymentUlid])
-}
-
-model Refund {
-  ulid                   String   @id @db.Char(26)
-  paymentUlid            String   @db.Char(26)
-  reason                 String?
-  status                 RefundStatus @default(PENDING)
-
-  payment                Payment  @relation(fields: [paymentUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([paymentUlid])
-}
-
-model Message {
-  ulid                   String   @id @db.Char(26)
-  senderUlid             String   @db.Char(26)
-  recipientUlid          String   @db.Char(26)
-  content                String
-  readStatus             String   @default("unread")
-  sentAt                 DateTime @default(now())
-
-  sender                 User     @relation("Sender", fields: [senderUlid], references: [ulid], onDelete: Cascade)
-  recipient              User     @relation("Recipient", fields: [recipientUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([senderUlid])
-  @@index([recipientUlid])
-}
-
-model Referral {
-  ulid                   String   @id @db.Char(26)
-  referrerUlid           String   @db.Char(26)
-  refereeUlid            String   @db.Char(26)
-  referralCode           String   @unique
-  status                 String   @default("pending")
-
-  referrer               User     @relation("Referrer", fields: [referrerUlid], references: [ulid], onDelete: Cascade)
-  referee                User     @relation("Referee", fields: [refereeUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([referrerUlid])
-  @@index([refereeUlid])
-}
-
-model Reminder {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @db.Char(26)
-  sessionUlid            String?  @db.Char(26)
-  message                String
-  remindAt               DateTime
-  status                 String   @default("pending")
-
-  user                   User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  session                Session? @relation(fields: [sessionUlid], references: [ulid], onDelete: SetNull)
-
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  @@index([userUlid])
-  @@index([sessionUlid])
-}
-
-model StripePaymentMethod {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @db.Char(26)
-  stripePaymentMethodId  String
-  type                   String // card, bank_account
-  isDefault              Boolean  @default(false)
-  metadata               Json     @default("{}")
-  createdAt              DateTime @default(now()) @db.Timestamptz
-  updatedAt              DateTime @updatedAt @db.Timestamptz
-
-  // Relationships
-  user                   User     @relation(fields: [userUlid], references: [ulid])
-
-  @@unique([userUlid, stripePaymentMethodId])
-  @@index([userUlid])
-  @@map("StripePaymentMethod")
-}
-
-model SetupIntent {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @db.Char(26)
-  stripeSetupIntentId    String
-  status                 String
-  createdAt              DateTime @default(now()) @db.Timestamptz
-  updatedAt              DateTime @updatedAt @db.Timestamptz
-
-  // Relationships
-  user                   User     @relation(fields: [userUlid], references: [ulid])
-
-  @@index([userUlid])
-  @@map("SetupIntent")
-}
-
-model StripeConnectedAccount {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @unique @db.Char(26)
-  stripeAccountId        String   @unique
-  country                String
-  defaultCurrency        String    @default("usd")
-  payoutsEnabled         Boolean   @default(false)
-  detailsSubmitted       Boolean   @default(false)
-  chargesEnabled         Boolean   @default(false)
-  requiresOnboarding     Boolean   @default(true)
-  deauthorizedAt         DateTime? @db.Timestamptz
-  createdAt              DateTime  @default(now()) @db.Timestamptz
-  updatedAt              DateTime  @updatedAt @db.Timestamptz
-
-  // Relationships
-  user                   User     @relation(fields: [userUlid], references: [ulid])
-
-  @@map("StripeConnectedAccount")
-}
-
-model Transaction {
-  ulid                   String   @id @db.Char(26)
-  type                   String // session_payment, bundle_payment, payout, refund
-  status                 String // pending, completed, failed, refunded
-  amount                 Float
-  currency               String
-  stripePaymentIntentId  String?
-  stripeTransferId       String?
-  platformFee            Float?
-  coachPayout            Float?
-  sessionUlid            String?  @unique @db.Char(26)
-  payerUlid              String   @db.Char(26)
-  coachUlid              String   @db.Char(26)
-  metadata               Json     @default("{}")
-  createdAt              DateTime @default(now()) @db.Timestamptz
-  updatedAt              DateTime @updatedAt @db.Timestamptz
-
-  // Relationships
-  session                Session? @relation(fields: [sessionUlid], references: [ulid])
-  payer                  User       @relation("TransactionPayer", fields: [payerUlid], references: [ulid])
-  coach                  User       @relation("TransactionCoach", fields: [coachUlid], references: [ulid])
-
-  @@index([payerUlid])
-  @@index([coachUlid])
-  @@index([sessionUlid])
-  @@map("Transaction")
-}
-
-model SystemHealth {
-  ulid                   String   @id @db.Char(26)
-  status                 Int
-  activeSessions         Int
-  pendingReviews         Int
-  securityAlerts         Int
-  uptime                 Float
-  createdAt              DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt              DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([createdAt])
-  @@map("SystemHealth")
-}
-
-model AdminMetrics {
-  ulid                   String   @id @db.Char(26)
-  totalUsers             Int
-  activeUsers            Int
-  totalCoaches           Int
-  activeCoaches          Int
-  pendingCoaches         Int
-  totalSessions          Int
-  completedSessions      Int
-  totalRevenue           Float
-  monthlyRevenue         Float
-  createdAt              DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt              DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([createdAt])
-  @@map("AdminMetrics")
-}
-
-model SystemActivity {
-  ulid                   String   @id @db.Char(26)
-  type                   String    // Enum in application layer
-  title                  String
-  description            String
-  severity               String?   // Optional enum in application layer
-  createdAt              DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt              DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([type, createdAt])
-  @@index([severity, createdAt])
-  @@map("SystemActivity")
-}
-
-model SystemAlerts {
-  ulid                   String   @id @db.Char(26)
-  type                   String    // Enum in application layer
-  title                  String
-  message                String
-  severity               String    // Enum in application layer
-  createdAt              DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt              DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([type, createdAt])
-  @@index([severity, createdAt])
-  @@map("SystemAlerts")
-}
-
-// Admin Dashboard MVP Models
-model AdminActivity {
-  ulid                   String   @id @db.Char(26)
-  type                   String    // USER_ACTION, COACH_APPLICATION, SESSION, SYSTEM
-  title                  String
-  description            String
-  userUlid               String?  @db.Char(26)
-  severity               String    // LOW, MEDIUM, HIGH
-  createdAt              DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt              DateTime @updatedAt @db.Timestamptz(6)
-
-  @@index([type])
-  @@index([createdAt])
-  @@map("AdminActivity")
-}
-
-// Keep track of important admin actions for audit
-model AdminAuditLog {
-  ulid                   String   @id @db.Char(26)
-  adminUlid              String   @db.Char(26)
-  admin                  User     @relation("AdminAuditLogs", fields: [adminUlid], references: [ulid])
-  action                 String    // Type of action performed
-  targetType             String    // What was affected (user, coach, application, etc)
-  targetUlid             String   @db.Char(26)
-  details                Json      // Additional details about the action
-  createdAt              DateTime @default(now()) @db.Timestamptz(6)
-
-  @@index([adminUlid])
-  @@index([action])
-  @@index([createdAt])
-  @@map("AdminAuditLog")
-}
-
-// New Listing model with RESO compliance
-model Listing {
-  ulid                   String   @id @db.Char(26)
-  // Core Identification (RESO format)
-  listingKey             String?       @unique  // RESO: Unique identifier for MLS integration
-  parcelNumber           String?       @db.VarChar(50)  // RESO: Official parcel/tax ID
-  taxLot                 String?       @db.VarChar(50)  // RESO: Tax lot number
-  taxBlock               String?       @db.VarChar(50)  // RESO: Tax block number
-  taxMapNumber           String?       @db.VarChar(50)  // RESO: Tax map reference
-  taxLegalDescription    String?     @db.VarChar(1000) // RESO: Full legal description
-  
-  // Property Classification (RESO format)
-  propertyType           PropertyType  // Primary classification
-  propertySubType        PropertySubType? // More specific classification
-  status                 ListingStatus @default(Active) // RESO: Current listing status
-  
-  // Location Information (RESO format)
-  streetNumber         String        @db.VarChar(25)  // RESO: Street number component
-  streetName           String        @db.VarChar(50)  // RESO: Street name component
-  unitNumber           String?       @db.VarChar(25)  // RESO: Unit/apartment number
-  city                 String        @db.VarChar(150) // RESO: City name
-  stateOrProvince      String        @db.VarChar(50)  // RESO: State/province
-  postalCode           String        @db.VarChar(10)  // RESO: Postal/ZIP code
-  
-  // Price Information (RESO format)
-  listPrice            Decimal       @db.Decimal(12,2) // RESO: Current listing price
-  originalListPrice    Decimal?      @db.Decimal(12,2) // RESO: Original price when listed
-  closePrice             Decimal?      @db.Decimal(12,2) // RESO: Final sale price
-  
-  // Dates and Timestamps (RESO format)
-  listingContractDate  DateTime?   @db.Timestamptz  // RESO: Contract start date
-  closeDate            DateTime?   @db.Timestamptz  // RESO: Property closing date
-  statusChangeTimestamp DateTime? @db.Timestamptz  // RESO: Last status change
-  priceChangeTimestamp   DateTime? @db.Timestamptz  // RESO: Last price change
-  modificationTimestamp DateTime? @db.Timestamptz  // RESO: Last modification
-  createdAt            DateTime   @default(now()) @db.Timestamptz
-  updatedAt            DateTime   @updatedAt @db.Timestamptz
-  
-  // Physical Characteristics (RESO format)
-  bedroomsTotal        Int?         // RESO: Total number of bedrooms
-  bathroomsTotal       Decimal?     @db.Decimal(3,1) // RESO: Total bathrooms (allows half baths)
-  livingArea           Decimal?     @db.Decimal(12,2) // RESO: Living space square footage
-  lotSize              Decimal?     @db.Decimal(12,2) // RESO: Lot size in square feet
-  lotSizeDimensions    String?      @db.VarChar(50)  // RESO: Actual lot dimensions
-  lotDimensionsSource  String?    @db.VarChar(50)  // RESO: Source of dimension data
-  yearBuilt            Int?         // RESO: Year property was built
-  stories              Int?         // RESO: Number of stories/levels
-  
-  // Structural Details (RESO format)
-  architecturalStyle   ArchitecturalStyle? // RESO: Architectural style
-  basement             BasementType?     // RESO: Basement type
-  roofType             RoofType?         // RESO: Type of roof
-  view                 ViewType[]        // RESO: Available views
-  
-  // Parking Information (RESO format)
-  parkingTotal         Decimal?     @db.Decimal(12,2) // RESO: Total parking spaces
-  garageSpaces         Decimal?     @db.Decimal(12,2) // RESO: Garage spaces
-  
-  // Property Features (RESO format)
-  furnished            FurnishedStatus? // RESO: Furnishing status
-  appliances           String[]        // RESO: Available appliances
-  interiorFeatures     String[]        // RESO: Interior features
-  exteriorFeatures     String[]        // RESO: Exterior features
-  heating              String[]        // RESO: Heating systems
-  cooling              String[]        // RESO: Cooling systems
-  
-  // Property Amenities (RESO format)
-  isWaterfront         Boolean        @default(false) // RESO: Waterfront property
-  hasFireplace         Boolean        @default(false) // RESO: Fireplace present
-  hasPatio             Boolean        @default(false) // RESO: Patio present
-  hasDeck              Boolean        @default(false) // RESO: Deck present
-  hasPorch             Boolean        @default(false) // RESO: Porch present
-  
-  // Property Condition and Terms (RESO format)
-  propertyCondition    PropertyCondition[] // RESO: Current condition
-  listingTerms         ListingTerms[]     // RESO: Acceptable terms
-  listingAgreement     ListingAgreement?  // RESO: Type of listing agreement
-  
-  // Community Information (RESO format)
-  schoolDistrict       String?       @db.VarChar(100) // RESO: School district name
-  elementarySchool     String?       @db.VarChar(100) // RESO: Elementary school
-  middleSchool         String?       @db.VarChar(100) // RESO: Middle school
-  highSchool             String?       @db.VarChar(100) // RESO: High school
-  
-  // Financial Information (RESO format)
-  taxYear              Int?         // RESO: Tax assessment year
-  taxAnnualAmount      Decimal?     @db.Decimal(12,2) // RESO: Annual tax amount
-  hoaName              String?      @db.VarChar(100)  // RESO: HOA name
-  hoaFeeAmount         Decimal?     @db.Decimal(12,2) // RESO: HOA fee amount
-  hoaFeeFrequency      String?      @db.VarChar(50)   // RESO: HOA payment frequency
-  
-  // Utilities (RESO format)
-  electricityAvailable Boolean    @default(true) // RESO: Electricity status
-  gasAvailable           Boolean    @default(true) // RESO: Gas status
-  sewerAvailable         Boolean    @default(true) // RESO: Sewer status
-  waterAvailable         Boolean    @default(true) // RESO: Water status
-  
-  // Zoning Information (RESO format)
-  zoning               String?     @db.VarChar(25)  // RESO: Zoning code
-  zoningDescription  String?     @db.VarChar(255) // RESO: Zoning description
-  
-  // Marketing Information (RESO format)
-  publicRemarks       String?     @db.VarChar(4000) // RESO: Public description
-  privateRemarks      String?     @db.VarChar(4000) // RESO: Agent-only remarks
-  photos               Json?       // RESO: Property photos
-  virtualTours         Json?       // RESO: Virtual tour links
-  isFeatured           Boolean     @default(false)   // Custom: Featured listing flag
-  featuredOrder        Int?        // Custom: Featured listing order
-
-  // Custom fields
-  mlsLink              String?     @db.VarChar(1000) // Custom: Direct link to MLS listing
-  publicListingUrl     String?     @db.VarChar(1000) // Custom: Link to public listing (Zillow, Redfin, etc.)
-  
-  // Source Information (RESO format)
-  source               String     @default("MANUAL") // RESO: Data source
-  mlsSource            String?    // RESO: MLS system name
-  mlsId                String?    // RESO: MLS-specific ID
-  
-  // Relations
-  realtorProfileUlid      String   @db.Char(26)
-  realtorProfile        RealtorProfile @relation(fields: [realtorProfileUlid], references: [ulid], onDelete: Cascade)
-  
-  // Indexes for performance
-  @@index([realtorProfileUlid])
-  @@index([listingKey])
-  @@index([status])
-  @@index([isFeatured])
-  @@map("Listing")
-}
-
-// AI Chat Models
-model AIThread {
-  ulid                   String   @id @db.Char(26)
-  userUlid               String   @db.Char(26)
-  title                  String
-  category               String
-  status                 String     @default("ACTIVE")
-  messages               AIMessage[]
-  createdAt              DateTime   @default(now()) @db.Timestamptz
-  updatedAt              DateTime   @updatedAt @db.Timestamptz
-
-  // Relations
-  user                   User       @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("AIThread")
-}
-
-model AIMessage {
-  ulid                   String   @id @db.Char(26)
-  threadUlid             String   @db.Char(26)
-  role                   String   // user or assistant
-  content                String   @db.Text
-  model                  String   // e.g., gpt-4
-  tokens                 Int      @default(0)
-  createdAt              DateTime @default(now()) @db.Timestamptz
-  updatedAt              DateTime @updatedAt @db.Timestamptz
-
-  // Relations
-  thread                 AIThread @relation(fields: [threadUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([threadUlid])
-  @@map("AIMessage")
-}
-
-model EnterpriseLeads {
-  // Core identifiers
-  ulid            String   @id @db.Char(26)
-  assignedToUlid  String?  @db.Char(26)
-
-  // Company Information
-  companyName     String
-  website         String?
-  industry        OrgIndustry
-
-  // Contact Information
-  fullName        String
-  jobTitle        String
-  email          String
-  phone          String
-
-  // Company Details
-  teamSize        String
-  multipleOffices Boolean  @default(false)
-
-  // Lead Status
-  status          String   @default("NEW")
-  priority        String   @default("MEDIUM")
-
-  // Tracking
-  notes           Json?    // Array of notes
-  lastContactedAt DateTime?
-  nextFollowUpDate DateTime?
-  metadata        Json?
-
-  // Timestamps
-  createdAt       DateTime @default(now()) @db.Timestamptz
-  updatedAt       DateTime @updatedAt @db.Timestamptz
-
-  // Relations
-  assignedTo      User?    @relation("AssignedLeads", fields: [assignedToUlid], references: [ulid], onDelete: SetNull)
-
-  @@index([assignedToUlid])
-  @@map("EnterpriseLeads")
-}
-
-model Settings {
-  ulid              String   @id @db.Char(26)
-  key               String   @unique
-  value             Json     @db.JsonB
-  description       String?
-  metadata          Json?    @db.JsonB
-  
-  createdAt         DateTime @default(now()) @db.Timestamptz
-  updatedAt         DateTime @updatedAt @db.Timestamptz
-
-  @@map("Settings")
-}
-
-// Goal Model
-model Goal {
-  ulid            String      @id @db.Char(26)
-  userUlid        String      @db.Char(26)
-  type            GoalType
-  status          GoalStatus  @default(IN_PROGRESS)
-  title           String
-  description     String?
-  target          Json?       @db.JsonB
-  progress        Json?       @db.JsonB
-  startDate       DateTime    @db.Timestamptz
-  dueDate         DateTime    @db.Timestamptz
-  completedAt     DateTime?   @db.Timestamptz
-  
-  // Relations
-  user            User        @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  
-  createdAt       DateTime    @default(now()) @db.Timestamptz
-  updatedAt       DateTime    @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("Goal")
-}
-
-// Achievement Model
-model Achievement {
-  ulid            String           @id @db.Char(26)
-  userUlid        String           @db.Char(26)
-  type            AchievementType
-  title           String
-  description     String?
-  metadata        Json?            @db.JsonB
-  awardedAt       DateTime         @db.Timestamptz
-  
-  // Relations
-  user            User             @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  
-  createdAt       DateTime         @default(now()) @db.Timestamptz
-  updatedAt       DateTime         @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("Achievement")
-}
-
-// Professional Recognition Model
-model ProfessionalRecognition {
-  ulid            String           @id @db.Char(26)
-  userUlid        String           @db.Char(26)
-  coachUlid       String?          @db.Char(26)
-  type            RecognitionType
-  title           String
-  description     String?
-  issuer          String?
-  issueDate       DateTime         @db.Timestamptz
-  expiryDate      DateTime?        @db.Timestamptz
-  verificationUrl String?
-  isVisible       Boolean          @default(true)
-  industryType    String?
-  metadata        Json?            @db.JsonB
-  
-  // Relations
-  user            User             @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  coach           CoachProfile?    @relation(fields: [coachUlid], references: [ulid], onDelete: SetNull)
-  
-  createdAt       DateTime         @default(now()) @db.Timestamptz
-  updatedAt       DateTime         @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@index([industryType])
-  @@map("ProfessionalRecognition")
-}
-
-// Subscription Model
-model Subscription {
-  ulid                String         @id @db.Char(26)
-  userUlid           String?        @db.Char(26)
-  organizationUlid   String?        @db.Char(26)
-  stripeSubscriptionId String       @unique
-  status             String
-  planType           PlanType
-  currentPeriodStart DateTime       @db.Timestamptz
-  currentPeriodEnd   DateTime       @db.Timestamptz
-  cancelAtPeriodEnd  Boolean        @default(false)
-  canceledAt         DateTime?      @db.Timestamptz
-  metadata           Json?          @db.JsonB
-  
-  // Relations
-  user               User?          @relation(fields: [userUlid], references: [ulid], onDelete: SetNull)
-  organization       Organization?  @relation(fields: [organizationUlid], references: [ulid], onDelete: SetNull)
-  invoices           Invoice[]
-  
-  createdAt          DateTime       @default(now()) @db.Timestamptz
-  updatedAt          DateTime       @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@index([organizationUlid])
-  @@map("Subscription")
-}
-
-// Invoice Model
-model Invoice {
-  ulid                String        @id @db.Char(26)
-  subscriptionUlid    String        @db.Char(26)
-  stripeInvoiceId     String        @unique
-  amount              Decimal       @db.Decimal(10,2)
-  currency            String
-  status              String
-  dueDate             DateTime      @db.Timestamptz
-  paidAt              DateTime?     @db.Timestamptz
-  metadata            Json?         @db.JsonB
-  userUlid           String?       @db.Char(26)
-  
-  // Relations
-  subscription        Subscription  @relation(fields: [subscriptionUlid], references: [ulid], onDelete: Cascade)
-  user               User?         @relation(fields: [userUlid], references: [ulid], onDelete: SetNull)
-  
-  createdAt           DateTime      @default(now()) @db.Timestamptz
-  updatedAt           DateTime      @updatedAt @db.Timestamptz
-
-  @@index([subscriptionUlid])
-  @@index([userUlid])
-  @@map("Invoice")
-}
-
-// Zoom Integration Models
-model ZoomSession {
-  ulid            String    @id @db.Char(26)
-  sessionUlid     String    @unique @db.Char(26)
-  sessionName     String
-  hostUlid        String    @db.Char(26)
-  startUrl        String?
-  joinUrl         String?
-  status          String    @default("scheduled")
-  metadata        Json?     @db.JsonB
-
-  // Relations
-  session         Session   @relation(fields: [sessionUlid], references: [ulid], onDelete: Cascade)
-
-  createdAt       DateTime  @default(now()) @db.Timestamptz
-  updatedAt       DateTime  @updatedAt @db.Timestamptz
-
-  @@index([sessionUlid])
-  @@map("ZoomSession")
-}
-
-model CoachingAvailabilitySchedule {
-  ulid               String   @id @db.Char(26)
-  userUlid           String   @db.Char(26)
-  name               String
-  timezone           String
-  rules              Json     @db.JsonB
-  isDefault          Boolean  @default(false)
-  active             Boolean  @default(true)
-  allowCustomDuration Boolean  @default(true)
-  averageRating      Decimal? @db.Decimal(3, 2)
-  bufferAfter        Int      @default(0)
-  bufferBefore       Int      @default(0)
-  calendlyEnabled    Boolean  @default(false)
-  defaultDuration    Int      @default(60)
-  maximumDuration    Int      @default(120)
-  minimumDuration    Int      @default(30)
-  totalSessions      Int      @default(0)
-  zoomEnabled        Boolean  @default(false)
-  
-  // Relations
-  user               User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-  
-  createdAt          DateTime @default(now()) @db.Timestamptz
-  updatedAt          DateTime @updatedAt @db.Timestamptz
-
-  @@index([userUlid])
-  @@map("CoachingAvailabilitySchedule")
-}
-
-
-
-
-
-
-
-

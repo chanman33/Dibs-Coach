@@ -3,9 +3,9 @@ import { BaseCoachCard } from '.'
 import { PrivateCoachCardProps } from './types'
 import { Calendar, Clock, Briefcase, Building, Home } from 'lucide-react'
 import { useState } from 'react'
-import { CoachProfileModal } from '../CoachProfileModal'
 import { BookingModal } from '../BookingModal'
 import { RealEstateDomain } from '@/utils/types/coach'
+import Link from 'next/link'
 
 // Helper function to get icon for real estate domain
 const getDomainIcon = (domain: RealEstateDomain) => {
@@ -28,15 +28,19 @@ export function PrivateCoachCard({
   isBooked,
   onProfileClick,
   sessionConfig,
+  profileSlug,
   ...baseProps
 }: PrivateCoachCardProps) {
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const baseRate = sessionConfig.rates[sessionConfig.defaultDuration.toString()] || 0
 
+  // Determine the profile path - use profileSlug if available, otherwise use id
+  const profilePath = profileSlug || baseProps.id;
+
   const handleActionClick = () => {
     if (isBooked) {
-      setIsProfileModalOpen(true)
+      // Use the onProfileClick handler for booked coaches
+      onProfileClick()
     } else {
       setIsBookingModalOpen(true)
     }
@@ -95,13 +99,14 @@ export function PrivateCoachCard({
             )}
 
             <div className="flex flex-col gap-2 mt-2">
-              <Button 
-                className="w-full" 
-                variant="secondary"
-                onClick={() => setIsProfileModalOpen(true)}
-              >
-                View Profile
-              </Button>
+              <Link href={`/profile/${profilePath}`} className="block w-full">
+                <Button 
+                  className="w-full" 
+                  variant="secondary"
+                >
+                  View Profile
+                </Button>
+              </Link>
               
               {!isBooked && (
                 <Button 
@@ -115,20 +120,6 @@ export function PrivateCoachCard({
             </div>
           </div>
         )}
-      />
-
-      <CoachProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        coach={{
-          firstName: baseProps.name.split(' ')[0],
-          lastName: baseProps.name.split(' ').slice(1).join(' '),
-          profileImageUrl: baseProps.imageUrl,
-          bio: baseProps.bio,
-          coachSkills: coachSkills,
-          hourlyRate: baseRate,
-          sessionConfig
-        }}
       />
 
       {!isBooked && (

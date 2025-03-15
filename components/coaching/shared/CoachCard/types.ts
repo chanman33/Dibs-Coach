@@ -32,6 +32,7 @@ export interface PrivateCoachCardProps extends BaseCoachCardProps {
   isBooked: boolean;
   onProfileClick: () => void;
   sessionConfig: SessionConfig;
+  profileSlug?: string | null;
 }
 
 export interface PublicCoachCardProps extends BaseCoachCardProps {
@@ -42,4 +43,5 @@ export interface PublicCoachCardProps extends BaseCoachCardProps {
   reviewCount?: number;
   hourlyRate?: number | null;
   sessionConfig?: SessionConfig;
+  profileSlug?: string | null;
 } 

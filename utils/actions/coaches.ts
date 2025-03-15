@@ -6,7 +6,9 @@ import { PublicCoach } from '@/utils/types/coach'
 import { Database } from '@/types/supabase'
 
 type CoachWithProfile = Database['public']['Tables']['User']['Row'] & {
-  CoachProfile: Database['public']['Tables']['CoachProfile']['Row'] | null
+  CoachProfile: (Database['public']['Tables']['CoachProfile']['Row'] & {
+    profileSlug?: string | null
+  }) | null
 }
 
 export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
@@ -29,7 +31,8 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
           coachPrimaryDomain,
           hourlyRate,
           averageRating,
-          totalSessions
+          totalSessions,
+          profileSlug
         )
       `)
       .eq('isCoach', true)
@@ -58,6 +61,7 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
         bio: coach.bio,
         profileImageUrl: coach.profileImageUrl,
         slogan: coach.CoachProfile?.slogan || null,
+        profileSlug: coach.CoachProfile?.profileSlug || null,
         coachSkills: coach.CoachProfile?.coachSkills || [],
         coachRealEstateDomains: coach.CoachProfile?.coachRealEstateDomains || [],
         coachPrimaryDomain: coach.CoachProfile?.coachPrimaryDomain || null,

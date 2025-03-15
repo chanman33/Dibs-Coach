@@ -208,6 +208,8 @@ INSERT INTO "CoachProfile" (
   "coachRealEstateDomains",
   "coachPrimaryDomain",
   "slogan",
+  "profileSlug",
+  "lastSlugUpdateAt",
   "defaultDuration",
   "minimumDuration",
   "maximumDuration",
@@ -218,7 +220,7 @@ INSERT INTO "CoachProfile" (
   "createdAt",
   "updatedAt"
 ) VALUES
--- Coach Profile 1: Sarah Johnson
+-- Coach 1: Sarah Johnson
 (
   '01HXYZ2ABCDEFGHIJKLMNOPQ1',
   '01HXYZ1ABCDEFGHIJKLMNOPQ1',
@@ -230,6 +232,8 @@ INSERT INTO "CoachProfile" (
   ARRAY['REALTOR', 'INVESTOR'],
   'REALTOR',
   'Helping agents build sustainable businesses through effective lead generation',
+  'sarah-johnson-realtor',
+  NOW(),
   60,
   30,
   90,
@@ -241,7 +245,7 @@ INSERT INTO "CoachProfile" (
   NOW()
 ),
 
--- Coach Profile 2: Michael Chen
+-- Coach 2: Michael Chen
 (
   '01HXYZ2ABCDEFGHIJKLMNOPQ2',
   '01HXYZ1ABCDEFGHIJKLMNOPQ2',
@@ -253,10 +257,12 @@ INSERT INTO "CoachProfile" (
   ARRAY['REALTOR', 'PROPERTY_MANAGER'],
   'REALTOR',
   'Building efficient real estate businesses through systems and technology',
+  'mike-chen-tech',
+  NOW(),
   60,
   30,
-  120,
-  true,
+  90,
+  false,
   true,
   'PUBLISHED',
   100,
@@ -264,7 +270,7 @@ INSERT INTO "CoachProfile" (
   NOW()
 ),
 
--- Coach Profile 3: Jessica Martinez
+-- Coach 3: Jessica Martinez
 (
   '01HXYZ2ABCDEFGHIJKLMNOPQ3',
   '01HXYZ1ABCDEFGHIJKLMNOPQ3',
@@ -276,6 +282,8 @@ INSERT INTO "CoachProfile" (
   ARRAY['REALTOR'],
   'REALTOR',
   'Helping new agents establish themselves in competitive markets',
+  'jess-martinez-coach',
+  NOW(),
   60,
   30,
   90,
@@ -287,22 +295,24 @@ INSERT INTO "CoachProfile" (
   NOW()
 ),
 
--- Coach Profile 4: David Wilson
+-- Coach 4: David Wilson
 (
   '01HXYZ2ABCDEFGHIJKLMNOPQ4',
   '01HXYZ1ABCDEFGHIJKLMNOPQ4',
-  ARRAY['Investment Analysis', 'Property Valuation Strategy', 'Multiple Income Stream Development'],
+  ARRAY['Investment Strategy', 'Market Analysis', 'Portfolio Optimization'],
   200,
   10,
-  175,
+  150,
   4.9,
-  ARRAY['COMMERCIAL', 'INVESTOR'],
-  'COMMERCIAL',
-  'Building wealth through commercial real estate investment strategies',
+  ARRAY['INVESTOR', 'COMMERCIAL'],
+  'INVESTOR',
+  'Turning market insights into profitable investment strategies',
+  'david-wilson-investor',
+  NOW(),
   60,
-  45,
-  120,
-  true,
+  30,
+  90,
+  false,
   true,
   'PUBLISHED',
   100,
@@ -310,18 +320,20 @@ INSERT INTO "CoachProfile" (
   NOW()
 ),
 
--- Coach Profile 5: Olivia Taylor
+-- Coach 5: Olivia Taylor
 (
   '01HXYZ2ABCDEFGHIJKLMNOPQ5',
   '01HXYZ1ABCDEFGHIJKLMNOPQ5',
-  ARRAY['Luxury Market Strategy', 'High-Net-Worth Client Services', 'Content Strategy & Branding'],
-  225,
-  6,
-  130,
-  4.8,
-  ARRAY['REALTOR'],
-  'REALTOR',
-  'Mastering the art of luxury property marketing and sales',
+  ARRAY['Mortgage Financing', 'Loan Structuring', 'Credit Optimization'],
+  175,
+  8,
+  110,
+  4.7,
+  ARRAY['MORTGAGE'],
+  'MORTGAGE',
+  'Helping professionals navigate complex financing solutions',
+  'olivia-taylor-mortgage',
+  NOW(),
   60,
   30,
   90,
@@ -333,41 +345,20 @@ INSERT INTO "CoachProfile" (
   NOW()
 ),
 
--- Coach Profile 6: James Rodriguez
+-- Coach 6: James Rodriguez
 (
   '01HXYZ2ABCDEFGHIJKLMNOPQ6',
   '01HXYZ1ABCDEFGHIJKLMNOPQ6',
-  ARRAY['Loan Structure Strategy', 'Investment Analysis', 'Multiple Income Stream Development'],
-  185,
-  8,
-  155,
-  4.7,
-  ARRAY['MORTGAGE', 'INVESTOR'],
-  'MORTGAGE',
-  'Financial literacy and wealth-building for real estate professionals',
-  60,
-  30,
-  120,
-  true,
-  true,
-  'PUBLISHED',
-  100,
-  NOW(),
-  NOW()
-),
-
--- Coach Profile 7: Emma Clark
-(
-  '01HXYZ2ABCDEFGHIJKLMNOPQ7',
-  '01HXYZ1ABCDEFGHIJKLMNOPQ7',
-  ARRAY['Client Communication Strategy', 'Conflict Resolution', 'Time Management & Productivity'],
-  140,
-  4,
+  ARRAY['Property Management Systems', 'Tenant Relations', 'Maintenance Optimization'],
+  150,
+  6,
   95,
   4.6,
-  ARRAY['REALTOR', 'PROPERTY_MANAGER'],
-  'REALTOR',
-  'Developing effective communication and negotiation skills for real estate success',
+  ARRAY['PROPERTY_MANAGER'],
+  'PROPERTY_MANAGER',
+  'Building efficient property management operations',
+  'james-rodriguez-property',
+  NOW(),
   60,
   30,
   90,
@@ -379,18 +370,45 @@ INSERT INTO "CoachProfile" (
   NOW()
 ),
 
--- Coach Profile 8: Robert Kim
+-- Coach 7: Emma Clark
+(
+  '01HXYZ2ABCDEFGHIJKLMNOPQ7',
+  '01HXYZ1ABCDEFGHIJKLMNOPQ7',
+  ARRAY['Commercial Deal Structuring', 'Office Space Optimization', 'Retail Location Analysis'],
+  225,
+  12,
+  180,
+  4.9,
+  ARRAY['COMMERCIAL'],
+  'COMMERCIAL',
+  'Maximizing returns in commercial real estate ventures',
+  'emma-clark-commercial',
+  NOW(),
+  60,
+  30,
+  90,
+  false,
+  true,
+  'PUBLISHED',
+  100,
+  NOW(),
+  NOW()
+),
+
+-- Coach 8: Robert Kim
 (
   '01HXYZ2ABCDEFGHIJKLMNOPQ8',
   '01HXYZ1ABCDEFGHIJKLMNOPQ8',
-  ARRAY['Digital Marketing Mastery', 'Social Media Influence', 'Video Marketing Mastery'],
+  ARRAY['Insurance Coverage Optimization', 'Risk Management', 'Policy Analysis'],
   160,
-  5,
-  110,
+  9,
+  130,
   4.8,
-  ARRAY['REALTOR', 'COMMERCIAL'],
-  'REALTOR',
-  'Leveraging digital marketing to generate leads and build a strong online presence',
+  ARRAY['INSURANCE'],
+  'INSURANCE',
+  'Protecting real estate assets through strategic insurance planning',
+  'robert-kim-insurance',
+  NOW(),
   60,
   30,
   90,

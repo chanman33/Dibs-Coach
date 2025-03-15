@@ -3,18 +3,21 @@ import { BaseCoachCard } from '.'
 import { PublicCoachCardProps } from './types'
 import { RatingDisplay } from '../RatingDisplay'
 import { useState } from 'react'
-import { CoachProfileModal } from '../CoachProfileModal'
 import { BookingModal } from '../BookingModal'
+import Link from 'next/link'
 
 export function PublicCoachCard(props: PublicCoachCardProps) {
-  const { rating, reviewCount, coachSkills, ...baseProps } = props
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const { rating, reviewCount, coachSkills, profileSlug, id, ...baseProps } = props
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+
+  // Determine the profile path - use profileSlug if available, otherwise use id
+  const profilePath = profileSlug || id;
 
   return (
     <>
       <BaseCoachCard
         {...baseProps}
+        id={id}
         renderFooter={() => (
           <div className="w-full space-y-4">
             {(rating !== undefined && reviewCount !== undefined) && (
@@ -39,38 +42,16 @@ export function PublicCoachCard(props: PublicCoachCardProps) {
               </div>
             )}
 
-            <Button 
-              className="w-full" 
-              variant="secondary"
-              onClick={() => setIsProfileModalOpen(true)}
-            >
-              Learn More
-            </Button>
+            <Link href={`/profile/${profilePath}`} className="block w-full">
+              <Button 
+                className="w-full" 
+                variant="secondary"
+              >
+                Learn More
+              </Button>
+            </Link>
           </div>
         )}
-      />
-
-      <CoachProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
-        coach={{
-          firstName: props.name.split(' ')[0],
-          lastName: props.name.split(' ').slice(1).join(' '),
-          profileImageUrl: props.imageUrl,
-          bio: props.bio,
-          coachSkills: coachSkills || [],
-          hourlyRate: props.hourlyRate ?? null,
-          sessionConfig: props.sessionConfig ?? {
-            defaultDuration: 60,
-            minimumDuration: 60,
-            maximumDuration: 60,
-            allowCustomDuration: false,
-            isActive: true,
-            durations: [60],
-            rates: { '60': props.hourlyRate ?? 0 },
-            currency: 'USD'
-          }
-        }}
       />
 
       <BookingModal

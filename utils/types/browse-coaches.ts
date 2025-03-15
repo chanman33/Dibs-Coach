@@ -24,6 +24,7 @@ export interface BrowseCoachData {
   slogan: string | null;
   profileStatus: string;
   completionPercentage: number;
+  profileSlug: string | null;
 }
 
 export interface BrowseCoachesProps {

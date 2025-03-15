@@ -6,6 +6,7 @@ import Image from "next/image"
 import { BookingModal } from "@/components/dashboard/BookingModal"
 import { formatCurrency } from "@/utils/format"
 import { RealEstateDomain } from "@/utils/types/coach"
+import { useRouter } from 'next/navigation'
 
 const DEFAULT_IMAGE_URL = '/placeholder.svg'
 
@@ -40,6 +41,7 @@ interface Coach {
   coachSkills: string[]
   coachRealEstateDomains?: RealEstateDomain[]
   coachPrimaryDomain?: RealEstateDomain | null
+  profileSlug?: string | null
   sessionConfig: SessionConfig
 }
 
@@ -52,9 +54,17 @@ interface CoachProfileModalProps {
 export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalProps) {
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [imgError, setImgError] = useState(false)
+  const router = useRouter()
 
   const handleBookNowClick = () => {
     setIsBookingModalOpen(true)
+    onClose() // Close the profile modal
+  }
+
+  const handleViewProfileClick = () => {
+    // Use profileSlug if available, otherwise use id
+    const profilePath = coach.profileSlug || coach.id
+    router.push(`/profile/${profilePath}`)
     onClose() // Close the profile modal
   }
 
@@ -152,12 +162,20 @@ export function CoachProfileModal({ isOpen, onClose, coach }: CoachProfileModalP
           </div>
           <div className="flex justify-between">
             <Button variant="outline" onClick={onClose}>Close</Button>
-            <Button 
-              onClick={handleBookNowClick}
-              disabled={!coach.sessionConfig.isActive}
-            >
-              {!coach.sessionConfig.isActive ? "Not Accepting Bookings" : "Book Now"}
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline"
+                onClick={handleViewProfileClick}
+              >
+                View Profile
+              </Button>
+              <Button 
+                onClick={handleBookNowClick}
+                disabled={!coach.sessionConfig.isActive}
+              >
+                {!coach.sessionConfig.isActive ? "Not Accepting Bookings" : "Book Now"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

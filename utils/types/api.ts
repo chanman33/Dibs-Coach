@@ -18,6 +18,9 @@ export type ApiErrorCode =
   | 'TIME_SLOT_TAKEN'
   | 'UNAUTHORIZED'
   | 'USER_NOT_FOUND'
+  | 'INVALID_SLUG'
+  | 'SLUG_TAKEN'
+  | 'RATE_LIMITED'
 
 export interface ApiError {
   code: ApiErrorCode;

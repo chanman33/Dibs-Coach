@@ -37,6 +37,7 @@ const mockCoaches = [
     coachRealEstateDomains: ['REALTOR', 'INVESTOR'],
     coachPrimaryDomain: 'REALTOR',
     slogan: 'Helping agents build sustainable businesses through effective lead generation',
+    profileSlug: 'sarah-johnson-realtor',
     totalYearsRE: 10,
     languages: ['en'],
     hourlyRate: 150,
@@ -57,6 +58,7 @@ const mockCoaches = [
     coachRealEstateDomains: ['REALTOR', 'PROPERTY_MANAGER'],
     coachPrimaryDomain: 'REALTOR',
     slogan: 'Building efficient real estate businesses through systems and technology',
+    profileSlug: 'mike-chen-tech',
     totalYearsRE: 12,
     languages: ['en', 'zh'],
     hourlyRate: 175,
@@ -77,6 +79,7 @@ const mockCoaches = [
     coachRealEstateDomains: ['REALTOR'],
     coachPrimaryDomain: 'REALTOR',
     slogan: 'Helping new agents establish themselves in competitive markets',
+    profileSlug: 'jess-martinez-coach',
     totalYearsRE: 8,
     languages: ['en', 'es'],
     hourlyRate: 125,
@@ -204,6 +207,8 @@ async function seedCoaches() {
             coachRealEstateDomains: coach.coachRealEstateDomains,
             coachPrimaryDomain: coach.coachPrimaryDomain,
             slogan: coach.slogan,
+            profileSlug: coach.profileSlug,
+            lastSlugUpdateAt: new Date().toISOString(),
             defaultDuration: 60,
             minimumDuration: 30,
             maximumDuration: 90,
@@ -224,6 +229,7 @@ async function seedCoaches() {
       } else {
         // Create a new coach profile
         const coachProfileUlid = ulid()
+        const currentTime = new Date().toISOString()
         
         const { error: coachError } = await supabase
           .from('CoachProfile')
@@ -238,6 +244,8 @@ async function seedCoaches() {
             coachRealEstateDomains: coach.coachRealEstateDomains,
             coachPrimaryDomain: coach.coachPrimaryDomain,
             slogan: coach.slogan,
+            profileSlug: coach.profileSlug,
+            lastSlugUpdateAt: currentTime,
             defaultDuration: 60,
             minimumDuration: 30,
             maximumDuration: 90,
@@ -245,7 +253,8 @@ async function seedCoaches() {
             isActive: true,
             profileStatus: 'PUBLISHED',
             completionPercentage: 100,
-            updatedAt: new Date().toISOString()
+            createdAt: currentTime,
+            updatedAt: currentTime
           })
         
         if (coachError) {

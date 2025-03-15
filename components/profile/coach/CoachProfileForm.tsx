@@ -107,6 +107,7 @@ const coachBasicInfoSchema = z.object({
   yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater"),
   hourlyRate: z.number().min(0, "Hourly rate must be 0 or greater"),
   coachSkills: z.array(z.string()).default([]),
+  profileSlug: z.string().optional().nullable(),
 });
 
 type CoachBasicInfoValues = z.infer<typeof coachBasicInfoSchema>;
@@ -118,6 +119,7 @@ type ExtendedCoachProfileFormValues = CoachProfileFormValues & {
   slogan?: string;
   coachPrimaryDomain?: string | null;
   coachRealEstateDomains?: string[];
+  profileSlug?: string | null;
 };
 
 export interface CoachProfileFormProps {
@@ -129,6 +131,7 @@ export interface CoachProfileFormProps {
     coachSkills?: string[];
     coachPrimaryDomain?: string | null;
     coachRealEstateDomains?: string[];
+    profileSlug?: string | null;
     [key: string]: any;
   };
   onSubmit: (data: ExtendedCoachProfileFormValues) => Promise<void>;
@@ -172,6 +175,7 @@ export function CoachProfileForm({
       yearsCoaching: initialData?.yearsCoaching,
       hourlyRate: initialData?.hourlyRate,
       coachSkills: initialData?.coachSkills,
+      profileSlug: initialData?.profileSlug,
     },
     defaultValues: {
       slogan: initialData?.slogan || "",
@@ -180,6 +184,7 @@ export function CoachProfileForm({
       yearsCoaching: initialData?.yearsCoaching !== undefined ? initialData.yearsCoaching : 0,
       hourlyRate: initialData?.hourlyRate !== undefined ? initialData.hourlyRate : 100,
       coachSkills: initialData?.coachSkills || [],
+      profileSlug: initialData?.profileSlug || null,
     },
     hasYearsCoaching: initialData?.yearsCoaching !== undefined,
     hasHourlyRate: initialData?.hourlyRate !== undefined,
@@ -195,6 +200,7 @@ export function CoachProfileForm({
       yearsCoaching: initialData?.yearsCoaching !== undefined ? initialData.yearsCoaching : 0,
       hourlyRate: initialData?.hourlyRate !== undefined ? initialData.hourlyRate : 100,
       coachSkills: initialData?.coachSkills || [],
+      profileSlug: initialData?.profileSlug || null,
     },
     mode: "onChange",
   });
@@ -221,11 +227,13 @@ export function CoachProfileForm({
         yearsCoaching: initialData?.yearsCoaching,
         hourlyRate: initialData?.hourlyRate,
         coachSkills: initialData?.coachSkills,
+        profileSlug: initialData?.profileSlug,
       },
       currentFormValues: {
         ...form.getValues(),
         yearsCoaching: form.getValues().yearsCoaching,
         hourlyRate: form.getValues().hourlyRate,
+        profileSlug: form.getValues().profileSlug,
       },
       timestamp: new Date().toISOString()
     });
@@ -239,12 +247,14 @@ export function CoachProfileForm({
         yearsCoaching: initialData.yearsCoaching !== undefined ? initialData.yearsCoaching : 0,
         hourlyRate: initialData.hourlyRate !== undefined ? initialData.hourlyRate : 100,
         coachSkills: initialData.coachSkills || [],
+        profileSlug: initialData.profileSlug || null,
       };
       
       console.log("[COACH_FORM_BEFORE_RESET]", {
         resetValues,
         yearsCoaching: resetValues.yearsCoaching,
         hourlyRate: resetValues.hourlyRate,
+        profileSlug: resetValues.profileSlug,
         timestamp: new Date().toISOString()
       });
       
@@ -255,6 +265,7 @@ export function CoachProfileForm({
         resetValues: form.getValues(),
         yearsCoaching: form.getValues().yearsCoaching,
         hourlyRate: form.getValues().hourlyRate,
+        profileSlug: form.getValues().profileSlug,
         timestamp: new Date().toISOString()
       });
     }
@@ -324,10 +335,12 @@ export function CoachProfileForm({
           yearsCoaching: data.yearsCoaching,
           hourlyRate: data.hourlyRate,
           coachSkills: data.coachSkills,
+          profileSlug: data.profileSlug,
         },
         initialData: {
           coachSkills: initialData?.coachSkills,
-          coachRealEstateDomains: initialData?.coachRealEstateDomains
+          coachRealEstateDomains: initialData?.coachRealEstateDomains,
+          profileSlug: initialData?.profileSlug,
         },
         formState: {
           isDirty: form.formState.isDirty,
@@ -360,6 +373,8 @@ export function CoachProfileForm({
         hourlyRate: data.hourlyRate,
         // Use the updated coachSkills from the form
         coachSkills: data.coachSkills || [],
+        // Add the profileSlug
+        profileSlug: data.profileSlug,
         skipRevalidation: true
       };
 
@@ -395,6 +410,7 @@ export function CoachProfileForm({
         yearsCoaching: data.yearsCoaching,
         hourlyRate: data.hourlyRate,
         coachSkills: data.coachSkills || [],
+        profileSlug: data.profileSlug,
       };
       
       console.log("[COACH_BASIC_INFO_BEFORE_RESET]", {
@@ -423,6 +439,7 @@ export function CoachProfileForm({
           yearsCoaching: data.yearsCoaching,
           hourlyRate: data.hourlyRate,
           coachSkills: data.coachSkills,
+          profileSlug: data.profileSlug,
         },
         timestamp: new Date().toISOString()
       });
@@ -525,6 +542,104 @@ export function CoachProfileForm({
                         <FormMessage />
                       </FormItem>
                     )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="profileSlug"
+                    render={({ field }) => {
+                      // Calculate slug quality
+                      const slugValue = field.value || '';
+                      const slugLength = slugValue.length;
+                      let slugQuality: 'poor' | 'good' | 'excellent' = 'poor';
+                      let slugFeedback = '';
+                      
+                      if (slugLength === 0) {
+                        slugQuality = 'poor';
+                        slugFeedback = 'Required: Please create a custom URL for your profile';
+                      } else if (slugLength < 3) {
+                        slugQuality = 'poor';
+                        slugFeedback = 'Too short: Your URL should be at least 3 characters';
+                      } else if (slugLength > 30) {
+                        slugQuality = 'poor';
+                        slugFeedback = 'Too long: Shorter URLs are easier to remember';
+                      } else if (slugLength <= 15) {
+                        // Short, memorable URLs are excellent
+                        slugQuality = 'excellent';
+                        slugFeedback = 'Excellent: Short and memorable!';
+                      } else {
+                        // Medium length URLs are good
+                        slugQuality = 'good';
+                        slugFeedback = 'Good: Reasonably memorable length';
+                      }
+                      
+                      // Check if slug contains the coach's expertise or relevant keywords
+                      const expertiseKeywords = ['coach', 'realtor', 'investor', 'mortgage', 'property', 'real-estate'];
+                      const hasExpertiseKeyword = expertiseKeywords.some(keyword => slugValue.includes(keyword));
+                      
+                      if (slugLength >= 3 && hasExpertiseKeyword && slugQuality !== 'poor') {
+                        slugQuality = 'excellent';
+                        slugFeedback = 'Excellent: Contains relevant keywords for better SEO!';
+                      }
+                      
+                      // Quality indicator colors
+                      const qualityColors = {
+                        poor: 'text-red-500 bg-red-50',
+                        good: 'text-amber-500 bg-amber-50',
+                        excellent: 'text-green-500 bg-green-50'
+                      };
+                      
+                      return (
+                        <FormItem>
+                          <FormLabel>
+                            Custom Profile URL
+                            <span className="text-red-500 ml-1">*</span>
+                          </FormLabel>
+                          <div className="flex items-center">
+                            <span className="text-sm text-muted-foreground mr-2">dibs.coach/profile/</span>
+                            <FormControl>
+                              <Input 
+                                {...field} 
+                                value={field.value || ''}
+                                onChange={(e) => {
+                                  // Convert to lowercase and replace spaces with hyphens
+                                  const value = e.target.value
+                                    .toLowerCase()
+                                    .replace(/\s+/g, '-')
+                                    .replace(/[^a-z0-9-]/g, '');
+                                  field.onChange(value);
+                                }}
+                                placeholder="your-custom-url"
+                                className={slugLength === 0 ? "border-red-300 focus-visible:ring-red-500" : ""}
+                              />
+                            </FormControl>
+                          </div>
+                          
+                          {/* Slug quality indicator */}
+                          {slugLength > 0 && (
+                            <div className={`mt-2 text-xs px-2 py-1 rounded-md inline-flex items-center ${qualityColors[slugQuality]}`}>
+                              {slugQuality === 'excellent' && (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                              {slugFeedback}
+                            </div>
+                          )}
+                          
+                          <FormDescription>
+                            <p>Create a custom URL for your profile. Only lowercase letters, numbers, and hyphens are allowed.</p>
+                            <ul className="list-disc pl-5 mt-1 space-y-1">
+                              <li>Keep it short and memorable (3-15 characters is ideal)</li>
+                              <li>Include your name or expertise (e.g., "john-smith-realtor")</li>
+                              <li>Avoid numbers unless they're part of your brand</li>
+                              <li>A consistent URL helps improve your visibility and makes it easier for people to find you</li>
+                            </ul>
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </div>
               </div>

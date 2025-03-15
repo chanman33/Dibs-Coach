@@ -12,6 +12,7 @@ import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { useBrowseCoaches } from '@/utils/hooks/useBrowseCoaches'
 import { BrowseCoachData } from '@/utils/types/browse-coaches'
 import { CoachFilters } from '@/components/coaching/shared/SearchAndFilter/types'
+import { useRouter } from 'next/navigation'
 
 export interface BrowseCoachesProps {
   role: keyof typeof USER_CAPABILITIES;
@@ -31,10 +32,12 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
   const [selectedCoach, setSelectedCoach] = useState<BrowseCoachData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filters, setFilters] = useState<CoachFilters>({});
+  const router = useRouter();
 
   const handleCoachClick = (coach: BrowseCoachData) => {
-    setSelectedCoach(coach);
-    setIsModalOpen(true);
+    // Navigate to the coach profile page using the profileSlug if available, otherwise use the ulid
+    const profilePath = coach.profileSlug || coach.ulid;
+    router.push(`/profile/${profilePath}`);
   };
 
   const handleFiltersChange = (newFilters: CoachFilters) => {
@@ -95,6 +98,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
             maximumDuration: coach.maximumDuration,
             isActive: coach.isActive
           }}
+          profileSlug={coach.profileSlug}
         />
       ))}
     </div>
@@ -141,6 +145,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
             maximumDuration: coach.maximumDuration || 90,
             isActive: coach.isActive
           }}
+          profileSlug={coach.profileSlug}
         />
       ))}
     </div>
@@ -306,6 +311,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
             coachSkills: selectedCoach.coachSkills || [],
             coachRealEstateDomains: selectedCoach.coachRealEstateDomains || [],
             coachPrimaryDomain: selectedCoach.coachPrimaryDomain,
+            profileSlug: selectedCoach.profileSlug,
             sessionConfig: {
               durations: [
                 selectedCoach.minimumDuration,
