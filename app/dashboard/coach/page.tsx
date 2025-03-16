@@ -15,9 +15,10 @@ import {
 } from "@/components/ui/select"
 import { DEFAULT_AVATARS } from '@/utils/constants'
 import { useEffect, useState } from 'react'
-import { fetchCoachDashboardStats, CoachDashboardStats } from '@/utils/actions/coach-dashboard-actions'
+import { fetchCoachDashboardStats, CoachDashboardStats, fetchTopMentees } from '@/utils/actions/coach-dashboard-actions'
 import { fetchUpcomingSessions } from '@/utils/actions/sessions'
 import { TransformedSession } from '@/utils/types/session'
+import { TopMentee } from '@/utils/types/mentee'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { createClient } from '@/utils/supabase/client'
@@ -36,8 +37,11 @@ const DEFAULT_AVATAR = "https://utfs.io/f/[your-default-avatar-url]" // Replace 
 function CoachDashboard() {
   const [dashboardStats, setDashboardStats] = useState<CoachDashboardStats | null>(null)
   const [upcomingSessions, setUpcomingSessions] = useState<TransformedSession[]>([])
+  const [topMentees, setTopMentees] = useState<TopMentee[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingSessions, setIsLoadingSessions] = useState(true)
+  const [isLoadingTopMentees, setIsLoadingTopMentees] = useState(true)
+  const [topMenteesTimeframe, setTopMenteesTimeframe] = useState<'90days' | 'allTime'>('90days')
   const [coachProfileId, setCoachProfileId] = useState<string | null>(null)
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const { userUlid } = useAuthContext()
@@ -160,9 +164,32 @@ function CoachDashboard() {
       }
     }
 
+    const loadTopMentees = async () => {
+      try {
+        setIsLoadingTopMentees(true)
+        
+        const result = await fetchTopMentees({
+          timeframe: topMenteesTimeframe,
+          limit: 5
+        })
+        
+        if (result.error) {
+          console.error('[TOP_MENTEES_ERROR]', result.error)
+          return
+        }
+        
+        setTopMentees(result.data || [])
+      } catch (error) {
+        console.error('[TOP_MENTEES_ERROR]', error)
+      } finally {
+        setIsLoadingTopMentees(false)
+      }
+    }
+
     loadDashboardStats()
     loadUpcomingSessions()
-  }, [])
+    loadTopMentees()
+  }, [userUlid, topMenteesTimeframe])
 
   return (
     <div className="flex flex-col justify-center items-start flex-wrap px-4 pt-4 gap-4">
@@ -480,7 +507,10 @@ function CoachDashboard() {
             <div className="grid gap-2">
               <div className="flex items-center gap-4">
                 <CardTitle>Top Mentees</CardTitle>
-                <Select defaultValue="90days">
+                <Select 
+                  defaultValue="90days" 
+                  onValueChange={(value) => setTopMenteesTimeframe(value as 'allTime' | '90days')}
+                >
                   <SelectTrigger className="w-[130px] h-8 text-xs">
                     <SelectValue placeholder="Select period" />
                   </SelectTrigger>
@@ -501,85 +531,73 @@ function CoachDashboard() {
           </CardHeader>
           <CardContent>
             <div style={{ maxHeight: "320px", overflowY: "auto" }}>
-              <div className="space-y-6">
-                <div className="flex items-center">
-                <Avatar className="h-9 w-9">
-                    <AvatarImage 
-                      src={DEFAULT_AVATARS.COACH} 
-                      alt="Avatar"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = DEFAULT_AVATARS.PLACEHOLDER;
-                        target.onerror = null;
-                      }}
-                    />
-                    <AvatarFallback>RK</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">Sarah Johnson</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>12 sessions completed</span>
-                      <span>•</span>
-                      <span className="text-emerald-500">$2.4k revenue</span>
+              {isLoadingTopMentees ? (
+                <div className="flex flex-col space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center space-x-4">
+                      <div className="h-9 w-9 rounded-full bg-gray-200 animate-pulse" />
+                      <div className="space-y-2 flex-1">
+                        <div className="h-4 w-24 bg-gray-200 animate-pulse rounded" />
+                        <div className="h-3 w-32 bg-gray-200 animate-pulse rounded" />
+                      </div>
                     </div>
-                  </div>
-                  <Button variant="ghost" size="icon" className="ml-auto">
-                    <MessageSquare className="h-4 w-4" />
-                  </Button>
+                  ))}
                 </div>
-
-                <div className="flex items-center">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage 
-                      src={DEFAULT_AVATARS.COACH} 
-                      alt="Avatar"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = DEFAULT_AVATARS.PLACEHOLDER;
-                        target.onerror = null;
-                      }}
-                    />
-                    <AvatarFallback>RK</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">Michael Rodriguez</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>8 sessions completed</span>
-                      <span>•</span>
-                      <span className="text-emerald-500">$1.6k revenue</span>
+              ) : topMentees.length > 0 ? (
+                <div className="space-y-6">
+                  {topMentees.map((mentee) => (
+                    <div key={mentee.ulid} className="flex items-center">
+                      <Avatar className="h-9 w-9">
+                        <AvatarImage 
+                          src={mentee.profileImageUrl || DEFAULT_AVATARS.PLACEHOLDER} 
+                          alt={`${mentee.firstName || ''} ${mentee.lastName || ''}`}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = DEFAULT_AVATARS.PLACEHOLDER;
+                            target.onerror = null;
+                          }}
+                        />
+                        <AvatarFallback>
+                          {mentee.firstName?.[0] || ''}
+                          {mentee.lastName?.[0] || ''}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="ml-4 space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {mentee.firstName || ''} {mentee.lastName || ''}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{mentee.sessionsCompleted} sessions completed</span>
+                          <span>•</span>
+                          <span className="text-emerald-500">
+                            {mentee.revenue >= 1000 
+                              ? `$${(mentee.revenue / 1000).toFixed(1)}k revenue` 
+                              : `$${mentee.revenue.toFixed(0)} revenue`}
+                          </span>
+                        </div>
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="ml-auto"
+                        asChild
+                      >
+                        <Link href={`/dashboard/coach/clients?menteeId=${mentee.ulid}`}>
+                          <MessageSquare className="h-4 w-4" />
+                        </Link>
+                      </Button>
                     </div>
-                  </div>
-                  <Button variant="ghost" size="icon" className="ml-auto">
-                    <MessageSquare className="h-4 w-4" />
-                  </Button>
+                  ))}
                 </div>
-
-                <div className="flex items-center">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage 
-                      src={DEFAULT_AVATARS.COACH} 
-                      alt="Avatar"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = DEFAULT_AVATARS.PLACEHOLDER;
-                        target.onerror = null;
-                      }}
-                    />
-                    <AvatarFallback>EL</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">Emma Liu</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>7 sessions completed</span>
-                      <span>•</span>
-                      <span className="text-emerald-500">$1.4k revenue</span>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="icon" className="ml-auto">
-                    <MessageSquare className="h-4 w-4" />
-                  </Button>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Users className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
+                  <p className="text-sm font-medium">No mentee data available</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Complete coaching sessions to see your top performing mentees
+                  </p>
                 </div>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>

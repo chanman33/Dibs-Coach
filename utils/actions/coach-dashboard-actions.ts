@@ -4,6 +4,7 @@ import { createAuthClient } from '@/utils/auth'
 import { withServerAction } from '@/utils/middleware/withServerAction'
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { ApiResponse } from '@/utils/types'
+import { TopMentee } from '@/utils/types/mentee'
 
 export interface CoachDashboardStats {
   totalClients: number
@@ -255,6 +256,117 @@ export const fetchCoachDashboardStats = withServerAction<CoachDashboardStats>(
       }
     } catch (error) {
       console.error('[COACH_DASHBOARD_ERROR]', error)
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      }
+    }
+  },
+  {
+    requiredCapabilities: [USER_CAPABILITIES.COACH]
+  }
+)
+
+/**
+ * Fetches top mentees for a coach based on revenue
+ */
+export interface FetchTopMenteesParams {
+  timeframe?: '90days' | 'allTime'
+  limit?: number
+}
+
+export const fetchTopMentees = withServerAction<TopMentee[]>(
+  async (params: FetchTopMenteesParams = {}, { userUlid, roleContext }) => {
+    try {
+      // Check if user has COACH capability
+      if (!roleContext.capabilities?.includes(USER_CAPABILITIES.COACH)) {
+        return {
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only coaches can access this endpoint'
+          }
+        }
+      }
+
+      const supabase = await createAuthClient()
+      
+      // Calculate date for filtering (90 days ago or all time)
+      const filterDate = params.timeframe === '90days' 
+        ? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString() 
+        : undefined
+      
+      // First get all completed sessions with payment info
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('Session')
+        .select(`
+          ulid,
+          menteeUlid,
+          status,
+          priceAmount,
+          mentee:User!menteeUlid (
+            ulid,
+            firstName,
+            lastName,
+            profileImageUrl
+          )
+        `)
+        .eq('coachUlid', userUlid)
+        .eq('status', 'COMPLETED')
+        .order('startTime', { ascending: false })
+        .gte('startTime', filterDate)
+      
+      if (sessionsError) {
+        console.error('[FETCH_TOP_MENTEES_ERROR]', sessionsError)
+        return {
+          data: [],
+          error: {
+            code: 'DATABASE_ERROR',
+            message: 'Failed to fetch session data',
+            details: sessionsError
+          }
+        }
+      }
+      
+      // Group sessions by mentee and calculate metrics
+      const menteeMap = new Map<string, TopMentee>()
+      
+      sessions?.forEach(session => {
+        const menteeUlid = session.menteeUlid
+        const mentee = session.mentee
+        const sessionAmount = session.priceAmount || 0
+        
+        if (!menteeMap.has(menteeUlid)) {
+          menteeMap.set(menteeUlid, {
+            ulid: menteeUlid,
+            firstName: mentee?.firstName,
+            lastName: mentee?.lastName,
+            profileImageUrl: mentee?.profileImageUrl,
+            sessionsCompleted: 0,
+            revenue: 0
+          })
+        }
+        
+        const menteeData = menteeMap.get(menteeUlid)!
+        menteeData.sessionsCompleted += 1
+        menteeData.revenue += sessionAmount
+      })
+      
+      // Convert to array and sort by revenue (highest first)
+      const sortedMentees = Array.from(menteeMap.values())
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, params.limit || 5) // Get top N mentees
+      
+      return {
+        data: sortedMentees,
+        error: null
+      }
+    } catch (error) {
+      console.error('[FETCH_TOP_MENTEES_ERROR]', error)
       return {
         data: null,
         error: {

@@ -10,6 +10,16 @@ export interface BaseProfile {
   primaryMarket: string | null
 }
 
+// Interface for top mentees in coach dashboard
+export interface TopMentee {
+  ulid: string
+  firstName: string | null
+  lastName: string | null
+  profileImageUrl: string | null
+  sessionsCompleted: number
+  revenue: number
+}
+
 // Domain-specific profile interfaces
 export interface RealtorProfile extends BaseProfile {
   type: 'REALTOR'
