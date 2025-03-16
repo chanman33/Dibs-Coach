@@ -523,7 +523,7 @@ function CoachDashboard() {
               <CardDescription>Your most engaged and valuable mentees</CardDescription>
             </div>
             <Button asChild size="sm" className="ml-auto gap-1">
-              <Link href="/dashboard/coach/clients">
+              <Link href="/dashboard/coach/crm">
                 View All
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
