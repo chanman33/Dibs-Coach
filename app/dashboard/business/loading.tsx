@@ -1,13 +1,15 @@
 "use client"
 
-import { Loader2 } from "lucide-react"
+import { ContainerLoading } from "@/components/loading"
 
 export default function Loading() {
   return (
     <div className="flex-1 p-6">
-      <div className="flex h-full w-full items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
+      <ContainerLoading 
+        message="Loading business dashboard..."
+        spinnerSize="md"
+        minHeight="h-full" 
+      />
     </div>
   )
 } 

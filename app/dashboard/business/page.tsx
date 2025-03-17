@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Target, ArrowUpRight, TrendingUp, DollarSign, Star, MessageSquare, Building2, Briefcase, GraduationCap, Map, AlertCircle } from "lucide-react"
-import { withRole } from "@/components/wrapper/with-role"
+import { WithOrganizationAuth } from "@/components/auth/with-organization-auth"
 import { SYSTEM_ROLES, ORG_ROLES, ORG_LEVELS, PERMISSIONS } from "@/utils/roles/roles"
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -282,7 +282,7 @@ function BusinessDashboard() {
   )
 }
 
-export default withRole(BusinessDashboard, {
+export default WithOrganizationAuth(BusinessDashboard, {
   requiredSystemRole: SYSTEM_ROLES.USER,
   requiredOrgRole: ORG_ROLES.OWNER,
   requiredOrgLevel: ORG_LEVELS.LOCAL,

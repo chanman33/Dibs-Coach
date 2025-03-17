@@ -3,9 +3,10 @@
 import { useAuth } from '@clerk/nextjs'
 import { useRouter } from 'next/navigation'
 import { useAuthContext } from './providers'
+import { ContainerLoading } from '@/components/loading'
 import type { SystemRole, UserCapability } from '@/utils/roles/roles'
 
-interface WithAuthOptions {
+export interface WithAuthOptions {
   requiredSystemRole?: SystemRole
   requiredCapabilities?: UserCapability[]
   requireAll?: boolean
@@ -21,7 +22,7 @@ export function WithAuth<P extends object>(
     const authContext = useAuthContext()
 
     if (!isLoaded) {
-      return <div>Loading...</div>
+      return <ContainerLoading message="Verifying authentication..." />
     }
 
     if (!isSignedIn) {

@@ -21,10 +21,8 @@ import {
   Activity, 
   BarChart 
 } from 'lucide-react'
-
-// Required role and permissions for this page
-const requiredSystemRole = SYSTEM_ROLES.SYSTEM_OWNER
-const requiredPermissions = [PERMISSIONS.MANAGE_SYSTEM, PERMISSIONS.VIEW_ANALYTICS]
+import { WithAuth } from '@/components/auth'
+import { InlineLoading } from '@/components/loading'
 
 // Format helpers
 const formatNumber = (num: number) => new Intl.NumberFormat().format(num)
@@ -47,7 +45,7 @@ const getSystemStatus = (status: number): 'healthy' | 'degraded' | 'critical' =>
   }
 }
 
-export default function SystemDashboard() {
+function SystemDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<DashboardData | null>(null)
@@ -180,10 +178,7 @@ export default function SystemDashboard() {
           size="sm"
         >
           {refreshing ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Refreshing...
-            </>
+            <InlineLoading text="Refreshing..." spinnerColor="inherit" />
           ) : (
             <>
               <RefreshCw className="mr-2 h-4 w-4" />
@@ -325,4 +320,9 @@ export default function SystemDashboard() {
     </div>
   )
 }
+
+// Export the component wrapped with authentication
+export default WithAuth(SystemDashboard, {
+  requiredSystemRole: SYSTEM_ROLES.SYSTEM_OWNER
+});
 

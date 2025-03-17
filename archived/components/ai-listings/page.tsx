@@ -7,7 +7,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { withRole } from "@/components/wrapper/with-role"
+import { WithOrganizationAuth } from "@/components/auth/with-organization-auth"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Building2, ImageIcon, Loader2, X } from "lucide-react"
 import Image from "next/image"
