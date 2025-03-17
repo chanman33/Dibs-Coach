@@ -15,6 +15,7 @@ import {
   FileText,
   Briefcase,
   BarChart3,
+  Building2,
 } from "lucide-react"
 
 export function SystemSidebar() {
@@ -74,6 +75,14 @@ export function SystemSidebar() {
             </NavLink>
             <NavLink href="/dashboard/system/lead-analytics" icon={BarChart3}>
               Lead Analytics
+            </NavLink>
+
+            <Separator className="my-2" />
+
+            {/* Organizations */}
+            <div className="text-xs uppercase text-gray-500 mt-2 mb-1">Organizations</div>
+            <NavLink href="/dashboard/system/organizations" icon={Building2}>
+              Manage Organizations
             </NavLink>
 
             <Separator className="my-2" />

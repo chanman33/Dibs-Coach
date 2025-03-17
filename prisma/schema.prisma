@@ -153,12 +153,7 @@ model Organization {
   primaryDomain     RealEstateDomain?
   domains           RealEstateDomain[]
   licenseNumbers    Json?
-  serviceAreas      String[]
   specializations   String[]
-  certifications    String[]
-  totalTransactions Int?
-  transactionVolume Decimal?             @db.Decimal(12, 2)
-  activeAgents      Int?
   createdAt         DateTime             @default(now()) @db.Timestamptz(6)
   updatedAt         DateTime             @updatedAt @db.Timestamptz(6)
   marketingProfile  MarketingProfile?
