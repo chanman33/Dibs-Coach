@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { ReactNode, useState } from "react";
+import { OrganizationProvider } from "@/utils/auth/OrganizationContext";
 
 export default function Provider({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -15,8 +16,10 @@ export default function Provider({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ReactQueryDevtools initialIsOpen={false} />
-      {children}
+      <OrganizationProvider>
+        <ReactQueryDevtools initialIsOpen={false} />
+        {children}
+      </OrganizationProvider>
     </QueryClientProvider>
   );
 }

@@ -4,6 +4,8 @@ import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import clsx from "clsx"
+import { SidebarOrganizationSection } from "@/components/organization/sidebar-organization-section"
+import { useOrganization } from "@/utils/auth/OrganizationContext"
 import {
   Users,
   Settings,
@@ -20,7 +22,7 @@ import {
 
 export function SystemSidebar() {
   const pathname = usePathname()
-
+  
   const NavLink = ({ href, icon: Icon, children }: { href: string; icon: any; children: React.ReactNode }) => (
     <Link
       href={href}
@@ -35,14 +37,21 @@ export function SystemSidebar() {
   )
 
   return (
-    <div className="lg:block hidden border-r h-full">
-      <div className="flex h-full max-h-screen flex-col gap-2">
-        <div className="flex h-[55px] items-center justify-between border-b px-3 w-full">
-          <Link className="flex items-center gap-2 font-semibold ml-1" href="/dashboard/system">
-            <span>System Portal</span>
-          </Link>
+    <div className="lg:block hidden border-r h-screen sticky top-0">
+      <div className="flex h-full flex-col">
+        <div className="flex flex-col border-b">
+          {/* Portal header */}
+          <div className="flex h-[55px] items-center px-3">
+            <Link className="flex items-center gap-2 font-semibold ml-1" href="/dashboard/system">
+              <span>System Portal</span>
+            </Link>
+          </div>
+          
+          {/* Organization Switcher - Uses the shared component */}
+          <SidebarOrganizationSection />
         </div>
-        <div className="flex-1 overflow-auto py-2">
+        
+        <div className="flex-1 overflow-y-auto py-2">
           <nav className="grid items-start px-4 text-sm font-medium gap-1">
             {/* Overview */}
             <NavLink href="/dashboard/system" icon={HomeIcon}>

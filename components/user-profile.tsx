@@ -21,11 +21,14 @@ import {
     Settings,
     User,
     UserCircle,
-    LayoutDashboard
+    LayoutDashboard,
+    Building,
+    LayoutGrid
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState } from "react"
+import { useOrganization } from "@/utils/auth/OrganizationContext"
 
 // Default image placeholder
 const DEFAULT_IMAGE_URL = '/placeholder.svg';
@@ -64,6 +67,7 @@ export function UserProfile() {
     const router = useRouter()
     const pathname = usePathname()
     const [imgError, setImgError] = useState(false)
+    const { organizationName, organizationRole } = useOrganization();
     
     // Only use Clerk's useUser if auth is enabled
     const { user, isLoaded } = config.auth.enabled 
@@ -109,10 +113,27 @@ export function UserProfile() {
                             <span>Dashboard</span>
                         </DropdownMenuItem>
                     </Link>
+                    {organizationName && (
+                        <>
+                            <Link href="/dashboard/settings?tab=organizations">
+                                <DropdownMenuItem className="flex items-center justify-between">
+                                    <div className="flex items-center">
+                                        <Building className="mr-2 h-4 w-4" />
+                                        <span className="truncate max-w-[160px]">{organizationName}</span>
+                                    </div>
+                                    {organizationRole && (
+                                        <span className="text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5 ml-2">
+                                            {organizationRole}
+                                        </span>
+                                    )}
+                                </DropdownMenuItem>
+                            </Link>
+                        </>
+                    )}
                     <Link href="/dashboard/settings">
                         <DropdownMenuItem>
                             <Settings className="mr-2 h-4 w-4" />
-                            <span>Settings</span>
+                            <span>Account Settings</span>
                         </DropdownMenuItem>
                     </Link>
                 </DropdownMenuGroup>

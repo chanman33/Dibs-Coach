@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import clsx from "clsx"
+import { OrganizationSwitcher } from "@/components/organization/organization-switcher"
 import {
   Users,
   CalendarDays,
@@ -24,6 +25,7 @@ import {
 import { useAuthContext } from "@/components/auth/providers"
 import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
 import { fetchUserCapabilities } from "@/utils/actions/user-profile-actions"
+import { SidebarOrganizationSection } from "@/components/organization/sidebar-organization-section"
 
 export function CoachSidebar() {
   const pathname = usePathname()
@@ -65,13 +67,20 @@ export function CoachSidebar() {
 
   return (
     <div className="lg:block hidden border-r h-screen sticky top-0">
-      <div className="flex h-full flex-col gap-2">
-        <div className="flex h-[55px] items-center justify-between border-b px-3 w-full">
-          <Link className="flex items-center gap-2 font-semibold ml-1" href="/dashboard/coach">
-            <span>Coach Portal</span>
-          </Link>
+      <div className="flex h-full flex-col">
+        <div className="flex flex-col border-b">
+          {/* Portal header */}
+          <div className="flex h-[55px] items-center px-3">
+            <Link className="flex items-center gap-2 font-semibold ml-1" href="/dashboard/coach">
+              <span>Coach Portal</span>
+            </Link>
+          </div>
+          
+          {/* Organization Switcher - Uses the shared component */}
+          <SidebarOrganizationSection />
         </div>
-        <div className="flex-1 overflow-auto py-2">
+        
+        <div className="flex-1 overflow-y-auto py-2">
           <nav className="grid items-start px-4 text-sm font-medium gap-1">
             {/* Main Navigation */}
             <NavLink href="/dashboard/coach" icon={HomeIcon}>

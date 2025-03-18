@@ -1,0 +1,131 @@
+'use client';
+
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+
+export interface OrganizationContextType {
+  organizationUlid: string | null;
+  setOrganizationUlid: (id: string | null) => void;
+  organizationName: string | null;
+  organizationRole: string | null;
+  isLoading: boolean;
+  organizations: OrganizationMember[];
+  refreshOrganizations: () => Promise<void>;
+}
+
+export interface OrganizationMember {
+  organizationUlid: string;
+  organization: {
+    name: string;
+    type: string;
+    status: string;
+    tier: string;
+  };
+  role: string;
+  status: string;
+  joinedAt: string;
+}
+
+const OrganizationContext = createContext<OrganizationContextType | undefined>(undefined);
+
+export const useOrganization = () => {
+  const context = useContext(OrganizationContext);
+  if (context === undefined) {
+    throw new Error('useOrganization must be used within an OrganizationProvider');
+  }
+  return context;
+};
+
+export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
+  const [organizationUlid, setOrganizationUlid] = useState<string | null>(null);
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
+  const [organizationRole, setOrganizationRole] = useState<string | null>(null);
+  const [organizations, setOrganizations] = useState<OrganizationMember[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Load active organization from localStorage on initial render
+    const storedOrgId = localStorage.getItem('activeOrganizationUlid');
+    if (storedOrgId) {
+      setOrganizationUlid(storedOrgId);
+    }
+    
+    // Fetch user's organizations
+    fetchOrganizations();
+  }, []);
+
+  useEffect(() => {
+    // When organizationUlid changes, update localStorage
+    if (organizationUlid) {
+      localStorage.setItem('activeOrganizationUlid', organizationUlid);
+      
+      // Find the organization in the list and update name and role
+      const activeOrg = organizations.find(org => org.organizationUlid === organizationUlid);
+      if (activeOrg) {
+        setOrganizationName(activeOrg.organization.name);
+        setOrganizationRole(activeOrg.role);
+        console.log('[ORGANIZATION_CONTEXT] Organization switched:', {
+          id: organizationUlid,
+          name: activeOrg.organization.name,
+          role: activeOrg.role,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        console.warn('[ORGANIZATION_CONTEXT] Organization not found in list:', {
+          id: organizationUlid,
+          organizations: organizations.map(o => ({id: o.organizationUlid, name: o.organization.name})),
+          timestamp: new Date().toISOString()
+        });
+      }
+    } else {
+      localStorage.removeItem('activeOrganizationUlid');
+      setOrganizationName(null);
+      setOrganizationRole(null);
+      console.log('[ORGANIZATION_CONTEXT] Organization context cleared', {
+        timestamp: new Date().toISOString()
+      });
+    }
+  }, [organizationUlid, organizations]);
+
+  const fetchOrganizations = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/user/organizations');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch organizations');
+      }
+      
+      const data = await response.json();
+      setOrganizations(data.organizations || []);
+      
+      // If we have organizations but no active one selected, select the first one
+      if (data.organizations?.length > 0 && !organizationUlid) {
+        setOrganizationUlid(data.organizations[0].organizationUlid);
+      }
+    } catch (error) {
+      console.error('Error fetching organizations:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const refreshOrganizations = async () => {
+    await fetchOrganizations();
+  };
+
+  return (
+    <OrganizationContext.Provider
+      value={{
+        organizationUlid,
+        setOrganizationUlid,
+        organizationName,
+        organizationRole,
+        isLoading,
+        organizations,
+        refreshOrganizations
+      }}
+    >
+      {children}
+    </OrganizationContext.Provider>
+  );
+}; 
