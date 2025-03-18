@@ -8,9 +8,9 @@ export default function SystemLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex h-screen">
+    <div className="flex h-full">
       <SystemSidebar />
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-auto">
         {children}
       </main>
     </div>

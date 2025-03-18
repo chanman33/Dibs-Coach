@@ -20,6 +20,10 @@ import { OrganizationSettingsPanel } from '../_components/organization-settings-
 import { OrganizationActivityPanel } from '../_components/organization-activity-panel'
 import { OrganizationAnalyticsPanel } from '../_components/organization-analytics-panel'
 import { OrganizationBillingPanel } from '../_components/organization-billing-panel'
+import config from '@/config'
+
+// Use the global configuration to determine if billing is enabled
+const BILLING_ENABLED = config.payments.enabled
 
 interface OrganizationDetailPageProps {
   params: {
@@ -179,7 +183,7 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-6 w-full">
+        <TabsList className={`grid ${BILLING_ENABLED ? 'grid-cols-6' : 'grid-cols-5'} w-full`}>
           <TabsTrigger value="details">
             <Building2 className="mr-2 h-4 w-4" />
             Details
@@ -196,10 +200,12 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
             <BarChart3 className="mr-2 h-4 w-4" />
             Analytics
           </TabsTrigger>
-          <TabsTrigger value="billing">
-            <CreditCard className="mr-2 h-4 w-4" />
-            Billing
-          </TabsTrigger>
+          {BILLING_ENABLED && (
+            <TabsTrigger value="billing">
+              <CreditCard className="mr-2 h-4 w-4" />
+              Billing
+            </TabsTrigger>
+          )}
           <TabsTrigger value="activity">
             <Clock className="mr-2 h-4 w-4" />
             Activity
@@ -222,9 +228,11 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
           <OrganizationAnalyticsPanel orgId={orgId} />
         </TabsContent>
 
-        <TabsContent value="billing" className="space-y-4">
-          <OrganizationBillingPanel orgId={orgId} />
-        </TabsContent>
+        {BILLING_ENABLED && (
+          <TabsContent value="billing" className="space-y-4">
+            <OrganizationBillingPanel orgId={orgId} />
+          </TabsContent>
+        )}
 
         <TabsContent value="activity" className="space-y-4">
           <OrganizationActivityPanel orgId={orgId} />

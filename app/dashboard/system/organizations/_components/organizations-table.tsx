@@ -30,6 +30,7 @@ import {
   Clock
 } from "lucide-react"
 import { format } from 'date-fns'
+import config from "@/config"
 
 // This is a placeholder type until we properly define it in utils/types
 interface Organization {
@@ -189,10 +190,12 @@ export function OrganizationsTable({ organizations, loading }: OrganizationsTabl
                         <BarChart3 className="mr-2 h-4 w-4" />
                         Analytics
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleNavigation(org.ulid, '/billing')}>
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Billing
-                      </DropdownMenuItem>
+                      {config.payments.enabled && (
+                        <DropdownMenuItem onClick={() => handleNavigation(org.ulid, '/billing')}>
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          Billing
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={() => handleNavigation(org.ulid, '/activity')}>
                         <Clock className="mr-2 h-4 w-4" />
                         Activity Log

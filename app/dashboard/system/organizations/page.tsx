@@ -10,15 +10,14 @@ import {
   MoreHorizontal, 
   Edit, 
   Trash, 
-  Eye
+  Eye,
+  RefreshCw
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { 
   Card, 
   CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+  CardFooter
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { 
@@ -39,6 +38,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/use-toast'
+import { Pagination } from '@/components/ui/pagination'
 import { fetchAllOrganizations } from '@/utils/actions/organization-actions'
 
 interface Organization {
@@ -49,7 +49,6 @@ interface Organization {
   tier: string
   status: string
   memberCount: number
-  createdAt: string
 }
 
 export default function OrganizationsPage() {
@@ -60,6 +59,11 @@ export default function OrganizationsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortBy, setSortBy] = useState('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const fetchOrganizations = async () => {
     try {
@@ -106,9 +110,12 @@ export default function OrganizationsPage() {
       const filtered = organizations.filter(org => 
         org.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         org.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        org.industry.toLowerCase().includes(searchTerm.toLowerCase())
+        org.industry?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        org.tier.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        org.status.toLowerCase().includes(searchTerm.toLowerCase())
       )
       setFilteredOrganizations(filtered)
+      setCurrentPage(1) // Reset to first page when filtering
     } else {
       setFilteredOrganizations(organizations)
     }
@@ -127,18 +134,18 @@ export default function OrganizationsPage() {
     }
   }
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await fetchOrganizations()
+    setIsRefreshing(false)
+  }
+
   const getSortedOrganizations = () => {
     return [...filteredOrganizations].sort((a, b) => {
       if (sortBy === 'memberCount') {
         return sortDirection === 'asc' 
           ? a.memberCount - b.memberCount
           : b.memberCount - a.memberCount
-      }
-      
-      if (sortBy === 'createdAt') {
-        return sortDirection === 'asc'
-          ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       }
       
       const aValue = a[sortBy as keyof Organization] || ''
@@ -148,6 +155,22 @@ export default function OrganizationsPage() {
         ? aValue.toString().localeCompare(bValue.toString())
         : bValue.toString().localeCompare(aValue.toString())
     })
+  }
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredOrganizations.length / itemsPerPage)
+  const paginatedOrganizations = getSortedOrganizations().slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    // Scroll to top of the table
+    const tableElement = document.querySelector('.organizations-table')
+    if (tableElement) {
+      tableElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
   }
 
   const getStatusBadgeVariant = (status: string) => {
@@ -165,48 +188,63 @@ export default function OrganizationsPage() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
+  const getTierBadgeVariant = (tier: string) => {
+    switch (tier.toUpperCase()) {
+      case 'FREE':
+        return 'secondary'
+      case 'STARTER':
+        return 'default'
+      case 'PROFESSIONAL':
+        return 'default'
+      case 'ENTERPRISE':
+        return 'success'
+      case 'PARTNER':
+        return 'default'
+      default:
+        return 'outline'
+    }
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
           <p className="text-muted-foreground mt-1">
             Manage and monitor organizations in the platform
           </p>
         </div>
-        <Link href="/dashboard/system/organizations/new">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Organization
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing || loading}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
-        </Link>
+          <Link href="/dashboard/system/organizations/new">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Organization
+            </Button>
+          </Link>
+        </div>
+      </div>
+      
+      <div className="mb-4 relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input 
+          placeholder="Search by name, type, industry, tier or status..." 
+          value={searchTerm}
+          onChange={handleSearch}
+          className="max-w-md pl-9"
+        />
       </div>
       
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>All Organizations</CardTitle>
-          <CardDescription>
-            A list of all organizations registered in the platform
-          </CardDescription>
-          <div className="mt-2 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search by name, type, or industry..." 
-              value={searchTerm}
-              onChange={handleSearch}
-              className="max-w-md pl-9"
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="organizations-table pt-6">
           {loading ? (
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -231,132 +269,147 @@ export default function OrganizationsPage() {
             </div>
           ) : (
             <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[300px]">
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleSort('name')}
-                        className="flex items-center gap-1 font-medium"
-                      >
-                        Name
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleSort('type')}
-                        className="flex items-center gap-1 font-medium"
-                      >
-                        Type
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleSort('industry')}
-                        className="flex items-center gap-1 font-medium"
-                      >
-                        Industry
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleSort('tier')}
-                        className="flex items-center gap-1 font-medium"
-                      >
-                        Tier
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleSort('status')}
-                        className="flex items-center gap-1 font-medium"
-                      >
-                        Status
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleSort('memberCount')}
-                        className="flex items-center gap-1 font-medium"
-                      >
-                        Members
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </TableHead>
-                    <TableHead>
-                      <Button
-                        variant="ghost"
-                        onClick={() => handleSort('createdAt')}
-                        className="flex items-center gap-1 font-medium"
-                      >
-                        Created
-                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                      </Button>
-                    </TableHead>
-                    <TableHead className="w-[100px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {getSortedOrganizations().map((org) => (
-                    <TableRow key={org.ulid}>
-                      <TableCell className="font-medium">{org.name}</TableCell>
-                      <TableCell>{org.type}</TableCell>
-                      <TableCell>{org.industry}</TableCell>
-                      <TableCell>{org.tier}</TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusBadgeVariant(org.status) as any}>
-                          {org.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{org.memberCount}</TableCell>
-                      <TableCell>{formatDate(org.createdAt)}</TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/system/organizations/${org.ulid}`}>
-                                <Eye className="mr-2 h-4 w-4" />
-                                View
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/system/organizations/${org.ulid}/edit`}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Edit
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Trash className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+              <div className="max-h-[600px] overflow-auto">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead className="w-[250px]">
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('name')}
+                          className="flex items-center gap-1 font-medium"
+                        >
+                          Organization
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="hidden md:table-cell">
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('type')}
+                          className="flex items-center gap-1 font-medium"
+                        >
+                          Type
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="hidden lg:table-cell">
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('tier')}
+                          className="flex items-center gap-1 font-medium"
+                        >
+                          Tier
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead>
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('status')}
+                          className="flex items-center gap-1 font-medium"
+                        >
+                          Status
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="text-center hidden sm:table-cell">
+                        <Button
+                          variant="ghost"
+                          onClick={() => handleSort('memberCount')}
+                          className="flex items-center gap-1 font-medium justify-center"
+                        >
+                          Members
+                          <ArrowUpDown className="ml-2 h-4 w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="w-[120px] text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedOrganizations.map((org) => (
+                      <TableRow key={org.ulid}>
+                        <TableCell>
+                          <div className="font-medium">{org.name}</div>
+                          <div className="text-xs text-muted-foreground md:hidden">
+                            {org.type} {org.industry ? `· ${org.industry}` : ''}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          <div>{org.type}</div>
+                          <div className="text-xs text-muted-foreground hidden lg:block">
+                            {org.industry}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <Badge variant={getTierBadgeVariant(org.tier) as any}>
+                            {org.tier}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusBadgeVariant(org.status) as any}>
+                            {org.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center hidden sm:table-cell">{org.memberCount}</TableCell>
+                        <TableCell className="text-right space-x-1">
+                          <Link href={`/dashboard/system/organizations/${org.ulid}`} className="inline-flex">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Eye className="h-4 w-4" />
+                              <span className="sr-only">View</span>
+                            </Button>
+                          </Link>
+                          <Link href={`/dashboard/system/organizations/${org.ulid}/edit`} className="inline-flex">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Edit className="h-4 w-4" />
+                              <span className="sr-only">Edit</span>
+                            </Button>
+                          </Link>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">More options</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/system/organizations/${org.ulid}/members`}>
+                                  Manage Members
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/system/organizations/${org.ulid}/settings`}>
+                                  Settings
+                                </Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           )}
         </CardContent>
+        {filteredOrganizations.length > 0 && !loading && (
+          <CardFooter className="flex justify-between items-center border-t px-6 py-4">
+            <div className="text-sm text-muted-foreground">
+              Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredOrganizations.length)} to {Math.min(currentPage * itemsPerPage, filteredOrganizations.length)} of {filteredOrganizations.length} organizations
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </CardFooter>
+        )}
       </Card>
     </div>
   )
