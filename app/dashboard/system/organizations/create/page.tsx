@@ -77,9 +77,24 @@ function CreateOrganizationPage() {
       
       const ulid = generateUlid()
       
+      // Add default feature settings and contact info
+      const metadata = {
+        featureSettings: {
+          enableCoaching: true,
+          enableAnalytics: true,
+          enableAI: false
+        },
+        contactInfo: {
+          email: values.primaryContact || '',
+          phone: values.phone || '',
+          website: values.website || ''
+        }
+      }
+      
       const result = await createOrganization({
         ...values,
         ulid,
+        metadata
       })
       
       if (result.error) {

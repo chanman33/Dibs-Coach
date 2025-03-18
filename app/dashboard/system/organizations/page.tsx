@@ -224,7 +224,7 @@ export default function OrganizationsPage() {
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Link href="/dashboard/system/organizations/new">
+          <Link href="/dashboard/system/organizations/create">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               Add Organization
@@ -359,12 +359,6 @@ export default function OrganizationsPage() {
                               <span className="sr-only">View</span>
                             </Button>
                           </Link>
-                          <Link href={`/dashboard/system/organizations/${org.ulid}#settings`} className="inline-flex">
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Edit className="h-4 w-4" />
-                              <span className="sr-only">Edit</span>
-                            </Button>
-                          </Link>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -383,9 +377,6 @@ export default function OrganizationsPage() {
                                 <Link href={`/dashboard/system/organizations/${org.ulid}#settings`}>
                                   Settings
                                 </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>

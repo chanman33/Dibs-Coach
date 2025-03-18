@@ -2,7 +2,6 @@ import { createClient } from '@supabase/supabase-js'
 import { ulid } from 'ulid'
 import dotenv from 'dotenv'
 import { OrgType, OrgIndustry, OrgTier, OrgStatus, OrgLevel } from '../utils/types/organization'
-import { REAL_ESTATE_DOMAINS } from '../utils/types/coach'
 
 dotenv.config()
 
@@ -58,23 +57,8 @@ interface MockOrganization {
     yearEstablished: number;
     serviceAreas: string[];
   };
-  primaryDomain: string;
-  domains: string[];
   specializations: string[];
 }
-
-// Mapping between OrgIndustry and RealEstateDomain
-const INDUSTRY_TO_DOMAIN_MAP = {
-  [OrgIndustry.REAL_ESTATE_SALES]: REAL_ESTATE_DOMAINS.REALTOR,
-  [OrgIndustry.MORTGAGE_LENDING]: REAL_ESTATE_DOMAINS.MORTGAGE,
-  [OrgIndustry.PROPERTY_MANAGEMENT]: REAL_ESTATE_DOMAINS.PROPERTY_MANAGER,
-  [OrgIndustry.REAL_ESTATE_INVESTMENT]: REAL_ESTATE_DOMAINS.INVESTOR,
-  [OrgIndustry.TITLE_ESCROW]: REAL_ESTATE_DOMAINS.TITLE_ESCROW,
-  [OrgIndustry.INSURANCE]: REAL_ESTATE_DOMAINS.INSURANCE,
-  [OrgIndustry.COMMERCIAL]: REAL_ESTATE_DOMAINS.COMMERCIAL,
-  [OrgIndustry.PRIVATE_CREDIT]: REAL_ESTATE_DOMAINS.PRIVATE_CREDIT,
-  [OrgIndustry.OTHER]: null
-} as const;
 
 // Mock data for organizations
 const mockOrganizations: MockOrganization[] = [
@@ -96,8 +80,6 @@ const mockOrganizations: MockOrganization[] = [
       yearEstablished: 2010,
       serviceAreas: ["San Francisco", "Oakland", "Berkeley"]
     },
-    primaryDomain: REAL_ESTATE_DOMAINS.REALTOR,
-    domains: [REAL_ESTATE_DOMAINS.REALTOR, REAL_ESTATE_DOMAINS.INVESTOR],
     specializations: ["Luxury Homes", "Urban Properties", "Condominiums"]
   },
   {
@@ -118,8 +100,6 @@ const mockOrganizations: MockOrganization[] = [
       yearEstablished: 2005,
       serviceAreas: ["Los Angeles", "San Diego", "Orange County"]
     },
-    primaryDomain: REAL_ESTATE_DOMAINS.PROPERTY_MANAGER,
-    domains: [REAL_ESTATE_DOMAINS.PROPERTY_MANAGER, REAL_ESTATE_DOMAINS.REALTOR],
     specializations: ["Commercial Properties", "Multi-Family Units", "Asset Management"]
   },
   {
@@ -140,8 +120,6 @@ const mockOrganizations: MockOrganization[] = [
       yearEstablished: 2018,
       serviceAreas: ["Portland", "Seattle", "Vancouver"]
     },
-    primaryDomain: REAL_ESTATE_DOMAINS.INVESTOR,
-    domains: [REAL_ESTATE_DOMAINS.INVESTOR],
     specializations: ["Eco-Friendly Homes", "Sustainable Construction", "Energy Efficiency"]
   },
   {
@@ -162,8 +140,6 @@ const mockOrganizations: MockOrganization[] = [
       yearEstablished: 2020,
       serviceAreas: ["Chicago", "Milwaukee"]
     },
-    primaryDomain: REAL_ESTATE_DOMAINS.PROPERTY_MANAGER,
-    domains: [REAL_ESTATE_DOMAINS.PROPERTY_MANAGER],
     specializations: ["Urban Apartments", "Rental Management", "Student Housing"]
   },
   {
@@ -184,8 +160,6 @@ const mockOrganizations: MockOrganization[] = [
       yearEstablished: 2008,
       serviceAreas: ["Miami", "Tampa", "Jacksonville"]
     },
-    primaryDomain: REAL_ESTATE_DOMAINS.REALTOR,
-    domains: [REAL_ESTATE_DOMAINS.REALTOR, REAL_ESTATE_DOMAINS.INVESTOR],
     specializations: ["Waterfront Properties", "Vacation Homes", "Luxury Real Estate"]
   },
   {
@@ -206,8 +180,6 @@ const mockOrganizations: MockOrganization[] = [
       yearEstablished: 2000,
       serviceAreas: ["National Coverage"]
     },
-    primaryDomain: REAL_ESTATE_DOMAINS.MORTGAGE,
-    domains: [REAL_ESTATE_DOMAINS.MORTGAGE],
     specializations: ["Residential Mortgages", "Commercial Loans", "Refinancing"]
   },
   {
@@ -228,8 +200,6 @@ const mockOrganizations: MockOrganization[] = [
       yearEstablished: 2012,
       serviceAreas: ["Phoenix", "Tucson", "Flagstaff"]
     },
-    primaryDomain: REAL_ESTATE_DOMAINS.TITLE_ESCROW,
-    domains: [REAL_ESTATE_DOMAINS.TITLE_ESCROW],
     specializations: ["Residential Closings", "Commercial Closings", "Title Insurance"]
   },
   {
@@ -250,8 +220,6 @@ const mockOrganizations: MockOrganization[] = [
       yearEstablished: 2015,
       serviceAreas: ["Texas", "Oklahoma", "Louisiana"]
     },
-    primaryDomain: REAL_ESTATE_DOMAINS.INSURANCE,
-    domains: [REAL_ESTATE_DOMAINS.INSURANCE],
     specializations: ["Homeowners Insurance", "Landlord Insurance", "Flood Insurance"]
   },
   {
@@ -272,8 +240,6 @@ const mockOrganizations: MockOrganization[] = [
       yearEstablished: 2007,
       serviceAreas: ["New York", "New Jersey", "Connecticut"]
     },
-    primaryDomain: REAL_ESTATE_DOMAINS.COMMERCIAL,
-    domains: [REAL_ESTATE_DOMAINS.COMMERCIAL, REAL_ESTATE_DOMAINS.INVESTOR],
     specializations: ["Retail Leasing", "Office Space", "Industrial Properties"]
   },
   {
@@ -294,8 +260,6 @@ const mockOrganizations: MockOrganization[] = [
       yearEstablished: 2016,
       serviceAreas: ["Denver", "Boulder", "Colorado Springs"]
     },
-    primaryDomain: REAL_ESTATE_DOMAINS.INVESTOR,
-    domains: [REAL_ESTATE_DOMAINS.INVESTOR, REAL_ESTATE_DOMAINS.PRIVATE_CREDIT],
     specializations: ["Multi-Family Investments", "Development Projects", "Value-Add Properties"]
   }
 ]
@@ -326,12 +290,6 @@ async function seedOrganizations() {
       const organizationUlid = ulid()
       const currentTime = new Date().toISOString()
       
-      // Ensure consistency between industry and domain
-      const primaryDomain = org.primaryDomain || 
-        (org.industry && INDUSTRY_TO_DOMAIN_MAP[org.industry as keyof typeof INDUSTRY_TO_DOMAIN_MAP]) || 
-        null;
-      const domains = org.domains || (primaryDomain ? [primaryDomain] : []);
-      
       // Create the organization
       const { error: orgError } = await supabase
         .from('Organization')
@@ -345,8 +303,6 @@ async function seedOrganizations() {
           tier: org.tier,
           level: org.level,
           metadata: org.metadata,
-          primaryDomain: primaryDomain,
-          domains: domains,
           specializations: org.specializations,
           createdAt: currentTime,
           updatedAt: currentTime

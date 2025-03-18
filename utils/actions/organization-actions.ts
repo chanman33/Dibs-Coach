@@ -352,6 +352,40 @@ export async function addOrganizationMember(data: z.infer<typeof addOrganization
 }
 
 /**
+ * Check if a user exists by email
+ */
+export async function checkUserExistsByEmail(email: string) {
+  try {
+    const supabase = createAuthClient()
+    
+    // Check if user exists by email
+    const { data: user, error: userError } = await supabase
+      .from('User')
+      .select('ulid, email, displayName')
+      .eq('email', email.trim())
+      .maybeSingle()
+    
+    if (userError) {
+      console.error('[CHECK_USER_EXISTS_ERROR]', userError)
+      return { exists: false, user: null, error: userError.message }
+    }
+    
+    return { 
+      exists: !!user, 
+      user: user ? {
+        ulid: user.ulid,
+        email: user.email,
+        name: user.displayName
+      } : null, 
+      error: null 
+    }
+  } catch (error) {
+    console.error('[CHECK_USER_EXISTS_ERROR]', error)
+    return { exists: false, user: null, error: 'Failed to check if user exists' }
+  }
+}
+
+/**
  * Update a member in an organization
  */
 export async function updateOrganizationMember(data: z.infer<typeof updateOrganizationMemberSchema>) {

@@ -150,8 +150,6 @@ model Organization {
   tier              OrgTier              @default(FREE)
   parentUlid        String?              @db.Char(26)
   metadata          Json?
-  primaryDomain     RealEstateDomain?
-  domains           RealEstateDomain[]
   licenseNumbers    Json?
   specializations   String[]
   createdAt         DateTime             @default(now()) @db.Timestamptz(6)
@@ -168,7 +166,6 @@ model Organization {
   @@index([type])
   @@index([level])
   @@index([parentUlid])
-  @@index([primaryDomain])
   @@map("Organization")
 }
 

@@ -73,19 +73,29 @@ export function OrganizationSettingsPanel({ organization, onUpdate }: Organizati
     industry: z.enum(Object.values(OrgIndustry) as [string, ...string[]]).optional(),
     status: z.enum(Object.values(OrgStatus) as [string, ...string[]]),
     tier: z.enum(Object.values(OrgTier) as [string, ...string[]]),
-    primaryDomain: z.string().optional().nullable(),
     featureSettings: z.record(z.boolean()).optional(),
+    contactInfo: z.object({
+      email: z.string().email('Invalid email address').optional(),
+      phone: z.string().optional(),
+      website: z.string().url('Invalid URL format').optional(),
+    }).optional(),
   })
   
   type SettingsFormValues = z.infer<typeof formSchema>
   
   // Get feature settings from metadata
   const featureSettings = organization.metadata?.featureSettings || {
-    enableAI: true,
+    enableAI: false,
     enableCoaching: true,
     enableAnalytics: true,
     enableBulkUpload: false,
-    enableCustomization: false,
+  }
+  
+  // Get contact info from metadata
+  const contactInfo = organization.metadata?.contactInfo || {
+    email: '',
+    phone: '',
+    website: '',
   }
   
   // Initialize form
@@ -98,8 +108,8 @@ export function OrganizationSettingsPanel({ organization, onUpdate }: Organizati
       industry: organization.industry as any,
       status: organization.status as any,
       tier: organization.tier as any,
-      primaryDomain: organization.primaryDomain || '',
       featureSettings,
+      contactInfo,
     },
   })
   
@@ -111,6 +121,7 @@ export function OrganizationSettingsPanel({ organization, onUpdate }: Organizati
       const metadata = {
         ...organization.metadata,
         featureSettings: values.featureSettings,
+        contactInfo: values.contactInfo,
       }
       
       const result = await updateOrganization({
@@ -121,7 +132,6 @@ export function OrganizationSettingsPanel({ organization, onUpdate }: Organizati
         industry: values.industry,
         status: values.status,
         tier: values.tier,
-        primaryDomain: values.primaryDomain,
         metadata,
       })
       
@@ -232,6 +242,57 @@ export function OrganizationSettingsPanel({ organization, onUpdate }: Organizati
                 )}
               />
               
+              {/* Contact Information Section */}
+              <div className="space-y-4">
+                <div className="flex items-center">
+                  <h3 className="text-lg font-medium">Contact Information</h3>
+                </div>
+                
+                <div className="grid gap-6 md:grid-cols-3">
+                  <FormField
+                    control={form.control}
+                    name="contactInfo.email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Primary Contact Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="email@example.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="contactInfo.phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone Number</FormLabel>
+                        <FormControl>
+                          <Input type="tel" placeholder="(123) 456-7890" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="contactInfo.website"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Website</FormLabel>
+                        <FormControl>
+                          <Input type="url" placeholder="https://example.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+              
               <div className="grid gap-6 md:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -321,52 +382,12 @@ export function OrganizationSettingsPanel({ organization, onUpdate }: Organizati
                     </FormItem>
                   )}
                 />
-                
-                <FormField
-                  control={form.control}
-                  name="primaryDomain"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Primary Real Estate Domain</FormLabel>
-                      <FormControl>
-                        <Input {...field} value={field.value || ''} />
-                      </FormControl>
-                      <FormDescription>
-                        Main real estate focus (e.g., Residential, Commercial)
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
               
               <div>
                 <h3 className="text-lg font-medium mb-4">Feature Access</h3>
                 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="featureSettings.enableAI"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">
-                            AI Tools
-                          </FormLabel>
-                          <FormDescription>
-                            Access to AI assistants and tools
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  
                   <FormField
                     control={form.control}
                     name="featureSettings.enableCoaching"
@@ -415,21 +436,22 @@ export function OrganizationSettingsPanel({ organization, onUpdate }: Organizati
                   
                   <FormField
                     control={form.control}
-                    name="featureSettings.enableBulkUpload"
+                    name="featureSettings.enableAI"
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
                           <FormLabel className="text-base">
-                            Bulk Upload
+                            AI Tools
                           </FormLabel>
                           <FormDescription>
-                            Batch data import tools
+                            Access to AI assistants and tools <span className="ml-2 text-xs font-medium text-yellow-600">Coming Soon</span>
                           </FormDescription>
                         </div>
                         <FormControl>
                           <Switch
-                            checked={field.value}
+                            checked={false}
                             onCheckedChange={field.onChange}
+                            disabled={true}
                           />
                         </FormControl>
                       </FormItem>

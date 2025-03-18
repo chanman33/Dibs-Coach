@@ -47,13 +47,14 @@ import { useToast } from '@/components/ui/use-toast'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Check, UserPlus, Search, MoreHorizontal, Mail, UserMinus, UserCog, RefreshCw } from 'lucide-react'
+import { Check, UserPlus, Search, MoreHorizontal, UserMinus, UserCog, RefreshCw, AlertCircle, Loader2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { ORG_ROLES } from '@/utils/roles/roles'
-import { fetchOrganizationMembers, addOrganizationMember, updateOrganizationMember, removeOrganizationMember } from '@/utils/actions/organization-actions'
+import { fetchOrganizationMembers, addOrganizationMember, updateOrganizationMember, removeOrganizationMember, checkUserExistsByEmail } from '@/utils/actions/organization-actions'
 import { generateUlid } from '@/utils/ulid'
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 
 interface OrganizationMembersData {
   ulid: string;
@@ -87,6 +88,64 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
   const [editingMember, setEditingMember] = useState<OrganizationMembersData | null>(null)
   const [confirmDeleteDialogOpen, setConfirmDeleteDialogOpen] = useState(false)
   const [processingAction, setProcessingAction] = useState(false)
+  const [emailValidation, setEmailValidation] = useState<{ valid: boolean; message: string; checking: boolean }>({ valid: true, message: '', checking: false })
+  const [existingMembers, setExistingMembers] = useState<string[]>([])
+
+  // Keep track of existing member emails for validation
+  useEffect(() => {
+    const memberEmails = members.map(member => member.user.email.toLowerCase());
+    setExistingMembers(memberEmails);
+  }, [members]);
+
+  // Validate email input
+  const validateEmail = async (email: string) => {
+    if (!email) return;
+    
+    try {
+      setEmailValidation(prev => ({ ...prev, checking: true }));
+      
+      // Check if email belongs to an existing member
+      const normalizedEmail = email.toLowerCase().trim();
+      if (existingMembers.includes(normalizedEmail)) {
+        setEmailValidation({
+          valid: false,
+          message: 'This user is already a member of this organization',
+          checking: false
+        });
+        return;
+      }
+      
+      // Check if the user exists in the system
+      const result = await checkUserExistsByEmail(email);
+      
+      if (result.error) {
+        setEmailValidation({
+          valid: false,
+          message: 'Unable to verify the user. Please try again.',
+          checking: false
+        });
+      } else if (!result.exists) {
+        setEmailValidation({
+          valid: false,
+          message: 'No user account exists with this email',
+          checking: false
+        });
+      } else {
+        setEmailValidation({
+          valid: true,
+          message: `Found user: ${result.user?.name}`,
+          checking: false
+        });
+      }
+    } catch (error) {
+      console.error('[EMAIL_VALIDATION_ERROR]', error);
+      setEmailValidation({
+        valid: false,
+        message: 'Error checking user. Please try again.',
+        checking: false
+      });
+    }
+  };
 
   // Initial load
   useEffect(() => {
@@ -206,46 +265,110 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
   // Handle adding a new member
   const handleAddMember = async (data: z.infer<typeof addMemberSchema>) => {
     try {
-      setProcessingAction(true)
+      // Trim the email to avoid whitespace issues
+      const email = data.email.trim()
       
-      const ulid = generateUlid()
-      console.log('[ADD_MEMBER] Sending invitation to:', data.email, 'for organization:', orgId)
-      
-      const result = await addOrganizationMember({
-        ulid,
-        organizationUlid: orgId,
-        email: data.email,
-        role: data.role
-      })
-      
-      if (result.error) {
-        console.error('[ADD_MEMBER_ERROR_DETAILS]', {
-          email: data.email,
-          orgId,
-          error: result.error
-        })
+      // Validate the email exists first
+      if (!emailValidation.valid) {
         toast({
-          title: 'Error adding member',
-          description: result.error,
+          title: 'Invalid email',
+          description: emailValidation.message || 'Please use a valid email address for an existing user',
           variant: 'destructive'
         })
         return
       }
       
-      console.log('[MEMBER_ADDED]', { email: data.email, orgId })
+      // Check again if the user exists before proceeding
+      setProcessingAction(true)
+      const checkResult = await checkUserExistsByEmail(email)
+      
+      if (!checkResult.exists) {
+        setEmailValidation({
+          valid: false,
+          message: 'No user account exists with this email',
+          checking: false
+        })
+        
+        toast({
+          title: 'User not found',
+          description: `No user account exists with email "${email}". Users must create an account before they can be added to an organization.`,
+          variant: 'destructive'
+        })
+        setProcessingAction(false)
+        return
+      }
+      
+      console.log('[ADD_MEMBER] Attempting to add member:', email, 'to organization:', orgId)
+      
+      // Generate ULID for new member
+      const ulid = generateUlid()
+      
+      // Try to add the organization member
+      const result = await addOrganizationMember({
+        ulid,
+        organizationUlid: orgId,
+        email,
+        role: data.role
+      }).catch(error => {
+        // Handle any unexpected errors from the API call
+        console.error('[ADD_MEMBER_API_CALL_ERROR]', error)
+        return { 
+          error: 'Failed to communicate with the server. Please try again.', 
+          data: null 
+        }
+      })
+      
+      // Handle API response errors
+      if (result.error) {
+        console.error('[ADD_MEMBER_ERROR_DETAILS]', {
+          email,
+          orgId,
+          role: data.role,
+          errorMessage: result.error
+        })
+        
+        let errorMessage = result.error
+        
+        // Provide more user-friendly message for common errors
+        if (result.error === 'User not found with this email') {
+          errorMessage = `No user account exists with email "${email}". Users must create an account before they can be added to an organization.`
+        } else if (result.error === 'User is already a member of this organization') {
+          errorMessage = `${email} is already a member of this organization.`
+        } else if (result.error.includes('Failed to')) {
+          errorMessage = `${result.error} Please check your connection and try again.`
+        }
+        
+        toast({
+          title: 'Error adding member',
+          description: errorMessage,
+          variant: 'destructive'
+        })
+        return
+      }
+      
+      // Success case
+      console.log('[MEMBER_ADDED]', { 
+        email, 
+        orgId,
+        role: data.role,
+        memberUlid: result.data?.ulid 
+      })
+      
       toast({
-        title: 'Member invited',
-        description: `Invitation sent to ${data.email}`,
+        title: 'Member added',
+        description: `${email} has been added to the organization.`,
       })
       
       setAddDialogOpen(false)
       addMemberForm.reset()
       loadMembers()
     } catch (error) {
-      console.error('[ADD_MEMBER_ERROR]', error)
+      // Catch any unexpected errors in our own code
+      console.error('[ADD_MEMBER_UNEXPECTED_ERROR]', error)
+      
       toast({
         title: 'Error',
-        description: 'Failed to add member',
+        description: 'An unexpected error occurred while adding the member. Please try again.',
         variant: 'destructive'
       })
     } finally {
@@ -417,9 +540,19 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               <span className="sr-only">Refresh</span>
             </Button>
-            <Dialog>
+            <Dialog 
+              open={addDialogOpen} 
+              onOpenChange={(open) => {
+                setAddDialogOpen(open);
+                if (!open) {
+                  // Reset the form and validation state when dialog is closed
+                  addMemberForm.reset();
+                  setEmailValidation({ valid: true, message: '', checking: false });
+                }
+              }}
+            >
               <DialogTrigger asChild>
-                <Button>
+                <Button onClick={() => setAddDialogOpen(true)}>
                   <UserPlus className="mr-2 h-4 w-4" />
                   Add Member
                 </Button>
@@ -428,11 +561,16 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
                 <DialogHeader>
                   <DialogTitle>Add New Member</DialogTitle>
                   <DialogDescription>
-                    Invite a new member to this organization
+                    Add a user who already has an account to this organization
                   </DialogDescription>
                 </DialogHeader>
                 <Form {...addMemberForm}>
                   <form onSubmit={addMemberForm.handleSubmit(handleAddMember)} className="space-y-6">
+                    <div className="bg-blue-50 text-blue-800 px-4 py-3 rounded-md text-sm">
+                      <p className="font-medium">Note:</p>
+                      <p>Users must already have an account in the system before they can be added to an organization. Account creation invitations are not currently supported.</p>
+                    </div>
+                    
                     <FormField
                       control={addMemberForm.control}
                       name="email"
@@ -440,11 +578,42 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
                         <FormItem>
                           <FormLabel>Email Address</FormLabel>
                           <FormControl>
-                            <Input placeholder="user@example.com" {...field} />
+                            <div className="relative">
+                              <Input 
+                                placeholder="user@example.com" 
+                                {...field}
+                                onBlur={(e) => {
+                                  field.onBlur();
+                                  if (e.target.value) {
+                                    validateEmail(e.target.value);
+                                  } else {
+                                    setEmailValidation({ valid: true, message: '', checking: false });
+                                  }
+                                }}
+                                onChange={(e) => {
+                                  field.onChange(e);
+                                  // Reset validation when typing
+                                  if (emailValidation.message) {
+                                    setEmailValidation({ valid: true, message: '', checking: false });
+                                  }
+                                }}
+                                className={!emailValidation.valid ? "border-red-300 pr-10" : ""}
+                              />
+                              {emailValidation.checking && (
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                </div>
+                              )}
+                            </div>
                           </FormControl>
                           <FormDescription>
-                            An invitation will be sent to this email address
+                            User must already have an account with this email
                           </FormDescription>
+                          {emailValidation.message && (
+                            <div className={`text-sm mt-2 ${emailValidation.valid ? 'text-green-600' : 'text-red-500'}`}>
+                              {emailValidation.message}
+                            </div>
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -487,8 +656,11 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
                       >
                         Cancel
                       </Button>
-                      <Button type="submit" disabled={processingAction}>
-                        {processingAction ? 'Sending...' : 'Send Invitation'}
+                      <Button 
+                        type="submit" 
+                        disabled={processingAction || !emailValidation.valid || emailValidation.checking}
+                      >
+                        {processingAction ? 'Adding...' : 'Add Member'}
                       </Button>
                     </DialogFooter>
                   </form>
@@ -591,12 +763,6 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
                               }}>
                                 <UserCog className="mr-2 h-4 w-4" />
                                 Edit Member
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => {
-                                // Functionality for sending a direct message could be added here
-                              }}>
-                                <Mail className="mr-2 h-4 w-4" />
-                                Send Message
                               </DropdownMenuItem>
                               <DropdownMenuItem 
                                 className="text-destructive focus:text-destructive"
