@@ -134,14 +134,8 @@ export function MenteeSidebar() {
                 </button>
                 {isOrgExpanded && (
                   <div className="pl-3 grid gap-1">
-                    <NavLink href="/dashboard/mentee/organization/benefits" icon={Briefcase}>
-                      Benefits
-                    </NavLink>
-                    <NavLink href="/dashboard/mentee/organization/credits" icon={CreditCard}>
-                      Coaching Credits
-                    </NavLink>
-                    <NavLink href="/dashboard/mentee/organization/resources" icon={BookOpen}>
-                      Resources
+                    <NavLink href="/dashboard/mentee/organization/overview" icon={Building2}>
+                      Overview
                     </NavLink>
                   </div>
                 )}

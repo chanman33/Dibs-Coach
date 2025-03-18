@@ -27,8 +27,9 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useOrganization } from "@/utils/auth/OrganizationContext"
+import { useAuthContext } from "@/components/auth/providers"
 
 // Default image placeholder
 const DEFAULT_IMAGE_URL = '/placeholder.svg';
@@ -68,11 +69,26 @@ export function UserProfile() {
     const pathname = usePathname()
     const [imgError, setImgError] = useState(false)
     const { organizationName, organizationRole } = useOrganization();
+    const authContext = useAuthContext();
+    const [userContext, setUserContext] = useState<'coach' | 'mentee' | null>(null);
     
     // Only use Clerk's useUser if auth is enabled
     const { user, isLoaded } = config.auth.enabled 
         ? useUser()
         : { user: MOCK_USER, isLoaded: true };
+
+    // Determine user context (coach or mentee) based on current path or capabilities
+    useEffect(() => {
+        if (pathname?.includes('/coach')) {
+            setUserContext('coach');
+        } else if (pathname?.includes('/mentee')) {
+            setUserContext('mentee');
+        } else if (authContext?.capabilities?.includes('COACH')) {
+            setUserContext('coach');
+        } else {
+            setUserContext('mentee'); // Default to mentee
+        }
+    }, [pathname, authContext]);
 
     if (!config?.auth?.enabled) {
         router.back()
@@ -84,6 +100,23 @@ export function UserProfile() {
 
     // Get the profile image URL with proper handling
     const profileImageUrl = imgError ? DEFAULT_IMAGE_URL : getProfileImageUrl(user.imageUrl);
+
+    // Determine organization link based on role and context
+    const getOrganizationLink = () => {
+        if (!organizationRole) return "/dashboard";
+        
+        // If MEMBER role, direct to appropriate organization pages
+        if (organizationRole === "MEMBER") {
+            if (userContext === 'coach') {
+                return "/dashboard/coach/organization/overview";
+            } else {
+                return "/dashboard/mentee/organization/overview";
+            }
+        }
+        
+        // For higher-level roles (OWNER, MANAGER, DIRECTOR), direct to business dashboard
+        return "/dashboard/business";
+    };
 
     return (
         <DropdownMenu>
@@ -115,7 +148,7 @@ export function UserProfile() {
                     </Link>
                     {organizationName && (
                         <>
-                            <Link href="/dashboard/business">
+                            <Link href={getOrganizationLink()}>
                                 <DropdownMenuItem className="flex items-center justify-between">
                                     <div className="flex items-center">
                                         <Building className="mr-2 h-4 w-4" />

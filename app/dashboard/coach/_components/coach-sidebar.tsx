@@ -160,14 +160,8 @@ export function CoachSidebar() {
                 </button>
                 {isOrgExpanded && (
                   <div className="pl-3 grid gap-1">
-                    <NavLink href="/dashboard/coach/organization/benefits" icon={Briefcase}>
-                      Benefits
-                    </NavLink>
-                    <NavLink href="/dashboard/coach/organization/credits" icon={CreditCard}>
-                      Coaching Credits
-                    </NavLink>
-                    <NavLink href="/dashboard/coach/organization/resources" icon={BookOpen}>
-                      Resources
+                    <NavLink href="/dashboard/coach/organization/overview" icon={Building2}>
+                      Overview
                     </NavLink>
                   </div>
                 )}
