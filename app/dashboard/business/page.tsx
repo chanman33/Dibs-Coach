@@ -284,12 +284,11 @@ function BusinessDashboard() {
 
 export default WithOrganizationAuth(BusinessDashboard, {
   requiredSystemRole: SYSTEM_ROLES.USER,
-  requiredOrgRole: ORG_ROLES.OWNER,
-  requiredOrgLevel: ORG_LEVELS.LOCAL,
   requiredPermissions: [
     PERMISSIONS.ACCESS_DASHBOARD,
-    PERMISSIONS.MANAGE_ORGANIZATION
+    PERMISSIONS.VIEW_ORG_ANALYTICS
   ],
-  requireOrganization: true
+  requireOrganization: true,
+  requireAll: true
 });
 

@@ -115,7 +115,7 @@ export function UserProfile() {
                     </Link>
                     {organizationName && (
                         <>
-                            <Link href="/dashboard/settings?tab=organizations">
+                            <Link href="/dashboard/business">
                                 <DropdownMenuItem className="flex items-center justify-between">
                                     <div className="flex items-center">
                                         <Building className="mr-2 h-4 w-4" />

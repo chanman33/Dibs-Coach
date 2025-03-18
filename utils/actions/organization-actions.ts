@@ -320,7 +320,7 @@ export async function addOrganizationMember(data: z.infer<typeof addOrganization
       ulid: validatedData.ulid,
       organizationUlid: validatedData.organizationUlid,
       userUlid: user.ulid,
-      role: validatedData.role,
+      role: validatedData.role || 'MEMBER',
       scope: validatedData.scope || 'LOCAL',
       customPermissions: validatedData.customPermissions,
       status: 'ACTIVE',

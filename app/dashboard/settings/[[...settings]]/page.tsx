@@ -14,13 +14,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useRouter, useSearchParams } from "next/navigation"
 import { fetchUserCapabilities, type UserCapabilitiesResponse } from "@/utils/actions/user-profile-actions"
 import { type ApiResponse } from "@/utils/types/api"
-import { Loader2, Building, Building2, Search, Users2, Network, ArrowRight, Check } from 'lucide-react'
+import { Loader2, Building, Building2, Users2, Network, ArrowRight, Check } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import Link from 'next/link'
 import { useOrganization } from '@/utils/auth/OrganizationContext'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 
 // Map organization types to icons and colors
@@ -79,8 +78,6 @@ export default function Settings() {
   const [loadingCapabilities, setLoadingCapabilities] = useState(true)
   const isCoach = userCapabilities.includes('COACH')
   const [activeTab, setActiveTab] = useState("account")
-  const [searchTerm, setSearchTerm] = useState('');
-  const [orgFilterTab, setOrgFilterTab] = useState('all');
   const { organizations, organizationUlid, setOrganizationUlid, isLoading: isLoadingOrgs } = useOrganization();
   const searchParams = useSearchParams();
 
@@ -196,17 +193,6 @@ export default function Settings() {
     return <div>Loading...</div>
   }
 
-  // Filter organizations by search term and tab
-  const filteredOrganizations = organizations.filter(org => {
-    const matchesSearch = org.organization.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTab = orgFilterTab === 'all' || 
-      (orgFilterTab === 'active' && org.organization.status === 'ACTIVE') ||
-      (orgFilterTab === 'owner' && org.role === 'OWNER') ||
-      (orgFilterTab === 'member' && org.role === 'MEMBER');
-    
-    return matchesSearch && matchesTab;
-  });
-
   const renderOrganizationsContent = () => {
     if (isLoadingOrgs) {
       return (
@@ -239,113 +225,88 @@ export default function Settings() {
     }
 
     return (
-      <>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div className="relative w-full">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search organizations..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 w-full"
-            />
+      <div className="max-h-[600px] overflow-y-auto pr-2">
+        {organizations.length === 0 ? (
+          <div className="flex flex-col items-center justify-center p-12 text-center">
+            <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">No organizations found</h3>
+            <p className="text-muted-foreground mt-2 mb-6">
+              You don't belong to any organizations yet
+            </p>
+            <Button
+              onClick={() => router.push('/dashboard/organizations/create')}
+              className="gap-2"
+            >
+              <Building2 className="h-4 w-4" /> Create Organization
+            </Button>
           </div>
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 gap-6">
+            {organizations.map((org) => {
+              const OrgIcon = orgTypeConfig[org.organization.type]?.icon || Building;
+              const typeColor = orgTypeConfig[org.organization.type]?.color || '';
+              const roleConfig_ = roleConfig[org.role] || { label: org.role, color: '' };
+              const statusColor = statusConfig[org.organization.status]?.color || '';
+              const isActive = org.organizationUlid === organizationUlid;
 
-        <Tabs defaultValue="all" className="w-full" onValueChange={setOrgFilterTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="active">Active</TabsTrigger>
-            <TabsTrigger value="owner">Owner</TabsTrigger>
-            <TabsTrigger value="member">Member</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value={orgFilterTab} className="mt-0">
-            {filteredOrganizations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center p-12 text-center">
-                <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">No organizations found</h3>
-                <p className="text-muted-foreground mt-2 mb-6">
-                  {searchTerm 
-                    ? `No organizations matching '${searchTerm}'` 
-                    : 'You have no organizations in this category'}
-                </p>
-                <Button
-                  onClick={() => router.push('/dashboard/organizations/create')}
-                  className="gap-2"
-                >
-                  <Building2 className="h-4 w-4" /> Create Organization
-                </Button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
-                {filteredOrganizations.map((org) => {
-                  const OrgIcon = orgTypeConfig[org.organization.type]?.icon || Building;
-                  const typeColor = orgTypeConfig[org.organization.type]?.color || '';
-                  const roleConfig_ = roleConfig[org.role] || { label: org.role, color: '' };
-                  const statusColor = statusConfig[org.organization.status]?.color || '';
-                  const isActive = org.organizationUlid === organizationUlid;
-
-                  return (
-                    <Card key={org.organizationUlid} className={`overflow-hidden transition-all hover:shadow-md ${isActive ? 'border-primary' : ''} flex flex-col`}>
-                      <CardHeader className="p-6 pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className={`p-2.5 rounded-full ${typeColor}`}>
-                              <OrgIcon className="h-5 w-5" />
-                            </div>
-                            <CardTitle className="text-xl truncate max-w-[220px]">
-                              {org.organization.name}
-                            </CardTitle>
-                          </div>
-                          {isActive && (
-                            <Badge variant="outline" className="gap-1 border-primary text-primary px-3 py-1">
-                              <Check className="h-3.5 w-3.5" /> Active
-                            </Badge>
-                          )}
+              return (
+                <Card key={org.organizationUlid} className={`overflow-hidden transition-all hover:shadow-md ${isActive ? 'border-primary' : ''} flex flex-col`}>
+                  <CardHeader className="p-6 pb-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-full ${typeColor}`}>
+                          <OrgIcon className="h-5 w-5" />
                         </div>
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          <Badge variant="secondary" className={`${roleConfig_.color} px-3 py-1`}>
-                            {roleConfig_.label}
-                          </Badge>
-                          {(!isActive || org.organization.status !== 'ACTIVE') && (
-                            <Badge variant="secondary" className={`${statusColor} px-3 py-1`}>
-                              {org.organization.status}
-                            </Badge>
-                          )}
-                        </div>
-                      </CardHeader>
-                      <CardContent className="p-6 pt-2 flex-1">
-                        <div className="text-sm text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">Joined:</span>
-                            <span>{formatDate(org.joinedAt)}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                      <CardFooter className="p-6 pt-3 flex justify-center mt-auto">
-                        {isActive ? (
-                          <Button variant="secondary" className="w-full text-sm h-10" disabled>
-                            Current Organization
-                          </Button>
-                        ) : (
-                          <Button 
-                            variant="default" 
-                            className="w-full text-sm h-10" 
-                            onClick={() => setOrganizationUlid(org.organizationUlid)}
-                          >
-                            Switch to this Organization
-                          </Button>
-                        )}
-                      </CardFooter>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </>
+                        <CardTitle className="text-xl truncate max-w-[220px]">
+                          {org.organization.name}
+                        </CardTitle>
+                      </div>
+                      {isActive && (
+                        <Badge variant="outline" className="gap-1 border-primary text-primary px-3 py-1">
+                          <Check className="h-3.5 w-3.5" /> Active
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      <Badge variant="secondary" className={`${roleConfig_.color} px-3 py-1`}>
+                        {roleConfig_.label}
+                      </Badge>
+                      {(!isActive || org.organization.status !== 'ACTIVE') && (
+                        <Badge variant="secondary" className={`${statusColor} px-3 py-1`}>
+                          {org.organization.status}
+                        </Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-6 pt-2 flex-1">
+                    <div className="text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Joined:</span>
+                        <span>{formatDate(org.joinedAt)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="p-6 pt-3 flex justify-center mt-auto">
+                    {isActive ? (
+                      <Button variant="secondary" className="w-full text-sm h-10" disabled>
+                        Current Organization
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="default" 
+                        className="w-full text-sm h-10" 
+                        onClick={() => setOrganizationUlid(org.organizationUlid)}
+                      >
+                        Switch to this Organization
+                      </Button>
+                    )}
+                  </CardFooter>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
     );
   };
 

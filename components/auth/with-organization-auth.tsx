@@ -12,6 +12,7 @@ import {
   hasOrgRole
 } from '@/utils/roles/roles'
 import { ContainerLoading } from '@/components/loading'
+import { useOrganization } from '@/utils/auth/OrganizationContext'
 
 interface WithOrganizationAuthOptions {
   requiredSystemRole?: SystemRole
@@ -38,8 +39,10 @@ export function WithOrganizationAuth<P extends object>(
     const { isLoaded, isSignedIn } = useAuth()
     const router = useRouter()
     const authContext = useAuthContext()
+    const { isLoading: isLoadingOrg, organizationRole, organizationName } = useOrganization()
 
-    if (!isLoaded) {
+    // Wait for both auth and organization data to load
+    if (!isLoaded || (options.requireOrganization && isLoadingOrg)) {
       return (
         <ContainerLoading 
           message="Verifying organization access..." 
@@ -61,37 +64,55 @@ export function WithOrganizationAuth<P extends object>(
       return null
     }
 
+    // Update auth context with organization data
+    const effectiveAuthContext = {
+      ...authContext,
+      // Use organization context values if available and not in auth context
+      orgRole: authContext.orgRole || (organizationRole as OrgRole | undefined) || undefined,
+      // Default to LOCAL level if we have a role but no level
+      orgLevel: authContext.orgLevel || (organizationRole ? 'LOCAL' as OrgLevel : undefined)
+    }
+
     // Check organization requirement
     if (options.requireOrganization && 
-        (!authContext.orgRole || !authContext.orgLevel)) {
+        (!effectiveAuthContext.orgRole || !effectiveAuthContext.orgLevel)) {
+      console.error('[AUTH_ERROR] Organization membership required but not found:', {
+        contextOrgRole: authContext.orgRole,
+        contextOrgLevel: authContext.orgLevel,
+        organizationRole,
+        organizationName,
+        userId: authContext.userId,
+        timestamp: new Date().toISOString()
+      })
       router.push('/not-authorized?message=Organization%20membership%20required')
       return null
     }
 
-    // Check org role and level if required
+    // Check permissions first - this is our primary authorization method
+    if (options.requiredPermissions?.length) {
+      const hasRequired = options.requireAll
+        ? options.requiredPermissions.every(p => hasPermission(effectiveAuthContext, p))
+        : options.requiredPermissions.some(p => hasPermission(effectiveAuthContext, p))
+
+      if (!hasRequired) {
+        router.push('/not-authorized?message=Insufficient%20permissions')
+        return null
+      }
+    }
+    
+    // Only check org role and level if permissions check passes and explicit roles are required
+    // This is a secondary, more strict authorization check
     if (options.requiredOrgRole && options.requiredOrgLevel &&
-        authContext.orgRole && authContext.orgLevel) {
+        effectiveAuthContext.orgRole && effectiveAuthContext.orgLevel) {
       const hasRole = hasOrgRole(
-        authContext.orgRole,
+        effectiveAuthContext.orgRole,
         options.requiredOrgRole,
-        authContext.orgLevel,
+        effectiveAuthContext.orgLevel,
         options.requiredOrgLevel
       )
       
       if (!hasRole) {
         router.push('/not-authorized?message=Insufficient%20organization%20role')
-        return null
-      }
-    }
-
-    // Check permissions if required
-    if (options.requiredPermissions?.length) {
-      const hasRequired = options.requireAll
-        ? options.requiredPermissions.every(p => hasPermission(authContext, p))
-        : options.requiredPermissions.some(p => hasPermission(authContext, p))
-
-      if (!hasRequired) {
-        router.push('/not-authorized?message=Insufficient%20permissions')
         return null
       }
     }
