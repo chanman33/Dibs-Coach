@@ -123,14 +123,6 @@ export function BusinessSidebar() {
               Regions
             </NavLink>
 
-            {/* Tools */}
-            <Separator className="my-3" />
-            <NavLink href="/dashboard/business/tools/ai-agent" icon={Bot}>
-              AI Assistant
-            </NavLink>
-            <NavLink href="/dashboard/business/tools/calculator" icon={Calculator}>
-              ROI Calculator
-            </NavLink>
 
             {/* Settings */}
             <Separator className="my-3" />

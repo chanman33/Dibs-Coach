@@ -2,8 +2,7 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Target, ArrowUpRight, TrendingUp, DollarSign, Star, MessageSquare, Building2, Briefcase, GraduationCap, Map, AlertCircle } from "lucide-react"
-import { WithOrganizationAuth } from "@/components/auth/with-organization-auth"
-import { SYSTEM_ROLES, ORG_ROLES, ORG_LEVELS, PERMISSIONS } from "@/utils/roles/roles"
+import { PERMISSIONS } from "@/utils/roles/roles"
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -14,8 +13,59 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { DEFAULT_AVATARS } from '@/utils/constants'
+import { useEffect, useState } from "react"
+import { useOrganization } from "@/utils/auth/OrganizationContext"
+import { useAuthContext } from "@/components/auth/providers"
+import { hasPermission } from "@/utils/roles/roles"
+import { useRouter } from "next/navigation"
+import { ContainerLoading } from "@/components/loading"
 
-function BusinessDashboard() {
+export default function BusinessDashboard() {
+  const { organizationRole, isLoading } = useOrganization()
+  const authContext = useAuthContext()
+  const router = useRouter()
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
+
+  // Check for organization analytics permission
+  useEffect(() => {
+    // Skip if still loading
+    if (isLoading) return
+    
+    // Check permission
+    const effectiveContext = {
+      ...authContext,
+      orgRole: authContext.orgRole || (organizationRole as any) || undefined,
+      orgLevel: authContext.orgLevel || (organizationRole ? 'LOCAL' : undefined)
+    }
+    
+    const hasAnalyticsAccess = hasPermission(effectiveContext, PERMISSIONS.VIEW_ORG_ANALYTICS)
+    console.log("[BUSINESS_PAGE] Analytics permission check:", { 
+      hasAnalyticsAccess,
+      orgRole: effectiveContext.orgRole 
+    })
+    
+    setIsAuthorized(hasAnalyticsAccess)
+  }, [authContext, organizationRole, isLoading])
+  
+  // Handle unauthorized users
+  useEffect(() => {
+    if (isAuthorized === false) {
+      router.push('/not-authorized?message=You%20need%20organization%20analytics%20permission')
+    }
+  }, [isAuthorized, router])
+  
+  // Show loading while checking permissions
+  if (isLoading || isAuthorized === null) {
+    return (
+      <ContainerLoading 
+        message="Loading dashboard..." 
+        spinnerSize="md"
+        minHeight="h-full"
+      />
+    )
+  }
+  
+  // Dashboard UI - only renders if authorized
   return (
     <div className="flex flex-col justify-center items-start flex-wrap px-4 pt-4 gap-4">
       {/* Quick Actions */}
@@ -281,14 +331,4 @@ function BusinessDashboard() {
     </div>
   )
 }
-
-export default WithOrganizationAuth(BusinessDashboard, {
-  requiredSystemRole: SYSTEM_ROLES.USER,
-  requiredPermissions: [
-    PERMISSIONS.ACCESS_DASHBOARD,
-    PERMISSIONS.VIEW_ORG_ANALYTICS
-  ],
-  requireOrganization: true,
-  requireAll: true
-});
 
