@@ -131,13 +131,6 @@ export function OrganizationSwitcher() {
             );
           })}
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <Link href="/dashboard/settings?tab=organizations" prefetch={false}>
-          <DropdownMenuItem className="cursor-pointer">
-            <LayoutGrid className="h-4 w-4 mr-2" />
-            View All Organizations
-          </DropdownMenuItem>
-        </Link>
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -8,7 +8,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { hasPermission } from "@/utils/roles/roles"
 import { useAuthContext } from "@/components/auth/providers"
-import { PERMISSIONS } from "@/utils/roles/roles"
+import { PERMISSIONS, ORG_ROLES } from "@/utils/roles/roles"
 import { useAuth } from "@clerk/nextjs"
 
 function BusinessLayout({
@@ -48,9 +48,32 @@ function BusinessLayout({
       orgLevel: authContext.orgLevel || (organizationRole ? 'LOCAL' : undefined)
     }
     
-    const hasAccess = hasPermission(effectiveContext, PERMISSIONS.ACCESS_DASHBOARD)
+    // Check if user has a role that can access business features
+    const businessAccessRoles = [
+      ORG_ROLES.OWNER, 
+      ORG_ROLES.MANAGER, 
+      ORG_ROLES.DIRECTOR,
+      ORG_ROLES.GLOBAL_OWNER,
+      ORG_ROLES.GLOBAL_MANAGER,
+      ORG_ROLES.GLOBAL_DIRECTOR,
+      ORG_ROLES.REGIONAL_OWNER,
+      ORG_ROLES.REGIONAL_MANAGER,
+      ORG_ROLES.REGIONAL_DIRECTOR,
+      ORG_ROLES.LOCAL_OWNER,
+      ORG_ROLES.LOCAL_MANAGER,
+      ORG_ROLES.LOCAL_DIRECTOR
+    ]
+    
+    const hasBusinessRole = effectiveContext.orgRole ? 
+      businessAccessRoles.includes(effectiveContext.orgRole as any) : 
+      false
+    
+    // Check for dashboard access permission (all business roles should have this)
+    const hasAccess = hasBusinessRole && hasPermission(effectiveContext, PERMISSIONS.ACCESS_DASHBOARD)
+    
     console.log("[BUSINESS_LAYOUT] Access permission check:", { 
       hasAccess, 
+      hasBusinessRole,
       orgRole: effectiveContext.orgRole,
       systemRole: effectiveContext.systemRole
     })

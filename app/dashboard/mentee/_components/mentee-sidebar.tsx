@@ -18,18 +18,24 @@ import {
   Calculator,
   Target,
   Bot,
-  BookOpen
+  BookOpen,
+  Briefcase,
+  CreditCard
 } from "lucide-react"
 import { useAuthContext } from "@/components/auth/providers"
 import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
 import { fetchUserCapabilities } from "@/utils/actions/user-profile-actions"
 import { SidebarOrganizationSection } from "@/components/organization/sidebar-organization-section"
+import { useOrganization } from "@/utils/auth/OrganizationContext"
 
 export function MenteeSidebar() {
   const pathname = usePathname()
   const [isToolsExpanded, setIsToolsExpanded] = useState(true)
+  const [isOrgExpanded, setIsOrgExpanded] = useState(true)
   const authContext = useAuthContext()
   const [hasRealtorDomain, setHasRealtorDomain] = useState(false)
+  const { organizationName, organizationRole, organizations } = useOrganization()
+  const hasOrganization = !!organizationName && organizations.length > 0
 
   useEffect(() => {
     const getUserDomains = async () => {
@@ -114,6 +120,33 @@ export function MenteeSidebar() {
                 </span>
               </div>
             </NavLink>
+
+            {/* Organization Section - Only show if user belongs to an organization */}
+            {hasOrganization && (
+              <>
+                <Separator className="my-3" />
+                <button
+                  onClick={() => setIsOrgExpanded(!isOrgExpanded)}
+                  className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+                >
+                  <span className="font-semibold">{organizationName}</span>
+                  {isOrgExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+                {isOrgExpanded && (
+                  <div className="pl-3 grid gap-1">
+                    <NavLink href="/dashboard/mentee/organization/benefits" icon={Briefcase}>
+                      Benefits
+                    </NavLink>
+                    <NavLink href="/dashboard/mentee/organization/credits" icon={CreditCard}>
+                      Coaching Credits
+                    </NavLink>
+                    <NavLink href="/dashboard/mentee/organization/resources" icon={BookOpen}>
+                      Resources
+                    </NavLink>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Shared Tools */}
             <Separator className="my-3" />
