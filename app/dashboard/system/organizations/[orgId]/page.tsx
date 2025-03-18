@@ -1,12 +1,12 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { WithAuth } from '@/components/auth'
 import { SYSTEM_ROLES } from '@/utils/roles/roles'
-import { Building2, ArrowLeft, Edit, Users, Settings, BarChart3, CreditCard, Clock } from 'lucide-react'
+import { Building2, ArrowLeft, Edit, Users, Settings, BarChart3, CreditCard, Clock, AlertCircle } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -32,12 +32,25 @@ interface OrganizationDetailPageProps {
 }
 
 function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
-  const { orgId } = params
+  // Extract orgId from the URL pathname instead of using params directly
+  const pathname = usePathname()
+  const orgId = pathname.split('/').pop() || ''
+  
   const router = useRouter()
   const { toast } = useToast()
   const [organization, setOrganization] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('details')
+  
+  // Handle URL hash for tab selection
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const hash = window.location.hash.replace('#', '')
+      if (hash && ['details', 'members', 'analytics', 'billing', 'activity', 'settings'].includes(hash)) {
+        setActiveTab(hash)
+      }
+    }
+  }, [])
   
   useEffect(() => {
     loadOrganization()
@@ -46,17 +59,33 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
   const loadOrganization = async () => {
     try {
       setLoading(true)
-      const result = await fetchOrganizationById({ orgId })
+      console.log(`Attempting to fetch organization with ID: ${orgId}`)
+      const result = await fetchOrganizationById(orgId)
       
       if (result.error) {
+        console.error('[FETCH_ORGANIZATION_ERROR_DETAILS]', {
+          orgId,
+          error: result.error,
+          pathUsed: pathname
+        })
         toast({
           title: 'Error',
-          description: result.error.message,
+          description: `Failed to load organization: ${result.error}`,
           variant: 'destructive'
         })
+        
+        // If we couldn't find the organization, show a message
+        setOrganization(null)
         return
       }
 
+      if (!result.data) {
+        console.warn('[FETCH_ORGANIZATION_WARNING]', 'No data returned but no error either')
+        setOrganization(null)
+        return
+      }
+
+      console.log('[ORGANIZATION_FOUND]', result.data)
       setOrganization(result.data)
     } catch (err) {
       console.error('[FETCH_ORGANIZATION_ERROR]', err)
@@ -73,13 +102,13 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
   const getBadgeVariant = (status: string) => {
     switch (status.toUpperCase()) {
       case 'ACTIVE':
-        return 'success'
+        return 'default'
       case 'INACTIVE':
         return 'secondary'
       case 'SUSPENDED':
         return 'destructive'
       case 'PENDING':
-        return 'warning'
+        return 'secondary'
       default:
         return 'outline'
     }
@@ -145,14 +174,6 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
               {organization.status}
             </Badge>
           </div>
-          <div className="flex items-center gap-2">
-            <Link href={`/dashboard/system/organizations/${orgId}/edit`}>
-              <Button size="sm" variant="outline">
-                <Edit className="mr-2 h-4 w-4" />
-                Edit Organization
-              </Button>
-            </Link>
-          </div>
         </div>
         <div className="text-sm text-muted-foreground mt-1">
           ID: {organization.ulid} • Created: {new Date(organization.createdAt).toLocaleDateString()}
@@ -192,10 +213,6 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
             <Users className="mr-2 h-4 w-4" />
             Members
           </TabsTrigger>
-          <TabsTrigger value="settings">
-            <Settings className="mr-2 h-4 w-4" />
-            Settings
-          </TabsTrigger>
           <TabsTrigger value="analytics">
             <BarChart3 className="mr-2 h-4 w-4" />
             Analytics
@@ -210,6 +227,10 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
             <Clock className="mr-2 h-4 w-4" />
             Activity
           </TabsTrigger>
+          <TabsTrigger value="settings">
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="space-y-4">
@@ -220,12 +241,20 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
           <OrganizationMembersPanel orgId={orgId} />
         </TabsContent>
 
-        <TabsContent value="settings" className="space-y-4">
-          <OrganizationSettingsPanel organization={organization} onUpdate={loadOrganization} />
-        </TabsContent>
-
         <TabsContent value="analytics" className="space-y-4">
-          <OrganizationAnalyticsPanel orgId={orgId} />
+          {!orgId ? (
+            <Card>
+              <CardContent className="py-10 text-center">
+                <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground" />
+                <h3 className="text-lg font-medium mt-2">Organization ID Missing</h3>
+                <p className="text-muted-foreground mt-2">
+                  Unable to load analytics without a valid organization ID.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <OrganizationAnalyticsPanel orgId={orgId} />
+          )}
         </TabsContent>
 
         {BILLING_ENABLED && (
@@ -236,6 +265,10 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
 
         <TabsContent value="activity" className="space-y-4">
           <OrganizationActivityPanel orgId={orgId} />
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-4">
+          <OrganizationSettingsPanel organization={organization} onUpdate={loadOrganization} />
         </TabsContent>
       </Tabs>
     </div>

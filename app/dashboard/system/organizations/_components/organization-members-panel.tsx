@@ -47,7 +47,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Check, UserPlus, Search, MoreHorizontal, Mail, UserMinus, UserCog } from 'lucide-react'
+import { Check, UserPlus, Search, MoreHorizontal, Mail, UserMinus, UserCog, RefreshCw } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
@@ -56,18 +56,22 @@ import { fetchOrganizationMembers, addOrganizationMember, updateOrganizationMemb
 import { generateUlid } from '@/utils/ulid'
 
 interface OrganizationMembersData {
-  ulid: string
-  userUlid: string
-  organizationUlid: string
-  role: string
-  status: string
-  createdAt: string
+  ulid: string;
+  userUlid: string;
+  organizationUlid: string;
+  role: string;
+  scope?: string | null;
+  status: string;
+  customPermissions?: any | null;
+  metadata?: any | null;
+  createdAt: string;
+  updatedAt?: string;
   user: {
-    ulid: string
-    name: string
-    email: string
-    imageUrl?: string
-  }
+    ulid: string;
+    name: string;
+    email: string;
+    imageUrl?: string | null;
+  };
 }
 
 interface OrganizationMembersPanelProps {
@@ -92,18 +96,30 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
   const loadMembers = async () => {
     try {
       setLoading(true)
-      const result = await fetchOrganizationMembers({ orgId })
+      console.log('[LOAD_MEMBERS] Loading members for organization:', orgId)
+      
+      const result = await fetchOrganizationMembers(orgId)
 
       if (result.error) {
+        console.error('[FETCH_MEMBERS_ERROR_DETAILS]', { 
+          orgId,
+          error: result.error
+        })
         toast({
           title: 'Error',
-          description: result.error.message,
+          description: result.error,
           variant: 'destructive'
         })
         return
       }
 
-      setMembers(result.data || [])
+      console.log('[MEMBERS_LOADED]', { 
+        count: result.data?.length || 0,
+        orgId
+      })
+      
+      const parsedMembers = parseMembers(result.data || [])
+      setMembers(parsedMembers)
     } catch (err) {
       console.error('[FETCH_MEMBERS_ERROR]', err)
       toast({
@@ -114,6 +130,32 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
     } finally {
       setLoading(false)
     }
+  }
+
+  // Helper function to parse API response data into the correct format
+  const parseMembers = (apiMembers: any[]): OrganizationMembersData[] => {
+    return apiMembers.map(member => ({
+      ulid: member.ulid,
+      userUlid: member.userUlid,
+      organizationUlid: member.organizationUlid,
+      role: member.role || 'MEMBER',
+      scope: member.scope || undefined,
+      status: member.status || 'ACTIVE',
+      customPermissions: member.customPermissions || undefined,
+      metadata: member.metadata || undefined,
+      createdAt: member.createdAt,
+      updatedAt: member.updatedAt || undefined,
+      user: member.user ? {
+        ulid: member.user.ulid,
+        name: member.user.name || `${member.user.firstName || ''} ${member.user.lastName || ''}`.trim() || 'Unknown User',
+        email: member.user.email,
+        imageUrl: member.user.imageUrl === null ? undefined : member.user.imageUrl
+      } : {
+        ulid: member.userUlid,
+        name: 'Unknown User',
+        email: 'unknown@example.com'
+      }
+    }))
   }
 
   // Filter members based on search term
@@ -167,6 +209,7 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
       setProcessingAction(true)
       
       const ulid = generateUlid()
+      console.log('[ADD_MEMBER] Sending invitation to:', data.email, 'for organization:', orgId)
       
       const result = await addOrganizationMember({
         ulid,
@@ -176,14 +219,20 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
       })
       
       if (result.error) {
+        console.error('[ADD_MEMBER_ERROR_DETAILS]', {
+          email: data.email,
+          orgId,
+          error: result.error
+        })
         toast({
           title: 'Error adding member',
-          description: result.error.message,
+          description: result.error,
           variant: 'destructive'
         })
         return
       }
       
+      console.log('[MEMBER_ADDED]', { email: data.email, orgId })
       toast({
         title: 'Member invited',
         description: `Invitation sent to ${data.email}`,
@@ -210,6 +259,7 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
     
     try {
       setProcessingAction(true)
+      console.log('[UPDATE_MEMBER] Updating member:', editingMember.user.name, 'in organization:', orgId)
       
       const result = await updateOrganizationMember({
         memberUlid: editingMember.ulid,
@@ -218,14 +268,23 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
       })
       
       if (result.error) {
+        console.error('[UPDATE_MEMBER_ERROR_DETAILS]', {
+          memberUlid: editingMember.ulid,
+          error: result.error
+        })
         toast({
           title: 'Error updating member',
-          description: result.error.message,
+          description: result.error,
           variant: 'destructive'
         })
         return
       }
       
+      console.log('[MEMBER_UPDATED]', { 
+        memberUlid: editingMember.ulid,
+        name: editingMember.user.name,
+        orgId
+      })
       toast({
         title: 'Member updated',
         description: `Updated role and status for ${editingMember.user.name}`,
@@ -251,27 +310,37 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
     
     try {
       setProcessingAction(true)
+      console.log('[REMOVE_MEMBER] Removing member:', editingMember.user.name, 'from organization:', orgId)
       
       const result = await removeOrganizationMember({
         memberUlid: editingMember.ulid
       })
       
       if (result.error) {
+        console.error('[REMOVE_MEMBER_ERROR_DETAILS]', {
+          memberUlid: editingMember.ulid,
+          error: result.error
+        })
         toast({
           title: 'Error removing member',
-          description: result.error.message,
+          description: result.error,
           variant: 'destructive'
         })
         return
       }
       
+      console.log('[MEMBER_REMOVED]', {
+        memberUlid: editingMember.ulid,
+        name: editingMember.user.name,
+        orgId
+      })
       toast({
         title: 'Member removed',
         description: `${editingMember.user.name} has been removed from the organization`,
       })
       
-      setConfirmDeleteDialogOpen(false)
       setEditingMember(null)
+      setConfirmDeleteDialogOpen(false)
       loadMembers()
     } catch (error) {
       console.error('[REMOVE_MEMBER_ERROR]', error)
@@ -287,23 +356,32 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
 
   // Get role badge variant
   const getRoleBadgeVariant = (role: string) => {
-    if (role.includes('OWNER')) return 'default'
-    if (role.includes('DIRECTOR')) return 'secondary'
-    if (role.includes('MANAGER')) return 'outline'
-    return 'secondary'
+    switch (role.toUpperCase()) {
+      case 'OWNER':
+      case 'GLOBAL_OWNER':
+        return 'default'
+      case 'DIRECTOR':
+      case 'GLOBAL_DIRECTOR':
+        return 'default'
+      case 'MANAGER':
+      case 'GLOBAL_MANAGER':
+        return 'default'
+      default:
+        return 'secondary'
+    }
   }
 
   // Get status badge variant
   const getStatusBadgeVariant = (status: string) => {
     switch (status.toUpperCase()) {
       case 'ACTIVE':
-        return 'success'
+        return 'default'
       case 'INACTIVE':
         return 'secondary'
       case 'SUSPENDED':
         return 'destructive'
       case 'PENDING':
-        return 'warning'
+        return 'secondary'
       default:
         return 'outline'
     }
@@ -312,24 +390,34 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-xl">Organization Members</CardTitle>
+            <CardTitle>Organization Members</CardTitle>
             <CardDescription>
               View and manage members of this organization
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search members..."
-                className="pl-8 w-[250px]"
+                className="pl-9 max-w-xs w-full"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
-            <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={loadMembers} 
+              disabled={loading}
+              className="h-10 w-10 mr-1"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              <span className="sr-only">Refresh</span>
+            </Button>
+            <Dialog>
               <DialogTrigger asChild>
                 <Button>
                   <UserPlus className="mr-2 h-4 w-4" />
@@ -418,92 +506,117 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
               ))}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Joined</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredMembers.length === 0 ? (
+            <>
+              {/* Debug information when members list is empty */}
+              {members.length === 0 && (
+                <div className="mb-4 p-4 border rounded bg-amber-50 text-amber-700">
+                  <h4 className="font-semibold mb-2">No members found. Debug information:</h4>
+                  <div className="text-xs space-y-1">
+                    <p><strong>Organization ID:</strong> {orgId}</p>
+                    <p><strong>Organization ID Type:</strong> {typeof orgId}</p>
+                    <p><strong>Organization ID Length:</strong> {orgId.length}</p>
+                    <p><strong>API Response:</strong> Data received successfully but no members were returned.</p>
+                    <p><strong>Current Time:</strong> {new Date().toISOString()}</p>
+                    <p className="mt-2">
+                      If you're seeing this message, there might be an issue with the organization ID or there are no members associated with this organization. Try adding a member using the "Add Member" button or click the refresh button to try fetching members again.
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
-                      No members found.
-                    </TableCell>
+                    <TableHead>User</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Joined</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filteredMembers.map((member) => (
-                    <TableRow key={member.ulid}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarImage src={member.user.imageUrl} />
-                            <AvatarFallback>
-                              {member.user.name.substring(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium">{member.user.name}</div>
-                            <div className="text-sm text-muted-foreground">{member.user.email}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getRoleBadgeVariant(member.role)}>
-                          {member.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getStatusBadgeVariant(member.status)}>
-                          {member.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(member.createdAt).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => {
-                              setEditingMember(member)
-                            }}>
-                              <UserCog className="mr-2 h-4 w-4" />
-                              Edit Member
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => {
-                              // Functionality for sending a direct message could be added here
-                            }}>
-                              <Mail className="mr-2 h-4 w-4" />
-                              Send Message
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => {
-                                setEditingMember(member)
-                                setConfirmDeleteDialogOpen(true)
-                              }}
-                            >
-                              <UserMinus className="mr-2 h-4 w-4" />
-                              Remove Member
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                </TableHeader>
+                <TableBody>
+                  {filteredMembers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="h-24 text-center">
+                        No members found.
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    filteredMembers.map((member) => (
+                      <TableRow key={member.ulid}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar>
+                              <AvatarImage 
+                                src={
+                                  member.user.imageUrl === null 
+                                    ? undefined 
+                                    : member.user.imageUrl
+                                } 
+                              />
+                              <AvatarFallback>
+                                {member.user.name.substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium">{member.user.name}</div>
+                              <div className="text-sm text-muted-foreground">{member.user.email}</div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getRoleBadgeVariant(member.role)}>
+                            {member.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusBadgeVariant(member.status)}>
+                            {member.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {new Date(member.createdAt).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => {
+                                setEditingMember(member)
+                              }}>
+                                <UserCog className="mr-2 h-4 w-4" />
+                                Edit Member
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                // Functionality for sending a direct message could be added here
+                              }}>
+                                <Mail className="mr-2 h-4 w-4" />
+                                Send Message
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => {
+                                  setEditingMember(member)
+                                  setConfirmDeleteDialogOpen(true)
+                                }}
+                              >
+                                <UserMinus className="mr-2 h-4 w-4" />
+                                Remove Member
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </>
           )}
         </CardContent>
       </Card>

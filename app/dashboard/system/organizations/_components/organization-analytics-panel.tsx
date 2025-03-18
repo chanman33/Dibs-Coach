@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/components/ui/use-toast'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { 
   BarChart3, 
   LineChart, 
@@ -15,8 +16,10 @@ import {
   Calendar,
   Building2,
   RefreshCw,
-  Download
+  Download,
+  AlertCircle
 } from 'lucide-react'
+import { fetchOrganizationAnalytics, fetchOrganizationMemberGrowth, OrganizationAnalyticsData } from '@/utils/actions/admin-organizations-analytics'
 
 interface OrganizationAnalyticsPanelProps {
   orgId: string
@@ -25,78 +28,108 @@ interface OrganizationAnalyticsPanelProps {
 export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanelProps) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
-  const [metrics, setMetrics] = useState({
-    memberCount: 0,
-    activeMembers: 0,
-    monthlyActive: 0,
-    totalSessions: 0,
-    revenue: {
-      current: 0,
-      previous: 0,
-      percentage: 0
-    },
-    engagement: {
-      current: 0,
-      previous: 0,
-      percentage: 0
-    }
-  })
+  const [metrics, setMetrics] = useState<OrganizationAnalyticsData | null>(null)
+  const [memberGrowthData, setMemberGrowthData] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true)
+      setError(null)
       
-      // In a real implementation, this would be an API call
-      // For now, mock the data
-      setTimeout(() => {
-        setMetrics({
-          memberCount: 28,
-          activeMembers: 22,
-          monthlyActive: 19,
-          totalSessions: 156,
-          revenue: {
-            current: 4899,
-            previous: 4250,
-            percentage: 15.3
-          },
-          engagement: {
-            current: 78,
-            previous: 62,
-            percentage: 25.8
-          }
-        })
+      if (!orgId) {
+        setError("Organization ID is missing. Please try again later.")
         setLoading(false)
-      }, 1000)
+        return
+      }
+      
+      console.log('[ANALYTICS_PANEL] Fetching analytics for organization:', orgId)
+      
+      // Fetch main analytics data
+      const result = await fetchOrganizationAnalytics({ orgId })
+      
+      if (result.error) {
+        console.error('[ANALYTICS_FETCH_ERROR]', result.error)
+        setError(formatErrorMessage(result.error))
+        setLoading(false)
+        return
+      }
+      
+      // Fetch member growth data for charts - this is optional, so we don't need to block on it
+      try {
+        const growthResult = await fetchOrganizationMemberGrowth(orgId)
+        if (!growthResult.error && growthResult.data) {
+          setMemberGrowthData(growthResult.data)
+        } else if (growthResult.error) {
+          console.warn('[MEMBER_GROWTH_FETCH_WARNING]', growthResult.error)
+          // Don't set error state for this - it's optional data
+        }
+      } catch (growthErr) {
+        console.warn('[MEMBER_GROWTH_FETCH_ERROR]', growthErr)
+        // Continue anyway - this is optional data
+      }
+      
+      setMetrics(result.data)
+      console.log('[ANALYTICS_LOADED]', { 
+        hasData: !!result.data,
+        memberCount: result.data?.memberCount,
+        hasGrowthData: !!memberGrowthData
+      })
     } catch (error) {
       console.error('[FETCH_ANALYTICS_ERROR]', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load analytics data',
-        variant: 'destructive'
-      })
+      setError('An unexpected error occurred while loading analytics data. Please try again later.')
+    } finally {
       setLoading(false)
     }
   }
 
+  // Format error messages to be more user-friendly
+  const formatErrorMessage = (error: string): string => {
+    if (error.includes('Failed to fetch member data')) {
+      return 'Unable to retrieve member information. The organization might not exist or you may not have access.'
+    }
+    
+    if (error.includes('not found') || error.includes('does not exist')) {
+      return 'The organization data could not be found. Please verify the organization exists.'
+    }
+    
+    if (error.includes('in.(')) {
+      return 'No members found for this organization. Analytics cannot be displayed.'
+    }
+    
+    if (error.includes('permission denied') || error.includes('access')) {
+      return 'You don\'t have permission to view analytics for this organization.'
+    }
+    
+    // Default error message for other cases
+    return 'Failed to load analytics data. Please try again later.'
+  }
+
   useEffect(() => {
-    fetchAnalytics()
+    if (orgId) {
+      fetchAnalytics()
+    } else {
+      setError("Organization ID is missing")
+      setLoading(false)
+    }
   }, [orgId])
 
   const handleRefresh = async () => {
     try {
       setIsRefreshing(true)
+      setError(null)
       await fetchAnalytics()
       toast({
         title: 'Success',
-        description: 'Analytics data refreshed'
+        description: 'Analytics data refreshed successfully',
       })
     } catch (error) {
       console.error('[REFRESH_ANALYTICS_ERROR]', error)
       toast({
         title: 'Error',
-        description: 'Failed to refresh analytics data',
+        description: 'Failed to refresh analytics data. Please try again.',
         variant: 'destructive'
       })
     } finally {
@@ -110,6 +143,44 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
       currency: 'USD',
       minimumFractionDigits: 0
     }).format(amount)
+  }
+
+  if (error && !loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Organization Analytics</h2>
+            <p className="text-muted-foreground">Metrics and insights for this organization</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Retry
+          </Button>
+        </div>
+        
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Unable to Load Analytics</AlertTitle>
+          <AlertDescription>
+            {error}
+          </AlertDescription>
+        </Alert>
+        
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-muted-foreground mt-4">
+              Please try refreshing the data or contact support if the problem persists.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -126,7 +197,7 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
             onClick={handleRefresh}
             disabled={isRefreshing || loading}
           >
-            <RefreshCw className="mr-2 h-4 w-4" />
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing || loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           <Button variant="outline" size="sm">
@@ -148,9 +219,11 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
               <Skeleton className="h-8 w-24 mt-2" />
             ) : (
               <div className="mt-4">
-                <div className="text-3xl font-bold">{metrics.memberCount}</div>
+                <div className="text-3xl font-bold">{metrics?.memberCount || 0}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {metrics.activeMembers} active ({Math.round(metrics.activeMembers / metrics.memberCount * 100)}%)
+                  {metrics?.activeMembers || 0} active ({metrics && metrics.memberCount > 0 
+                    ? Math.round((metrics.activeMembers / metrics.memberCount) * 100) 
+                    : 0}%)
                 </p>
               </div>
             )}
@@ -167,9 +240,11 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
               <Skeleton className="h-8 w-24 mt-2" />
             ) : (
               <div className="mt-4">
-                <div className="text-3xl font-bold">{metrics.totalSessions}</div>
+                <div className="text-3xl font-bold">{metrics?.totalSessions || 0}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {Math.round(metrics.totalSessions / metrics.memberCount)} per member avg.
+                  {metrics && metrics.memberCount > 0 
+                    ? Math.round(metrics.totalSessions / metrics.memberCount) 
+                    : 0} per member avg.
                 </p>
               </div>
             )}
@@ -186,12 +261,17 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
               <Skeleton className="h-8 w-24 mt-2" />
             ) : (
               <div className="mt-4">
-                <div className="text-3xl font-bold">{formatCurrency(metrics.revenue.current)}</div>
+                <div className="text-3xl font-bold">
+                  {formatCurrency(metrics?.revenue.current || 0)}
+                </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  <span className={metrics.revenue.percentage > 0 ? "text-green-500" : "text-red-500"}>
-                    {metrics.revenue.percentage > 0 ? "+" : ""}{metrics.revenue.percentage}%
-                  </span>
-                  {" "}from previous month
+                  {metrics && metrics.revenue.percentage !== 0 && (
+                    <span className={metrics.revenue.percentage > 0 ? "text-green-500" : "text-red-500"}>
+                      {metrics.revenue.percentage > 0 ? "+" : ""}{metrics.revenue.percentage}%
+                    </span>
+                  )}
+                  {metrics && metrics.revenue.percentage !== 0 && " from previous month"}
+                  {(!metrics || metrics.revenue.percentage === 0) && "No previous data"}
                 </p>
               </div>
             )}
@@ -208,18 +288,34 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
               <Skeleton className="h-8 w-24 mt-2" />
             ) : (
               <div className="mt-4">
-                <div className="text-3xl font-bold">{metrics.engagement.current}%</div>
+                <div className="text-3xl font-bold">{metrics?.engagement.current || 0}%</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  <span className={metrics.engagement.percentage > 0 ? "text-green-500" : "text-red-500"}>
-                    {metrics.engagement.percentage > 0 ? "+" : ""}{metrics.engagement.percentage}%
-                  </span>
-                  {" "}from previous month
+                  {metrics && metrics.engagement.percentage !== 0 && (
+                    <span className={metrics.engagement.percentage > 0 ? "text-green-500" : "text-red-500"}>
+                      {metrics.engagement.percentage > 0 ? "+" : ""}{metrics.engagement.percentage}%
+                    </span>
+                  )}
+                  {metrics && metrics.engagement.percentage !== 0 && " from previous month"}
+                  {(!metrics || metrics.engagement.percentage === 0) && "No previous data"}
                 </p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Data availability warning */}
+      {!loading && metrics && !error && (metrics.memberCount === 0 || metrics.totalSessions === 0) && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Limited Data Available</AlertTitle>
+          <AlertDescription>
+            {metrics.memberCount === 0 
+              ? "This organization currently has no members. Some analytics metrics may show placeholder values."
+              : "This organization has limited activity data. Some metrics may be estimates."}
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Tabs for different analytics views */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -254,7 +350,18 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
                   <div className="text-center text-muted-foreground">
                     <BarChart3 className="h-16 w-16 mx-auto mb-4 opacity-50" />
                     <p className="text-lg font-medium">Analytics Visualization</p>
-                    <p className="text-sm">Activity charts would be displayed here</p>
+                    <p className="text-sm">
+                      {!metrics || metrics.memberCount === 0 
+                        ? "No member data available to display activity charts"
+                        : "Activity charts would be displayed here"}
+                    </p>
+                    {metrics && metrics.memberCount > 0 && (
+                      <div className="mt-4 text-xs">
+                        <p>Monthly Active Users: {metrics.monthlyActive}</p>
+                        <p>Total Sessions: {metrics.totalSessions}</p>
+                        <p>Average Engagement: {metrics.engagement.current}%</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -277,8 +384,30 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
                 <div className="h-[300px] w-full flex items-center justify-center border rounded-md">
                   <div className="text-center text-muted-foreground">
                     <Users className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-lg font-medium">Member Visualization</p>
-                    <p className="text-sm">Member analytics would be displayed here</p>
+                    <p className="text-lg font-medium">Member Growth</p>
+                    {!metrics || metrics.memberCount === 0 ? (
+                      <p className="text-sm">No member data available to display growth chart</p>
+                    ) : (
+                      <>
+                        <p className="text-sm">Member growth chart would be displayed here</p>
+                        <div className="mt-4 flex justify-center gap-8 text-sm">
+                          <div>
+                            <p className="font-medium">Total Members</p>
+                            <p className="text-2xl">{metrics.memberCount}</p>
+                          </div>
+                          <div>
+                            <p className="font-medium">Active Members</p>
+                            <p className="text-2xl">{metrics.activeMembers}</p>
+                          </div>
+                        </div>
+                        {memberGrowthData && (
+                          <div className="mt-4 text-xs">
+                            <p>Growth data available for visualization</p>
+                            <p className="mt-1">Recent months: {memberGrowthData.labels.join(', ')}</p>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -301,8 +430,24 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
                 <div className="h-[300px] w-full flex items-center justify-center border rounded-md">
                   <div className="text-center text-muted-foreground">
                     <LineChart className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-lg font-medium">Revenue Visualization</p>
-                    <p className="text-sm">Revenue charts would be displayed here</p>
+                    <p className="text-lg font-medium">Revenue Trends</p>
+                    <p className="text-sm">
+                      {!metrics || metrics.revenue.current === 0 
+                        ? "No revenue data available to display charts" 
+                        : "Revenue charts would be displayed here"}
+                    </p>
+                    {metrics && metrics.revenue.current > 0 && (
+                      <div className="mt-4 flex justify-center gap-8 text-sm">
+                        <div>
+                          <p className="font-medium">Current Month</p>
+                          <p className="text-2xl">{formatCurrency(metrics.revenue.current)}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium">Previous Month</p>
+                          <p className="text-2xl">{formatCurrency(metrics.revenue.previous)}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

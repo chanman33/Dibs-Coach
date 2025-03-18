@@ -176,9 +176,9 @@ export default function OrganizationsPage() {
   const getStatusBadgeVariant = (status: string) => {
     switch (status.toUpperCase()) {
       case 'ACTIVE':
-        return 'success'
+        return 'default'
       case 'PENDING':
-        return 'warning'
+        return 'secondary'
       case 'SUSPENDED':
         return 'destructive'
       case 'ARCHIVED':
@@ -197,7 +197,7 @@ export default function OrganizationsPage() {
       case 'PROFESSIONAL':
         return 'default'
       case 'ENTERPRISE':
-        return 'success'
+        return 'default'
       case 'PARTNER':
         return 'default'
       default:
@@ -359,7 +359,7 @@ export default function OrganizationsPage() {
                               <span className="sr-only">View</span>
                             </Button>
                           </Link>
-                          <Link href={`/dashboard/system/organizations/${org.ulid}/edit`} className="inline-flex">
+                          <Link href={`/dashboard/system/organizations/${org.ulid}#settings`} className="inline-flex">
                             <Button variant="ghost" size="icon" className="h-8 w-8">
                               <Edit className="h-4 w-4" />
                               <span className="sr-only">Edit</span>
@@ -375,12 +375,12 @@ export default function OrganizationsPage() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/system/organizations/${org.ulid}/members`}>
+                                <Link href={`/dashboard/system/organizations/${org.ulid}#members`}>
                                   Manage Members
                                 </Link>
                               </DropdownMenuItem>
                               <DropdownMenuItem asChild>
-                                <Link href={`/dashboard/system/organizations/${org.ulid}/settings`}>
+                                <Link href={`/dashboard/system/organizations/${org.ulid}#settings`}>
                                   Settings
                                 </Link>
                               </DropdownMenuItem>

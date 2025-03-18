@@ -56,32 +56,32 @@ export function OrganizationsTable({ organizations, loading }: OrganizationsTabl
   const getBadgeVariant = (status: string) => {
     switch (status.toUpperCase()) {
       case 'ACTIVE':
-        return 'success'
+        return 'default' as const
       case 'INACTIVE':
-        return 'secondary'
+        return 'secondary' as const
       case 'SUSPENDED':
-        return 'destructive'
+        return 'destructive' as const
       case 'PENDING':
-        return 'warning'
+        return 'default' as const
       default:
-        return 'outline'
+        return 'outline' as const
     }
   }
 
   const getTierBadgeVariant = (tier: string) => {
     switch (tier.toUpperCase()) {
       case 'FREE':
-        return 'secondary'
+        return 'secondary' as const
       case 'STARTER':
-        return 'default'
+        return 'default' as const
       case 'PROFESSIONAL':
-        return 'default'
+        return 'default' as const
       case 'ENTERPRISE':
-        return 'success'
+        return 'default' as const
       case 'PARTNER':
-        return 'default'
+        return 'default' as const
       default:
-        return 'outline'
+        return 'outline' as const
     }
   }
 
@@ -174,15 +174,15 @@ export function OrganizationsTable({ organizations, loading }: OrganizationsTabl
                         <Building2 className="mr-2 h-4 w-4" />
                         View Details
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleNavigation(org.ulid, '/edit')}>
+                      <DropdownMenuItem onClick={() => handleNavigation(org.ulid, '#settings')}>
                         <Edit className="mr-2 h-4 w-4" />
                         Edit Organization
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleNavigation(org.ulid, '/members')}>
+                      <DropdownMenuItem onClick={() => handleNavigation(org.ulid, '#members')}>
                         <Users className="mr-2 h-4 w-4" />
                         Manage Members
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleNavigation(org.ulid, '/settings')}>
+                      <DropdownMenuItem onClick={() => handleNavigation(org.ulid, '#settings')}>
                         <Settings className="mr-2 h-4 w-4" />
                         Settings
                       </DropdownMenuItem>

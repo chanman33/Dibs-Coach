@@ -128,7 +128,7 @@ export function OrganizationSettingsPanel({ organization, onUpdate }: Organizati
       if (result.error) {
         toast({
           title: 'Error updating organization',
-          description: result.error.message,
+          description: result.error,
           variant: 'destructive',
         })
         return
@@ -424,29 +424,6 @@ export function OrganizationSettingsPanel({ organization, onUpdate }: Organizati
                           </FormLabel>
                           <FormDescription>
                             Batch data import tools
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <FormField
-                    control={form.control}
-                    name="featureSettings.enableCustomization"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">
-                            Customization
-                          </FormLabel>
-                          <FormDescription>
-                            Custom branding and white labeling
                           </FormDescription>
                         </div>
                         <FormControl>

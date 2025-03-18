@@ -66,10 +66,18 @@ export async function fetchAllOrganizations() {
  */
 export async function fetchOrganizationById(orgId: string) {
   try {
+    console.log('[FETCH_ORGANIZATION_BY_ID]', { orgId, type: typeof orgId })
+    
+    if (!orgId || orgId.trim() === '') {
+      console.error('[FETCH_ORGANIZATION_BY_ID_ERROR]', 'Invalid orgId provided', orgId)
+      return { error: 'Invalid organization ID', data: null }
+    }
+    
     const supabase = createAuthClient()
     
-    // Fetch the organization
-    const { data: organization, error } = await supabase
+    // First try with the native .single() method
+    console.log('[FETCH_ORGANIZATION_BY_ID] Querying with single()')
+    let { data: organization, error } = await supabase
       .from('Organization')
       .select('*')
       .eq('ulid', orgId)
@@ -77,7 +85,26 @@ export async function fetchOrganizationById(orgId: string) {
     
     if (error) {
       console.error('[FETCH_ORGANIZATION_BY_ID_ERROR]', error)
-      return { error: error.message, data: null }
+      
+      // If the single() method failed, try again without it
+      console.log('[FETCH_ORGANIZATION_BY_ID] Retrying without single()')
+      const { data: orgs, error: retryError } = await supabase
+        .from('Organization')
+        .select('*')
+        .eq('ulid', orgId)
+      
+      if (retryError) {
+        console.error('[FETCH_ORGANIZATION_BY_ID_RETRY_ERROR]', retryError)
+        return { error: retryError.message, data: null }
+      }
+      
+      if (!orgs || orgs.length === 0) {
+        console.error('[FETCH_ORGANIZATION_BY_ID_NOT_FOUND]', { orgId })
+        return { error: 'Organization not found', data: null }
+      }
+      
+      console.log('[FETCH_ORGANIZATION_BY_ID_FOUND_ON_RETRY]', { count: orgs.length })
+      organization = orgs[0]
     }
     
     // Get the member count
@@ -91,16 +118,17 @@ export async function fetchOrganizationById(orgId: string) {
       console.error('[FETCH_ORGANIZATION_MEMBER_COUNT_ERROR]', countError)
     }
     
+    // Return the combined data
     return { 
-      data: {
-        ...organization,
-        memberCount: memberCount || 0
-      } as OrganizationWithMemberCount, 
-      error: null 
+      error: null, 
+      data: { 
+        ...organization, 
+        memberCount: memberCount || 0 
+      }
     }
-  } catch (error) {
-    console.error('[FETCH_ORGANIZATION_BY_ID_ERROR]', error)
-    return { error: 'Failed to fetch organization details', data: null }
+  } catch (err) {
+    console.error('[FETCH_ORGANIZATION_BY_ID_UNEXPECTED_ERROR]', err)
+    return { error: 'An unexpected error occurred', data: null }
   }
 }
 

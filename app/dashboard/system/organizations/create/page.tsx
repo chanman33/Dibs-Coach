@@ -30,7 +30,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import Link from 'next/link'
-import { OrgType, OrgIndustry, OrgTier, OrgStatus } from '@/utils/types/organization'
+import { OrgType, OrgIndustry, OrgTier, OrgStatus, OrgLevel } from '@/utils/types/organization'
 import { createOrganization } from '@/utils/actions/organization-actions'
 import { generateUlid } from '@/utils/ulid'
 
@@ -38,20 +38,11 @@ import { generateUlid } from '@/utils/ulid'
 const formSchema = z.object({
   name: z.string().min(3, 'Name must be at least 3 characters').max(100),
   description: z.string().max(500).optional(),
-  type: z.enum(['INDIVIDUAL', 'TEAM', 'BUSINESS', 'ENTERPRISE', 'FRANCHISE', 'NETWORK']),
-  industry: z.enum([
-    'REAL_ESTATE_SALES',
-    'MORTGAGE_LENDING',
-    'PROPERTY_MANAGEMENT',
-    'REAL_ESTATE_INVESTMENT',
-    'TITLE_ESCROW',
-    'INSURANCE',
-    'COMMERCIAL',
-    'PRIVATE_CREDIT',
-    'OTHER'
-  ]).optional(),
-  tier: z.enum(['FREE', 'STARTER', 'PROFESSIONAL', 'ENTERPRISE', 'PARTNER']),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING', 'ARCHIVED']),
+  type: z.enum(Object.values(OrgType) as [string, ...string[]]),
+  industry: z.enum(Object.values(OrgIndustry) as [string, ...string[]]).optional(),
+  tier: z.enum(Object.values(OrgTier) as [string, ...string[]]),
+  status: z.enum(Object.values(OrgStatus) as [string, ...string[]]),
+  level: z.enum(Object.values(OrgLevel) as [string, ...string[]]).default('LOCAL'),
   primaryContact: z.string().email('Invalid email address').optional(),
   phone: z.string().optional(),
   website: z.string().url('Invalid URL format').optional(),
@@ -73,6 +64,7 @@ function CreateOrganizationPage() {
       type: 'BUSINESS',
       tier: 'PROFESSIONAL',
       status: 'ACTIVE',
+      level: 'LOCAL',
       primaryContact: '',
       phone: '',
       website: '',
@@ -93,7 +85,7 @@ function CreateOrganizationPage() {
       if (result.error) {
         toast({
           title: 'Error creating organization',
-          description: result.error.message,
+          description: result.error,
           variant: 'destructive',
         })
         return
@@ -173,9 +165,9 @@ function CreateOrganizationPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Object.values(OrgType).map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
+                          {(Object.keys(OrgType) as Array<keyof typeof OrgType>).map((key) => (
+                            <SelectItem key={OrgType[key]} value={OrgType[key]}>
+                              {OrgType[key]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -221,9 +213,9 @@ function CreateOrganizationPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Object.values(OrgIndustry).map((industry) => (
-                            <SelectItem key={industry} value={industry}>
-                              {industry.replace(/_/g, ' ')}
+                          {(Object.keys(OrgIndustry) as Array<keyof typeof OrgIndustry>).map((key) => (
+                            <SelectItem key={OrgIndustry[key]} value={OrgIndustry[key]}>
+                              {OrgIndustry[key].replace(/_/g, ' ')}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -249,9 +241,9 @@ function CreateOrganizationPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Object.values(OrgTier).map((tier) => (
-                            <SelectItem key={tier} value={tier}>
-                              {tier}
+                          {(Object.keys(OrgTier) as Array<keyof typeof OrgTier>).map((key) => (
+                            <SelectItem key={OrgTier[key]} value={OrgTier[key]}>
+                              {OrgTier[key]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -277,9 +269,9 @@ function CreateOrganizationPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {Object.values(OrgStatus).map((status) => (
-                            <SelectItem key={status} value={status}>
-                              {status}
+                          {(Object.keys(OrgStatus) as Array<keyof typeof OrgStatus>).map((key) => (
+                            <SelectItem key={OrgStatus[key]} value={OrgStatus[key]}>
+                              {OrgStatus[key]}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -291,6 +283,34 @@ function CreateOrganizationPage() {
               </div>
 
               <div className="grid gap-6 md:grid-cols-3">
+                <FormField
+                  control={form.control}
+                  name="level"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Level</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select level" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {(Object.keys(OrgLevel) as Array<keyof typeof OrgLevel>).map((key) => (
+                            <SelectItem key={OrgLevel[key]} value={OrgLevel[key]}>
+                              {OrgLevel[key]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <FormField
                   control={form.control}
                   name="primaryContact"
@@ -318,7 +338,9 @@ function CreateOrganizationPage() {
                     </FormItem>
                   )}
                 />
+              </div>
 
+              <div className="grid gap-6 md:grid-cols-3">
                 <FormField
                   control={form.control}
                   name="website"

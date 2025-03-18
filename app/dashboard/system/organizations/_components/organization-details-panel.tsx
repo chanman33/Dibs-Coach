@@ -214,8 +214,10 @@ export function OrganizationDetailsPanel({ organization, onUpdate }: Organizatio
 
       {/* Actions */}
       <div className="flex justify-end gap-2">
-        <Link href={`/dashboard/system/organizations/${organization.ulid}/edit`}>
-          <Button>Edit Organization Details</Button>
+        <Link href={`/dashboard/system/organizations/${organization.ulid}#settings`}>
+          <Button>
+            Edit Organization Details
+          </Button>
         </Link>
       </div>
     </div>
