@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { hasPermission } from "@/utils/roles/roles"
 import { useAuthContext } from "@/components/auth/providers"
 import { PERMISSIONS } from "@/utils/roles/roles"
+import { useAuth } from "@clerk/nextjs"
 
 function BusinessLayout({
   children,
@@ -19,11 +20,19 @@ function BusinessLayout({
   const authContext = useAuthContext()
   const router = useRouter()
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null)
+  const { isSignedIn, isLoaded: isAuthLoaded } = useAuth()
+  
+  // Handle unauthenticated users
+  useEffect(() => {
+    if (isAuthLoaded && !isSignedIn) {
+      router.push('/sign-in?redirect=/dashboard/business')
+    }
+  }, [isSignedIn, isAuthLoaded, router])
   
   // Effect to check authorization once both auth context and organization data are loaded
   useEffect(() => {
-    // Skip if still loading organization data
-    if (isLoading) return
+    // Skip checks if auth is still loading or user isn't signed in
+    if (!isAuthLoaded || !isSignedIn || isLoading) return
     
     // 1. Check if user belongs to any organization
     if (organizations.length === 0) {
@@ -47,7 +56,7 @@ function BusinessLayout({
     })
     
     setIsAuthorized(hasAccess)
-  }, [isLoading, organizationRole, organizations, authContext])
+  }, [isLoading, organizationRole, organizations, authContext, isSignedIn, isAuthLoaded])
   
   // Handle unauthorized access
   useEffect(() => {
@@ -55,6 +64,17 @@ function BusinessLayout({
       router.push('/not-authorized?message=Insufficient%20permissions%20to%20access%20business%20dashboard')
     }
   }, [isAuthorized, router])
+  
+  // Show loading state while authentication is in process
+  if (!isAuthLoaded || !isSignedIn) {
+    return (
+      <ContainerLoading 
+        message="Checking authentication..."
+        spinnerSize="md"
+        minHeight="h-full"
+      />
+    )
+  }
   
   // Show loading state while we determine authorization
   if (isLoading || isAuthorized === null) {

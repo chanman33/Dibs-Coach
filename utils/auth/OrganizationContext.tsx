@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useAuth } from '@clerk/nextjs';
 
 export interface OrganizationContextType {
   organizationUlid: string | null;
@@ -36,6 +37,7 @@ export const useOrganization = () => {
 };
 
 export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
+  const { isSignedIn, isLoaded: isAuthLoaded } = useAuth();
   const [organizationUlid, setOrganizationUlid] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [organizationRole, setOrganizationRole] = useState<string | null>(null);
@@ -43,6 +45,20 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    // Skip organization loading if not signed in
+    if (!isAuthLoaded) return;
+    
+    if (!isSignedIn) {
+      // User is not authenticated, reset state and stop loading
+      setOrganizations([]);
+      setOrganizationUlid(null);
+      setOrganizationName(null);
+      setOrganizationRole(null);
+      setIsLoading(false);
+      console.log('[ORGANIZATION_CONTEXT] User not authenticated, skipping organization fetch');
+      return;
+    }
+    
     // Load active organization from localStorage on initial render
     const storedOrgId = localStorage.getItem('activeOrganizationUlid');
     if (storedOrgId) {
@@ -51,7 +67,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     
     // Fetch user's organizations
     fetchOrganizations();
-  }, []);
+  }, [isSignedIn, isAuthLoaded]);
 
   useEffect(() => {
     // When organizationUlid changes, update localStorage
@@ -87,12 +103,24 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
   }, [organizationUlid, organizations]);
 
   const fetchOrganizations = async () => {
+    // Skip if user is not authenticated
+    if (!isSignedIn) {
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
     try {
       const response = await fetch('/api/user/organizations');
       
       if (!response.ok) {
-        throw new Error('Failed to fetch organizations');
+        if (response.status === 401) {
+          // Authentication error - user may have been logged out during the request
+          console.log('[ORGANIZATION_CONTEXT] Authentication required for organization data');
+          setOrganizations([]);
+          return;
+        }
+        throw new Error(`Failed to fetch organizations: ${response.status}`);
       }
       
       const data = await response.json();
@@ -103,7 +131,8 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         setOrganizationUlid(data.organizations[0].organizationUlid);
       }
     } catch (error) {
-      console.error('Error fetching organizations:', error);
+      console.error('[ORGANIZATION_CONTEXT] Error fetching organizations:', error);
+      // Don't show error in UI for auth errors
     } finally {
       setIsLoading(false);
     }

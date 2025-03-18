@@ -28,7 +28,7 @@ export default function BusinessDashboard() {
 
   // Check for organization analytics permission
   useEffect(() => {
-    // Skip if still loading
+    // Skip if still loading or user is not authenticated
     if (isLoading) return
     
     // Check permission
