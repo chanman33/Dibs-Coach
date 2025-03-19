@@ -1,0 +1,232 @@
+# DIBS Business Portal - Product Requirements Document
+
+## 1. Introduction
+
+### 1.1 Purpose
+This document outlines the product requirements for the DIBS Business Portal, a platform designed for small to mid-size real estate businesses to manage their teams, track coaching activities, and handle administrative functions.
+
+### 1.2 Scope
+The DIBS Business Portal MVP focuses on essential features for real estate business owners and managers with a single office location, with emphasis on team management, coaching, and core business operations.
+
+### 1.3 Target Users
+- Real estate brokerage owners
+- Office/team managers
+- Training directors
+- Administrative staff
+
+## 2. Core Features
+
+### 2.1 Dashboard & Overview
+- **Priority: High**
+- A centralized dashboard showing critical business metrics and alerts:
+  - Agent activity summary
+  - Coaching session completion rates
+  - Performance metrics at a glance
+  - Upcoming training deadlines
+  - Business alerts (billing, compliance issues)
+
+### 2.2 Team Management
+
+#### 2.2.1 Agent Directory
+- **Priority: High**
+- Comprehensive view of all agents/employees including:
+  - Contact information
+  - License information and expiration dates
+  - Role and specialization
+  - Performance tier
+  - Hire date
+  - Profile photo
+
+#### 2.2.2 Role Management
+- **Priority: Medium**
+- Define system access roles and permissions
+- Assign agents to teams or specializations
+
+### 2.3 Coaching & Development
+
+#### 2.3.1 Coaching Sessions
+- **Priority: High**
+- Schedule and track one-on-one coaching sessions
+- Log session notes, action items, and follow-ups
+- Review historical coaching data
+- Track coaching frequency and completion
+
+#### 2.3.2 Training Programs
+- **Priority: High**
+- Assign required training (new agent onboarding, continuing education)
+- Track completion of mandated real estate certifications
+- Create custom training paths for different agent roles
+- Monitor progress and send reminders
+
+#### 2.3.3 Mentorship Program
+- **Priority: Medium**
+- Match experienced agents with newer team members
+- Define mentorship schedules and milestones
+- Track effectiveness of mentorship pairings
+
+### 2.4 Performance & Goals
+
+#### 2.4.1 Goal Setting & Tracking
+- **Priority: High**
+- Create and monitor agent performance goals:
+  - Listings taken
+  - Sales closed
+  - Revenue generated
+  - Client acquisition
+  - Activities completed (calls, meetings, open houses)
+- Visualize progress toward goals
+
+#### 2.4.2 Transaction Pipeline
+- **Priority: Medium**
+- Track deals in progress across the team
+- Identify bottlenecks in the sales process
+- Monitor conversion rates
+
+#### 2.4.3 Agent Development Plans
+- **Priority: Medium**
+- Create individualized growth plans
+- Track skill development over time
+- Align plans with business objectives
+
+### 2.5 Business Administration
+
+#### 2.5.1 Business Profile
+- **Priority: High**
+- Configure company information
+- Upload logo and branding elements
+- Set business hours and contact details
+
+#### 2.5.2 User Management
+- **Priority: High**
+- Add, remove, and deactivate user accounts
+- Set permissions based on roles
+- Manage access to sensitive information
+
+#### 2.5.3 Billing & Subscription
+- **Priority: High**
+- Manage subscription plan
+- Update payment methods
+- View invoices and payment history
+- Adjust seat count
+
+#### 2.5.4 Commission Structure
+- **Priority: Medium**
+- Define default commission splits
+- Create performance-based incentive structures
+- Set up transaction fee calculations
+
+### 2.6 Analytics
+
+#### 2.6.1 Performance Metrics
+- **Priority: High**
+- Agent productivity reports
+- Team performance comparisons
+- Activity vs. results correlation
+
+#### 2.6.2 Coaching Effectiveness
+- **Priority: Medium**
+- Measure impact of coaching on performance
+- Track before/after metrics for training programs
+- Calculate ROI on coaching investment
+
+#### 2.6.3 Business Health
+- **Priority: Medium**
+- Revenue trends
+- Agent retention rates
+- Cost per transaction
+
+## 3. Technical Requirements
+
+### 3.1 User Interface
+- Mobile-responsive design for all core functions
+- Intuitive navigation optimized for daily use
+- Clear data visualization with actionable insights
+- Consistent UI patterns across all modules
+
+### 3.2 Performance
+- Dashboard load time under 3 seconds
+- Data updates at minimum every 15 minutes
+- Support for concurrent users (10+ for small businesses)
+
+### 3.3 Security
+- Role-based access controls
+- Data encryption for sensitive information
+- Compliance with real estate industry regulations
+- Regular security audits
+
+### 3.4 Integration
+- Calendar integration for scheduling (Google, Outlook)
+- Email notifications for alerts and reminders
+- CSV export functionality for reports
+
+## 4. User Roles & Permissions
+
+### 4.1 Owner/Broker
+- Full access to all features and data
+- Administrative control of permissions
+- Financial reporting and billing management
+
+### 4.2 Office Manager
+- Team management capabilities
+- Limited administrative functions
+- Performance reporting access
+- Training and coaching tools
+
+### 4.3 Team Lead
+- Access limited to assigned team members
+- Coaching and goal-setting tools
+- Performance metrics for direct reports
+
+### 4.4 Agent
+- Personal dashboard with individual metrics
+- Access to own coaching sessions and notes
+- Training module access
+- Goal progress visibility
+
+## 5. Future Considerations (Out of MVP Scope)
+
+### 5.1 Expansion Features
+- Multiple office/location management
+- Advanced market analytics
+- Automated coaching recommendations
+- Integration with MLS and transaction management systems
+- Client relationship management
+- Marketing campaign tracking
+- Recruiting and hiring pipeline
+- Advanced compensation management
+
+## 6. Success Metrics
+
+### 6.1 Product Adoption
+- 80%+ agent login rate weekly
+- 90%+ of scheduled coaching sessions completed
+- All agents with active goals and development plans
+
+### 6.2 Business Impact
+- Measurable improvement in agent productivity
+- Reduction in agent turnover
+- Increased coaching effectiveness
+- Time savings for administrative tasks
+
+## 7. Implementation Timeline
+
+### 7.1 MVP Timeline
+- Phase 1: Core Dashboard, Team Management, User Access (4 weeks)
+- Phase 2: Coaching Tools, Performance Goals (4 weeks)
+- Phase 3: Analytics, Business Administration (4 weeks)
+- Beta Testing: 2 weeks with select customers
+- Full Release: 2 weeks post-beta for adjustments
+
+## 8. Appendix
+
+### 8.1 Real Estate Specific Considerations
+- License renewal tracking and alerts
+- Industry compliance requirements
+- Standard transaction workflow stages
+- Common real estate performance metrics
+
+### 8.2 Glossary
+- **Coaching Session**: Structured one-on-one meeting between manager and agent
+- **Development Plan**: Customized growth roadmap for individual agents
+- **Transaction Pipeline**: Visual representation of deals in progress
+- **Commission Split**: Revenue sharing arrangement between agent and brokerage 
