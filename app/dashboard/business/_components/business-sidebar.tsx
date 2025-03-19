@@ -11,25 +11,27 @@ import {
   HomeIcon,
   BarChart3,
   Settings,
-  UserCircle,
   ChevronDown,
   ChevronUp,
   Target,
   Briefcase,
   GraduationCap,
-  Bot,
-  Calculator,
-  LineChart,
-  Network,
-  Globe,
-  Map,
-  Star,
+  DollarSign,
+  UserCog,
+  FileText,
+  ClipboardList,
+  CalendarClock,
+  BadgePercent,
+  Star
 } from "lucide-react"
 
 export function BusinessSidebar() {
   const pathname = usePathname()
   const [isTeamExpanded, setIsTeamExpanded] = useState(true)
-  const [isAnalyticsExpanded, setIsAnalyticsExpanded] = useState(true)
+  const [isCoachingExpanded, setIsCoachingExpanded] = useState(true)
+  const [isPerformanceExpanded, setIsPerformanceExpanded] = useState(true)
+  const [isAdminExpanded, setIsAdminExpanded] = useState(false)
+  const [isAnalyticsExpanded, setIsAnalyticsExpanded] = useState(false)
 
   const NavLink = ({ href, icon: Icon, children }: { href: string; icon: any; children: React.ReactNode }) => (
     <Link
@@ -54,9 +56,9 @@ export function BusinessSidebar() {
         </div>
         <div className="flex-1 overflow-auto py-2">
           <nav className="grid items-start px-4 text-sm font-medium gap-1">
-            {/* Main Navigation */}
+            {/* Main Dashboard */}
             <NavLink href="/dashboard/business" icon={HomeIcon}>
-              Overview
+              Dashboard
             </NavLink>
             <NavLink href="/dashboard/business/profile" icon={Building2}>
               Business Profile
@@ -68,19 +70,13 @@ export function BusinessSidebar() {
               onClick={() => setIsTeamExpanded(!isTeamExpanded)}
               className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
             >
-              <span className="font-semibold">Employee Management</span>
+              <span className="font-semibold">Team Management</span>
               {isTeamExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {isTeamExpanded && (
               <div className="pl-3 grid gap-1">
-                <NavLink href="/dashboard/business/employees" icon={Users}>
-                  Employees
-                </NavLink>
-                <NavLink href="/dashboard/business/mentorship" icon={GraduationCap}>
-                  Mentorship Program
-                </NavLink>
-                <NavLink href="/dashboard/business/preferred-coaches" icon={Star}>
-                  Preferred Coaches
+                <NavLink href="/dashboard/business/team/members" icon={Users}>
+                  Team Directory
                 </NavLink>
                 <NavLink href="/dashboard/business/team/roles" icon={Briefcase}>
                   Roles & Permissions
@@ -88,41 +84,97 @@ export function BusinessSidebar() {
               </div>
             )}
             
-            {/* Analytics & Reports */}
+            {/* Coaching & Development */}
+            <Separator className="my-3" />
+            <button
+              onClick={() => setIsCoachingExpanded(!isCoachingExpanded)}
+              className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+            >
+              <span className="font-semibold">Coaching & Development</span>
+              {isCoachingExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {isCoachingExpanded && (
+              <div className="pl-3 grid gap-1">
+                <NavLink href="/dashboard/business/coaching/sessions" icon={CalendarClock}>
+                  Coaching Sessions
+                </NavLink>
+                <NavLink href="/dashboard/business/coaching/training" icon={GraduationCap}>
+                  Training Programs
+                </NavLink>
+                <NavLink href="/dashboard/business/coaching/mentorship" icon={Star}>
+                  Mentorship Program
+                </NavLink>
+              </div>
+            )}
+
+            {/* Performance & Goals */}
+            <Separator className="my-3" />
+            <button
+              onClick={() => setIsPerformanceExpanded(!isPerformanceExpanded)}
+              className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+            >
+              <span className="font-semibold">Performance & Goals</span>
+              {isPerformanceExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {isPerformanceExpanded && (
+              <div className="pl-3 grid gap-1">
+                <NavLink href="/dashboard/business/performance/goals" icon={Target}>
+                  Goal Tracking
+                </NavLink>
+                <NavLink href="/dashboard/business/performance/transactions" icon={ClipboardList}>
+                  Transaction Pipeline
+                </NavLink>
+                <NavLink href="/dashboard/business/performance/development" icon={UserCog}>
+                  Development Plans
+                </NavLink>
+              </div>
+            )}
+
+            {/* Business Administration */}
+            <Separator className="my-3" />
+            <button
+              onClick={() => setIsAdminExpanded(!isAdminExpanded)}
+              className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+            >
+              <span className="font-semibold">Administration</span>
+              {isAdminExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {isAdminExpanded && (
+              <div className="pl-3 grid gap-1">
+                <NavLink href="/dashboard/business/admin/users" icon={Users}>
+                  User Management
+                </NavLink>
+                <NavLink href="/dashboard/business/admin/billing" icon={DollarSign}>
+                  Billing & Subscription
+                </NavLink>
+                <NavLink href="/dashboard/business/admin/commission" icon={BadgePercent}>
+                  Commission Structure
+                </NavLink>
+              </div>
+            )}
+
+            {/* Analytics */}
             <Separator className="my-3" />
             <button
               onClick={() => setIsAnalyticsExpanded(!isAnalyticsExpanded)}
               className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
             >
-              <span className="font-semibold">Analytics & Reports</span>
+              <span className="font-semibold">Analytics</span>
               {isAnalyticsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {isAnalyticsExpanded && (
               <div className="pl-3 grid gap-1">
                 <NavLink href="/dashboard/business/analytics/performance" icon={BarChart3}>
-                  Performance
+                  Performance Metrics
                 </NavLink>
-                <NavLink href="/dashboard/business/analytics/revenue" icon={LineChart}>
-                  Revenue
+                <NavLink href="/dashboard/business/analytics/coaching" icon={GraduationCap}>
+                  Coaching Effectiveness
                 </NavLink>
-                <NavLink href="/dashboard/business/analytics/goals" icon={Target}>
-                  Goals & KPIs
+                <NavLink href="/dashboard/business/analytics/business" icon={FileText}>
+                  Business Health
                 </NavLink>
               </div>
             )}
-
-            {/* Organization Management */}
-            <Separator className="my-3" />
-            <NavLink href="/dashboard/business/locations" icon={Map}>
-              Locations
-            </NavLink>
-            <NavLink href="/dashboard/business/network" icon={Network}>
-              Network
-            </NavLink>
-            <NavLink href="/dashboard/business/regions" icon={Globe}>
-              Regions
-            </NavLink>
-
 
             {/* Settings */}
             <Separator className="my-3" />
