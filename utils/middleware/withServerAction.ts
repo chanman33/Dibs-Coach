@@ -17,6 +17,8 @@ import {
 } from "@/utils/roles/roles"
 import { generateUlid } from '@/utils/ulid'
 import { ApiResponse } from '@/utils/types/api'
+import { permissionService } from '@/utils/auth'
+import { AuthOptions } from '@/utils/types/auth'
 
 export interface ServerActionContext {
   userId: string           // Clerk ID
@@ -24,6 +26,7 @@ export interface ServerActionContext {
   systemRole: SystemRole  // System-level role
   roleContext: UserRoleContext // Full role context including org roles
   organizationUlid?: string // Organization ULID if user has active membership
+  organizationName?: string // Organization name if user has active membership
 }
 
 interface ServerActionOptions {
@@ -60,7 +63,7 @@ type ServerAction<T, P = any> = (
  */
 export function withServerAction<T, P = any>(
   action: ServerAction<T, P>,
-  options: ServerActionOptions = {}
+  options: AuthOptions = {}
 ) {
   return async (params: P): Promise<ApiResponse<T>> => {
     try {
@@ -121,20 +124,56 @@ export function withServerAction<T, P = any>(
             ulid,
             level,
             status,
-            type
+            type,
+            name
           )
         `)
         .eq('userUlid', userData.ulid)
         .eq('status', 'ACTIVE')
-        .maybeSingle() as { data: OrganizationData | null, error: any }
+        .maybeSingle() 
+
+      // Log organization membership info
+      if (orgError) {
+        console.error('[SERVER_ACTION_ORG_ERROR]', {
+          error: orgError,
+          userUlid: userData.ulid,
+          userId: session.userId,
+          timestamp: new Date().toISOString()
+        });
+      } else if (orgData) {
+        console.log('[SERVER_ACTION_ORG_INFO]', {
+          userUlid: userData.ulid,
+          userId: session.userId,
+          organizationUlid: orgData.organizationUlid,
+          organizationName: orgData.organization.name,
+          role: orgData.role,
+          scope: orgData.scope,
+          orgStatus: orgData.organization.status,
+          orgLevel: orgData.organization.level,
+          orgType: orgData.organization.type,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        console.log('[SERVER_ACTION_NO_ORG]', {
+          message: 'User has no organization membership',
+          userUlid: userData.ulid,
+          userId: session.userId,
+          timestamp: new Date().toISOString()
+        });
+      }
 
       // Handle org membership validation
       if (options.requireOrganization && !orgData) {
-        return {
-          data: null,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Organization membership required'
+        // System owners bypass organization requirements
+        if (userData.systemRole === 'SYSTEM_OWNER') {
+          console.log('[SERVER_ACTION] System owner bypassing organization requirement');
+        } else {
+          return {
+            data: null,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Organization membership required'
+            }
           }
         }
       }
@@ -173,70 +212,27 @@ export function withServerAction<T, P = any>(
         customPermissions: orgData?.customPermissions as Permission[] | undefined
       }
 
-      // System role validation
-      if (options.requiredSystemRole && !hasSystemRole(roleContext.systemRole, options.requiredSystemRole)) {
+      // Create user context for permission service
+      const userContext = {
+        userId: session.userId,
+        userUlid: userData.ulid,
+        systemRole: userData.systemRole as SystemRole,
+        capabilities: (userData.capabilities || []) as UserCapability[],
+        orgRole: orgData?.role as OrgRole | undefined,
+        orgLevel: orgData?.organization?.level as OrgLevel | undefined,
+        organizationUlid: orgData?.organizationUlid,
+        organizationName: orgData?.organization?.name,
+        customPermissions: orgData?.customPermissions as Permission[] | undefined
+      }
+
+      // Check permissions using permission service
+      permissionService.setUser(userContext)
+      if (!permissionService.check(options)) {
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
-            message: 'Insufficient system role'
-          }
-        }
-      }
-
-      // Organization role validation
-      if (options.requiredOrgRole && options.requiredOrgLevel) {
-        if (!roleContext.orgRole || !roleContext.orgLevel) {
-          return {
-            data: null,
-            error: {
-              code: 'FORBIDDEN',
-              message: 'Organization role required'
-            }
-          }
-        }
-
-        if (!hasOrgRole(roleContext.orgRole, options.requiredOrgRole, roleContext.orgLevel, options.requiredOrgLevel)) {
-          return {
-            data: null,
-            error: {
-              code: 'FORBIDDEN',
-              message: 'Insufficient organization role'
-            }
-          }
-        }
-      }
-
-      // Permission validation
-      if (options.requiredPermissions?.length) {
-        const hasRequiredPermissions = options.requireAll
-          ? options.requiredPermissions.every(p => hasPermission(roleContext, p))
-          : options.requiredPermissions.some(p => hasPermission(roleContext, p))
-
-        if (!hasRequiredPermissions) {
-          return {
-            data: null,
-            error: {
-              code: 'FORBIDDEN',
-              message: 'Insufficient permissions'
-            }
-          }
-        }
-      }
-
-      // Capability validation
-      if (options.requiredCapabilities?.length) {
-        const hasRequiredCapabilities = options.requireAll
-          ? options.requiredCapabilities.every(c => hasCapability(roleContext, c))
-          : options.requiredCapabilities.some(c => hasCapability(roleContext, c))
-
-        if (!hasRequiredCapabilities) {
-          return {
-            data: null,
-            error: {
-              code: 'FORBIDDEN',
-              message: 'Required capabilities not found'
-            }
+            message: 'Insufficient permissions'
           }
         }
       }
@@ -246,7 +242,8 @@ export function withServerAction<T, P = any>(
         userUlid: userData.ulid,
         systemRole: userData.systemRole as SystemRole,
         roleContext,
-        organizationUlid: orgData?.organizationUlid
+        organizationUlid: orgData?.organizationUlid,
+        organizationName: orgData?.organization?.name
       })
     } catch (error) {
       console.error('[SERVER_ACTION_ERROR]', error)

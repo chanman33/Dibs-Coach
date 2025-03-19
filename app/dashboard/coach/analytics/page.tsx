@@ -1,24 +1,19 @@
-'use client'
-
+"use client"
 import { CoachAnalyticsDashboard } from '../_components/CoachAnalyticsDashboard'
-import { WithAuth } from '@/components/auth/with-auth'
-import { USER_CAPABILITIES } from '@/utils/roles/roles'
+import { Suspense } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useAuthContext } from '@/components/auth/providers'
 
-function CoachAnalyticsPage() {
+export default function CoachAnalyticsPage() {
   const { userUlid } = useAuthContext()
-
-  if (!userUlid) {
-    return null
-  }
-
+  
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <CoachAnalyticsDashboard userDbId={userUlid} />
-    </div>
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    }>
+      {userUlid ? <CoachAnalyticsDashboard userUlid={userUlid} /> : null}
+    </Suspense>
   )
-}
-
-export default WithAuth(CoachAnalyticsPage, {
-  requiredCapabilities: [USER_CAPABILITIES.COACH]
-}); 
+} 

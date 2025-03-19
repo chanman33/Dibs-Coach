@@ -1,6 +1,5 @@
-import type { NextConfig } from 'next';
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   webpack: (config, { isServer }) => {
     // Handle node-specific modules for client-side
     if (!isServer) {
@@ -36,6 +35,11 @@ const nextConfig: NextConfig = {
     }, {
       protocol: 'https',
       hostname: 'github.com',
+      port: '',
+      pathname: '/**'
+    }, {
+      protocol: 'https',
+      hostname: 'ansubkhan.com',
       port: '',
       pathname: '/**'
     }, {
@@ -85,4 +89,4 @@ const nextConfig: NextConfig = {
   }
 };
 
-export default nextConfig;
+module.exports = nextConfig; 

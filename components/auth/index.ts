@@ -1,10 +1,10 @@
-// Export auth components with standardized PascalCase naming
+// Export auth components
 export { WithAuth } from "./with-auth";
 export { RouteGuard } from "./route-guard";
 export { AuthProviders, useAuthContext } from "./providers";
-
-// Re-export the organization auth component for convenience
 export { WithOrganizationAuth } from "./with-organization-auth";
+export { RouteGuardProvider, useRouteGuard } from "./RouteGuardContext";
 
 // Re-export types
-export type { WithAuthOptions } from "./with-auth"; 
+export type { WithAuthOptions } from "./with-auth";
+export type { AuthorizationLevel, RouteGuardContextType } from "./RouteGuardContext"; 

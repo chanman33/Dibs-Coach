@@ -4,8 +4,6 @@ import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { WithAuth } from '@/components/auth'
-import { SYSTEM_ROLES } from '@/utils/roles/roles'
 import { Building2, ArrowLeft, Edit, Users, Settings, BarChart3, CreditCard, Clock, AlertCircle } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +19,7 @@ import { OrganizationActivityPanel } from '../_components/organization-activity-
 import { OrganizationAnalyticsPanel } from '../_components/organization-analytics-panel'
 import { OrganizationBillingPanel } from '../_components/organization-billing-panel'
 import config from '@/config'
+import { Suspense } from 'react'
 
 // Use the global configuration to determine if billing is enabled
 const BILLING_ENABLED = config.payments.enabled
@@ -242,19 +241,7 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-4">
-          {!orgId ? (
-            <Card>
-              <CardContent className="py-10 text-center">
-                <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground" />
-                <h3 className="text-lg font-medium mt-2">Organization ID Missing</h3>
-                <p className="text-muted-foreground mt-2">
-                  Unable to load analytics without a valid organization ID.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <OrganizationAnalyticsPanel orgId={orgId} />
-          )}
+          <OrganizationAnalyticsPanel orgId={orgId} />
         </TabsContent>
 
         {BILLING_ENABLED && (
@@ -275,6 +262,14 @@ function OrganizationDetailPage({ params }: OrganizationDetailPageProps) {
   )
 }
 
-export default WithAuth(OrganizationDetailPage, {
-  requiredSystemRole: SYSTEM_ROLES.SYSTEM_OWNER
-}); 
+export default function OrganizationDetailPageWrapper(props: OrganizationDetailPageProps) {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Skeleton className="h-[400px] w-full" />
+      </div>
+    }>
+      <OrganizationDetailPage {...props} />
+    </Suspense>
+  )
+} 

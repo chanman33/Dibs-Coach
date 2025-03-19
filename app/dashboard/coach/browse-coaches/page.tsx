@@ -1,13 +1,17 @@
-'use client'
-
+"use client"
 import { BrowseCoaches } from '@/components/coaching/private/BrowseCoaches'
-import { WithAuth } from '@/components/auth/with-auth'
+import { Suspense } from 'react'
+import { Loader2 } from 'lucide-react'
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
 
-function CoachBrowseCoachesPage() {
-  return <BrowseCoaches role={USER_CAPABILITIES.COACH} />;
-}
-
-export default WithAuth(CoachBrowseCoachesPage, {
-  requiredCapabilities: [USER_CAPABILITIES.COACH]
-}); 
+export default function CoachBrowseCoachesPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    }>
+      <BrowseCoaches role="COACH" />
+    </Suspense>
+  )
+} 

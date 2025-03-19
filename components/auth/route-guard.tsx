@@ -1,77 +1,70 @@
 'use client';
 
-import { useAuth } from '@clerk/nextjs'
-import { useRouter, usePathname } from 'next/navigation'
-import { ReactNode, useEffect, useState } from 'react'
-import { ContainerLoading } from '@/components/loading'
+import { ReactNode } from 'react';
+import { RouteGuardProvider } from './RouteGuardContext';
 
 interface RouteGuardProps {
   children: ReactNode;
-  publicPaths?: string[];
+  requiredAuth?: boolean;
+  requiredCapability?: string;
+  requiredRole?: string;
+  redirectTo?: string;
 }
 
 /**
- * Simple route protection component that redirects unauthenticated users
- * away from protected routes.
- * 
- * @param publicPaths Optional array of paths that don't require authentication
+ * Legacy RouteGuard component - wraps the new RouteGuardProvider for backward compatibility
+ * For new components, use RouteGuardProvider directly with required permission level
  */
-export function RouteGuard({ 
-  children, 
-  publicPaths = [
-    '/',
-    '/sign-in',
-    '/sign-up',
-    '/coaches',
-    '/coaches/[id]',
-    '/reset-password',
-  ] 
+export function RouteGuard({
+  children,
+  requiredAuth = true,
+  requiredCapability,
+  requiredRole,
+  redirectTo = '/sign-in',
 }: RouteGuardProps) {
-  const { isLoaded, isSignedIn } = useAuth()
-  const router = useRouter()
-  const pathname = usePathname()
-  const [isAuthorized, setIsAuthorized] = useState(false)
+  // Just basic authentication, no special authorization
+  if (requiredAuth && !requiredCapability && !requiredRole) {
+    return <RouteGuardProvider>{children}</RouteGuardProvider>;
+  }
   
-  // Check if current path is a public route
-  const isPublicRoute = () => {
-    return publicPaths.some(route => {
-      // Handle dynamic routes
-      if (route.includes('[') && route.includes(']')) {
-        const baseRoute = route.split('/').slice(0, -1).join('/')
-        const currentBaseRoute = pathname.split('/').slice(0, -1).join('/')
-        return currentBaseRoute === baseRoute
-      }
-      return pathname === route || pathname.startsWith(`${route}/`)
-    })
-  }
-
-  useEffect(() => {
-    if (!isLoaded) return;
-
-    // Allow access to public routes
-    if (isPublicRoute()) {
-      setIsAuthorized(true)
-      return;
-    }
-
-    // Check authentication for protected routes
-    if (!isSignedIn) {
-      router.push('/sign-in')
-    } else {
-      setIsAuthorized(true)
-    }
-  }, [isLoaded, isSignedIn, pathname, router])
-
-  // Loading state
-  if (!isLoaded || !isAuthorized) {
+  // Handle capability-based routing
+  if (requiredCapability === 'COACH') {
     return (
-      <ContainerLoading 
-        spinnerSize="md"
-        minHeight="h-full"
-      />
-    )
+      <RouteGuardProvider 
+        required="coach-dashboard" 
+        redirectTo={redirectTo}
+      >
+        {children}
+      </RouteGuardProvider>
+    );
   }
-
-  // Render children if authorized
-  return <>{children}</>
+  
+  if (requiredCapability === 'MENTEE') {
+    return (
+      <RouteGuardProvider 
+        required="mentee-dashboard" 
+        redirectTo={redirectTo}
+      >
+        {children}
+      </RouteGuardProvider>
+    );
+  }
+  
+  // For business-related roles, default to business dashboard access
+  if (requiredRole && 
+      (requiredRole.includes('OWNER') || 
+       requiredRole.includes('MANAGER') || 
+       requiredRole.includes('DIRECTOR'))) {
+    return (
+      <RouteGuardProvider 
+        required="business-dashboard" 
+        redirectTo={redirectTo}
+      >
+        {children}
+      </RouteGuardProvider>
+    );
+  }
+  
+  // Default case - just check authenticated
+  return <RouteGuardProvider>{children}</RouteGuardProvider>;
 } 

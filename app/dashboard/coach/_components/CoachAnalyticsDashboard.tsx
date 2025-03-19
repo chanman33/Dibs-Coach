@@ -19,9 +19,9 @@ import { format } from 'date-fns';
 import { TransactionHistory } from '@/components/payments/TransactionHistory';
 import { useTransactions } from '@/utils/hooks/useTransactions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { fetchCoachAnalytics, type CoachAnalytics } from '@/utils/actions/analytics';
+import { fetchCoachAnalytics, type CoachAnalytics, requestEarlyPayout } from '@/utils/actions/analytics';
 
-export function CoachAnalyticsDashboard({ userDbId }: { userDbId: string }) {
+export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRequestingPayout, setIsRequestingPayout] = useState(false);
   const { toast } = useToast();
@@ -77,19 +77,14 @@ export function CoachAnalyticsDashboard({ userDbId }: { userDbId: string }) {
 
     try {
       setIsRequestingPayout(true);
-      const response = await fetch(`${window.location.origin}/api/user/coach/payout/request`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userDbId,
-          amount: analytics.availableBalance,
-        }),
+      
+      // Use server action instead of direct API call
+      const result = await requestEarlyPayout({
+        amount: analytics.availableBalance
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to request payout');
+      
+      if (result.error) {
+        throw new Error(result.error.message || 'Failed to request payout');
       }
 
       toast({
@@ -98,9 +93,9 @@ export function CoachAnalyticsDashboard({ userDbId }: { userDbId: string }) {
       });
 
       // Refresh analytics
-      const result = await fetchCoachAnalytics({});
-      if (result.data) {
-        setAnalytics(result.data);
+      const analyticsResult = await fetchCoachAnalytics({});
+      if (analyticsResult.data) {
+        setAnalytics(analyticsResult.data);
       }
     } catch (error) {
       console.error('[PAYOUT_REQUEST_ERROR]', error);

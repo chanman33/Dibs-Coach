@@ -6,6 +6,7 @@ import { ApiResponse } from '@/utils/types/api'
 import { getAuthContext } from '@/utils/auth/auth-context'
 import authMiddleware from '@/utils/auth/auth-middleware'
 import { AuthContext, AuthOptions, UnauthorizedError } from '@/utils/types/auth'
+import { permissionService } from '@/utils/auth'
 import { 
   SystemRole, 
   OrgRole, 
@@ -88,23 +89,10 @@ export function withApiAuth<T>(handler: ApiHandler<T>, options: AuthOptions = {}
         return middlewareResponse
       }
 
-      // Check additional auth options if provided
-      if (options.requiredSystemRole && !hasSystemRole(context.systemRole, options.requiredSystemRole)) {
-        throw new UnauthorizedError(`Required system role ${options.requiredSystemRole} not found`)
-      }
-
-      if (options.requiredCapabilities?.length) {
-        const hasRequiredCapabilities = options.requireAll
-          ? options.requiredCapabilities.every(cap => 
-              context.capabilities.includes(cap as keyof typeof USER_CAPABILITIES)
-            )
-          : options.requiredCapabilities.some(cap => 
-              context.capabilities.includes(cap as keyof typeof USER_CAPABILITIES)
-            )
-
-        if (!hasRequiredCapabilities) {
-          throw new UnauthorizedError('Required capabilities not found')
-        }
+      // Use permissionService to check permissions
+      permissionService.setUser(context)
+      if (!permissionService.check(options)) {
+        throw new UnauthorizedError('Insufficient permissions')
       }
 
       return handler(nextReq as NextRequest, context)

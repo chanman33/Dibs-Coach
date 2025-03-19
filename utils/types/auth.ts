@@ -82,6 +82,8 @@ export interface AuthContext {
   capabilities: UserCapability[];
   orgRole?: OrgRole;
   orgLevel?: OrgLevel;
+  organizationUlid?: string; // Current organization ULID
+  organizationName?: string; // Current organization name
   subscription?: {
     status: string;
     planId: string;
@@ -106,6 +108,8 @@ export const authContextSchema = z.object({
   capabilities: z.array(z.string()), // Will be validated against UserCapability
   orgRole: z.string().optional(), // Will be validated against OrgRole
   orgLevel: z.string().optional(), // Will be validated against OrgLevel
+  organizationUlid: z.string().optional(), // Current organization ULID
+  organizationName: z.string().optional(), // Current organization name
   subscription: z.object({
     status: z.string(),
     planId: z.string()

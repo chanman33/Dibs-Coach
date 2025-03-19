@@ -1,10 +1,9 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
-import type { NextRequest } from 'next/server'
+import { authMiddleware } from '@clerk/nextjs/server'
 import { NextResponse } from "next/server"
 import { createAuthClient } from './utils/auth/auth-client'
 
 // Define route matchers
-const PUBLIC_ROUTES = [
+const publicPaths = [
   '/',
   '/sign-in(.*)',
   '/sign-up(.*)',
@@ -21,17 +20,7 @@ const PUBLIC_ROUTES = [
   '/((?!dashboard|admin|coach|settings).*)'
 ]
 
-const PROTECTED_ROUTES = [
-  '/dashboard(.*)',
-  '/settings(.*)',
-  '/admin(.*)',
-  '/coach(.*)'
-]
-
 const ONBOARDING_ROUTE = '/onboarding'
-
-const isPublicRoute = createRouteMatcher(PUBLIC_ROUTES)
-const isProtectedRoute = createRouteMatcher(PROTECTED_ROUTES)
 
 // Metrics tracking
 const metrics = new Map<string, {
@@ -40,72 +29,6 @@ const metrics = new Map<string, {
   errors: number
   latency: number[]
 }>()
-
-export default clerkMiddleware(async (auth, request) => {
-  const start = Date.now()
-  const requestId = Math.random().toString(36).substring(7)
-  
-  try {
-    // Handle public routes
-    if (isPublicRoute(request)) {
-      updateMetrics('public_route', { duration: Date.now() - start })
-      return NextResponse.next()
-    }
-
-    // Get auth state
-    const { userId } = await auth()
-
-    // Require authentication for all other routes
-    if (!userId) {
-      updateMetrics('auth_required', { duration: Date.now() - start })
-      return NextResponse.redirect(new URL('/sign-in', request.url))
-    }
-
-    // Special handling for sign-up to onboarding redirect
-    if (request.nextUrl.pathname.startsWith('/sign-up') && userId) {
-      updateMetrics('signup_redirect', { duration: Date.now() - start })
-      return NextResponse.redirect(new URL(ONBOARDING_ROUTE, request.url))
-    }
-
-    // For protected routes, verify user exists in database
-    if (isProtectedRoute(request)) {
-      try {
-        const supabase = createAuthClient()
-        const { data: user, error } = await supabase
-          .from('User')
-          .select('ulid')
-          .eq('userId', userId)
-          .maybeSingle()
-
-        // If user doesn't exist in database, redirect to onboarding
-        if (!user || error) {
-          updateMetrics('new_user_redirect', { duration: Date.now() - start })
-          return NextResponse.redirect(new URL(ONBOARDING_ROUTE, request.url))
-        }
-      } catch (error) {
-        // Always log errors
-        console.error('[AUTH_ERROR]', {
-          code: 'MIDDLEWARE_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-          context: { userId, path: request.nextUrl.pathname }
-        })
-        updateMetrics('middleware_error', { duration: Date.now() - start, error: error as Error })
-        return NextResponse.redirect(new URL('/error?code=server_error', request.url))
-      }
-    }
-
-    updateMetrics('success', { duration: Date.now() - start })
-    return NextResponse.next()
-  } catch (error) {
-    updateMetrics('unhandled_error', { duration: Date.now() - start, error: error as Error })
-    // Always log errors
-    console.error('[UNHANDLED_AUTH_ERROR]', {
-      error,
-      path: request.nextUrl.pathname
-    })
-    return NextResponse.redirect(new URL('/error?code=server_error', request.url))
-  }
-})
 
 function updateMetrics(operation: string, data: { duration: number, error?: Error }) {
   const metric = metrics.get(operation) || { hits: 0, misses: 0, errors: 0, latency: [] }
@@ -122,6 +45,72 @@ function updateMetrics(operation: string, data: { duration: number, error?: Erro
   
   metrics.set(operation, metric)
 }
+
+export default authMiddleware({
+  publicRoutes: publicPaths,
+  afterAuth: async (auth, req) => {
+    const start = Date.now()
+    
+    // Allow public routes
+    if (!auth.userId && publicPaths.some(path => {
+      if (path.includes('(.*)')) {
+        const basePath = path.replace('(.*)', '')
+        return req.nextUrl.pathname.startsWith(basePath)
+      }
+      return path === req.nextUrl.pathname
+    })) {
+      updateMetrics('public_route', { duration: Date.now() - start })
+      return NextResponse.next()
+    }
+    
+    // Require authentication
+    if (!auth.userId) {
+      updateMetrics('auth_required', { duration: Date.now() - start })
+      return NextResponse.redirect(new URL('/sign-in', req.url))
+    }
+    
+    // Handle sign-up to onboarding redirect
+    if (req.nextUrl.pathname.startsWith('/sign-up') && auth.userId) {
+      updateMetrics('signup_redirect', { duration: Date.now() - start })
+      return NextResponse.redirect(new URL(ONBOARDING_ROUTE, req.url))
+    }
+    
+    // For protected routes, verify user exists in database
+    const isProtectedRoute = req.nextUrl.pathname.startsWith('/dashboard') ||
+                            req.nextUrl.pathname.startsWith('/settings') ||
+                            req.nextUrl.pathname.startsWith('/admin') ||
+                            req.nextUrl.pathname.startsWith('/coach')
+    
+    if (isProtectedRoute) {
+      try {
+        const supabase = createAuthClient()
+        const { data: user, error } = await supabase
+          .from('User')
+          .select('ulid')
+          .eq('userId', auth.userId)
+          .maybeSingle()
+          
+        // If user doesn't exist in database, redirect to onboarding
+        if (!user || error) {
+          updateMetrics('new_user_redirect', { duration: Date.now() - start })
+          return NextResponse.redirect(new URL(ONBOARDING_ROUTE, req.url))
+        }
+      } catch (error) {
+        // Always log errors
+        console.error('[AUTH_ERROR]', {
+          code: 'MIDDLEWARE_ERROR',
+          message: error instanceof Error ? error.message : 'Unknown error',
+          context: { userId: auth.userId, path: req.nextUrl.pathname }
+        })
+        updateMetrics('middleware_error', { duration: Date.now() - start, error: error as Error })
+        return NextResponse.redirect(new URL('/error?code=server_error', req.url))
+      }
+    }
+    
+    updateMetrics('success', { duration: Date.now() - start })
+    return NextResponse.next()
+  }
+})
 
 export const config = {
   matcher: [

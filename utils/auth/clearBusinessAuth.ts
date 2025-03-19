@@ -1,3 +1,5 @@
+import { permissionService } from './permission-service';
+
 /**
  * Utility function to clear the business portal authentication cache
  * This is useful when:
@@ -8,7 +10,12 @@
  */
 export const clearBusinessAuth = () => {
   if (typeof window !== 'undefined') {
+    // Clear session storage cache
     sessionStorage.removeItem('business_portal_auth');
+    
+    // Clear permission cache
+    permissionService.clearCache();
+    
     console.log("[BUSINESS_AUTH] Cleared business portal auth cache");
   }
 };

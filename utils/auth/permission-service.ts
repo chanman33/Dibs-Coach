@@ -1,0 +1,544 @@
+import { hasPermission, PERMISSIONS, ORG_ROLES, SystemRole, OrgRole, OrgLevel, Permission, UserCapability, SYSTEM_ROLES, USER_CAPABILITIES } from '@/utils/roles/roles';
+import { AuthContext } from '@/utils/types/auth';
+import {
+  ForbiddenError,
+  UnauthorizedError,
+  type AuthOptions,
+} from '../types/auth';
+import { ORG_LEVELS } from '../roles/roles';
+
+// Define the hierarchies for checking role access
+export const systemRoleHierarchy: Record<string, number> = {
+  SYSTEM_OWNER: 100,
+  SYSTEM_MODERATOR: 50,
+  USER: 1
+};
+
+export const orgLevelHierarchy: Record<string, number> = {
+  GLOBAL: 100,
+  REGIONAL: 75,
+  LOCAL: 50,
+  BRANCH: 25
+};
+
+// Business roles that have access to business dashboard
+export const businessDashboardRoles = [
+  ORG_ROLES.OWNER,
+  ORG_ROLES.DIRECTOR,
+  ORG_ROLES.MANAGER,
+  ORG_ROLES.MEMBER
+];
+
+type PermissionPolicy = 'requireAll' | 'requireAny';
+
+/**
+ * Permission Service: Centralized authorization logic
+ */
+class PermissionService {
+  private cache = new Map<string, boolean>();
+  private user: AuthContext | null = null;
+
+  /**
+   * Set the current user context
+   */
+  setUser(user: AuthContext | null): void {
+    // Clear cache when changing user
+    this.cache.clear();
+    this.user = user;
+    
+    if (user) {
+      console.log('[PERMISSION_SERVICE] User set:', { 
+        userId: user.userId,
+        role: user.systemRole,
+        capabilities: user.capabilities,
+        orgRole: user.orgRole || 'none',
+        orgLevel: user.orgLevel || 'none',
+        organizationUlid: user.organizationUlid || 'none',
+        organizationName: user.organizationName || 'none'
+      });
+      
+      if (user.orgRole) {
+        console.log('[PERMISSION_SERVICE] Organization context:', {
+          orgRole: user.orgRole,
+          orgLevel: user.orgLevel,
+          organizationUlid: user.organizationUlid,
+          organizationName: user.organizationName,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        console.log('[PERMISSION_SERVICE] No organization role set for user');
+      }
+    } else {
+      console.log('[PERMISSION_SERVICE] User unset');
+    }
+  }
+
+  /**
+   * Get the current user context
+   */
+  getUser(): AuthContext | null {
+    return this.user;
+  }
+
+  /**
+   * Check if the current user has specified permissions
+   */
+  check(options: AuthOptions): boolean {
+    if (!this.user) {
+      console.log('[PERMISSION_SERVICE] No user available for permission check');
+      return false;
+    }
+
+    // Generate a cache key based on user + options
+    const cacheKey = this.generateCacheKey(options);
+    
+    // Return cached result if available
+    if (this.cache.has(cacheKey)) {
+      const cachedResult = this.cache.get(cacheKey);
+      console.log(`[PERMISSION_SERVICE] Using cached result: ${cachedResult} for key: ${cacheKey}`);
+      return cachedResult!;
+    }
+
+    // Determine permission policy
+    const policy = options.requireAll ? 'requireAll' : 'requireAny';
+    
+    // Perform the actual permission check
+    const result = this.checkPermissions(this.user, options, policy);
+    
+    // Cache the result
+    this.cache.set(cacheKey, result);
+    
+    return result;
+  }
+
+  /**
+   * Check if user can access business dashboard
+   */
+  canAccessBusinessDashboard(): boolean {
+    if (!this.user) {
+      console.log('[PERMISSION_SERVICE] No user available for business dashboard check');
+      return false;
+    }
+    
+    const cacheKey = 'business_dashboard_access';
+    if (this.cache.has(cacheKey)) {
+      const cachedResult = this.cache.get(cacheKey)!;
+      console.log('[PERMISSION_SERVICE] Using cached business dashboard access result:', cachedResult);
+      return cachedResult;
+    }
+    
+    // System owners always have access
+    const isSystemOwner = this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER;
+    if (isSystemOwner) {
+      console.log('[PERMISSION_SERVICE] System owner bypassing business dashboard checks');
+      this.cache.set(cacheKey, true);
+      return true;
+    }
+    
+    // User must have MENTEE capability or be a system owner
+    const hasMenteeCapability = this.user.capabilities.includes(USER_CAPABILITIES.MENTEE);
+    
+    // Check org role for business access
+    const hasOrgRole = !!this.user.orgRole;
+    const hasOrgUlid = !!this.user.organizationUlid;
+    const isOrgOwnerOrManager = hasOrgRole && hasOrgUlid && (
+      this.user.orgRole === ORG_ROLES.OWNER || 
+      this.user.orgRole === ORG_ROLES.DIRECTOR || 
+      this.user.orgRole === ORG_ROLES.MANAGER
+    );
+    
+    // Include all the checks
+    const result = isSystemOwner || hasMenteeCapability || isOrgOwnerOrManager;
+    
+    // Log the check
+    console.log('[PERMISSION_SERVICE] Business dashboard access check:', {
+      userId: this.user.userId,
+      hasMenteeCapability,
+      isSystemOwner,
+      hasOrgRole,
+      hasOrgUlid,
+      orgRole: this.user.orgRole || 'none',
+      organizationUlid: this.user.organizationUlid || 'none',
+      organizationName: this.user.organizationName || 'none',
+      isOrgOwnerOrManager,
+      result,
+      timestamp: new Date().toISOString()
+    });
+    
+    this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  /**
+   * Check if user can access coach dashboard
+   */
+  canAccessCoachDashboard(): boolean {
+    if (!this.user) return false;
+    
+    const cacheKey = 'coach_dashboard_access';
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    
+    // User must have COACH capability or be a system owner
+    const result = this.user.capabilities.includes(USER_CAPABILITIES.COACH) || 
+                  this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER;
+    
+    this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  /**
+   * Check if user can access mentee dashboard
+   */
+  canAccessMenteeDashboard(): boolean {
+    if (!this.user) return false;
+    
+    const cacheKey = 'mentee_dashboard_access';
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    
+    // User must have MENTEE capability or be a system owner
+    const result = this.user.capabilities.includes(USER_CAPABILITIES.MENTEE) || 
+                  this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER;
+    
+    this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  /**
+   * Check if user can access system dashboard
+   */
+  canAccessSystemDashboard(): boolean {
+    if (!this.user) return false;
+    
+    const cacheKey = 'system_dashboard_access';
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    
+    // Only system owners can access the system dashboard
+    const result = this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER;
+    
+    this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  /**
+   * Check if user can manage coach profile
+   */
+  canManageCoachProfile(): boolean {
+    if (!this.user) return false;
+    
+    const cacheKey = 'manage_coach_profile';
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    
+    // User must have COACH capability or be a system owner
+    const result = this.user.capabilities.includes(USER_CAPABILITIES.COACH) || 
+                  this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER;
+    
+    this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  /**
+   * Check if user can view analytics for the organization
+   */
+  canViewOrgAnalytics(): boolean {
+    if (!this.user) return false;
+    
+    const cacheKey = 'org_analytics_access';
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    
+    // System owners always have access
+    if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
+      console.log('[PERMISSION_SERVICE] System owner bypassing organization analytics check');
+      this.cache.set(cacheKey, true);
+      return true;
+    }
+    
+    // Required org role must be OWNER or ADMIN
+    const hasRequiredRole = this.user.orgRole === ORG_ROLES.OWNER || 
+                           this.user.orgRole === ORG_ROLES.DIRECTOR;
+                           
+    const result = hasRequiredRole;
+    
+    console.log('[PERMISSION_SERVICE] Organization analytics access check:', {
+      userId: this.user.userId,
+      orgRole: this.user.orgRole || 'none',
+      hasRequiredRole,
+      result,
+      organizationUlid: this.user.organizationUlid || 'none',
+      organizationName: this.user.organizationName || 'none',
+      timestamp: new Date().toISOString()
+    });
+    
+    this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  /**
+   * Check if user can manage organization members
+   */
+  canManageOrgMembers(): boolean {
+    if (!this.user) return false;
+    
+    const cacheKey = 'manage_org_members';
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    
+    // System owners always have access
+    if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
+      console.log('[PERMISSION_SERVICE] System owner bypassing organization member management check');
+      this.cache.set(cacheKey, true);
+      return true;
+    }
+    
+    // Required org role must be OWNER or DIRECTOR
+    const hasRequiredRole = this.user.orgRole === ORG_ROLES.OWNER || 
+                           this.user.orgRole === ORG_ROLES.DIRECTOR;
+                           
+    const result = hasRequiredRole;
+    
+    console.log('[PERMISSION_SERVICE] Organization member management check:', {
+      userId: this.user.userId,
+      orgRole: this.user.orgRole || 'none',
+      hasRequiredRole,
+      result,
+      organizationUlid: this.user.organizationUlid || 'none',
+      organizationName: this.user.organizationName || 'none',
+      timestamp: new Date().toISOString()
+    });
+    
+    this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  /**
+   * Check if user is an organization owner
+   */
+  isOrganizationOwner(): boolean {
+    if (!this.user) return false;
+    
+    const cacheKey = 'is_org_owner';
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    
+    // System owners are treated as organization owners
+    if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
+      console.log('[PERMISSION_SERVICE] System owner automatically granted organization owner status');
+      this.cache.set(cacheKey, true);
+      return true;
+    }
+    
+    const hasOrgUlid = !!this.user.organizationUlid;
+    const isOwner = hasOrgUlid && this.user.orgRole === ORG_ROLES.OWNER;
+    
+    // Log the check result
+    console.log('[PERMISSION_SERVICE] Organization owner check:', {
+      userId: this.user.userId,
+      orgRole: this.user.orgRole || 'none',
+      hasOrgUlid,
+      organizationUlid: this.user.organizationUlid || 'none',
+      organizationName: this.user.organizationName || 'none',
+      isOwner,
+      timestamp: new Date().toISOString()
+    });
+    
+    this.cache.set(cacheKey, isOwner);
+    return isOwner;
+  }
+
+  /**
+   * Clear the entire permission cache
+   */
+  clearCache(): void {
+    this.cache.clear();
+    console.log('[PERMISSION_SERVICE] Cache cleared');
+  }
+
+  /**
+   * Generate a unique cache key for permission options
+   */
+  private generateCacheKey(options: AuthOptions): string {
+    const {
+      requiredSystemRole,
+      requiredOrgRole,
+      requiredOrgLevel,
+      requiredPermissions,
+      requiredCapabilities,
+      requireAll,
+      requireOrganization
+    } = options;
+    
+    const key = [
+      requiredSystemRole || '',
+      requiredOrgRole || '',
+      requiredOrgLevel || '',
+      requiredPermissions?.join(',') || '',
+      requiredCapabilities?.join(',') || '',
+      requireAll ? 'all' : 'any',
+      requireOrganization ? 'org' : ''
+    ].join('|');
+    
+    return key;
+  }
+
+  /**
+   * Perform actual permission checks
+   */
+  private checkPermissions(
+    user: AuthContext,
+    options: AuthOptions,
+    policy: PermissionPolicy
+  ): boolean {
+    const {
+      requiredSystemRole,
+      requiredOrgRole,
+      requiredOrgLevel,
+      requiredPermissions,
+      requiredCapabilities,
+      requireOrganization
+    } = options;
+
+    // System owners bypass all checks - they have god-mode access
+    if (user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
+      console.log('[PERMISSION_SERVICE] System owner bypassing permission checks');
+      return true;
+    }
+
+    // Check if organization is required
+    if (requireOrganization && !user.orgRole) {
+      console.log('[PERMISSION_SERVICE] Organization required but user has no org role');
+      return false;
+    }
+
+    const checks: boolean[] = [];
+
+    // System role check
+    if (requiredSystemRole) {
+      const hasSystemRole = systemRoleHierarchy[user.systemRole] >= systemRoleHierarchy[requiredSystemRole];
+      checks.push(hasSystemRole);
+    }
+
+    // Organization role check
+    if (requiredOrgRole && user.orgRole) {
+      const orgRoleValue = ORG_ROLES[user.orgRole] || 0;
+      const requiredValue = ORG_ROLES[requiredOrgRole] || 0;
+      const hasOrgRole = orgRoleValue >= requiredValue;
+      checks.push(hasOrgRole);
+      
+      console.log('[PERMISSION_SERVICE] Organization role check:', {
+        requiredRole: requiredOrgRole,
+        userRole: user.orgRole,
+        hasRequiredRole: hasOrgRole,
+        requiredRoleValue: requiredValue,
+        userRoleValue: orgRoleValue,
+        organizationUlid: user.organizationUlid || 'none',
+        organizationName: user.organizationName || 'none',
+        userId: user.userId,
+        timestamp: new Date().toISOString()
+      });
+    } else if (requiredOrgRole) {
+      console.log('[PERMISSION_SERVICE] Required organization role not met:', {
+        requiredRole: requiredOrgRole,
+        userRole: user.orgRole || 'none',
+        hasOrgRole: !!user.orgRole,
+        userId: user.userId,
+        timestamp: new Date().toISOString()
+      });
+      
+      // If organization role is required but user has no role, this check fails
+      checks.push(false);
+    }
+
+    // Organization level check
+    if (requiredOrgLevel && user.orgLevel) {
+      const levelValue = orgLevelHierarchy[user.orgLevel] || 0;
+      const requiredValue = orgLevelHierarchy[requiredOrgLevel] || 0;
+      const hasOrgLevel = levelValue >= requiredValue;
+      checks.push(hasOrgLevel);
+      
+      console.log('[PERMISSION_SERVICE] Organization level check:', {
+        requiredLevel: requiredOrgLevel,
+        userLevel: user.orgLevel,
+        hasRequiredLevel: hasOrgLevel,
+        userId: user.userId,
+        timestamp: new Date().toISOString()
+      });
+    } else if (requiredOrgLevel) {
+      console.log('[PERMISSION_SERVICE] Required organization level not met:', {
+        requiredLevel: requiredOrgLevel,
+        userLevel: user.orgLevel || 'none',
+        hasOrgLevel: !!user.orgLevel,
+        userId: user.userId,
+        timestamp: new Date().toISOString()
+      });
+      
+      // If organization level is required but user has no level, this check fails
+      checks.push(false);
+    }
+
+    // Permissions check
+    if (requiredPermissions && requiredPermissions.length > 0) {
+      for (const permission of requiredPermissions) {
+        const hasRequiredPermission = hasPermission(user, permission as Permission);
+        checks.push(hasRequiredPermission);
+        
+        // Short-circuit for requireAny policy
+        if (policy === 'requireAny' && hasRequiredPermission) {
+          return true;
+        }
+      }
+    }
+
+    // Capabilities check
+    if (requiredCapabilities && requiredCapabilities.length > 0) {
+      for (const capability of requiredCapabilities) {
+        const hasCapability = user.capabilities.includes(capability);
+        checks.push(hasCapability);
+        
+        // Short-circuit for requireAny policy
+        if (policy === 'requireAny' && hasCapability) {
+          return true;
+        }
+      }
+    }
+
+    // If no checks were performed, deny access
+    if (checks.length === 0) {
+      console.log('[PERMISSION_SERVICE] No permission checks were performed');
+      return false;
+    }
+
+    // Apply the policy
+    if (policy === 'requireAll') {
+      return checks.every(result => result);
+    } else {
+      return checks.some(result => result);
+    }
+  }
+
+  /**
+   * Enforce permissions or throw error
+   */
+  enforce(options: AuthOptions): void {
+    if (!this.user) {
+      throw new UnauthorizedError('Authentication required');
+    }
+
+    if (!this.check(options)) {
+      throw new ForbiddenError('Insufficient permissions');
+    }
+  }
+}
+
+// Export as a singleton
+export const permissionService = new PermissionService(); 

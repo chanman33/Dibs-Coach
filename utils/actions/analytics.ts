@@ -209,4 +209,47 @@ export const fetchCoachAnalytics = withServerAction<CoachAnalytics>(
   {
     requiredCapabilities: ['COACH']
   }
+)
+
+export interface EarlyPayoutParams {
+  amount: number
+}
+
+/**
+ * Request an early payout for a coach
+ */
+export const requestEarlyPayout = withServerAction<{ success: boolean }, EarlyPayoutParams>(
+  async (params, { userUlid }) => {
+    try {
+      const { amount } = params
+      console.log('[REQUEST_EARLY_PAYOUT]', { userUlid, amount, timestamp: new Date().toISOString() })
+      
+      // Here you would implement the actual payout request logic
+      // typically calling a payment service or Stripe API
+      
+      // This is a placeholder success response
+      return {
+        data: { success: true },
+        error: null
+      }
+    } catch (error) {
+      console.error('[REQUEST_EARLY_PAYOUT_ERROR]', {
+        error,
+        userUlid,
+        params,
+        timestamp: new Date().toISOString()
+      })
+      
+      return {
+        data: null,
+        error: {
+          code: 'PAYOUT_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to request payout'
+        }
+      }
+    }
+  },
+  {
+    requiredCapabilities: ['COACH']
+  }
 ) 

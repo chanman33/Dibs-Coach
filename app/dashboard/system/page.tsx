@@ -21,7 +21,7 @@ import {
   Activity, 
   BarChart 
 } from 'lucide-react'
-import { WithAuth } from '@/components/auth'
+import { Suspense } from 'react'
 import { InlineLoading } from '@/components/loading'
 
 // Format helpers
@@ -321,8 +321,16 @@ function SystemDashboard() {
   )
 }
 
-// Export the component wrapped with authentication
-export default WithAuth(SystemDashboard, {
-  requiredSystemRole: SYSTEM_ROLES.SYSTEM_OWNER
-});
+// Export the component wrapped in Suspense
+export default function SystemDashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    }>
+      <SystemDashboard />
+    </Suspense>
+  )
+}
 

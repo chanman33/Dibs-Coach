@@ -20,4 +20,7 @@ export {
 } from './user-management'
 
 // Re-export types
-export type { AuthResult, AuthorizationResult } from './auth-utils' 
+export type { AuthResult, AuthorizationResult } from './auth-utils'
+
+// Auth Permission Service for centralized permission logic
+export { permissionService } from './permission-service' 

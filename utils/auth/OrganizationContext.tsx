@@ -83,12 +83,21 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
           id: organizationUlid,
           name: activeOrg.organization.name,
           role: activeOrg.role,
-          timestamp: new Date().toISOString()
+          status: activeOrg.status,
+          type: activeOrg.organization.type,
+          tier: activeOrg.organization.tier,
+          timestamp: new Date().toISOString(),
+          availableOrgs: organizations.length
         });
       } else {
         console.warn('[ORGANIZATION_CONTEXT] Organization not found in list:', {
           id: organizationUlid,
-          organizations: organizations.map(o => ({id: o.organizationUlid, name: o.organization.name})),
+          organizations: organizations.map(o => ({
+            id: o.organizationUlid, 
+            name: o.organization.name,
+            role: o.role,
+            status: o.status
+          })),
           timestamp: new Date().toISOString()
         });
       }
@@ -97,7 +106,8 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       setOrganizationName(null);
       setOrganizationRole(null);
       console.log('[ORGANIZATION_CONTEXT] Organization context cleared', {
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        availableOrgs: organizations.length
       });
     }
   }, [organizationUlid, organizations]);

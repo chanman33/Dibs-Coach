@@ -3,8 +3,6 @@
 import { Suspense } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { WithAuth } from "@/components/auth/with-auth"
-import { USER_CAPABILITIES } from "@/utils/roles/roles"
 import { Users, Target, Clock, TrendingUp, ArrowUpRight, Trophy, Loader2, Calendar, Instagram, AlertCircle, ChevronRight, BarChart, ChevronLeft, Home, DollarSign, Users as UsersIcon, Star, Globe, Award, BookOpen, Briefcase, Settings } from "lucide-react"
 import Link from 'next/link'
 import { Progress } from "@/components/ui/progress"
@@ -17,7 +15,7 @@ import { toast } from "sonner"
 import type { ClientGoal } from "@/utils/types/goals"
 import { format, isAfter } from "date-fns"
 
-function MenteeDashboardContent() {
+function MenteeDashboard() {
   const [goals, setGoals] = useState<ClientGoal[]>([])
   const [currentGoalIndex, setCurrentGoalIndex] = useState(0)
   const [nextSession, setNextSession] = useState<TransformedSession | null>(null)
@@ -633,10 +631,7 @@ function MenteeDashboardContent() {
   )
 }
 
-// Create the protected component using WithAuth HOC
-const ProtectedMenteeDashboard = WithAuth(MenteeDashboardContent);
-
-// Export the protected component wrapped in Suspense
+// Export the component wrapped in Suspense
 export default function MenteeDashboardPage() {
   return (
     <Suspense fallback={
@@ -644,7 +639,7 @@ export default function MenteeDashboardPage() {
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     }>
-      <ProtectedMenteeDashboard />
+      <MenteeDashboard />
     </Suspense>
   )
 } 

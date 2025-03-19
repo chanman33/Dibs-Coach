@@ -2,8 +2,6 @@
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Target, Clock, ArrowUpRight, TrendingUp, DollarSign, Star, MessageSquare, Zap, BookOpen, Award, CalendarRange, AlertOctagon, Video, Calendar, Share2, Facebook, Twitter, Linkedin, Copy, X } from "lucide-react"
-import { WithAuth } from "@/components/auth/with-auth"
-import { USER_CAPABILITIES } from "@/utils/roles/roles"
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -34,7 +32,7 @@ import {
 
 const DEFAULT_AVATAR = "https://utfs.io/f/[your-default-avatar-url]" // Replace with your default avatar URL
 
-function CoachDashboard() {
+export default function CoachDashboard() {
   const [dashboardStats, setDashboardStats] = useState<CoachDashboardStats | null>(null)
   const [upcomingSessions, setUpcomingSessions] = useState<TransformedSession[]>([])
   const [topMentees, setTopMentees] = useState<TopMentee[]>([])
@@ -255,13 +253,6 @@ function CoachDashboard() {
             <Share2 className="mr-2 h-4 w-4" />
             Share Your Coaching Service
           </Button>
-          {/* <Button variant="outline" className="relative">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            View Unread Messages
-            <span className="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">
-              3
-            </span>
-          </Button> */}
           <Button variant="outline">
             <DollarSign className="mr-2 h-4 w-4" />
             Request Early Payout
@@ -602,89 +593,7 @@ function CoachDashboard() {
           </CardContent>
         </Card>
       </div>
-
-      {/* News & Updates Section */}
-      {/* <Card className="w-full">
-        <CardHeader>
-          <CardTitle>News & Updates</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Tip of the Day</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">
-                  "Help your clients create a strong online presence. Encourage them to regularly update their social
-                  media with local market insights."
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Latest Market Trend</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">
-                  "Eco-friendly homes are gaining popularity. 68% of millennials prefer energy-efficient features in
-                  their homes."
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Your Achievements</CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center">
-                <Award className="h-9 w-9 text-yellow-500 mr-2" />
-                <div>
-                  <p className="text-sm font-medium">Top Coach of the Month</p>
-                  <p className="text-xs text-muted-foreground">2 months streak!</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card> */}
-
-      {/* Educational Resources */}
-      {/* <Card className="w-full">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Library & Resources</CardTitle>
-          <Button variant="ghost" size="sm">
-            <BookOpen className="mr-2 h-4 w-4" />
-            View Library
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium">Advanced Negotiation Techniques</p>
-                <p className="text-xs text-muted-foreground">Webinar • 45 mins</p>
-              </div>
-              <Button variant="outline" size="sm">
-                Watch
-              </Button>
-            </div>
-            <div className="flex items-center">
-              <div className="flex-1">
-                <p className="text-sm font-medium">Mastering Social Media for Real Estate</p>
-                <p className="text-xs text-muted-foreground">Article • 10 min read</p>
-              </div>
-              <Button variant="outline" size="sm">
-                Read
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card> */}
     </div>
   )
 }
-
-export default WithAuth(CoachDashboard, {
-  requiredCapabilities: [USER_CAPABILITIES.COACH]
-});
 

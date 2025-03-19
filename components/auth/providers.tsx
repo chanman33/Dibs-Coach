@@ -1,6 +1,6 @@
 'use client';
 
-import { ClerkProvider, useAuth } from '@clerk/nextjs';
+import { useAuth } from '@clerk/nextjs';
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { AuthContext } from '@/utils/types/auth';
 import { SYSTEM_ROLES } from '@/utils/roles/roles';
@@ -95,10 +95,8 @@ export function AuthProviders({ children, initialState }: AuthProvidersProps) {
   }
 
   return (
-    <ClerkProvider>
-      <AuthStateProvider initialState={initialState}>
-        {children}
-      </AuthStateProvider>
-    </ClerkProvider>
+    <AuthStateProvider initialState={initialState}>
+      {children}
+    </AuthStateProvider>
   );
 } 

@@ -8,6 +8,9 @@ import type { Metadata } from 'next'
 import { getAuthContext } from '@/utils/auth'
 import './globals.css'
 
+// Use proper import for Clerk
+import { ClerkProvider } from '@clerk/nextjs'
+
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://dibs.coach"),
   title: {
@@ -61,13 +64,22 @@ export default async function RootLayout({
   children: React.ReactNode
 }) {
   // Get auth context for initial state (now optional)
-  const authContext = await getAuthContext();
+  let authContext = null;
   
-  if (authContext) {
-    console.log('[ROOT_LAYOUT] Initializing auth context:', {
-      userId: authContext.userId,
-      systemRole: authContext.systemRole,
-      capabilities: authContext.capabilities,
+  try {
+    authContext = await getAuthContext();
+    
+    if (authContext) {
+      console.log('[ROOT_LAYOUT] Initializing auth context:', {
+        userId: authContext.userId,
+        systemRole: authContext.systemRole,
+        capabilities: authContext.capabilities,
+        timestamp: new Date().toISOString()
+      });
+    }
+  } catch (error) {
+    console.error('[ROOT_LAYOUT] Error getting auth context:', {
+      error: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
     });
   }
@@ -87,19 +99,25 @@ export default async function RootLayout({
         />
       </head>
       <body className={GeistSans.className}>
-        <AuthProviders initialState={authContext}>
-          <Provider>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
-              {children}
-              <Toaster />
-            </ThemeProvider>
-          </Provider>
-        </AuthProviders>
+        <ClerkProvider
+          appearance={{
+            variables: { colorPrimary: '#4f46e5' }
+          }}
+        >
+          <AuthProviders initialState={authContext}>
+            <Provider>
+              <ThemeProvider
+                attribute="class"
+                defaultTheme="system"
+                enableSystem
+                disableTransitionOnChange
+              >
+                {children}
+                <Toaster />
+              </ThemeProvider>
+            </Provider>
+          </AuthProviders>
+        </ClerkProvider>
         <Analytics />
       </body>
     </html>

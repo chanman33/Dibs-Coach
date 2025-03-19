@@ -2,17 +2,14 @@
 
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
-import { useAuthContext } from './providers'
 import { 
   Permission, 
   SystemRole, 
   OrgRole, 
-  OrgLevel,
-  hasPermission,
-  hasOrgRole
+  OrgLevel
 } from '@/utils/roles/roles'
 import { ContainerLoading } from '@/components/loading'
-import { useOrganization } from '@/utils/auth/OrganizationContext'
+import { RouteGuardProvider } from './RouteGuardContext'
 
 interface WithOrganizationAuthOptions {
   requiredSystemRole?: SystemRole
@@ -24,8 +21,11 @@ interface WithOrganizationAuthOptions {
 }
 
 /**
- * Higher-Order Component for enforcing authentication and complex authorization rules,
+ * Higher-order Component for enforcing complex authorization rules,
  * including organization membership, roles, levels, and permissions.
+ * 
+ * This now uses RouteGuardProvider internally for standard authorization checks
+ * but maintains compatibility with the existing API.
  * 
  * @param Component The component to wrap with auth checks
  * @param options Authorization requirements including system roles, org roles, permissions
@@ -38,11 +38,9 @@ export function WithOrganizationAuth<P extends object>(
   return function ProtectedComponent(props: P) {
     const { isLoaded, isSignedIn } = useAuth()
     const router = useRouter()
-    const authContext = useAuthContext()
-    const { isLoading: isLoadingOrg, organizationRole, organizationName } = useOrganization()
 
-    // Wait for both auth and organization data to load
-    if (!isLoaded || (options.requireOrganization && isLoadingOrg)) {
+    // Wait for auth to load
+    if (!isLoaded) {
       return (
         <ContainerLoading 
           message="Verifying organization access..." 
@@ -57,67 +55,62 @@ export function WithOrganizationAuth<P extends object>(
       return null
     }
 
-    // Check system role if required
-    if (options.requiredSystemRole && 
-        authContext.systemRole !== options.requiredSystemRole) {
-      router.push('/not-authorized')
-      return null
-    }
-
-    // Update auth context with organization data
-    const effectiveAuthContext = {
-      ...authContext,
-      // Use organization context values if available and not in auth context
-      orgRole: authContext.orgRole || (organizationRole as OrgRole | undefined) || undefined,
-      // Default to LOCAL level if we have a role but no level
-      orgLevel: authContext.orgLevel || (organizationRole ? 'LOCAL' as OrgLevel : undefined)
-    }
-
-    // Check organization requirement
-    if (options.requireOrganization && 
-        (!effectiveAuthContext.orgRole || !effectiveAuthContext.orgLevel)) {
-      console.error('[AUTH_ERROR] Organization membership required but not found:', {
-        contextOrgRole: authContext.orgRole,
-        contextOrgLevel: authContext.orgLevel,
-        organizationRole,
-        organizationName,
-        userId: authContext.userId,
-        timestamp: new Date().toISOString()
-      })
-      router.push('/not-authorized?message=Organization%20membership%20required')
-      return null
-    }
-
-    // Check permissions first - this is our primary authorization method
+    // Map organization permissions to authorization levels for RouteGuardProvider
     if (options.requiredPermissions?.length) {
-      const hasRequired = options.requireAll
-        ? options.requiredPermissions.every(p => hasPermission(effectiveAuthContext, p))
-        : options.requiredPermissions.some(p => hasPermission(effectiveAuthContext, p))
+      // For organization dashboard access
+      if (options.requiredPermissions.includes('ACCESS_DASHBOARD')) {
+        return (
+          <RouteGuardProvider required="business-dashboard">
+            <Component {...props} />
+          </RouteGuardProvider>
+        )
+      }
 
-      if (!hasRequired) {
-        router.push('/not-authorized?message=Insufficient%20permissions')
-        return null
+      // For organization analytics access
+      if (options.requiredPermissions.includes('VIEW_ORG_ANALYTICS')) {
+        return (
+          <RouteGuardProvider required="business-analytics">
+            <Component {...props} />
+          </RouteGuardProvider>
+        )
+      }
+
+      // For member management access
+      if (options.requiredPermissions.includes('MANAGE_MEMBERS')) {
+        return (
+          <RouteGuardProvider required="member-management">
+            <Component {...props} />
+          </RouteGuardProvider>
+        )
       }
     }
-    
-    // Only check org role and level if permissions check passes and explicit roles are required
-    // This is a secondary, more strict authorization check
-    if (options.requiredOrgRole && options.requiredOrgLevel &&
-        effectiveAuthContext.orgRole && effectiveAuthContext.orgLevel) {
-      const hasRole = hasOrgRole(
-        effectiveAuthContext.orgRole,
-        options.requiredOrgRole,
-        effectiveAuthContext.orgLevel,
-        options.requiredOrgLevel
-      )
-      
-      if (!hasRole) {
-        router.push('/not-authorized?message=Insufficient%20organization%20role')
-        return null
+
+    // For organization role requirements
+    // We map common role patterns to standardized authorization levels
+    if (options.requiredOrgRole) {
+      const isBusinessRole = 
+        options.requiredOrgRole === 'OWNER' ||
+        options.requiredOrgRole === 'MANAGER' ||
+        options.requiredOrgRole === 'DIRECTOR' ||
+        options.requiredOrgRole.includes('OWNER') ||
+        options.requiredOrgRole.includes('MANAGER') ||
+        options.requiredOrgRole.includes('DIRECTOR');
+
+      if (isBusinessRole) {
+        return (
+          <RouteGuardProvider required="business-dashboard">
+            <Component {...props} />
+          </RouteGuardProvider>
+        )
       }
     }
 
-    return <Component {...props} />
+    // Default case - just require basic organization access
+    return (
+      <RouteGuardProvider>
+        <Component {...props} />
+      </RouteGuardProvider>
+    )
   }
 }
 
