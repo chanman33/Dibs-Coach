@@ -60,9 +60,6 @@ export function BusinessSidebar() {
             <NavLink href="/dashboard/business" icon={HomeIcon}>
               Dashboard
             </NavLink>
-            <NavLink href="/dashboard/business/profile" icon={Building2}>
-              Business Profile
-            </NavLink>
 
             {/* Team Management */}
             <Separator className="my-3" />
@@ -77,9 +74,6 @@ export function BusinessSidebar() {
               <div className="pl-3 grid gap-1">
                 <NavLink href="/dashboard/business/team/members" icon={Users}>
                   Team Directory
-                </NavLink>
-                <NavLink href="/dashboard/business/team/roles" icon={Briefcase}>
-                  Roles & Permissions
                 </NavLink>
               </div>
             )}
@@ -101,9 +95,6 @@ export function BusinessSidebar() {
                 <NavLink href="/dashboard/business/coaching/training" icon={GraduationCap}>
                   Training Programs
                 </NavLink>
-                <NavLink href="/dashboard/business/coaching/mentorship" icon={Star}>
-                  Mentorship Program
-                </NavLink>
               </div>
             )}
 
@@ -121,11 +112,11 @@ export function BusinessSidebar() {
                 <NavLink href="/dashboard/business/performance/goals" icon={Target}>
                   Goal Tracking
                 </NavLink>
-                <NavLink href="/dashboard/business/performance/transactions" icon={ClipboardList}>
-                  Transaction Pipeline
-                </NavLink>
                 <NavLink href="/dashboard/business/performance/development" icon={UserCog}>
                   Development Plans
+                </NavLink>
+                <NavLink href="/dashboard/business/analytics/performance" icon={BarChart3}>
+                  Performance Metrics
                 </NavLink>
               </div>
             )}
@@ -136,11 +127,17 @@ export function BusinessSidebar() {
               onClick={() => setIsAdminExpanded(!isAdminExpanded)}
               className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
             >
-              <span className="font-semibold">Administration</span>
+              <span className="font-semibold">Admin & Settings</span>
               {isAdminExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {isAdminExpanded && (
               <div className="pl-3 grid gap-1">
+                <NavLink href="/dashboard/business/profile" icon={Building2}>
+                  Business Profile
+                </NavLink>
+                <NavLink href="/dashboard/business/team/roles" icon={Briefcase}>
+                  Roles & Permissions
+                </NavLink>
                 <NavLink href="/dashboard/business/admin/users" icon={Users}>
                   User Management
                 </NavLink>
@@ -149,29 +146,6 @@ export function BusinessSidebar() {
                 </NavLink>
                 <NavLink href="/dashboard/business/admin/commission" icon={BadgePercent}>
                   Commission Structure
-                </NavLink>
-              </div>
-            )}
-
-            {/* Analytics */}
-            <Separator className="my-3" />
-            <button
-              onClick={() => setIsAnalyticsExpanded(!isAnalyticsExpanded)}
-              className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-            >
-              <span className="font-semibold">Analytics</span>
-              {isAnalyticsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-            {isAnalyticsExpanded && (
-              <div className="pl-3 grid gap-1">
-                <NavLink href="/dashboard/business/analytics/performance" icon={BarChart3}>
-                  Performance Metrics
-                </NavLink>
-                <NavLink href="/dashboard/business/analytics/coaching" icon={GraduationCap}>
-                  Coaching Effectiveness
-                </NavLink>
-                <NavLink href="/dashboard/business/analytics/business" icon={FileText}>
-                  Business Health
                 </NavLink>
               </div>
             )}
