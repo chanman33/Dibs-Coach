@@ -1,4 +1,5 @@
 "use client"
+import { useState, useEffect } from "react"
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Target, ArrowUpRight, Calendar, DollarSign, Star, CalendarClock, GraduationCap, AlertCircle } from "lucide-react"
@@ -11,8 +12,27 @@ import { BusinessMetrics } from '@/components/business-portal/BusinessMetrics'
 import { TeamPerformance } from '@/components/business-portal/TeamPerformance'
 import { RecentCoachingSessions } from '@/components/business-portal/RecentCoachingSessions'
 import { UpcomingTrainings } from '@/components/business-portal/UpcomingTrainings'
+import { TeamEffectiveness } from '@/components/dashboard/business/TeamEffectiveness'
+import { fetchTeamEffectivenessMetrics } from "@/utils/actions/business-dashboard-actions"
+import type { TeamEffectivenessMetrics } from "@/utils/types/business"
 
 export default function BusinessDashboard() {
+  const [effectivenessData, setEffectivenessData] = useState<TeamEffectivenessMetrics | null>(null)
+  const [effectivenessLoading, setEffectivenessLoading] = useState(true)
+
+  useEffect(() => {
+    const loadEffectivenessData = async () => {
+      setEffectivenessLoading(true)
+      const response = await fetchTeamEffectivenessMetrics({})
+      if (response.data) {
+        setEffectivenessData(response.data)
+      }
+      setEffectivenessLoading(false)
+    }
+    
+    loadEffectivenessData()
+  }, [])
+
   return (
     <RouteGuardProvider required="business-dashboard">
       <div className="flex flex-col justify-center items-start flex-wrap px-4 pt-4 gap-4">
@@ -76,49 +96,7 @@ export default function BusinessDashboard() {
           <UpcomingTrainings />
         </div>
 
-        {/* Team Performance */}
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle>Team Performance</CardTitle>
-            <CardDescription>Key metrics and coaching impact</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <BusinessMetrics />
-            
-            <div className="mt-8">
-              <TeamPerformance />
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Alerts and Notices */}
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle>Alerts & Notices</CardTitle>
-            <CardDescription>Important business information requiring attention</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-amber-800">Certification Renewal Alert</p>
-                  <p className="text-xs text-amber-700 mt-1">3 team members have credentials expiring in the next 30 days</p>
-                  <Button size="sm" variant="outline" className="mt-2 h-8 text-xs">View Details</Button>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <AlertCircle className="h-5 w-5 text-blue-500 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-blue-800">Training Deadline</p>
-                  <p className="text-xs text-blue-700 mt-1">Annual compliance training due by April 15th</p>
-                  <Button size="sm" variant="outline" className="mt-2 h-8 text-xs">Schedule Training</Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </RouteGuardProvider>
   )

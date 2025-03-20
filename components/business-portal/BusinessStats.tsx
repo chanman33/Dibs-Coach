@@ -273,13 +273,13 @@ export function BusinessStats() {
         <StatCard
           title="Team Size"
           value={stats.teamMemberCount}
-          description={`${stats.teamMemberGrowth > 0 ? '+' : ''}${stats.teamMemberGrowth} from last quarter`}
+          description={`${stats.teamMemberGrowth > 0 ? '+' : ''}${stats.teamMemberGrowth} from last 30 days`}
           icon={Users}
         />
         <StatCard
           title="Active in Coaching"
           value={stats.activeInCoaching}
-          description={`${stats.participationRate}% participation rate`}
+          description={`${stats.participationRate}% participation rate (last 30 days)`}
           icon={GraduationCap}
         />
         {stats.isBudgetSet ? (

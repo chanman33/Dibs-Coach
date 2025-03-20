@@ -115,7 +115,7 @@ export function BusinessSidebar() {
                 <NavLink href="/dashboard/business/performance/development" icon={UserCog}>
                   Development Plans
                 </NavLink>
-                <NavLink href="/dashboard/business/analytics/performance" icon={BarChart3}>
+                <NavLink href="/dashboard/business/performance/analytics" icon={BarChart3}>
                   Performance Metrics
                 </NavLink>
               </div>
