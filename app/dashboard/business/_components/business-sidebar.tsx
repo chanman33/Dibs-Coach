@@ -77,7 +77,7 @@ export function BusinessSidebar() {
                 <NavLink href="/dashboard/business/coaching/sessions" icon={CalendarClock}>
                   Coaching Sessions
                 </NavLink>
-                <NavLink href="/dashboard/business/coaching/training" icon={GraduationCap}>
+                <NavLink href="/dashboard/business/coaching/library" icon={GraduationCap}>
                   Training Library
                 </NavLink>
               </div>

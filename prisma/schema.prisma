@@ -75,6 +75,10 @@ model User {
   titleEscrowProfile       TitleEscrowProfile?
   receivedTransactions     Transaction[]                  @relation("TransactionCoach")
   sentTransactions         Transaction[]                  @relation("TransactionPayer")
+  createdResources         TrainingResource[]
+  assignments              ResourceAssignment[]             @relation("UserAssignments")
+  assignedResources        ResourceAssignment[]             @relation("AssignedByUser")
+  featureWaitlists         FeatureWaitlist[]
 
   @@index([userId])
   @@index([email])
@@ -161,6 +165,8 @@ model Organization {
   regions           Region[]
   rolePermissions   RolePermission[]
   subscriptions     Subscription[]
+  trainingResources TrainingResource[]
+  featureWaitlists  FeatureWaitlist[]
 
   @@index([status])
   @@index([type])
@@ -1712,4 +1718,100 @@ enum ProfileStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+// Training Library Models
+model TrainingResource {
+  id             String   @id @default(uuid())
+  title          String
+  description    String
+  type           String   // "article", "video", "course", etc.
+  access         String   // "free", "premium", "affiliate", etc.
+  url            String?
+  thumbnail      String?
+  partner        String?
+  status         String?  // "published", "draft", "coming_soon", etc.
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  organizationId String?  @map("organization_id")
+  createdById    String   @map("created_by_id")
+
+  // Relationships
+  organization   Organization? @relation(fields: [organizationId], references: [ulid])
+  createdBy      User          @relation(fields: [createdById], references: [ulid])
+  
+  // Many-to-many relationships
+  domains        ResourceDomain[]
+  assignments    ResourceAssignment[]
+  sections       CourseSection[]      // For structured courses with multiple sections
+
+  @@map("TrainingResource")
+}
+
+model ResourceDomain {
+  id          String           @id @default(uuid())
+  domain      String
+  resourceId  String           @map("resource_id")
+  
+  // Relationships
+  resource    TrainingResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, domain])
+  @@map("ResourceDomain")
+}
+
+model ResourceAssignment {
+  id           String           @id @default(uuid())
+  resourceId   String           @map("resource_id")
+  userId       String           @map("user_id")
+  assignedById String           @map("assigned_by_id")
+  assignedAt   DateTime         @default(now()) @map("assigned_at")
+  dueDate      DateTime?        @map("due_date")
+  status       String           @default("assigned") // "assigned", "in_progress", "completed"
+  completedAt  DateTime?        @map("completed_at")
+  progress     Int              @default(0) // Progress percentage
+  
+  // Relationships
+  resource     TrainingResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user         User             @relation("UserAssignments", fields: [userId], references: [ulid], onDelete: Cascade)
+  assignedBy   User             @relation("AssignedByUser", fields: [assignedById], references: [ulid])
+
+  @@unique([resourceId, userId])
+  @@map("ResourceAssignment")
+}
+
+model CourseSection {
+  id          String           @id @default(uuid())
+  title       String
+  description String?
+  order       Int
+  resourceId  String           @map("resource_id")
+  content     String?
+  videoUrl    String?          @map("video_url")
+  duration    Int?             // Duration in minutes
+  
+  // Relationships
+  resource    TrainingResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@map("CourseSection")
+}
+
+model FeatureWaitlist {
+  id             String       @id @default(uuid())
+  email          String
+  feature_id     String
+  user_id        String?      @db.Char(26)
+  organization_id String?     @db.Char(26)
+  created_at     DateTime     @default(now())
+  updated_at     DateTime     @updatedAt
+  
+  // Add relations
+  user           User?        @relation(fields: [user_id], references: [ulid])
+  organization   Organization? @relation(fields: [organization_id], references: [ulid])
+
+  @@unique([email, feature_id])
+  @@index([organization_id])
+  @@index([feature_id])
+  @@index([user_id])
+  @@map("FeatureWaitlist")
 }
