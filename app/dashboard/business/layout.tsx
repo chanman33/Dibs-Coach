@@ -36,9 +36,9 @@ function BusinessLayout({
   // User is signed in, use RouteGuardProvider for authorization
   return (
     <RouteGuardProvider required="business-dashboard">
-      <div className="flex h-screen">
+      <div className="flex min-h-screen">
         <BusinessSidebar />
-        <main className="flex-1 overflow-hidden p-6">
+        <main className="flex-1 overflow-y-auto p-6">
           {children}
         </main>
       </div>

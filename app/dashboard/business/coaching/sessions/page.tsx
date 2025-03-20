@@ -63,11 +63,10 @@ import {
 import { CoachingStatsCards } from "../../../../../components/business-portal/coaching/coaching-stats-cards"
 import { fetchOrganizationCoachingSessions, CoachingSession } from "@/utils/actions/business-portal/coaching-sessions"
 import { useOrganization } from "@/utils/auth/OrganizationContext"
+import { RecentSessionNotes } from "../_components/recent-session-notes"
 
 export default function CoachingSessionsPage() {
   const { organizationUlid, isLoading: isOrgLoading } = useOrganization()
-  const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
   const [sessions, setSessions] = useState<CoachingSession[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -78,7 +77,7 @@ export default function CoachingSessionsPage() {
   
   // Recent notes pagination state
   const [currentNotesPage, setCurrentNotesPage] = useState(1)
-  const notesPerPage = 3
+  const notesPerPage = 5
   
   const openNotesModal = (session: CoachingSession) => {
     setSelectedSession(session)
@@ -343,17 +342,7 @@ export default function CoachingSessionsPage() {
   }
   
   // Filter sessions based on search query and status filter
-  const filteredSessions = sessions.filter(session => {
-    const matchesSearch = 
-      session.memberName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      session.topic.toLowerCase().includes(searchQuery.toLowerCase())
-    
-    const matchesStatus = 
-      statusFilter === "all" || 
-      session.status.toLowerCase() === statusFilter.toLowerCase()
-    
-    return matchesSearch && matchesStatus
-  })
+  const filteredSessions = sessions
 
   // Separate upcoming and past sessions
   const upcomingSessions = filteredSessions.filter(session => {
@@ -471,39 +460,12 @@ export default function CoachingSessionsPage() {
   const hasNoSessions = !isLoading && sessions.length === 0;
 
   return (
-    <div className="flex flex-col space-y-6">
+    <div className="flex flex-col space-y-6 pb-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Coaching Sessions</h1>
           <p className="text-muted-foreground">View and manage coaching sessions with your team members</p>
         </div>
-      </div>
-
-      {/* Filters and actions */}
-      <div className="flex flex-wrap gap-4 items-center">
-        <div className="relative flex-1 min-w-[240px]">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Search by team member or topic..."
-            className="pl-8"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-        <Select
-          value={statusFilter}
-          onValueChange={setStatusFilter}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Sessions</SelectItem>
-            <SelectItem value="scheduled">Scheduled</SelectItem>
-            <SelectItem value="completed">Completed</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Stats Cards */}
@@ -692,80 +654,11 @@ export default function CoachingSessionsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Recent Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Session Notes</CardTitle>
-          <CardDescription>
-            Notes from your most recent coaching sessions
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {pastSessions.filter(session => session.notes).length > 0 ? (
-            <>
-              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 pb-2">
-                {pastSessions
-                  .filter(session => session.notes)
-                  .slice(0, currentNotesPage * notesPerPage)
-                  .map((session) => (
-                    <div key={session.id} className="border rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => openNotesModal(session)}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={session.memberAvatar} alt={session.memberName} />
-                            <AvatarFallback>{session.memberName.charAt(0)}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <h4 className="font-medium">{session.memberName}</h4>
-                            <p className="text-xs text-muted-foreground">{session.topic}</p>
-                          </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {formatDate(session.date)}
-                        </div>
-                      </div>
-                      <p className="text-sm border-t pt-2 mt-2 line-clamp-2">{session.notes}</p>
-                    </div>
-                  ))}
-              </div>
-              
-              {/* Pagination */}
-              {pastSessions.filter(session => session.notes).length > notesPerPage && (
-                <div className="flex items-center justify-between mt-4 border-t pt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Showing {Math.min(currentNotesPage * notesPerPage, pastSessions.filter(session => session.notes).length)} of {pastSessions.filter(session => session.notes).length} notes
-                  </p>
-                  <div className="flex gap-2">
-                    {currentNotesPage > 1 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentNotesPage(currentNotesPage - 1)}
-                      >
-                        Previous
-                      </Button>
-                    )}
-                    {currentNotesPage * notesPerPage < pastSessions.filter(session => session.notes).length && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentNotesPage(currentNotesPage + 1)}
-                      >
-                        Next
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-6 text-muted-foreground">
-              <FileText className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-              <p>No session notes yet</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Recent Notes - Replaced with the new component */}
+      <RecentSessionNotes 
+        sessions={sessions}
+        formatDate={formatDate}
+      />
       
       {/* Session Notes Modal */}
       <SessionNotesModal 
