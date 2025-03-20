@@ -99,6 +99,7 @@ export interface AuthOptions {
   requiredCapabilities?: UserCapability[];
   requireAll?: boolean;
   requireOrganization?: boolean;
+  businessDashboard?: boolean;
 }
 
 export const authContextSchema = z.object({

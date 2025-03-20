@@ -9,6 +9,8 @@ import { RouteGuardProvider } from "@/components/auth/RouteGuardContext"
 import { BusinessStats } from '@/components/business-portal/BusinessStats'
 import { BusinessMetrics } from '@/components/business-portal/BusinessMetrics'
 import { TeamPerformance } from '@/components/business-portal/TeamPerformance'
+import { RecentCoachingSessions } from '@/components/business-portal/RecentCoachingSessions'
+import { UpcomingTrainings } from '@/components/business-portal/UpcomingTrainings'
 
 export default function BusinessDashboard() {
   return (
@@ -68,123 +70,10 @@ export default function BusinessDashboard() {
         {/* Dashboard content sections */}
         <div className="grid md:grid-cols-2 sm:grid-cols-1 w-full gap-4">
           {/* Recent Coaching Sessions */}
-          <Card>
-            <CardHeader className="flex flex-row items-center">
-              <div className="grid gap-2">
-                <CardTitle>Recent Coaching Sessions</CardTitle>
-                <CardDescription>Latest team coaching activity</CardDescription>
-              </div>
-              <Button asChild size="sm" className="ml-auto gap-1">
-                <Link href="/dashboard/business/coaching/sessions">
-                  View All
-                  <ArrowUpRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div style={{ maxHeight: "320px", overflowY: "auto" }}>
-                <div className="space-y-4">
-                  <div className="flex items-center">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={DEFAULT_AVATARS.COACH} alt="Avatar" />
-                      <AvatarFallback>SJ</AvatarFallback>
-                    </Avatar>
-                    <div className="ml-4 space-y-1">
-                      <p className="text-sm font-medium leading-none">Sarah Johnson</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Listing Presentation Skills</span>
-                        <span>•</span>
-                        <span>Yesterday</span>
-                      </div>
-                    </div>
-                    <div className="ml-auto text-xs text-muted-foreground">Completed</div>
-                  </div>
-
-                  {/* Additional session items */}
-                  <div className="flex items-center">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={DEFAULT_AVATARS.COACH} alt="Avatar" />
-                      <AvatarFallback>MR</AvatarFallback>
-                    </Avatar>
-                    <div className="ml-4 space-y-1">
-                      <p className="text-sm font-medium leading-none">Michael Rodriguez</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Buyer Consultation</span>
-                        <span>•</span>
-                        <span>2 days ago</span>
-                      </div>
-                    </div>
-                    <div className="ml-auto text-xs text-muted-foreground">Completed</div>
-                  </div>
-
-                  <div className="flex items-center">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={DEFAULT_AVATARS.COACH} alt="Avatar" />
-                      <AvatarFallback>AW</AvatarFallback>
-                    </Avatar>
-                    <div className="ml-4 space-y-1">
-                      <p className="text-sm font-medium leading-none">Alex Wong</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>Market Analysis</span>
-                        <span>•</span>
-                        <span>Mar 15, 2023</span>
-                      </div>
-                    </div>
-                    <div className="ml-auto text-xs text-muted-foreground">Completed</div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <RecentCoachingSessions />
 
           {/* Upcoming Training */}
-          <Card>
-            <CardHeader className="flex flex-row items-center">
-              <div className="grid gap-2">
-                <CardTitle>Upcoming Training</CardTitle>
-                <CardDescription>Scheduled sessions and deadlines</CardDescription>
-              </div>
-              <Button asChild size="sm" className="ml-auto gap-1">
-                <Link href="/dashboard/business/coaching/training">
-                  View All
-                  <ArrowUpRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100">
-                    <GraduationCap className="h-5 w-5 text-blue-700" />
-                  </div>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium">New Team Member Orientation</p>
-                    <p className="text-xs text-muted-foreground">Tomorrow, 10:00 AM • 2 new members</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100">
-                    <Calendar className="h-5 w-5 text-amber-700" />
-                  </div>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium">License Renewal Workshop</p>
-                    <p className="text-xs text-muted-foreground">Mar 22, 2023 • 5 attendees</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-100">
-                    <Target className="h-5 w-5 text-green-700" />
-                  </div>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium">Q2 Goal Setting Session</p>
-                    <p className="text-xs text-muted-foreground">Mar 28, 2023 • All team members</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <UpcomingTrainings />
         </div>
 
         {/* Team Performance */}

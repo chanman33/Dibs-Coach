@@ -18,7 +18,11 @@ export function StatCard({ title, value, description, icon: Icon }: StatCardProp
       </CardHeader>
       <CardContent>
         <div className="text-2xl font-bold">{value}</div>
-        <p className="text-xs text-muted-foreground">{description}</p>
+        {typeof description === 'string' ? (
+          <p className="text-xs text-muted-foreground">{description}</p>
+        ) : (
+          <div className="text-xs text-muted-foreground">{description}</div>
+        )}
       </CardContent>
     </Card>
   )

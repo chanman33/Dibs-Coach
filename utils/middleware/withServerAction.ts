@@ -39,6 +39,7 @@ interface ServerActionOptions {
   requiredCapabilities?: UserCapability[]
   requireAll?: boolean
   requireOrganization?: boolean
+  businessDashboard?: boolean
 }
 
 interface OrganizationData {
@@ -249,40 +250,59 @@ export function withServerAction<T, P = any>(
         orgRole: orgData?.role as OrgRole | undefined,
         orgLevel: orgData?.organization?.level as OrgLevel | undefined,
         organizationUlid: orgData?.organizationUlid,
-        organizationName: orgData?.organization?.name,
-        customPermissions: orgData?.customPermissions as Permission[] | undefined
+        organizationName: orgData?.organization?.name
       }
 
-      console.log('[SERVER_ACTION_USER_CONTEXT]', {
-        userId: session.userId,
-        userUlid: userData.ulid,
-        capabilities: userData.capabilities || [],
-        orgRole: orgData?.role || 'none',
-        organizationUlid: orgData?.organizationUlid || 'none',
-        organizationName: orgData?.organization?.name || 'none',
-        timestamp: new Date().toISOString()
-      });
-
-      // SIMPLIFIED PERMISSION MODEL FOR DEVELOPMENT:
-      // During development phase, follow the same logic as client-side permission service
-      const hasOrgMembership = !!orgData?.organizationUlid && !!orgData?.role;
-      const isSystemOwner = userData.systemRole === 'SYSTEM_OWNER';
+      // Configure the permission service with the user context
+      permissionService.setUser(userContext);
       
-      // For business portal endpoints, organization membership is required with a valid role
-      // This logic should match the client-side canAccessBusinessDashboard() function
-      const hasValidOrgRole = !!orgData?.role && 
-        businessDashboardRoles.includes(orgData.role as OrgRole);
+      // Business dashboard roles access check
+      if (options.businessDashboard) {
+        // This should match the client-side canAccessBusinessDashboard() function logic
+        const hasOrgMembership = !!orgData?.organizationUlid && !!orgData?.role;
+        const isSystemOwner = userData.systemRole === SYSTEM_ROLES.SYSTEM_OWNER;
         
-      const hasValidPermission = isSystemOwner || (hasOrgMembership && hasValidOrgRole);
-      
-      if (!hasValidPermission) {
-        console.error('[SERVER_ACTION_PERMISSION_DENIED]', {
+        // Ensure the org role is one of the allowed business dashboard roles
+        const businessDashboardRoles = [
+          ORG_ROLES.OWNER,
+          ORG_ROLES.DIRECTOR,
+          ORG_ROLES.MANAGER
+        ] as readonly OrgRole[];
+        
+        const hasValidOrgRole = !!orgData?.role && 
+          businessDashboardRoles.includes(orgData.role as OrgRole);
+        
+        const hasValidPermission = isSystemOwner || (hasOrgMembership && hasValidOrgRole);
+        
+        console.log('[SERVER_ACTION_BUSINESS_DASHBOARD_CHECK]', {
+          userId: session.userId,
+          hasOrgMembership,
+          isSystemOwner,
+          orgRole: orgData?.role || 'none',
+          hasValidOrgRole,
+          hasValidPermission,
+          timestamp: new Date().toISOString()
+        });
+        
+        if (!hasValidPermission) {
+          return {
+            data: null,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Insufficient permissions to access business dashboard'
+            }
+          }
+        }
+      }
+
+      // Check auth options if provided
+      if (options.requiredSystemRole && 
+         !hasSystemRole(roleContext.systemRole, options.requiredSystemRole)) {
+        console.log('[SERVER_ACTION_PERMISSION_DENIED]', {
           userId: session.userId,
           userUlid: userData.ulid,
-          orgRole: orgData?.role || 'none',
-          isSystemOwner,
-          hasOrgMembership,
-          hasValidOrgRole,
+          requiredSystemRole: options.requiredSystemRole,
+          userSystemRole: roleContext.systemRole,
           timestamp: new Date().toISOString()
         });
         
@@ -294,15 +314,81 @@ export function withServerAction<T, P = any>(
           }
         }
       }
-      
-      console.log('[SERVER_ACTION_PERMISSION_GRANTED]', {
-        userId: session.userId,
-        hasOrgMembership,
-        isSystemOwner,
-        orgRole: orgData?.role || 'none',
-        hasValidOrgRole,
-        timestamp: new Date().toISOString()
-      });
+
+      // Check org role if required
+      if (options.requiredOrgRole && roleContext.orgRole && 
+         !hasOrgRole(
+           roleContext.orgRole, 
+           options.requiredOrgRole, 
+           roleContext.orgLevel || 'BRANCH', 
+           options.requiredOrgLevel || 'BRANCH'
+         )) {
+        console.log('[SERVER_ACTION_PERMISSION_DENIED]', {
+          userId: session.userId,
+          userUlid: userData.ulid,
+          requiredOrgRole: options.requiredOrgRole,
+          userOrgRole: roleContext.orgRole || 'none',
+          timestamp: new Date().toISOString()
+        });
+        
+        return {
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Insufficient organization permissions'
+          }
+        }
+      }
+
+      // Check permissions if required
+      if (options.requiredPermissions && options.requiredPermissions.length > 0) {
+        const hasRequired = options.requireAll 
+          ? options.requiredPermissions.every(p => hasPermission(roleContext, p))
+          : options.requiredPermissions.some(p => hasPermission(roleContext, p));
+          
+        if (!hasRequired) {
+          console.log('[SERVER_ACTION_PERMISSION_DENIED]', {
+            userId: session.userId,
+            userUlid: userData.ulid,
+            requiredPermissions: options.requiredPermissions,
+            userPermissions: roleContext.customPermissions || [],
+            timestamp: new Date().toISOString()
+          });
+          
+          return {
+            data: null,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Insufficient permissions'
+            }
+          }
+        }
+      }
+
+      // Check capabilities if required
+      if (options.requiredCapabilities && options.requiredCapabilities.length > 0) {
+        const hasRequired = options.requireAll 
+          ? options.requiredCapabilities.every(c => hasCapability(roleContext, c))
+          : options.requiredCapabilities.some(c => hasCapability(roleContext, c));
+          
+        if (!hasRequired) {
+          console.log('[SERVER_ACTION_PERMISSION_DENIED]', {
+            userId: session.userId,
+            userUlid: userData.ulid,
+            requiredCapabilities: options.requiredCapabilities,
+            userCapabilities: roleContext.capabilities || [],
+            timestamp: new Date().toISOString()
+          });
+          
+          return {
+            data: null,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Insufficient capabilities'
+            }
+          }
+        }
+      }
 
       return action(params, {
         userId: session.userId,

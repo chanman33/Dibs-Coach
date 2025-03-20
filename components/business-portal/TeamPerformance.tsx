@@ -74,9 +74,9 @@ export function TeamPerformance() {
           <CardTitle>
             <Skeleton className="h-6 w-[200px]" />
           </CardTitle>
-          <CardDescription>
+          <div className="text-sm text-muted-foreground">
             <Skeleton className="h-4 w-[300px]" />
-          </CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">

@@ -47,6 +47,46 @@ export interface TeamPerformance {
   clientGrowth: number
 }
 
+// Recent coaching sessions for business dashboard
+export interface RecentCoachingSession {
+  id: string
+  coachName: string
+  coachAvatar: string
+  sessionType: string
+  sessionDate: string
+  status: string
+}
+
+export const recentCoachingSessionSchema = z.object({
+  id: z.string(),
+  coachName: z.string(),
+  coachAvatar: z.string().optional(),
+  sessionType: z.string(),
+  sessionDate: z.string(),
+  status: z.string()
+})
+
+// Upcoming training programs for business dashboard
+export interface UpcomingTraining {
+  id: string
+  title: string
+  date: string
+  timeWithTZ: string 
+  attendees: number
+  iconType: 'graduation' | 'calendar' | 'target'
+}
+
+export const upcomingTrainingSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  date: z.string(),
+  timeWithTZ: z.string(),
+  attendees: z.number().int().nonnegative(),
+  iconType: z.enum(['graduation', 'calendar', 'target'])
+})
+
 // Export type from schema
 export type BusinessStatsData = z.infer<typeof businessStatsSchema>
-export type BusinessCoachingMetricsData = z.infer<typeof businessCoachingMetricsSchema> 
+export type BusinessCoachingMetricsData = z.infer<typeof businessCoachingMetricsSchema>
+export type RecentCoachingSessionData = z.infer<typeof recentCoachingSessionSchema>
+export type UpcomingTrainingData = z.infer<typeof upcomingTrainingSchema> 

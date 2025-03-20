@@ -210,9 +210,9 @@ export function BusinessStats() {
               <div className="text-2xl font-bold">
                 <Skeleton className="h-8 w-[60px]" />
               </div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 <Skeleton className="h-3 w-[100px]" />
-              </p>
+              </div>
             </CardContent>
           </Card>
         ))}

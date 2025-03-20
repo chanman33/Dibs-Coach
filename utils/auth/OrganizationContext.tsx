@@ -90,6 +90,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
           availableOrgs: organizations.length
         });
       } else {
+        // If organization not found in list, we might need to reload organizations
         console.warn('[ORGANIZATION_CONTEXT] Organization not found in list:', {
           id: organizationUlid,
           organizations: organizations.map(o => ({
@@ -100,6 +101,13 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
           })),
           timestamp: new Date().toISOString()
         });
+        
+        // If we have an organizationUlid but it's not in our current list and we're not loading,
+        // we should try to load organizations again
+        if (!isLoading && organizations.length > 0) {
+          console.log('[ORGANIZATION_CONTEXT] Refreshing organizations to find selected org');
+          refreshOrganizations();
+        }
       }
     } else {
       localStorage.removeItem('activeOrganizationUlid');
@@ -110,7 +118,7 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         availableOrgs: organizations.length
       });
     }
-  }, [organizationUlid, organizations]);
+  }, [organizationUlid, organizations, isLoading]);
 
   const fetchOrganizations = async () => {
     // Skip if user is not authenticated
@@ -138,7 +146,30 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       
       // If we have organizations but no active one selected, select the first one
       if (data.organizations?.length > 0 && !organizationUlid) {
-        setOrganizationUlid(data.organizations[0].organizationUlid);
+        const firstOrg = data.organizations[0];
+        setOrganizationUlid(firstOrg.organizationUlid);
+        // Immediately set role and name to avoid race condition
+        setOrganizationName(firstOrg.organization.name);
+        setOrganizationRole(firstOrg.role);
+        console.log('[ORGANIZATION_CONTEXT] Set initial organization:', {
+          id: firstOrg.organizationUlid,
+          name: firstOrg.organization.name,
+          role: firstOrg.role,
+          timestamp: new Date().toISOString()
+        });
+      } else if (organizationUlid && data.organizations?.length > 0) {
+        // If we already have an organizationUlid, make sure we update the role and name
+        const selectedOrg = data.organizations.find((org: OrganizationMember) => org.organizationUlid === organizationUlid);
+        if (selectedOrg) {
+          setOrganizationName(selectedOrg.organization.name);
+          setOrganizationRole(selectedOrg.role);
+          console.log('[ORGANIZATION_CONTEXT] Updated organization details after fetch:', {
+            id: organizationUlid,
+            name: selectedOrg.organization.name,
+            role: selectedOrg.role,
+            timestamp: new Date().toISOString()
+          });
+        }
       }
     } catch (error) {
       console.error('[ORGANIZATION_CONTEXT] Error fetching organizations:', error);

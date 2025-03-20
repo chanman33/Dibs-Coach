@@ -2,7 +2,7 @@
 
 import { createAuthClient } from '@/utils/auth'
 import { withServerAction, type ServerActionContext } from '@/utils/middleware/withServerAction'
-import { BusinessStats, BusinessCoachingMetrics, TeamPerformance } from '@/utils/types/business'
+import { BusinessStats, BusinessCoachingMetrics, TeamPerformance, RecentCoachingSession, UpcomingTraining } from '@/utils/types/business'
 import { Database } from '@/types/supabase'
 import { permissionService } from '@/utils/auth'
 import { ORG_ROLES } from '@/utils/roles/roles'
@@ -578,6 +578,344 @@ export const saveCoachingBudget = withServerAction<{ success: boolean }>(
         error: {
           code: 'FETCH_ERROR',
           message: 'Failed to save coaching budget'
+        }
+      }
+    }
+  }
+)
+
+// Fetch recent coaching sessions for organization
+export const fetchRecentCoachingSessions = withServerAction<RecentCoachingSession[]>(
+  async (_: unknown, context: ServerActionContext): Promise<ApiResponse<RecentCoachingSession[]>> => {
+    console.log('[RECENT_COACHING_SESSIONS_ACTION_START]', {
+      userUlid: context.userUlid,
+      orgRole: context.roleContext.orgRole,
+      organizationUlid: context.organizationUlid,
+      timestamp: new Date().toISOString()
+    })
+    
+    try {
+      // Early return if no organization context
+      if (!context.organizationUlid) {
+        console.log('[RECENT_COACHING_SESSIONS_NO_ORG]', {
+          userUlid: context.userUlid,
+          timestamp: new Date().toISOString()
+        })
+        return {
+          data: null,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'No organization context found'
+          }
+        }
+      }
+
+      const supabase = await createAuthClient()
+      const orgId = context.organizationUlid
+      
+      // Get org members first
+      const { data: orgMembers, error: membersError } = await supabase
+        .from('OrganizationMember')
+        .select('userUlid')
+        .eq('organizationUlid', orgId)
+        .eq('status', 'ACTIVE')
+      
+      if (membersError) {
+        console.error('[RECENT_COACHING_SESSIONS_MEMBERS_ERROR]', {
+          error: membersError,
+          orgId,
+          timestamp: new Date().toISOString()
+        })
+        return {
+          data: null,
+          error: {
+            code: 'FETCH_ERROR',
+            message: 'Failed to fetch organization members'
+          }
+        }
+      }
+      
+      const memberUlids = orgMembers?.map(m => m.userUlid) || []
+      
+      if (memberUlids.length === 0) {
+        console.log('[RECENT_COACHING_SESSIONS_NO_MEMBERS]', {
+          orgId,
+          timestamp: new Date().toISOString()
+        })
+        return { data: [], error: null }
+      }
+      
+      // Get recent sessions for this organization's members
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('Session')
+        .select(`
+          ulid,
+          startTime,
+          status,
+          sessionType,
+          coach:User!Session_coachUlid_fkey (
+            ulid,
+            firstName,
+            lastName,
+            profileImageUrl
+          )
+        `)
+        .in('menteeUlid', memberUlids)
+        .order('startTime', { ascending: false })
+        .limit(5)
+      
+      if (sessionsError) {
+        console.error('[RECENT_COACHING_SESSIONS_ERROR]', {
+          error: sessionsError,
+          orgId,
+          memberCount: memberUlids.length,
+          timestamp: new Date().toISOString()
+        })
+        return {
+          data: null,
+          error: {
+            code: 'FETCH_ERROR',
+            message: 'Failed to fetch recent coaching sessions'
+          }
+        }
+      }
+      
+      if (!sessions || sessions.length === 0) {
+        console.log('[RECENT_COACHING_SESSIONS_NONE_FOUND]', {
+          orgId,
+          timestamp: new Date().toISOString()
+        })
+        return { data: [], error: null }
+      }
+      
+      // Transform sessions to the format expected by the client
+      const formattedSessions = sessions.map(session => {
+        const coach = session.coach || { firstName: 'Unknown', lastName: 'Coach' }
+        const startDate = new Date(session.startTime)
+        const now = new Date()
+        
+        // Format the date relative to today
+        let sessionDate = startDate.toLocaleDateString()
+        const dayDiff = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+        
+        if (dayDiff === 0) {
+          sessionDate = 'Today'
+        } else if (dayDiff === 1) {
+          sessionDate = 'Yesterday'
+        } else if (dayDiff < 7) {
+          sessionDate = `${dayDiff} days ago`
+        }
+        
+        return {
+          id: session.ulid,
+          coachName: `${coach.firstName || ''} ${coach.lastName || ''}`.trim(),
+          coachAvatar: coach.profileImageUrl || '',
+          sessionType: session.sessionType || 'Coaching Session',
+          sessionDate,
+          status: session.status
+        }
+      })
+      
+      console.log('[RECENT_COACHING_SESSIONS_SUCCESS]', { 
+        sessionCount: formattedSessions.length,
+        timestamp: new Date().toISOString()
+      })
+      
+      return { data: formattedSessions, error: null }
+    } catch (error) {
+      console.error('[RECENT_COACHING_SESSIONS_ERROR]', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        userUlid: context.userUlid,
+        timestamp: new Date().toISOString()
+      })
+      
+      return {
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch recent coaching sessions'
+        }
+      }
+    }
+  }
+)
+
+// Fetch upcoming training sessions for the organization
+export const fetchUpcomingTrainings = withServerAction<UpcomingTraining[]>(
+  async (_: unknown, context: ServerActionContext): Promise<ApiResponse<UpcomingTraining[]>> => {
+    console.log('[UPCOMING_TRAININGS_ACTION_START]', {
+      userUlid: context.userUlid,
+      orgRole: context.roleContext.orgRole,
+      organizationUlid: context.organizationUlid,
+      timestamp: new Date().toISOString()
+    })
+    
+    try {
+      // Early return if no organization context
+      if (!context.organizationUlid) {
+        console.log('[UPCOMING_TRAININGS_NO_ORG]', {
+          userUlid: context.userUlid,
+          timestamp: new Date().toISOString()
+        })
+        return {
+          data: null,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'No organization context found'
+          }
+        }
+      }
+
+      const supabase = await createAuthClient()
+      const orgId = context.organizationUlid
+      
+      // Since training sessions might not be in the database yet,
+      // we'll check for any scheduled sessions in the future as a proxy
+      const now = new Date()
+      
+      // Get org members first
+      const { data: orgMembers, error: membersError } = await supabase
+        .from('OrganizationMember')
+        .select('userUlid')
+        .eq('organizationUlid', orgId)
+        .eq('status', 'ACTIVE')
+      
+      if (membersError) {
+        console.error('[UPCOMING_TRAININGS_MEMBERS_ERROR]', {
+          error: membersError,
+          orgId,
+          timestamp: new Date().toISOString()
+        })
+        return {
+          data: null,
+          error: {
+            code: 'FETCH_ERROR',
+            message: 'Failed to fetch organization members'
+          }
+        }
+      }
+      
+      const memberUlids = orgMembers?.map(m => m.userUlid) || []
+      
+      if (memberUlids.length === 0) {
+        console.log('[UPCOMING_TRAININGS_NO_MEMBERS]', {
+          orgId,
+          timestamp: new Date().toISOString()
+        })
+        return { data: [], error: null }
+      }
+      
+      // Get upcoming sessions for this organization's members
+      const { data: upcomingSessions, error: sessionsError } = await supabase
+        .from('Session')
+        .select(`
+          ulid,
+          startTime,
+          sessionType,
+          menteeUlid
+        `)
+        .in('menteeUlid', memberUlids)
+        .gt('startTime', now.toISOString())
+        .order('startTime', { ascending: true })
+        .limit(10)
+      
+      if (sessionsError) {
+        console.error('[UPCOMING_TRAININGS_SESSIONS_ERROR]', {
+          error: sessionsError,
+          orgId,
+          memberCount: memberUlids.length,
+          timestamp: new Date().toISOString()
+        })
+        return {
+          data: null,
+          error: {
+            code: 'FETCH_ERROR',
+            message: 'Failed to fetch upcoming training sessions'
+          }
+        }
+      }
+      
+      if (!upcomingSessions || upcomingSessions.length === 0) {
+        console.log('[UPCOMING_TRAININGS_NONE_FOUND]', {
+          orgId,
+          timestamp: new Date().toISOString()
+        })
+        return { data: [], error: null }
+      }
+      
+      // Process upcoming sessions into training format
+      const trainings: UpcomingTraining[] = upcomingSessions.map(session => {
+        const startDate = new Date(session.startTime)
+        const now = new Date()
+        
+        // Format the date relative to today
+        let date = startDate.toLocaleDateString()
+        const tomorrow = new Date()
+        tomorrow.setDate(now.getDate() + 1)
+        
+        // Check if it's today or tomorrow
+        if (startDate.toDateString() === now.toDateString()) {
+          date = 'Today'
+        } else if (startDate.toDateString() === tomorrow.toDateString()) {
+          date = 'Tomorrow'
+        }
+        
+        // Format time with timezone
+        const timeWithTZ = startDate.toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          timeZoneName: 'short'
+        })
+        
+        // Determine icon type based on session type
+        let iconType: 'graduation' | 'calendar' | 'target' = 'calendar'
+        if (session.sessionType?.includes('ORIENTATION') || 
+            session.sessionType?.includes('TRAINING')) {
+          iconType = 'graduation'
+        } else if (session.sessionType?.includes('GOAL') || 
+                  session.sessionType?.includes('PLANNING')) {
+          iconType = 'target'
+        }
+        
+        // Use session type as title or default to a generic training title
+        let title = session.sessionType || 'Coaching Session'
+        
+        // Capitalize title and make it more readable
+        title = title
+          .split('_')
+          .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+          .join(' ')
+          
+        return {
+          id: session.ulid,
+          title,
+          date,
+          timeWithTZ: timeWithTZ.replace(/:\d+ /, ' '), // Remove seconds from time
+          attendees: 1, // Default to 1 attendee per session
+          iconType
+        }
+      })
+      
+      console.log('[UPCOMING_TRAININGS_SUCCESS]', { 
+        trainingsCount: trainings.length,
+        timestamp: new Date().toISOString()
+      })
+      
+      return { data: trainings, error: null }
+    } catch (error) {
+      console.error('[UPCOMING_TRAININGS_ERROR]', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        userUlid: context.userUlid,
+        timestamp: new Date().toISOString()
+      })
+      
+      return {
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch upcoming trainings'
         }
       }
     }

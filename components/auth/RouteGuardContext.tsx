@@ -125,6 +125,13 @@ export function RouteGuardProvider({
       return;
     }
 
+    // Make sure the organization role has been properly set in context before proceeding
+    // This prevents race conditions where organizationUlid exists but organizationRole hasn't been set yet
+    if (organizationUlid && !organizationRole && organizations.length > 0) {
+      console.log('[ROUTE_GUARD] Organization selected but role not yet set, waiting...');
+      return;
+    }
+
     if (required) {
       console.log('[ROUTE_GUARD] Running authorization check with complete data:', {
         organizationRole,
@@ -198,9 +205,13 @@ export function RouteGuardProvider({
 
   // Show enhanced loading state with better messaging based on what we're waiting for
   if (isLoading) {
-    const loadingMessage = isOrgLoading 
-      ? "Loading organization data..." 
-      : "Verifying permissions...";
+    let loadingMessage = "Verifying permissions...";
+    
+    if (isOrgLoading) {
+      loadingMessage = "Loading organization data...";
+    } else if (organizationUlid && !organizationRole && organizations.length > 0) {
+      loadingMessage = "Finalizing organization context...";
+    }
     
     return (
       <ContainerLoading
