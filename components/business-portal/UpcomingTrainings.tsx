@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { AlertCircle, ArrowUpRight, Calendar, GraduationCap, Target, HelpCircle } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { fetchUpcomingTrainings } from '@/utils/actions/business-dashboard-actions'
+import { fetchUpcomingTrainings } from '@/utils/actions/business-portal/business-dashboard-actions'
 import { UpcomingTraining } from '@/utils/types/business'
 import Link from 'next/link'
 

@@ -1,38 +1,14 @@
 "use client"
-import { useState, useEffect } from "react"
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Target, ArrowUpRight, Calendar, DollarSign, Star, CalendarClock, GraduationCap, AlertCircle } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Users, Target, CalendarClock, GraduationCap, AlertCircle } from "lucide-react"
 import Link from 'next/link'
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { DEFAULT_AVATARS } from '@/utils/constants'
 import { RouteGuardProvider } from "@/components/auth/RouteGuardContext"
 import { BusinessStats } from '@/components/business-portal/BusinessStats'
-import { BusinessMetrics } from '@/components/business-portal/BusinessMetrics'
-import { TeamPerformance } from '@/components/business-portal/TeamPerformance'
 import { RecentCoachingSessions } from '@/components/business-portal/RecentCoachingSessions'
 import { UpcomingTrainings } from '@/components/business-portal/UpcomingTrainings'
-import { TeamEffectiveness } from '@/components/dashboard/business/TeamEffectiveness'
-import { fetchTeamEffectivenessMetrics } from "@/utils/actions/business-dashboard-actions"
-import type { TeamEffectivenessMetrics } from "@/utils/types/business"
 
 export default function BusinessDashboard() {
-  const [effectivenessData, setEffectivenessData] = useState<TeamEffectivenessMetrics | null>(null)
-  const [effectivenessLoading, setEffectivenessLoading] = useState(true)
-
-  useEffect(() => {
-    const loadEffectivenessData = async () => {
-      setEffectivenessLoading(true)
-      const response = await fetchTeamEffectivenessMetrics({})
-      if (response.data) {
-        setEffectivenessData(response.data)
-      }
-      setEffectivenessLoading(false)
-    }
-    
-    loadEffectivenessData()
-  }, [])
-
   return (
     <RouteGuardProvider required="business-dashboard">
       <div className="flex flex-col justify-center items-start flex-wrap px-4 pt-4 gap-4">
@@ -95,8 +71,6 @@ export default function BusinessDashboard() {
           {/* Upcoming Training */}
           <UpcomingTrainings />
         </div>
-
-
       </div>
     </RouteGuardProvider>
   )

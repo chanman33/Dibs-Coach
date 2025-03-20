@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatCard } from './StatCard'
-import { fetchBusinessStats, saveCoachingBudget } from '@/utils/actions/business-dashboard-actions'
+import { fetchBusinessStats, saveCoachingBudget } from '@/utils/actions/business-portal/business-dashboard-actions'
 import { AlertCircle, Users, GraduationCap, DollarSign, Calendar, Loader2, Info } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'

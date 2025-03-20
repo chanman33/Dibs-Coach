@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { AlertCircle, ArrowUpRight, BarChart3, CircleSlash } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { fetchRecentCoachingSessions } from '@/utils/actions/business-dashboard-actions'
+import { fetchRecentCoachingSessions } from '@/utils/actions/business-portal/business-dashboard-actions'
 import { RecentCoachingSession } from '@/utils/types/business'
 import Link from 'next/link'
 

@@ -7,30 +7,21 @@ import {
   BusinessStats,
   RecentCoachingSession,
   TeamPerformance,
-  TeamEffectivenessMetrics,
   UpcomingTraining
 } from '@/utils/types/business'
-import { Database } from '@/types/supabase'
-import { permissionService } from '@/utils/auth'
-import { ORG_ROLES } from '@/utils/roles/roles'
-import { ApiResponse, ApiError } from '@/utils/types/api'
+import { ApiResponse } from '@/utils/types/api'
 
 // Fetch business dashboard statistics
 export const fetchBusinessStats = withServerAction<BusinessStats>(
   async (_: unknown, context: ServerActionContext): Promise<ApiResponse<BusinessStats>> => {
-    console.log('[BUSINESS_STATS_ACTION_START]', {
+    console.log('[BUSINESS_STATS_ACTION]', {
       userUlid: context.userUlid,
-      orgRole: context.roleContext.orgRole,
       organizationUlid: context.organizationUlid
     })
     
     try {
       // Early return if no organization context
       if (!context.organizationUlid) {
-        console.log('[BUSINESS_STATS_ACTION_NO_ORG]', {
-          userUlid: context.userUlid,
-          timestamp: new Date().toISOString()
-        })
         return {
           data: null,
           error: {
@@ -52,17 +43,9 @@ export const fetchBusinessStats = withServerAction<BusinessStats>(
         .eq('status', 'ACTIVE')
       
       if (currentCountError) {
-        console.error('[BUSINESS_STATS_MEMBER_COUNT_ERROR]', {
-          error: currentCountError,
-          orgId,
-          timestamp: new Date().toISOString()
-        })
+        console.error('[BUSINESS_STATS_ERROR]', { error: currentCountError })
       }
 
-      // Get team member count from 3 months ago
-      const threeMonthsAgo = new Date()
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
-      
       // Get team member count from 30 days ago
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(now.getDate() - 30)
@@ -104,8 +87,7 @@ export const fetchBusinessStats = withServerAction<BusinessStats>(
         ? Math.round((activeInCoaching / (currentMemberCount || 1)) * 100) 
         : 0
       
-      // Budget data - in production this would come from a real budget table
-      // For now checking if there's a real budget set in database
+      // Budget data
       const { data: orgBudget } = await supabase
         .from('Settings')
         .select('value')
@@ -138,16 +120,6 @@ export const fetchBusinessStats = withServerAction<BusinessStats>(
         .lt('startTime', nextMonth.toISOString())
       
       const scheduledSessions = scheduledSessionsData?.length || 0
-      
-      console.log('[BUSINESS_STATS_ACTION_DATA]', {
-        orgId,
-        currentMemberCount,
-        teamMemberGrowth,
-        activeInCoaching,
-        participationRate,
-        scheduledSessions,
-        timestamp: new Date().toISOString()
-      })
       
       // Prepare the result
       const stats: BusinessStats = {
@@ -186,13 +158,12 @@ export const fetchBusinessStats = withServerAction<BusinessStats>(
         }
       }
 
-      console.log('[BUSINESS_STATS_ACTION_COMPLETE]', { stats })
       return { 
         data: stats,
         error: null
       }
     } catch (error) {
-      console.error('[BUSINESS_STATS_ACTION_ERROR]', error)
+      console.error('[BUSINESS_STATS_ERROR]', error)
       return {
         data: null,
         error: {
@@ -207,19 +178,14 @@ export const fetchBusinessStats = withServerAction<BusinessStats>(
 // Fetch business coaching metrics
 export const fetchBusinessCoachingMetrics = withServerAction<BusinessCoachingMetrics>(
   async (_, context: ServerActionContext) => {
-    console.log('[BUSINESS_METRICS_ACTION_START]', {
+    console.log('[BUSINESS_METRICS_ACTION]', {
       userUlid: context.userUlid,
-      isDevelopment: process.env.NODE_ENV === 'development',
-      timestamp: new Date().toISOString()
+      organizationUlid: context.organizationUlid
     })
     
     try {
       // Early return if no organization context
       if (!context.organizationUlid) {
-        console.log('[BUSINESS_METRICS_ACTION_NO_ORG]', {
-          userUlid: context.userUlid,
-          timestamp: new Date().toISOString()
-        })
         return {
           data: null,
           error: {
@@ -253,11 +219,7 @@ export const fetchBusinessCoachingMetrics = withServerAction<BusinessCoachingMet
         .in('menteeUlid', memberUlids)
       
       if (sessionsError) {
-        console.error('[BUSINESS_METRICS_SESSIONS_ERROR]', {
-          error: sessionsError,
-          orgId,
-          timestamp: new Date().toISOString()
-        })
+        console.error('[BUSINESS_METRICS_ERROR]', { error: sessionsError })
       }
       
       // Calculate metrics
@@ -305,23 +267,14 @@ export const fetchBusinessCoachingMetrics = withServerAction<BusinessCoachingMet
         currency: 'USD'
       }
 
-      // Log final result
-      console.log('[BUSINESS_METRICS_RESULT]', {
-        success: true,
-        data: metricsData,
-        timestamp: new Date().toISOString()
-      })
-
       return { 
         data: metricsData, 
         error: null 
       }
     } catch (error) {
-      console.error('[FETCH_BUSINESS_COACHING_METRICS_ERROR]', { 
+      console.error('[BUSINESS_METRICS_ERROR]', { 
         error,
-        stack: error instanceof Error ? error.stack : undefined,
-        userUlid: context.userUlid,
-        timestamp: new Date().toISOString()
+        stack: error instanceof Error ? error.stack : undefined
       })
 
       return {
@@ -338,19 +291,14 @@ export const fetchBusinessCoachingMetrics = withServerAction<BusinessCoachingMet
 // Fetch team performance metrics
 export const fetchTeamPerformance = withServerAction<TeamPerformance[]>(
   async (_: unknown, context: ServerActionContext): Promise<ApiResponse<TeamPerformance[]>> => {
-    console.log('[TEAM_PERFORMANCE_ACTION_START]', {
+    console.log('[TEAM_PERFORMANCE_ACTION]', {
       userUlid: context.userUlid,
-      orgRole: context.roleContext.orgRole,
       organizationUlid: context.organizationUlid
     })
     
     try {
       // Early return if no organization context
       if (!context.organizationUlid) {
-        console.log('[TEAM_PERFORMANCE_ACTION_NO_ORG]', {
-          userUlid: context.userUlid,
-          timestamp: new Date().toISOString()
-        })
         return {
           data: null,
           error: {
@@ -380,11 +328,7 @@ export const fetchTeamPerformance = withServerAction<TeamPerformance[]>(
         .eq('status', 'ACTIVE')
       
       if (membersError) {
-        console.error('[TEAM_PERFORMANCE_MEMBERS_ERROR]', {
-          error: membersError,
-          orgId,
-          timestamp: new Date().toISOString()
-        })
+        console.error('[TEAM_PERFORMANCE_ERROR]', { error: membersError })
         return {
           data: null,
           error: {
@@ -400,10 +344,6 @@ export const fetchTeamPerformance = withServerAction<TeamPerformance[]>(
         ?.map(member => member.User?.ulid) || []
       
       if (coachUlids.length === 0) {
-        console.log('[TEAM_PERFORMANCE_NO_COACHES]', {
-          orgId,
-          timestamp: new Date().toISOString()
-        })
         return { data: [], error: null }
       }
       
@@ -413,16 +353,12 @@ export const fetchTeamPerformance = withServerAction<TeamPerformance[]>(
       
       const { data: sessions, error: sessionsError } = await supabase
         .from('Session')
-        .select('coachUlid, status, menteeUlid, createdAt') // Removed menteeRating
+        .select('coachUlid, status, menteeUlid, createdAt')
         .in('coachUlid', coachUlids)
         .gte('startTime', threeMonthsAgo.toISOString())
       
       if (sessionsError) {
-        console.error('[TEAM_PERFORMANCE_SESSIONS_ERROR]', {
-          error: sessionsError,
-          coachCount: coachUlids.length,
-          timestamp: new Date().toISOString()
-        })
+        console.error('[TEAM_PERFORMANCE_ERROR]', { error: sessionsError })
       }
       
       // Process session data per coach
@@ -431,7 +367,6 @@ export const fetchTeamPerformance = withServerAction<TeamPerformance[]>(
         const completedSessions = coachSessions.filter(s => s.status === 'COMPLETED')
         
         // Use placeholder ratings since menteeRating may not exist
-        // In a real implementation, this would come from actual ratings
         const avgRating = 4.5 + (Math.random() * 0.5) // Random rating between 4.5-5.0
         
         // Calculate client growth (unique mentees in last month vs previous 2 months)
@@ -474,18 +409,12 @@ export const fetchTeamPerformance = withServerAction<TeamPerformance[]>(
         .sort((a, b) => b.sessions - a.sessions)
         .slice(0, 5) // Limit to top 5 performers
       
-      console.log('[TEAM_PERFORMANCE_ACTION_COMPLETE]', { 
-        coachCount: coachUlids.length,
-        sessionCount: sessions?.length || 0,
-        performanceCount: sortedPerformance.length
-      })
-      
       return { 
         data: sortedPerformance, 
         error: null 
       }
     } catch (error) {
-      console.error('[TEAM_PERFORMANCE_ACTION_ERROR]', error)
+      console.error('[TEAM_PERFORMANCE_ERROR]', error)
       return {
         data: null,
         error: {
@@ -500,9 +429,8 @@ export const fetchTeamPerformance = withServerAction<TeamPerformance[]>(
 // Save coaching budget for an organization
 export const saveCoachingBudget = withServerAction<{ success: boolean }>(
   async (budgetAmount: number, context: ServerActionContext): Promise<ApiResponse<{ success: boolean }>> => {
-    console.log('[SAVE_BUDGET_ACTION_START]', {
+    console.log('[SAVE_BUDGET_ACTION]', {
       userUlid: context.userUlid,
-      orgRole: context.roleContext.orgRole,
       organizationUlid: context.organizationUlid,
       budgetAmount
     })
@@ -510,10 +438,6 @@ export const saveCoachingBudget = withServerAction<{ success: boolean }>(
     try {
       // Early return if no organization context
       if (!context.organizationUlid) {
-        console.log('[SAVE_BUDGET_ACTION_NO_ORG]', {
-          userUlid: context.userUlid,
-          timestamp: new Date().toISOString()
-        })
         return {
           data: null,
           error: {
@@ -563,11 +487,7 @@ export const saveCoachingBudget = withServerAction<{ success: boolean }>(
           .eq('ulid', existingSetting.ulid)
         
         if (updateError) {
-          console.error('[SAVE_BUDGET_UPDATE_ERROR]', {
-            error: updateError,
-            orgId,
-            timestamp: new Date().toISOString()
-          })
+          console.error('[SAVE_BUDGET_ERROR]', { error: updateError })
           return {
             data: null,
             error: {
@@ -578,7 +498,6 @@ export const saveCoachingBudget = withServerAction<{ success: boolean }>(
         }
       } else {
         // Create new setting
-        // In a real implementation we'd generate a proper ULID
         const tempUlid = `temp_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`
         
         const { error: insertError } = await supabase
@@ -593,11 +512,7 @@ export const saveCoachingBudget = withServerAction<{ success: boolean }>(
           })
         
         if (insertError) {
-          console.error('[SAVE_BUDGET_INSERT_ERROR]', {
-            error: insertError,
-            orgId,
-            timestamp: new Date().toISOString()
-          })
+          console.error('[SAVE_BUDGET_ERROR]', { error: insertError })
           return {
             data: null,
             error: {
@@ -607,20 +522,13 @@ export const saveCoachingBudget = withServerAction<{ success: boolean }>(
           }
         }
       }
-
-      console.log('[SAVE_BUDGET_ACTION_COMPLETE]', {
-        success: true,
-        orgId,
-        budgetAmount,
-        timestamp: new Date().toISOString()
-      })
       
       return { 
         data: { success: true },
         error: null
       }
     } catch (error) {
-      console.error('[SAVE_BUDGET_ACTION_ERROR]', error)
+      console.error('[SAVE_BUDGET_ERROR]', error)
       return {
         data: null,
         error: {
@@ -635,20 +543,14 @@ export const saveCoachingBudget = withServerAction<{ success: boolean }>(
 // Fetch recent coaching sessions for organization
 export const fetchRecentCoachingSessions = withServerAction<RecentCoachingSession[]>(
   async (_: unknown, context: ServerActionContext): Promise<ApiResponse<RecentCoachingSession[]>> => {
-    console.log('[RECENT_COACHING_SESSIONS_ACTION_START]', {
+    console.log('[RECENT_COACHING_SESSIONS_ACTION]', {
       userUlid: context.userUlid,
-      orgRole: context.roleContext.orgRole,
-      organizationUlid: context.organizationUlid,
-      timestamp: new Date().toISOString()
+      organizationUlid: context.organizationUlid
     })
     
     try {
       // Early return if no organization context
       if (!context.organizationUlid) {
-        console.log('[RECENT_COACHING_SESSIONS_NO_ORG]', {
-          userUlid: context.userUlid,
-          timestamp: new Date().toISOString()
-        })
         return {
           data: null,
           error: {
@@ -669,11 +571,7 @@ export const fetchRecentCoachingSessions = withServerAction<RecentCoachingSessio
         .eq('status', 'ACTIVE')
       
       if (membersError) {
-        console.error('[RECENT_COACHING_SESSIONS_MEMBERS_ERROR]', {
-          error: membersError,
-          orgId,
-          timestamp: new Date().toISOString()
-        })
+        console.error('[RECENT_COACHING_SESSIONS_ERROR]', { error: membersError })
         return {
           data: null,
           error: {
@@ -686,10 +584,6 @@ export const fetchRecentCoachingSessions = withServerAction<RecentCoachingSessio
       const memberUlids = orgMembers?.map(m => m.userUlid) || []
       
       if (memberUlids.length === 0) {
-        console.log('[RECENT_COACHING_SESSIONS_NO_MEMBERS]', {
-          orgId,
-          timestamp: new Date().toISOString()
-        })
         return { data: [], error: null }
       }
       
@@ -713,12 +607,7 @@ export const fetchRecentCoachingSessions = withServerAction<RecentCoachingSessio
         .limit(5)
       
       if (sessionsError) {
-        console.error('[RECENT_COACHING_SESSIONS_ERROR]', {
-          error: sessionsError,
-          orgId,
-          memberCount: memberUlids.length,
-          timestamp: new Date().toISOString()
-        })
+        console.error('[RECENT_COACHING_SESSIONS_ERROR]', { error: sessionsError })
         return {
           data: null,
           error: {
@@ -729,10 +618,6 @@ export const fetchRecentCoachingSessions = withServerAction<RecentCoachingSessio
       }
       
       if (!sessions || sessions.length === 0) {
-        console.log('[RECENT_COACHING_SESSIONS_NONE_FOUND]', {
-          orgId,
-          timestamp: new Date().toISOString()
-        })
         return { data: [], error: null }
       }
       
@@ -764,18 +649,11 @@ export const fetchRecentCoachingSessions = withServerAction<RecentCoachingSessio
         }
       })
       
-      console.log('[RECENT_COACHING_SESSIONS_SUCCESS]', { 
-        sessionCount: formattedSessions.length,
-        timestamp: new Date().toISOString()
-      })
-      
       return { data: formattedSessions, error: null }
     } catch (error) {
       console.error('[RECENT_COACHING_SESSIONS_ERROR]', {
         error,
-        stack: error instanceof Error ? error.stack : undefined,
-        userUlid: context.userUlid,
-        timestamp: new Date().toISOString()
+        stack: error instanceof Error ? error.stack : undefined
       })
       
       return {
@@ -792,20 +670,14 @@ export const fetchRecentCoachingSessions = withServerAction<RecentCoachingSessio
 // Fetch upcoming training sessions for the organization
 export const fetchUpcomingTrainings = withServerAction<UpcomingTraining[]>(
   async (_: unknown, context: ServerActionContext): Promise<ApiResponse<UpcomingTraining[]>> => {
-    console.log('[UPCOMING_TRAININGS_ACTION_START]', {
+    console.log('[UPCOMING_TRAININGS_ACTION]', {
       userUlid: context.userUlid,
-      orgRole: context.roleContext.orgRole,
-      organizationUlid: context.organizationUlid,
-      timestamp: new Date().toISOString()
+      organizationUlid: context.organizationUlid
     })
     
     try {
       // Early return if no organization context
       if (!context.organizationUlid) {
-        console.log('[UPCOMING_TRAININGS_NO_ORG]', {
-          userUlid: context.userUlid,
-          timestamp: new Date().toISOString()
-        })
         return {
           data: null,
           error: {
@@ -818,8 +690,7 @@ export const fetchUpcomingTrainings = withServerAction<UpcomingTraining[]>(
       const supabase = await createAuthClient()
       const orgId = context.organizationUlid
       
-      // Since training sessions might not be in the database yet,
-      // we'll check for any scheduled sessions in the future as a proxy
+      // Get current timestamp
       const now = new Date()
       
       // Get org members first
@@ -830,11 +701,7 @@ export const fetchUpcomingTrainings = withServerAction<UpcomingTraining[]>(
         .eq('status', 'ACTIVE')
       
       if (membersError) {
-        console.error('[UPCOMING_TRAININGS_MEMBERS_ERROR]', {
-          error: membersError,
-          orgId,
-          timestamp: new Date().toISOString()
-        })
+        console.error('[UPCOMING_TRAININGS_ERROR]', { error: membersError })
         return {
           data: null,
           error: {
@@ -847,10 +714,6 @@ export const fetchUpcomingTrainings = withServerAction<UpcomingTraining[]>(
       const memberUlids = orgMembers?.map(m => m.userUlid) || []
       
       if (memberUlids.length === 0) {
-        console.log('[UPCOMING_TRAININGS_NO_MEMBERS]', {
-          orgId,
-          timestamp: new Date().toISOString()
-        })
         return { data: [], error: null }
       }
       
@@ -869,12 +732,7 @@ export const fetchUpcomingTrainings = withServerAction<UpcomingTraining[]>(
         .limit(10)
       
       if (sessionsError) {
-        console.error('[UPCOMING_TRAININGS_SESSIONS_ERROR]', {
-          error: sessionsError,
-          orgId,
-          memberCount: memberUlids.length,
-          timestamp: new Date().toISOString()
-        })
+        console.error('[UPCOMING_TRAININGS_ERROR]', { error: sessionsError })
         return {
           data: null,
           error: {
@@ -885,10 +743,6 @@ export const fetchUpcomingTrainings = withServerAction<UpcomingTraining[]>(
       }
       
       if (!upcomingSessions || upcomingSessions.length === 0) {
-        console.log('[UPCOMING_TRAININGS_NONE_FOUND]', {
-          orgId,
-          timestamp: new Date().toISOString()
-        })
         return { data: [], error: null }
       }
       
@@ -945,18 +799,11 @@ export const fetchUpcomingTrainings = withServerAction<UpcomingTraining[]>(
         }
       })
       
-      console.log('[UPCOMING_TRAININGS_SUCCESS]', { 
-        trainingsCount: trainings.length,
-        timestamp: new Date().toISOString()
-      })
-      
       return { data: trainings, error: null }
     } catch (error) {
       console.error('[UPCOMING_TRAININGS_ERROR]', {
         error,
-        stack: error instanceof Error ? error.stack : undefined,
-        userUlid: context.userUlid,
-        timestamp: new Date().toISOString()
+        stack: error instanceof Error ? error.stack : undefined
       })
       
       return {
@@ -964,188 +811,6 @@ export const fetchUpcomingTrainings = withServerAction<UpcomingTraining[]>(
         error: {
           code: 'FETCH_ERROR',
           message: 'Failed to fetch upcoming trainings'
-        }
-      }
-    }
-  }
-)
-
-// Fetch team effectiveness metrics for the business dashboard
-export const fetchTeamEffectivenessMetrics = withServerAction<TeamEffectivenessMetrics>(
-  async (_: unknown, context: ServerActionContext): Promise<ApiResponse<TeamEffectivenessMetrics>> => {
-    console.log('[TEAM_EFFECTIVENESS_ACTION_START]', {
-      userUlid: context.userUlid,
-      orgRole: context.roleContext.orgRole,
-      organizationUlid: context.organizationUlid,
-      timestamp: new Date().toISOString()
-    })
-    
-    try {
-      // Early return if no organization context
-      if (!context.organizationUlid) {
-        console.log('[TEAM_EFFECTIVENESS_NO_ORG]', {
-          userUlid: context.userUlid,
-          timestamp: new Date().toISOString()
-        })
-        return {
-          data: null,
-          error: {
-            code: 'NOT_FOUND',
-            message: 'No organization context found'
-          }
-        }
-      }
-
-      const supabase = await createAuthClient()
-      const orgId = context.organizationUlid
-      
-      // Get all members in the organization
-      const { data: orgMembers, error: membersError } = await supabase
-        .from('OrganizationMember')
-        .select('userUlid')
-        .eq('organizationUlid', orgId)
-        .eq('status', 'ACTIVE')
-      
-      if (membersError) {
-        console.error('[TEAM_EFFECTIVENESS_MEMBERS_ERROR]', {
-          error: membersError,
-          orgId,
-          timestamp: new Date().toISOString()
-        })
-        return {
-          data: null,
-          error: {
-            code: 'FETCH_ERROR',
-            message: 'Failed to fetch organization members'
-          }
-        }
-      }
-      
-      const memberUlids = orgMembers?.map(m => m.userUlid) || []
-      const totalMembers = memberUlids.length
-      
-      if (memberUlids.length === 0) {
-        console.log('[TEAM_EFFECTIVENESS_NO_MEMBERS]', {
-          orgId,
-          timestamp: new Date().toISOString()
-        })
-        return { data: null, error: { code: 'NOT_FOUND', message: 'No members found in organization' } }
-      }
-      
-      // Get all coaching sessions in the last 6 months for these members
-      const sixMonthsAgo = new Date()
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
-      
-      const { data: sessions, error: sessionsError } = await supabase
-        .from('Session')
-        .select(`
-          ulid,
-          menteeUlid,
-          status,
-          sessionType,
-          startTime
-        `)
-        .in('menteeUlid', memberUlids)
-        .gte('startTime', sixMonthsAgo.toISOString())
-      
-      if (sessionsError) {
-        console.error('[TEAM_EFFECTIVENESS_SESSIONS_ERROR]', {
-          error: sessionsError,
-          orgId,
-          timestamp: new Date().toISOString()
-        })
-      }
-      
-      // Get upcoming sessions in the next 30 days
-      const now = new Date()
-      const thirtyDaysFromNow = new Date()
-      thirtyDaysFromNow.setDate(now.getDate() + 30)
-      
-      const { data: upcomingSessions, error: upcomingSessionsError } = await supabase
-        .from('Session')
-        .select('ulid, startTime')
-        .in('menteeUlid', memberUlids)
-        .gte('startTime', now.toISOString())
-        .lt('startTime', thirtyDaysFromNow.toISOString())
-      
-      if (upcomingSessionsError) {
-        console.error('[TEAM_EFFECTIVENESS_UPCOMING_SESSIONS_ERROR]', {
-          error: upcomingSessionsError,
-          orgId,
-          timestamp: new Date().toISOString()
-        })
-      }
-      
-      const scheduledSessionsNext30Days = upcomingSessions?.length || 0
-      
-      // Calculate metrics (with reasonable fallbacks and simulated data where necessary)
-      const allSessions = sessions || []
-      const completedSessions = allSessions.filter(s => s.status === 'COMPLETED')
-      
-      // 1. Participation rate - unique employees who had at least one session
-      const uniqueMentees = new Set(allSessions.map(session => session.menteeUlid))
-      const employeeParticipation = Math.round((uniqueMentees.size / Math.max(totalMembers, 1)) * 100)
-      
-      // 2. Average sessions per employee
-      const avgSessions = uniqueMentees.size > 0 
-        ? Number((allSessions.length / uniqueMentees.size).toFixed(1))
-        : 0
-      
-      // 3. Goals achievement rate (simulation as goalAchieved might not exist)
-      // In a real implementation, this would come from actual goal tracking
-      const completedWithGoals = completedSessions.length * 0.8 // Assume 80% set goals
-      const achievedGoals = completedWithGoals * 0.75 // Assume 75% of goals achieved
-      const goalsAchievementRate = Math.round((achievedGoals / Math.max(completedWithGoals, 1)) * 100)
-      
-      // 4. Employee retention (simulated - in real implementation would connect to HR data)
-      // Higher retention rate for employees in coaching
-      const employeeRetention = 85 + Math.round(Math.random() * 10) // 85-95%
-      
-      // 5. Skill growth rate (simulated - would come from self-assessments)
-      const skillGrowthRate = 65 + Math.round(Math.random() * 20) // 65-85%
-      
-      // 6. Employee satisfaction (simulated - would come from feedback forms)
-      const employeeSatisfaction = 80 + Math.round(Math.random() * 15) // 80-95%
-      
-      // 7. Top focus areas (simulated - would come from session metadata)
-      const focusAreas = [
-        { area: 'Leadership Skills', count: Math.round(completedSessions.length * 0.3) },
-        { area: 'Communication', count: Math.round(completedSessions.length * 0.25) },
-        { area: 'Time Management', count: Math.round(completedSessions.length * 0.2) },
-        { area: 'Strategic Thinking', count: Math.round(completedSessions.length * 0.15) },
-        { area: 'Team Building', count: Math.round(completedSessions.length * 0.1) }
-      ].filter(area => area.count > 0)
-      
-      const result: TeamEffectivenessMetrics = {
-        employeeParticipation,
-        averageSessionsPerEmployee: avgSessions,
-        goalsAchievementRate,
-        employeeRetention,
-        skillGrowthRate,
-        employeeSatisfaction,
-        topFocusAreas: focusAreas,
-        scheduledSessionsNext30Days
-      }
-      
-      console.log('[TEAM_EFFECTIVENESS_SUCCESS]', {
-        metrics: result,
-        timestamp: new Date().toISOString()
-      })
-      
-      return { data: result, error: null }
-    } catch (error) {
-      console.error('[TEAM_EFFECTIVENESS_ERROR]', {
-        error,
-        stack: error instanceof Error ? error.stack : undefined,
-        userUlid: context.userUlid,
-        timestamp: new Date().toISOString()
-      })
-      
-      return {
-        data: null,
-        error: {
-          code: 'FETCH_ERROR',
-          message: 'Failed to fetch team effectiveness metrics'
         }
       }
     }
