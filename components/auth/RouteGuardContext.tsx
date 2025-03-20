@@ -55,10 +55,14 @@ export function RouteGuardProvider({
   const { organizationRole, isLoading: isOrgLoading, organizations, organizationUlid } = useOrganization();
   const router = useRouter();
   
+  // Flag to track if we've already initiated a redirect
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  
   // Check if the user has the required permission
   const checkAuthorization = (level: AuthorizationLevel): boolean => {
-    // Skip check if organization data is still loading
+    // Skip check if organization data is still loading or auth context not ready
     if (isOrgLoading || !authContext) {
+      console.log('[ROUTE_GUARD] Still loading data, deferring permission check');
       return false;
     }
     
@@ -72,12 +76,13 @@ export function RouteGuardProvider({
       )?.organization.name
     };
     
-    console.log('[ROUTE_GUARD] Setting permission context:', {
+    console.log('[ROUTE_GUARD] Permission check with complete data:', {
       userId: userWithOrg.userId,
       orgRole: userWithOrg.orgRole || 'none',
       organizationUlid: userWithOrg.organizationUlid || 'none',
       organizationName: userWithOrg.organizationName || 'none',
-      level
+      level,
+      timestamp: new Date().toISOString()
     });
     
     permissionService.setUser(userWithOrg);
@@ -103,18 +108,57 @@ export function RouteGuardProvider({
     }
   };
 
-  // Check authorization when the component mounts
+  // Wait for organization data to load before making authorization decisions
   useEffect(() => {
+    if (!authContext) {
+      console.log('[ROUTE_GUARD] Waiting for auth context to load');
+      return;
+    }
+    
     if (isOrgLoading) {
+      console.log('[ROUTE_GUARD] Waiting for organization data to load');
+      return;
+    }
+    
+    if (isRedirecting) {
+      console.log('[ROUTE_GUARD] Already redirecting, skipping further checks');
       return;
     }
 
     if (required) {
+      console.log('[ROUTE_GUARD] Running authorization check with complete data:', {
+        organizationRole,
+        organizationUlid,
+        organizations: organizations?.length || 0,
+        timestamp: new Date().toISOString()
+      });
+
+      // Set the user context on the permission service with organization info
+      const userWithOrg = {
+        ...authContext,
+        orgRole: organizationRole as OrgRole | undefined,
+        organizationUlid: organizationUlid || undefined,
+        organizationName: organizations.find(org => 
+          org.organizationUlid === organizationUlid
+        )?.organization.name
+      };
+
+      console.log('[ROUTE_GUARD] Setting complete permission context:', {
+        userId: userWithOrg.userId,
+        orgRole: userWithOrg.orgRole || 'none',
+        organizationUlid: userWithOrg.organizationUlid || 'none',
+        organizationName: userWithOrg.organizationName || 'none',
+        level: required,
+        timestamp: new Date().toISOString()
+      });
+      
+      permissionService.setUser(userWithOrg);
+      
       const authorized = checkAuthorization(required);
       setIsAuthorized(authorized);
       
       // Log the authorization check
-      console.log('[ROUTE_GUARD] Authorization check:', {
+      console.log('[ROUTE_GUARD] Final authorization decision:', {
         level: required,
         authorized,
         userId: authContext.userId,
@@ -125,6 +169,7 @@ export function RouteGuardProvider({
       
       // Redirect if not authorized
       if (!authorized) {
+        setIsRedirecting(true);
         let redirectPath = redirectTo;
         
         // Add helpful message to the redirect
@@ -141,6 +186,7 @@ export function RouteGuardProvider({
           redirectPath = `${redirectPath}?message=${encodeURIComponent(messages[required])}`;
         }
         
+        console.log('[ROUTE_GUARD] Redirecting to:', redirectPath);
         router.push(redirectPath);
       }
     } else {
@@ -148,13 +194,17 @@ export function RouteGuardProvider({
       setIsAuthorized(true);
       setIsLoading(false);
     }
-  }, [required, authContext, organizationRole, isOrgLoading, redirectTo, router]);
+  }, [required, authContext, organizationRole, isOrgLoading, redirectTo, router, organizationUlid, organizations, isRedirecting]);
 
-  // Show loading state
+  // Show enhanced loading state with better messaging based on what we're waiting for
   if (isLoading) {
+    const loadingMessage = isOrgLoading 
+      ? "Loading organization data..." 
+      : "Verifying permissions...";
+    
     return (
       <ContainerLoading
-        message="Checking permissions..."
+        message={loadingMessage}
         spinnerSize="md"
         minHeight="h-full"
       />

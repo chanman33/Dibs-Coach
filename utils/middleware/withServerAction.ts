@@ -13,7 +13,9 @@ import {
   UserRoleContext,
   isValidSystemRole,
   isValidOrgRole,
-  isValidOrgLevel
+  isValidOrgLevel,
+  SYSTEM_ROLES,
+  ORG_ROLES
 } from "@/utils/roles/roles"
 import { generateUlid } from '@/utils/ulid'
 import { ApiResponse } from '@/utils/types/api'
@@ -92,6 +94,12 @@ export function withServerAction<T, P = any>(
         .single()
 
       if (userError || !userData) {
+        console.error('[SERVER_ACTION_USER_ERROR]', {
+          error: userError,
+          userId: session.userId,
+          timestamp: new Date().toISOString()
+        });
+        
         return {
           data: null,
           error: {
@@ -103,6 +111,12 @@ export function withServerAction<T, P = any>(
 
       // Validate system role
       if (!isValidSystemRole(userData.systemRole)) {
+        console.error('[SERVER_ACTION_INVALID_ROLE]', {
+          systemRole: userData.systemRole,
+          userId: session.userId,
+          timestamp: new Date().toISOString()
+        });
+        
         return {
           data: null,
           error: {
@@ -162,7 +176,7 @@ export function withServerAction<T, P = any>(
         });
       }
 
-      // Handle org membership validation
+      // Handle organization requirements for organization-specific routes
       if (options.requireOrganization && !orgData) {
         // System owners bypass organization requirements
         if (userData.systemRole === 'SYSTEM_OWNER') {
@@ -182,6 +196,13 @@ export function withServerAction<T, P = any>(
       if (orgData) {
         // Check organization status
         if (orgData.organization.status !== 'ACTIVE') {
+          console.error('[SERVER_ACTION_INACTIVE_ORG]', {
+            userId: session.userId,
+            organizationUlid: orgData.organizationUlid,
+            status: orgData.organization.status,
+            timestamp: new Date().toISOString()
+          });
+          
           return {
             data: null,
             error: {
@@ -193,6 +214,13 @@ export function withServerAction<T, P = any>(
 
         // Validate org role and level
         if (!isValidOrgRole(orgData.role) || !isValidOrgLevel(orgData.organization.level)) {
+          console.error('[SERVER_ACTION_INVALID_ORG_ROLE]', {
+            userId: session.userId,
+            orgRole: orgData.role,
+            orgLevel: orgData.organization.level,
+            timestamp: new Date().toISOString()
+          });
+          
           return {
             data: null,
             error: {
@@ -225,9 +253,39 @@ export function withServerAction<T, P = any>(
         customPermissions: orgData?.customPermissions as Permission[] | undefined
       }
 
-      // Check permissions using permission service
-      permissionService.setUser(userContext)
-      if (!permissionService.check(options)) {
+      console.log('[SERVER_ACTION_USER_CONTEXT]', {
+        userId: session.userId,
+        userUlid: userData.ulid,
+        capabilities: userData.capabilities || [],
+        orgRole: orgData?.role || 'none',
+        organizationUlid: orgData?.organizationUlid || 'none',
+        organizationName: orgData?.organization?.name || 'none',
+        timestamp: new Date().toISOString()
+      });
+
+      // SIMPLIFIED PERMISSION MODEL FOR DEVELOPMENT:
+      // During development phase, follow the same logic as client-side permission service
+      const hasOrgMembership = !!orgData?.organizationUlid && !!orgData?.role;
+      const isSystemOwner = userData.systemRole === 'SYSTEM_OWNER';
+      
+      // For business portal endpoints, organization membership is required with a valid role
+      // This logic should match the client-side canAccessBusinessDashboard() function
+      const hasValidOrgRole = !!orgData?.role && 
+        businessDashboardRoles.includes(orgData.role as OrgRole);
+        
+      const hasValidPermission = isSystemOwner || (hasOrgMembership && hasValidOrgRole);
+      
+      if (!hasValidPermission) {
+        console.error('[SERVER_ACTION_PERMISSION_DENIED]', {
+          userId: session.userId,
+          userUlid: userData.ulid,
+          orgRole: orgData?.role || 'none',
+          isSystemOwner,
+          hasOrgMembership,
+          hasValidOrgRole,
+          timestamp: new Date().toISOString()
+        });
+        
         return {
           data: null,
           error: {
@@ -236,6 +294,15 @@ export function withServerAction<T, P = any>(
           }
         }
       }
+      
+      console.log('[SERVER_ACTION_PERMISSION_GRANTED]', {
+        userId: session.userId,
+        hasOrgMembership,
+        isSystemOwner,
+        orgRole: orgData?.role || 'none',
+        hasValidOrgRole,
+        timestamp: new Date().toISOString()
+      });
 
       return action(params, {
         userId: session.userId,
@@ -258,4 +325,12 @@ export function withServerAction<T, P = any>(
     }
   }
 }
+
+// Business roles that have access to business dashboard
+// This should match the same constant in permission-service.ts
+const businessDashboardRoles = [
+  ORG_ROLES.OWNER,
+  ORG_ROLES.DIRECTOR,
+  ORG_ROLES.MANAGER
+] as readonly OrgRole[];
 

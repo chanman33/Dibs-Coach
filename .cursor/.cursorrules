@@ -571,3 +571,103 @@ database:
       - "Reindex when necessary"
       - "Clean up unused indexes"
 
+# Permission Handling
+permission_management:
+  # General Rules
+  general:
+    required: true
+    centralized_service: "utils/auth/permission-service.ts"
+    core_principles:
+      - "All permission logic must be centralized in permissionService"
+      - "Client and server checks must be synchronized"
+      - "Race conditions must be prevented by proper loading state management"
+      - "Permission constants must be defined in a single source of truth"
+      - "Loading states must be respected before making authorization decisions"
+  
+  # Client-Server Synchronization
+  client_server_sync:
+    required: true
+    description: "Client and server permission checks must be consistent"
+    implementation:
+      - "Permission logic must match exactly between client and server"
+      - "Share constants between client and server permission checking"
+      - "Server-side checks in withServerAction must match client RouteGuardProvider"
+      - "Loading states must be properly managed and synchronized"
+      - "Permissions must not be checked until all required data is loaded"
+    constants:
+      location: "utils/roles/roles.ts"
+      reuse: "Import from the single source of truth"
+      duplication: "Never duplicate permission constants or logic"
+  
+  # Loading State Management
+  loading_states:
+    required: true
+    description: "Properly handle loading states to prevent race conditions"
+    implementation:
+      - "Never check permissions until relevant data is fully loaded"
+      - "Show appropriate loading UI during permission verification"
+      - "Use isLoading flags to track loading state of auth and org data"
+      - "Handle redirects only after complete data is available"
+      - "Log all permission check steps for debugging"
+    error_handling:
+      - "Provide clear error messages for permission failures"
+      - "Log all permission check steps and decisions"
+      - "Include timestamps in permission-related logs"
+      - "Track the source of authorization decisions for debugging"
+  
+  # Permission Context
+  context:
+    sync: "Client and server must use the same user context structure"
+    caching: "Cache permission results but invalidate when context changes"
+    timestamps: "Track when permission context was last set"
+    structure: |
+      // Standard context structure that must be used everywhere
+      {
+        userId: string,           // Clerk ID
+        userUlid: string,         // Database ULID
+        systemRole: SystemRole,   // System-level role
+        capabilities: UserCapability[], // User capabilities
+        orgRole: OrgRole | undefined,  // Organization role if exists
+        orgLevel: OrgLevel | undefined, // Organization level if exists
+        organizationUlid: string | undefined, // Organization ID if exists
+        organizationName: string | undefined   // Organization name if exists
+      }
+  
+  # Logging
+  logging:
+    required: true
+    format: "console.log('[CONTEXT_NAME]', { key: value })"
+    contexts: ["PERMISSION_SERVICE", "ROUTE_GUARD", "SERVER_ACTION"]
+    required_fields:
+      - "userId: The user's ID"
+      - "timestamp: Date/time of the permission check"
+      - "context: What permission is being checked"
+      - "result: Boolean indicating permission decision"
+    debugging:
+      - "Log all transitions and state changes"
+      - "Include detailed context for failed checks"
+      - "Track data loading completion"
+      - "Log when permission cache is used/cleared"
+  
+  # When Implementing Guards
+  implementation_rules:
+    route_guard:
+      - "Only make authorization decisions when ALL required data is loaded"
+      - "Track redirect state to prevent multiple redirects"
+      - "Use enhanced loading states with descriptive messages"
+      - "Share permission constants with server-side checks"
+      - "Log all authorization decisions with complete context"
+    server_actions:
+      - "Use the withServerAction wrapper for all server actions"
+      - "Implement the same permission logic as client-side guards"
+      - "Log all authorization steps and decisions"
+      - "Define permission requirements explicitly"
+      - "Return clear error messages for failed permission checks"
+    anti_patterns:
+      forbidden:
+        - "Checking permissions before data is fully loaded"
+        - "Different permission logic between client and server"
+        - "Multiple permission checking systems"
+        - "Duplicated permission constants"
+        - "Missing loading states"
+

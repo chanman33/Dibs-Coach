@@ -6,10 +6,13 @@ import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { DEFAULT_AVATARS } from '@/utils/constants'
 import { RouteGuardProvider } from "@/components/auth/RouteGuardContext"
+import { BusinessStats } from '@/components/business-portal/BusinessStats'
+import { BusinessMetrics } from '@/components/business-portal/BusinessMetrics'
+import { TeamPerformance } from '@/components/business-portal/TeamPerformance'
 
 export default function BusinessDashboard() {
   return (
-    <RouteGuardProvider required="business-analytics">
+    <RouteGuardProvider required="business-dashboard">
       <div className="flex flex-col justify-center items-start flex-wrap px-4 pt-4 gap-4">
         {/* Business Overview */}
         <div className="w-full">
@@ -60,51 +63,7 @@ export default function BusinessDashboard() {
         </Card>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 w-full">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Team Members</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">24</div>
-              <p className="text-xs text-muted-foreground">+3 this quarter</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active in Coaching</CardTitle>
-              <GraduationCap className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">18</div>
-              <p className="text-xs text-muted-foreground">75% participation rate</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Coaching Budget</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">$12,500</div>
-              <p className="text-xs text-muted-foreground">42% utilized this quarter</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Scheduled Sessions</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">8</div>
-              <p className="text-xs text-muted-foreground">Next 7 days</p>
-            </CardContent>
-          </Card>
-        </div>
+        <BusinessStats />
 
         {/* Dashboard content sections */}
         <div className="grid md:grid-cols-2 sm:grid-cols-1 w-full gap-4">
@@ -228,50 +187,17 @@ export default function BusinessDashboard() {
           </Card>
         </div>
 
-        {/* Additional dashboard sections */}
+        {/* Team Performance */}
         <Card className="w-full">
           <CardHeader>
             <CardTitle>Team Performance</CardTitle>
             <CardDescription>Key metrics and coaching impact</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Performance content */}
-            <div className="space-y-8">
-              {/* Performance metrics */}
-              <div>
-                <h3 className="text-sm font-medium mb-3">Coaching Program Effectiveness</h3>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Participation Rate</span>
-                      <span className="text-sm font-medium">75%</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full">
-                      <div className="h-full w-[75%] bg-blue-500 rounded-full"></div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Completion Rate</span>
-                      <span className="text-sm font-medium">88%</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full">
-                      <div className="h-full w-[88%] bg-green-500 rounded-full"></div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Satisfaction Score</span>
-                      <span className="text-sm font-medium">92%</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full">
-                      <div className="h-full w-[92%] bg-amber-500 rounded-full"></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <BusinessMetrics />
+            
+            <div className="mt-8">
+              <TeamPerformance />
             </div>
           </CardContent>
         </Card>
