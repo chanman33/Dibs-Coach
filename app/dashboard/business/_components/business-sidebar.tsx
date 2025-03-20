@@ -61,23 +61,8 @@ export function BusinessSidebar() {
               Dashboard
             </NavLink>
 
-            {/* Team Management */}
-            <Separator className="my-3" />
-            <button
-              onClick={() => setIsTeamExpanded(!isTeamExpanded)}
-              className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-            >
-              <span className="font-semibold">Team Management</span>
-              {isTeamExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-            {isTeamExpanded && (
-              <div className="pl-3 grid gap-1">
-                <NavLink href="/dashboard/business/team/members" icon={Users}>
-                  Team Directory
-                </NavLink>
-              </div>
-            )}
-            
+
+
             {/* Coaching & Development */}
             <Separator className="my-3" />
             <button
@@ -93,7 +78,7 @@ export function BusinessSidebar() {
                   Coaching Sessions
                 </NavLink>
                 <NavLink href="/dashboard/business/coaching/training" icon={GraduationCap}>
-                  Training Programs
+                  Training Library
                 </NavLink>
               </div>
             )}
@@ -135,26 +120,20 @@ export function BusinessSidebar() {
                 <NavLink href="/dashboard/business/profile" icon={Building2}>
                   Business Profile
                 </NavLink>
+                <NavLink href="/dashboard/business/team/members" icon={Users}>
+                  Team Management
+                </NavLink>
                 <NavLink href="/dashboard/business/team/roles" icon={Briefcase}>
                   Roles & Permissions
-                </NavLink>
-                <NavLink href="/dashboard/business/admin/users" icon={Users}>
-                  User Management
                 </NavLink>
                 <NavLink href="/dashboard/business/admin/billing" icon={DollarSign}>
                   Billing & Subscription
                 </NavLink>
-                <NavLink href="/dashboard/business/admin/commission" icon={BadgePercent}>
-                  Commission Structure
-                </NavLink>
+
+
               </div>
             )}
 
-            {/* Settings */}
-            <Separator className="my-3" />
-            <NavLink href="/dashboard/business/settings" icon={Settings}>
-              Settings
-            </NavLink>
           </nav>
         </div>
       </div>

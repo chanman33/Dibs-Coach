@@ -38,7 +38,7 @@ function BusinessLayout({
     <RouteGuardProvider required="business-dashboard">
       <div className="flex h-screen">
         <BusinessSidebar />
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-hidden p-6">
           {children}
         </main>
       </div>
