@@ -83,26 +83,25 @@ export async function fetchOrganizationCoachingSessions(organizationId: string):
     const { data: sessionsData, error } = await supabase
       .from('ZoomSession')
       .select(`
-        id,
-        topic,
-        startTime,
-        duration,
+        ulid,
+        sessionName,
         status,
-        notes,
-        organizationId,
-        User:userDbId (
-          id,
-          firstName,
-          lastName,
-          profileImageUrl
-        ),
         createdAt,
-        updatedAt
+        updatedAt,
+        session:sessionUlid(
+          ulid,
+          startTime,
+          endTime,
+          status,
+          sessionNotes,
+          mentee:menteeUlid(
+            ulid,
+            firstName,
+            lastName,
+            profileImageUrl
+          )
+        )
       `)
-      .eq('organizationId', organizationId)
-      .gte('startTime', firstDayOfMonth)
-      .lte('startTime', lastDayOfMonth)
-      .order('startTime', { ascending: false })
     
     if (error) {
       console.error('[COACHING_SESSIONS_ERROR]', error)
@@ -133,36 +132,80 @@ export async function fetchOrganizationCoachingSessions(organizationId: string):
       }
     }
     
-    // Transform data to the expected format with careful type handling
-    const sessions = sessionsData.map((session: any) => {
-      // Handle potential missing data
-      if (!session || typeof session !== 'object') {
-        console.warn('[COACHING_SESSIONS_WARNING] Invalid session data found', session);
-        return null;
-      }
+    // Check if the organizationId exists in the current user's context
+    const { data: orgData } = await supabase
+      .from('Organization')
+      .select('ulid')
+      .eq('ulid', organizationId)
+      .single();
       
-      try {
-        const startTime = new Date(session.startTime || new Date())
-        return {
-          id: session.id || '',
-          memberId: session.User?.id || '',
-          memberName: `${session.User?.firstName || ''} ${session.User?.lastName || ''}`.trim(),
-          memberAvatar: session.User?.profileImageUrl || '',
-          topic: session.topic || 'Untitled Session',
-          date: startTime.toISOString().split('T')[0],
-          time: startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          duration: session.duration || 0,
-          status: (session.status || 'SCHEDULED') as 'SCHEDULED' | 'COMPLETED' | 'CANCELLED',
-          notes: session.notes,
-          organizationId: session.organizationId || organizationId,
-          createdAt: session.createdAt || new Date().toISOString(),
-          updatedAt: session.updatedAt || new Date().toISOString()
-        }
-      } catch (err) {
-        console.error('[COACHING_SESSION_MAPPING_ERROR]', err, session);
-        return null;
+    if (!orgData) {
+      return {
+        data: {
+          sessions: [],
+          stats: {
+            totalSessions: 0,
+            completedSessions: 0,
+            upcomingSessions: 0,
+            totalHours: 0,
+            completionRate: 0
+          }
+        },
+        error: null
       }
-    }).filter(Boolean) as CoachingSession[];
+    }
+    
+    // Transform data to the expected format with careful type handling
+    const sessions = sessionsData
+      .filter((zoomSession: any) => {
+        // For new accounts, they won't have sessions yet, so we need to handle this case
+        if (!zoomSession.session) return false;
+        
+        // Filter for sessions by date range
+        return new Date(zoomSession.session.startTime) >= new Date(firstDayOfMonth) &&
+               new Date(zoomSession.session.startTime) <= new Date(lastDayOfMonth);
+      })
+      .map((zoomSession: any) => {
+        // Handle potential missing data
+        if (!zoomSession || typeof zoomSession !== 'object') {
+          console.warn('[COACHING_SESSIONS_WARNING] Invalid session data found', zoomSession);
+          return null;
+        }
+        
+        try {
+          // Access the session nested object to get required data
+          const session = zoomSession.session || {};
+          const mentee = session.mentee || {};
+          
+          // For startTime, use session.startTime if available, otherwise fallback
+          const startTime = new Date(session.startTime || zoomSession.createdAt || new Date());
+          
+          // Calculate duration from start and end time if available
+          const duration = session.startTime && session.endTime
+            ? Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 60000)
+            : 60; // Default to 60 minutes
+          
+          return {
+            id: zoomSession.ulid || '',
+            memberId: mentee.ulid || '',
+            memberName: `${mentee.firstName || ''} ${mentee.lastName || ''}`.trim() || 'Unknown User',
+            memberAvatar: mentee.profileImageUrl || '',
+            topic: zoomSession.sessionName || 'Untitled Session',
+            date: startTime.toISOString().split('T')[0],
+            time: startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            duration: duration,
+            status: session.status === 'COMPLETED' ? 'COMPLETED' : 
+                    session.status === 'CANCELLED' ? 'CANCELLED' : 'SCHEDULED',
+            notes: session.sessionNotes || null,
+            organizationId: organizationId,
+            createdAt: zoomSession.createdAt || new Date().toISOString(),
+            updatedAt: zoomSession.updatedAt || new Date().toISOString()
+          }
+        } catch (err) {
+          console.error('[COACHING_SESSION_MAPPING_ERROR]', err, zoomSession);
+          return null;
+        }
+      }).filter(Boolean) as CoachingSession[];
     
     // Calculate stats
     const completedSessions = sessions.filter(session => session.status === 'COMPLETED')

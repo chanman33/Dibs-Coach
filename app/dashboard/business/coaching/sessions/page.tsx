@@ -60,7 +60,7 @@ import {
   DialogTitle,
   DialogClose,
 } from "@/components/ui/dialog"
-import { CoachingStatsCards } from "../../../../../components/business-portal/coaching/coaching-stats-cards"
+import { CoachingStatsCards } from "../_components/coaching-stats-cards"
 import { fetchOrganizationCoachingSessions, CoachingSession } from "@/utils/actions/business-portal/coaching-sessions"
 import { useOrganization } from "@/utils/auth/OrganizationContext"
 import { RecentSessionNotes } from "../_components/recent-session-notes"
@@ -116,62 +116,28 @@ export default function CoachingSessionsPage() {
         if (result.error) {
           console.error('[FETCH_SESSIONS_ERROR]', result.error)
           setError(result.error.message)
-          // For development, use mock data instead of empty data
-          const mockSessions = generateMockSessions()
-          
-          // Debug log to see what sessions are being created
-          console.log('[MOCK_SESSIONS]', {
-            allSessions: mockSessions,
-            upcoming: mockSessions.filter(s => s.status === 'SCHEDULED'),
-            past: mockSessions.filter(s => s.status === 'COMPLETED')
-          })
-          
-          setSessions(mockSessions)
+          setSessions([])
           setStats({
-            totalSessions: mockSessions.length,
-            completedSessions: mockSessions.filter(s => s.status === 'COMPLETED').length,
-            upcomingSessions: mockSessions.filter(s => s.status === 'SCHEDULED').length,
-            totalHours: mockSessions.reduce((total, s) => total + s.duration, 0) / 60,
-            completionRate: 75
+            totalSessions: 0,
+            completedSessions: 0,
+            upcomingSessions: 0,
+            totalHours: 0,
+            completionRate: 0
           })
         } else if (result.data) {
-          // If we have real data, use it
-          if (result.data.sessions && result.data.sessions.length > 0) {
-            setSessions(result.data.sessions)
-            setStats(result.data.stats)
-          } else {
-            // For development when no real data exists, use mock data
-            const mockSessions = generateMockSessions()
-            
-            // Debug log to see what sessions are being created
-            console.log('[MOCK_SESSIONS]', {
-              allSessions: mockSessions,
-              upcoming: mockSessions.filter(s => s.status === 'SCHEDULED'),
-              past: mockSessions.filter(s => s.status === 'COMPLETED')
-            })
-            
-            setSessions(mockSessions)
-            setStats({
-              totalSessions: mockSessions.length,
-              completedSessions: mockSessions.filter(s => s.status === 'COMPLETED').length,
-              upcomingSessions: mockSessions.filter(s => s.status === 'SCHEDULED').length,
-              totalHours: mockSessions.reduce((total, s) => total + s.duration, 0) / 60,
-              completionRate: 75
-            })
-          }
+          setSessions(result.data.sessions)
+          setStats(result.data.stats)
         }
       } catch (err) {
         console.error('[FETCH_SESSIONS_ERROR]', err)
         setError('Failed to load coaching sessions')
-        // For development, use mock data instead of empty data
-        const mockSessions = generateMockSessions()
-        setSessions(mockSessions)
+        setSessions([])
         setStats({
-          totalSessions: mockSessions.length,
-          completedSessions: mockSessions.filter(s => s.status === 'COMPLETED').length,
-          upcomingSessions: mockSessions.filter(s => s.status === 'SCHEDULED').length,
-          totalHours: mockSessions.reduce((total, s) => total + s.duration, 0) / 60,
-          completionRate: 75
+          totalSessions: 0,
+          completedSessions: 0,
+          upcomingSessions: 0,
+          totalHours: 0,
+          completionRate: 0
         })
       } finally {
         setIsLoading(false)
@@ -182,164 +148,6 @@ export default function CoachingSessionsPage() {
       fetchSessions()
     }
   }, [organizationUlid, isOrgLoading])
-  
-  // Function to generate mock sessions data for development
-  const generateMockSessions = (): CoachingSession[] => {
-    const today = new Date()
-    
-    // Create dates for upcoming sessions
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    
-    const nextWeek = new Date(today)
-    nextWeek.setDate(nextWeek.getDate() + 7)
-    
-    const twoWeeksFromNow = new Date(today)
-    twoWeeksFromNow.setDate(twoWeeksFromNow.getDate() + 14)
-    
-    const nextMonth = new Date(today)
-    nextMonth.setMonth(nextMonth.getMonth() + 1)
-    
-    // Create dates for past sessions
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    
-    const lastWeek = new Date(today)
-    lastWeek.setDate(lastWeek.getDate() - 7)
-    
-    const lastMonth = new Date(today)
-    lastMonth.setMonth(lastMonth.getMonth() - 1)
-    
-    return [
-      // Upcoming sessions
-      {
-        id: "mock-session-1",
-        memberId: "user-1",
-        memberName: "Alex Johnson",
-        memberAvatar: DEFAULT_AVATARS.USER,
-        topic: "Q1 Performance Review",
-        date: tomorrow.toISOString().split('T')[0],
-        time: "10:00 AM",
-        duration: 60,
-        status: "SCHEDULED",
-        notes: null,
-        organizationId: organizationUlid || "org1",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: "mock-session-2",
-        memberId: "user-2",
-        memberName: "Sam Williams",
-        memberAvatar: DEFAULT_AVATARS.USER,
-        topic: "Career Development Planning",
-        date: nextWeek.toISOString().split('T')[0],
-        time: "02:30 PM",
-        duration: 45,
-        status: "SCHEDULED",
-        notes: null,
-        organizationId: organizationUlid || "org1",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: "mock-session-6",
-        memberId: "user-6",
-        memberName: "Morgan Lewis",
-        memberAvatar: DEFAULT_AVATARS.USER,
-        topic: "Presentation Skills Workshop",
-        date: twoWeeksFromNow.toISOString().split('T')[0],
-        time: "11:15 AM",
-        duration: 90,
-        status: "SCHEDULED",
-        notes: null,
-        organizationId: organizationUlid || "org1",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      {
-        id: "mock-session-7",
-        memberId: "user-7",
-        memberName: "Riley Chen",
-        memberAvatar: DEFAULT_AVATARS.USER,
-        topic: "Quarterly Team Alignment",
-        date: nextMonth.toISOString().split('T')[0],
-        time: "09:00 AM",
-        duration: 120,
-        status: "SCHEDULED",
-        notes: null,
-        organizationId: organizationUlid || "org1",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      },
-      // Completed sessions
-      {
-        id: "mock-session-3",
-        memberId: "user-3",
-        memberName: "Jamie Smith",
-        memberAvatar: DEFAULT_AVATARS.USER,
-        topic: "Goal Setting Workshop",
-        date: yesterday.toISOString().split('T')[0],
-        time: "09:15 AM",
-        duration: 90,
-        status: "COMPLETED",
-        notes: "Jamie demonstrated great enthusiasm for setting ambitious quarterly goals. We worked on breaking down larger objectives into manageable weekly tasks. Key focus areas include improving technical documentation and mentoring junior team members.",
-        organizationId: organizationUlid || "org1",
-        createdAt: lastMonth.toISOString(),
-        updatedAt: yesterday.toISOString()
-      },
-      {
-        id: "mock-session-4",
-        memberId: "user-4",
-        memberName: "Taylor Wong",
-        memberAvatar: DEFAULT_AVATARS.USER,
-        topic: "Productivity Strategies",
-        date: lastWeek.toISOString().split('T')[0],
-        time: "11:00 AM",
-        duration: 60,
-        status: "COMPLETED",
-        notes: "Discussed time management techniques including the Pomodoro method and task batching. Taylor will implement a new daily planning routine and we'll review progress in our next session.",
-        organizationId: organizationUlid || "org1",
-        createdAt: lastMonth.toISOString(),
-        updatedAt: lastWeek.toISOString()
-      },
-      {
-        id: "mock-session-5",
-        memberId: "user-5",
-        memberName: "Jordan Reynolds",
-        memberAvatar: DEFAULT_AVATARS.USER,
-        topic: "Leadership Training",
-        date: lastMonth.toISOString().split('T')[0],
-        time: "03:45 PM",
-        duration: 120,
-        status: "COMPLETED",
-        notes: "Focused on delegation skills and team communication. Jordan is preparing to lead the new product initiative and we reviewed strategies for managing cross-functional teams.",
-        organizationId: organizationUlid || "org1",
-        createdAt: lastMonth.toISOString(),
-        updatedAt: lastMonth.toISOString()
-      }
-    ]
-  }
-  
-  // Calculate stats from sessions
-  const calculateStats = (sessionsData: CoachingSession[]) => {
-    const completedSessions = sessionsData.filter(session => session.status === 'COMPLETED')
-    const upcomingSessions = sessionsData.filter(session => 
-      session.status === 'SCHEDULED' && new Date(`${session.date}T${session.time}`) >= new Date()
-    )
-    const totalHours = sessionsData.reduce((total, session) => total + session.duration, 0) / 60
-    const completionRate = sessionsData.length > 0 
-      ? Math.round((completedSessions.length / sessionsData.length) * 100) 
-      : 0
-    
-    setStats({
-      totalSessions: sessionsData.length,
-      completedSessions: completedSessions.length,
-      upcomingSessions: upcomingSessions.length,
-      totalHours,
-      completionRate
-    })
-  }
   
   // Filter sessions based on search query and status filter
   const filteredSessions = sessions
@@ -562,10 +370,6 @@ export default function CoachingSessionsPage() {
                 <div className="text-center py-6 text-muted-foreground">
                   <CalendarX className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
                   <p>No upcoming sessions scheduled</p>
-                  <Button variant="outline" size="sm" className="mt-4">
-                    <CalendarPlus className="mr-2 h-4 w-4" />
-                    Schedule New Session
-                  </Button>
                 </div>
               )}
             </CardContent>
