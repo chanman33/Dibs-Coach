@@ -490,4 +490,42 @@ export async function removeOrganizationMember(data: z.infer<typeof removeOrgani
     }
     return { error: 'Failed to remove organization member', data: null }
   }
+}
+
+/**
+ * Fetch all organizations for a specific user
+ */
+export async function fetchUserOrganizations(userUlid: string) {
+  try {
+    const supabase = createAuthClient()
+    
+    // Fetch the user's organization memberships
+    const { data: memberships, error: membershipError } = await supabase
+      .from('OrganizationMember')
+      .select(`
+        *,
+        organization:organizationUlid (
+          ulid,
+          name,
+          type,
+          status,
+          tier,
+          industry,
+          level
+        )
+      `)
+      .eq('userUlid', userUlid)
+      .eq('status', 'ACTIVE')
+      .order('createdAt', { ascending: false });
+    
+    if (membershipError) {
+      console.error('[FETCH_USER_ORGANIZATIONS_ERROR]', membershipError);
+      return { error: 'Failed to fetch organizations', data: null };
+    }
+
+    return { data: memberships, error: null };
+  } catch (error) {
+    console.error('[FETCH_USER_ORGANIZATIONS_ERROR]', error);
+    return { error: 'Failed to fetch organizations', data: null };
+  }
 } 

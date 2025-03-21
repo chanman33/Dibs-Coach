@@ -51,6 +51,11 @@ export const fetchOrganizationGoals = withServerAction<GoalWithRelations[], stri
             email,
             displayName,
             profileImageUrl
+          ),
+          organization:organizationUlid (
+            name,
+            type,
+            industry
           )
         `);
       

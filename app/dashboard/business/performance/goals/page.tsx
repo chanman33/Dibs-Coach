@@ -50,6 +50,7 @@ import { Badge } from "@/components/ui/badge";
 import { GOAL_STATUS, GOAL_TYPE, GoalStatus } from "@/utils/types/goal";
 import { fetchOrganizationGoals, createOrganizationGoal, updateOrganizationGoal } from "@/utils/actions/goals";
 import { fetchOrganizationMembers } from "@/utils/actions/organization-members";
+import { fetchUserOrganizations } from "@/utils/actions/organization-actions";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/utils/hooks/useAuth";
 import { RouteGuardProvider } from "@/components/auth/RouteGuardContext";
@@ -58,6 +59,7 @@ import React from "react";
 import GoalFormDialog from "@/app/dashboard/business/performance/goals/components/GoalFormDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import type { Database } from "@/types/supabase";
 
 // Goal Progress Chart Component
 function GoalProgressChart({ data }: { data: { name: string; value: number; }[] }) {
@@ -115,6 +117,11 @@ type Goal = {
     firstName?: string;
     lastName?: string;
     email: string;
+  };
+  organization?: {
+    name: string;
+    type: string;
+    industry?: string;
   };
 };
 
@@ -240,13 +247,30 @@ function GoalDetailsDialog({
                 </div>
 
                 {/* Assigned To */}
-                {selectedGoal.user && (
-                  <div className="space-y-2">
-                    <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      <span>Assigned To</span>
-                    </h3>
-                    <div className="bg-muted/10 p-3 rounded-lg">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span>Assigned To</span>
+                  </h3>
+                  <div className="bg-muted/10 p-3 rounded-lg">
+                    {selectedGoal.organizationUlid && selectedGoal.organization ? (
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            {selectedGoal.organization.name.charAt(0)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">
+                            {selectedGoal.organization.name}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {selectedGoal.organization.type} Organization
+                            {selectedGoal.organization.industry && ` • ${selectedGoal.organization.industry.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ')}`}
+                          </p>
+                        </div>
+                      </div>
+                    ) : selectedGoal.user && (
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
                           <AvatarFallback className="bg-primary/10 text-primary">
@@ -260,9 +284,28 @@ function GoalDetailsDialog({
                           <p className="text-sm text-muted-foreground">{selectedGoal.user.email}</p>
                         </div>
                       </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Plan */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <Target className="h-4 w-4" />
+                    <span>Plan</span>
+                  </h3>
+                  <div className="bg-muted/10 p-3 rounded-lg">
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm text-muted-foreground">
+                        No development plan attached yet. Create a plan to break down this goal into actionable steps.
+                      </p>
+                      <Button variant="outline" size="sm" className="w-fit" disabled>
+                        <Plus className="h-3.5 w-3.5 mr-1.5" />
+                        View Plan
+                      </Button>
                     </div>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Right column */}
@@ -352,12 +395,14 @@ export default function BusinessGoalsPage() {
   useEffect(() => {
     const fetchOrganizationInfo = async () => {
       try {
-        const response = await fetch('/api/user/organizations');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.organizations?.length > 0) {
-            setOrganizationUlid(data.organizations[0].organizationUlid);
-          }
+        if (!userUlid) return;
+        
+        const { data, error } = await fetchUserOrganizations(userUlid);
+        if (error) throw new Error(error);
+        
+        const memberships = data as Database['public']['Tables']['OrganizationMember']['Row'][] | null;
+        if (memberships && memberships.length > 0 && memberships[0].organizationUlid) {
+          setOrganizationUlid(memberships[0].organizationUlid);
         }
       } catch (error) {
         console.error('[FETCH_ORG_ERROR]', error);
@@ -365,7 +410,7 @@ export default function BusinessGoalsPage() {
     };
     
     fetchOrganizationInfo();
-  }, []);
+  }, [userUlid]);
 
   // Fetch org goals
   useEffect(() => {
@@ -775,12 +820,6 @@ function GoalsTable({
                     <div className="font-medium truncate">{goal.title}</div>
                     {goal.description && (
                       <div className="text-sm text-muted-foreground/80 line-clamp-1 mt-0.5">{goal.description}</div>
-                    )}
-                    {goal.user && (
-                      <div className="flex items-center gap-1">
-                        <span className="text-sm">{goal.user?.firstName} {goal.user?.lastName}</span>
-                        <Plus className="h-3 w-3" />
-                      </div>
                     )}
                   </div>
                   <div className="col-span-1">
