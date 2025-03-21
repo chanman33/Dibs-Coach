@@ -3,13 +3,13 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 
 /**
- * GET /api/organizations/[id]/context
+ * GET /api/organizations/[organizationUlid]/context
  * 
  * Get detailed information about an organization and the user's role within it
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: { organizationUlid: string } }
 ) {
   try {
     const { userId } = await auth();
@@ -18,7 +18,7 @@ export async function GET(
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
     
-    const organizationId = params.id;
+    const organizationId = params.organizationUlid;
     
     if (!organizationId) {
       return NextResponse.json({ error: 'Organization ID is required' }, { status: 400 });
