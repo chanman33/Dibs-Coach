@@ -16,9 +16,9 @@ const envSchema = z.object({
   NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: z.string().default('/dashboard'),
 
   // Cal.com
-  NEXT_PUBLIC_CAL_API_KEY: z.string().min(1),
   NEXT_PUBLIC_CAL_CLIENT_ID: z.string().min(1),
   CAL_CLIENT_SECRET: z.string().min(1),
+  NEXT_PUBLIC_CAL_WEBHOOK_SECRET: z.string(),
   NEXT_PUBLIC_CAL_ORGANIZATION_ID: z.string().min(1),
   NEXT_PUBLIC_CAL_REDIRECT_URL: z.string().url().default('http://localhost:3000'),
   NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL: z.string().url().default('http://localhost:3000/booking-success'),
@@ -62,6 +62,7 @@ const envSchema = z.object({
 
   // Security
   CRON_SECRET: z.string().min(1),
+
 })
 
 // Validate and export environment variables
@@ -84,6 +85,7 @@ export const env = envSchema.parse({
   NEXT_PUBLIC_CAL_API_KEY: process.env.NEXT_PUBLIC_CAL_API_KEY,
   NEXT_PUBLIC_CAL_CLIENT_ID: process.env.NEXT_PUBLIC_CAL_CLIENT_ID,
   CAL_CLIENT_SECRET: process.env.CAL_CLIENT_SECRET,
+  NEXT_PUBLIC_CAL_WEBHOOK_SECRET: process.env.NEXT_PUBLIC_CAL_WEBHOOK_SECRET,
   NEXT_PUBLIC_CAL_ORGANIZATION_ID: process.env.NEXT_PUBLIC_CAL_ORGANIZATION_ID,
   NEXT_PUBLIC_CAL_REDIRECT_URL: process.env.NEXT_PUBLIC_CAL_REDIRECT_URL,
   NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL: process.env.NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL,

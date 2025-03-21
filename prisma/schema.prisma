@@ -80,6 +80,7 @@ model User {
   assignedResources        ResourceAssignment[]             @relation("AssignedByUser")
   featureWaitlists         FeatureWaitlist[]
   calendarIntegration      CalendarIntegration?
+  calBookings              CalBooking[]
 
   @@index([userId])
   @@index([email])
@@ -1845,4 +1846,28 @@ model CalendarIntegration {
   @@index([userUlid])
   @@index([provider])
   @@map("CalendarIntegration")
+}
+
+model CalBooking {
+  ulid               String    @id @db.Char(26)
+  userUlid           String    @db.Char(26)
+  calBookingUid      String    @unique
+  title              String
+  description        String?
+  startTime          DateTime  @db.Timestamptz(6)
+  endTime            DateTime  @db.Timestamptz(6)
+  attendeeEmail      String
+  attendeeName       String?
+  allAttendees       String?
+  status             String    @default("CONFIRMED")
+  cancellationReason String?
+  metadata           Json?     @default("{}")
+  createdAt          DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(6)
+  user               User      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@index([status])
+  @@index([startTime])
+  @@map("CalBooking")
 }
