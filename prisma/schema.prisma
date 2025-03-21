@@ -167,6 +167,7 @@ model Organization {
   subscriptions     Subscription[]
   trainingResources TrainingResource[]
   featureWaitlists  FeatureWaitlist[]
+  goals             Goal[]
 
   @@index([status])
   @@index([type])
@@ -1038,22 +1039,25 @@ model Settings {
 }
 
 model Goal {
-  ulid        String     @id @db.Char(26)
-  userUlid    String     @db.Char(26)
-  type        GoalType
-  status      GoalStatus @default(IN_PROGRESS)
-  title       String
-  description String?
-  target      Json?
-  progress    Json?
-  startDate   DateTime   @db.Timestamptz(6)
-  dueDate     DateTime   @db.Timestamptz(6)
-  completedAt DateTime?  @db.Timestamptz(6)
-  createdAt   DateTime   @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime   @updatedAt @db.Timestamptz(6)
-  user        User       @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  ulid             String     @id @db.Char(26)
+  userUlid         String     @db.Char(26)
+  organizationUlid String?    @db.Char(26)
+  type             GoalType
+  status           GoalStatus @default(IN_PROGRESS)
+  title            String
+  description      String?
+  target           Json?
+  progress         Json?
+  startDate        DateTime   @db.Timestamptz(6)
+  dueDate          DateTime   @db.Timestamptz(6)
+  completedAt      DateTime?  @db.Timestamptz(6)
+  createdAt        DateTime   @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime   @updatedAt @db.Timestamptz(6)
+  user             User       @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  organization     Organization? @relation(fields: [organizationUlid], references: [ulid], onDelete: Cascade)
 
   @@index([userUlid])
+  @@index([organizationUlid])
   @@map("Goal")
 }
 
