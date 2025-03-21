@@ -31,7 +31,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, Filter, MoreHorizontal, Eye, CheckCircle, RotateCcw } from "lucide-react";
+import { 
+  CalendarIcon, 
+  Plus, 
+  Filter, 
+  MoreHorizontal, 
+  Eye, 
+  CheckCircle, 
+  RotateCcw,
+  ChevronRight,
+  CalendarRange,
+  Clock,
+  Target,
+  User
+} from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { GOAL_STATUS, GOAL_TYPE, GoalStatus } from "@/utils/types/goal";
@@ -44,7 +57,7 @@ import { ContainerLoading } from "@/components/loading";
 import React from "react";
 import GoalFormDialog from "@/app/dashboard/business/performance/goals/components/GoalFormDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ChevronRight } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 
 // Goal Progress Chart Component
 function GoalProgressChart({ data }: { data: { name: string; value: number; }[] }) {
@@ -115,6 +128,203 @@ type GoalFormData = {
   assignTo: string; // 'organization' or 'individual'
   userUlid?: string;
 };
+
+// Create a new GoalDetailsDialog component
+function GoalDetailsDialog({ 
+  showDetailsDialog, 
+  setShowDetailsDialog, 
+  selectedGoal,
+  updateGoalStatus,
+  formatGoalType,
+  calculateProgress,
+  getStatusBadgeColor
+}: {
+  showDetailsDialog: boolean;
+  setShowDetailsDialog: (show: boolean) => void;
+  selectedGoal: Goal | null;
+  updateGoalStatus: (goalId: string, newStatus: string) => Promise<void>;
+  formatGoalType: (type: string) => string;
+  calculateProgress: (goal: Goal) => number;
+  getStatusBadgeColor: (status: string) => string;
+}) {
+  if (!selectedGoal) return null;
+
+  const getProgressColor = (status: string) => {
+    switch (status) {
+      case GOAL_STATUS.COMPLETED:
+        return "[&>div]:bg-green-500";
+      case GOAL_STATUS.OVERDUE:
+        return "[&>div]:bg-red-500";
+      default:
+        return "[&>div]:bg-blue-500";
+    }
+  };
+
+  const progressPercentage = calculateProgress(selectedGoal);
+  const progressColor = getProgressColor(selectedGoal.status);
+  const daysRemaining = selectedGoal.status !== GOAL_STATUS.COMPLETED
+    ? Math.ceil((new Date(selectedGoal.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
+
+  return (
+    <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+      <DialogContent className="max-w-3xl p-0 overflow-hidden">
+        <div className="flex flex-col h-full">
+          {/* Header with status badge */}
+          <DialogHeader className="px-6 py-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl font-semibold">{selectedGoal.title}</DialogTitle>
+            </div>
+          </DialogHeader>
+
+          {/* Content */}
+          <div className="p-6 space-y-6 overflow-y-auto max-h-[70vh]">
+            {/* Description */}
+            {selectedGoal.description && (
+              <div className="bg-muted/20 p-4 rounded-lg">
+                <p className="text-muted-foreground">{selectedGoal.description}</p>
+              </div>
+            )}
+
+            {/* Progress section */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4 text-muted-foreground" />
+                  <h3 className="font-medium">Progress</h3>
+                </div>
+                <Badge className={cn(getStatusBadgeColor(selectedGoal.status), "px-3 py-1")}>
+                  {selectedGoal.status === GOAL_STATUS.IN_PROGRESS
+                    ? "In Progress"
+                    : selectedGoal.status === GOAL_STATUS.COMPLETED
+                      ? "Completed"
+                      : "Overdue"}
+                </Badge>
+              </div>
+              <div className="bg-muted/10 p-4 rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-lg font-semibold">{progressPercentage}%</span>
+                  {selectedGoal.target && selectedGoal.progress && (
+                    <span className="text-sm text-muted-foreground">
+                      {selectedGoal.progress.value || 0} / {selectedGoal.target.value || 0}
+                      {selectedGoal.target.unit && ` ${selectedGoal.target.unit}`}
+                    </span>
+                  )}
+                </div>
+                <Progress
+                  value={progressPercentage}
+                  className={cn("w-full h-2.5 bg-muted", progressColor)}
+                />
+                {selectedGoal.status === GOAL_STATUS.IN_PROGRESS && daysRemaining > 0 && (
+                  <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>
+                      {daysRemaining} {daysRemaining === 1 ? "day" : "days"} remaining
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left column */}
+              <div className="space-y-6">
+                {/* Type */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <span>Type</span>
+                  </h3>
+                  <Badge variant="secondary" className="px-3 py-1">
+                    {formatGoalType(selectedGoal.type)}
+                  </Badge>
+                </div>
+
+                {/* Assigned To */}
+                {selectedGoal.user && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span>Assigned To</span>
+                    </h3>
+                    <div className="bg-muted/10 p-3 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback className="bg-primary/10 text-primary">
+                            {`${selectedGoal.user.firstName?.charAt(0) || ""}${selectedGoal.user.lastName?.charAt(0) || ""}`}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">
+                            {selectedGoal.user.firstName} {selectedGoal.user.lastName}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{selectedGoal.user.email}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right column */}
+              <div className="space-y-6">
+                {/* Timeline */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                    <CalendarRange className="h-4 w-4" />
+                    <span>Timeline</span>
+                  </h3>
+                  <div className="bg-muted/10 p-3 rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Start Date</span>
+                        <span className="text-sm">{format(new Date(selectedGoal.startDate), "MMM d, yyyy")}</span>
+                      </div>
+                      <Separator className="my-1" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Due Date</span>
+                        <span className="text-sm">{format(new Date(selectedGoal.dueDate), "MMM d, yyyy")}</span>
+                      </div>
+                      {selectedGoal.completedAt && (
+                        <>
+                          <Separator className="my-1" />
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-green-500 flex items-center gap-1">
+                              <CheckCircle className="h-3.5 w-3.5" />
+                              Completed
+                            </span>
+                            <span className="text-sm">{format(new Date(selectedGoal.completedAt), "MMM d, yyyy")}</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Created & Updated */}
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">Metadata</h3>
+                  <div className="bg-muted/10 p-3 rounded-lg">
+                    <div className="flex flex-col space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Created</span>
+                        <span className="text-sm">{format(new Date(selectedGoal.createdAt), "MMM d, yyyy")}</span>
+                      </div>
+                      <Separator className="my-1" />
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Last Updated</span>
+                        <span className="text-sm">{format(new Date(selectedGoal.updatedAt), "MMM d, yyyy")}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function BusinessGoalsPage() {
   const { toast } = useToast();
@@ -303,7 +513,6 @@ export default function BusinessGoalsPage() {
     }
   };
 
-  // Calculate progress percentage
   const calculateProgress = (goal: Goal) => {
     if (!goal.target || !goal.progress) return 0;
     
@@ -568,9 +777,9 @@ function GoalsTable({
                       <div className="text-sm text-muted-foreground/80 line-clamp-1 mt-0.5">{goal.description}</div>
                     )}
                     {goal.user && (
-                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                        <span className="text-muted-foreground/75">Assigned to:</span>
-                        <span className="font-medium">{goal.user.firstName} {goal.user.lastName}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm">{goal.user?.firstName} {goal.user?.lastName}</span>
+                        <Plus className="h-3 w-3" />
                       </div>
                     )}
                   </div>
@@ -670,129 +879,16 @@ function GoalsTable({
           </CardContent>
         </Card>
 
-        {/* Goal Details Dialog */}
-        <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Goal Details</DialogTitle>
-            </DialogHeader>
-            {selectedGoal && (
-              <div className="space-y-6">
-                <div className="bg-muted/10 p-4 rounded-lg">
-                  <h3 className="font-medium text-lg mb-1">{selectedGoal.title}</h3>
-                  {selectedGoal.description && <p className="text-muted-foreground">{selectedGoal.description}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="font-medium text-sm text-muted-foreground mb-1">Type</h3>
-                      <Badge variant="secondary" className="px-3 py-1">
-                        {formatGoalType(selectedGoal.type)}
-                      </Badge>
-                    </div>
-
-                    <div>
-                      <h3 className="font-medium text-sm text-muted-foreground mb-1">Status</h3>
-                      <Badge className={cn(getStatusBadgeColor(selectedGoal.status), "px-3 py-1")}>
-                        {selectedGoal.status === GOAL_STATUS.IN_PROGRESS
-                          ? "In Progress"
-                          : selectedGoal.status === GOAL_STATUS.COMPLETED
-                            ? "Completed"
-                            : "Overdue"}
-                      </Badge>
-                    </div>
-
-                    <div>
-                      <h3 className="font-medium text-sm text-muted-foreground mb-1">Timeline</h3>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span>{format(new Date(selectedGoal.startDate), "MMM d, yyyy")}</span>
-                        <span className="text-muted-foreground">→</span>
-                        <span>{format(new Date(selectedGoal.dueDate), "MMM d, yyyy")}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="font-medium text-sm text-muted-foreground mb-1">Progress</h3>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{calculateProgress(selectedGoal)}%</span>
-                          {selectedGoal.target && selectedGoal.progress && (
-                            <span className="text-sm text-muted-foreground">
-                              {selectedGoal.progress.value || 0} / {selectedGoal.target.value || 0}
-                            </span>
-                          )}
-                        </div>
-                        <Progress
-                          value={calculateProgress(selectedGoal)}
-                          className={cn(
-                            "w-full h-2.5",
-                            selectedGoal.status === GOAL_STATUS.COMPLETED
-                              ? "bg-green-100 dark:bg-green-900/30"
-                              : selectedGoal.status === GOAL_STATUS.OVERDUE
-                                ? "bg-red-100 dark:bg-red-900/30"
-                                : "bg-blue-100 dark:bg-blue-900/30",
-                          )}
-                        />
-                      </div>
-                    </div>
-
-                    {selectedGoal.user && (
-                      <div>
-                        <h3 className="font-medium text-sm text-muted-foreground mb-1">Assigned To</h3>
-                        <div className="flex items-center gap-3 mt-1">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-primary/10 text-primary">
-                              {`${selectedGoal.user.firstName?.charAt(0) || ''}${selectedGoal.user.lastName?.charAt(0) || ''}`}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium">
-                              {selectedGoal.user.firstName} {selectedGoal.user.lastName}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{selectedGoal.user.email}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Only show status management buttons for company goals */}
-                    {selectedGoal.organizationUlid && (
-                      <div className="pt-2">
-                        {selectedGoal.status !== GOAL_STATUS.COMPLETED ? (
-                          <Button 
-                            onClick={() => {
-                              updateGoalStatus(selectedGoal.ulid, GOAL_STATUS.COMPLETED);
-                              setShowDetailsDialog(false);
-                            }}
-                            className="w-full"
-                          >
-                            <CheckCircle className="h-4 w-4 mr-2" />
-                            Mark Complete
-                          </Button>
-                        ) : (
-                          <Button 
-                            variant="outline"
-                            onClick={() => {
-                              updateGoalStatus(selectedGoal.ulid, GOAL_STATUS.IN_PROGRESS);
-                              setShowDetailsDialog(false);
-                            }}
-                            className="w-full"
-                          >
-                            <RotateCcw className="h-4 w-4 mr-2" />
-                            Reopen
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* Use the new Goal Details Dialog */}
+        <GoalDetailsDialog 
+          showDetailsDialog={showDetailsDialog} 
+          setShowDetailsDialog={setShowDetailsDialog} 
+          selectedGoal={selectedGoal}
+          updateGoalStatus={updateGoalStatus}
+          formatGoalType={formatGoalType}
+          calculateProgress={calculateProgress}
+          getStatusBadgeColor={getStatusBadgeColor}
+        />
       </>
     );
   }
@@ -819,7 +915,7 @@ function GoalsTable({
                   onClick={() => toggleUserExpanded(userUlid)}
                 >
                   <div className="col-span-4 flex items-center gap-3">
-                    <ChevronRight
+                    <Plus
                       className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
                         expandedUsers[userUlid] ? "rotate-90" : ""
                       }`}
@@ -962,99 +1058,16 @@ function GoalsTable({
         </CardContent>
       </Card>
 
-      {/* Goal Details Dialog (shared between views) */}
-      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Goal Details</DialogTitle>
-          </DialogHeader>
-          {selectedGoal && (
-            <div className="space-y-6">
-              <div className="bg-muted/10 p-4 rounded-lg">
-                <h3 className="font-medium text-lg mb-1">{selectedGoal.title}</h3>
-                {selectedGoal.description && <p className="text-muted-foreground">{selectedGoal.description}</p>}
-              </div>
-
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-medium text-sm text-muted-foreground mb-1">Type</h3>
-                    <Badge variant="secondary" className="px-3 py-1">
-                      {formatGoalType(selectedGoal.type)}
-                    </Badge>
-                  </div>
-
-                  <div>
-                    <h3 className="font-medium text-sm text-muted-foreground mb-1">Status</h3>
-                    <Badge className={cn(getStatusBadgeColor(selectedGoal.status), "px-3 py-1")}>
-                      {selectedGoal.status === GOAL_STATUS.IN_PROGRESS
-                        ? "In Progress"
-                        : selectedGoal.status === GOAL_STATUS.COMPLETED
-                          ? "Completed"
-                          : "Overdue"}
-                    </Badge>
-                  </div>
-
-                  <div>
-                    <h3 className="font-medium text-sm text-muted-foreground mb-1">Timeline</h3>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span>{format(new Date(selectedGoal.startDate), "MMM d, yyyy")}</span>
-                      <span className="text-muted-foreground">→</span>
-                      <span>{format(new Date(selectedGoal.dueDate), "MMM d, yyyy")}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="font-medium text-sm text-muted-foreground mb-1">Progress</h3>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{calculateProgress(selectedGoal)}%</span>
-                        {selectedGoal.target && selectedGoal.progress && (
-                          <span className="text-sm text-muted-foreground">
-                            {selectedGoal.progress.value || 0} / {selectedGoal.target.value || 0}
-                          </span>
-                        )}
-                      </div>
-                      <Progress
-                        value={calculateProgress(selectedGoal)}
-                        className={cn(
-                          "w-full h-2.5",
-                          selectedGoal.status === GOAL_STATUS.COMPLETED
-                            ? "bg-green-100 dark:bg-green-900/30"
-                            : selectedGoal.status === GOAL_STATUS.OVERDUE
-                              ? "bg-red-100 dark:bg-red-900/30"
-                              : "bg-blue-100 dark:bg-blue-900/30",
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  {selectedGoal.user && (
-                    <div>
-                      <h3 className="font-medium text-sm text-muted-foreground mb-1">Assigned To</h3>
-                      <div className="flex items-center gap-3 mt-1">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-primary/10 text-primary">
-                            {`${selectedGoal.user.firstName?.charAt(0) || ''}${selectedGoal.user.lastName?.charAt(0) || ''}`}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">
-                            {selectedGoal.user.firstName} {selectedGoal.user.lastName}
-                          </p>
-                          <p className="text-sm text-muted-foreground">{selectedGoal.user.email}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Goal Details Dialog (using the new component) */}
+      <GoalDetailsDialog
+        showDetailsDialog={showDetailsDialog}
+        setShowDetailsDialog={setShowDetailsDialog}
+        selectedGoal={selectedGoal}
+        updateGoalStatus={updateGoalStatus}
+        formatGoalType={formatGoalType}
+        calculateProgress={calculateProgress}
+        getStatusBadgeColor={getStatusBadgeColor}
+      />
     </>
   );
 }
