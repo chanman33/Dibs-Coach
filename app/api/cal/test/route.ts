@@ -4,21 +4,24 @@ import { env } from '@/lib/env';
 export async function GET() {
   try {
     // First, create a test managed user
-    const createUserResponse = await fetch('https://api.cal.com/v2/platform/managed-users', {
-      method: 'POST',
-      headers: {
-        'x-cal-client-id': env.NEXT_PUBLIC_CAL_CLIENT_ID,
-        'x-cal-secret-key': env.CAL_CLIENT_SECRET,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        email: `test-user-${Date.now()}@example.com`,
-        password: 'complexpassword123',
-        username: `test-user-${Date.now()}`,
-        timeZone: 'America/New_York',
-        name: 'Test User',
-      }),
-    });
+    const createUserResponse = await fetch(
+      `https://api.cal.com/v2/oauth-clients/${env.NEXT_PUBLIC_CAL_CLIENT_ID}/users`,
+      {
+        method: 'POST',
+        headers: {
+          'x-cal-secret-key': env.CAL_CLIENT_SECRET,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: `test-user-${Date.now()}@example.com`,
+          name: 'Test User',
+          timeZone: 'America/New_York',
+          timeFormat: 12,
+          weekStart: 'Monday',
+          locale: 'en',
+        }),
+      }
+    );
 
     if (!createUserResponse.ok) {
       const error = await createUserResponse.json();
@@ -31,13 +34,15 @@ export async function GET() {
     const createUserData = await createUserResponse.json();
 
     // Then, list all managed users to verify
-    const listUsersResponse = await fetch('https://api.cal.com/v2/platform/managed-users', {
-      headers: {
-        'x-cal-client-id': env.NEXT_PUBLIC_CAL_CLIENT_ID,
-        'x-cal-secret-key': env.CAL_CLIENT_SECRET,
-        'Content-Type': 'application/json',
-      },
-    });
+    const listUsersResponse = await fetch(
+      `https://api.cal.com/v2/oauth-clients/${env.NEXT_PUBLIC_CAL_CLIENT_ID}/users`,
+      {
+        headers: {
+          'x-cal-secret-key': env.CAL_CLIENT_SECRET,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
     if (!listUsersResponse.ok) {
       const error = await listUsersResponse.json();

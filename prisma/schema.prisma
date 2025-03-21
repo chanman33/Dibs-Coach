@@ -79,6 +79,7 @@ model User {
   assignments              ResourceAssignment[]             @relation("UserAssignments")
   assignedResources        ResourceAssignment[]             @relation("AssignedByUser")
   featureWaitlists         FeatureWaitlist[]
+  calendarIntegration      CalendarIntegration?
 
   @@index([userId])
   @@index([email])
@@ -1818,4 +1819,30 @@ model FeatureWaitlist {
   @@index([feature_id])
   @@index([user_id])
   @@map("FeatureWaitlist")
+}
+
+// New model for Cal.com integration
+model CalendarIntegration {
+  ulid                    String    @id @db.Char(26)
+  userUlid                String    @unique @db.Char(26)
+  provider                String    @default("CAL")
+  calManagedUserId        Int
+  calUsername             String
+  calAccessToken          String
+  calRefreshToken         String
+  calAccessTokenExpiresAt DateTime
+  defaultScheduleId       Int?
+  timeZone                String?
+  weekStart               String?
+  timeFormat              Int?
+  locale                  String?
+  lastSyncedAt            DateTime?
+  syncEnabled             Boolean   @default(true)
+  createdAt               DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime  @updatedAt @db.Timestamptz(6)
+  user                    User      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@index([provider])
+  @@map("CalendarIntegration")
 }
