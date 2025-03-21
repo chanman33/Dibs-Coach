@@ -15,6 +15,16 @@ const envSchema = z.object({
   NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: z.string().default('/dashboard'),
   NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: z.string().default('/dashboard'),
 
+  // Cal.com
+  NEXT_PUBLIC_CAL_API_KEY: z.string().min(1),
+  NEXT_PUBLIC_CAL_CLIENT_ID: z.string().min(1),
+  CAL_CLIENT_SECRET: z.string().min(1),
+  NEXT_PUBLIC_CAL_ORGANIZATION_ID: z.string().min(1),
+  NEXT_PUBLIC_CAL_REDIRECT_URL: z.string().url().default('http://localhost:3000'),
+  NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL: z.string().url().default('http://localhost:3000/booking-success'),
+  NEXT_PUBLIC_CAL_BOOKING_CANCEL_URL: z.string().url().default('http://localhost:3000/booking-cancelled'),
+  NEXT_PUBLIC_CAL_BOOKING_RESCHEDULE_URL: z.string().url().default('http://localhost:3000/booking-rescheduled'),
+
   // Supabase
   SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
@@ -69,6 +79,16 @@ export const env = envSchema.parse({
   NEXT_PUBLIC_CLERK_SIGN_UP_URL: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL,
   NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL,
   NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL,
+
+  // Cal.com
+  NEXT_PUBLIC_CAL_API_KEY: process.env.NEXT_PUBLIC_CAL_API_KEY,
+  NEXT_PUBLIC_CAL_CLIENT_ID: process.env.NEXT_PUBLIC_CAL_CLIENT_ID,
+  CAL_CLIENT_SECRET: process.env.CAL_CLIENT_SECRET,
+  NEXT_PUBLIC_CAL_ORGANIZATION_ID: process.env.NEXT_PUBLIC_CAL_ORGANIZATION_ID,
+  NEXT_PUBLIC_CAL_REDIRECT_URL: process.env.NEXT_PUBLIC_CAL_REDIRECT_URL,
+  NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL: process.env.NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL,
+  NEXT_PUBLIC_CAL_BOOKING_CANCEL_URL: process.env.NEXT_PUBLIC_CAL_BOOKING_CANCEL_URL,
+  NEXT_PUBLIC_CAL_BOOKING_RESCHEDULE_URL: process.env.NEXT_PUBLIC_CAL_BOOKING_RESCHEDULE_URL,
 
   // Supabase
   SUPABASE_URL: process.env.SUPABASE_URL,

@@ -4,7 +4,7 @@ import { withApiAuth } from "@/utils/middleware/withApiAuth"
 import { createAuthClient } from "@/utils/auth"
 import { z } from 'zod'
 import { ulidSchema } from "@/utils/types/auth"
-import { StripeDisputeService } from '@/lib/stripe-disputes'
+import { StripeDisputeService } from '@/lib/stripe/stripe-disputes'
 import { ROLES } from "@/utils/roles/roles"
 
 const disputeService = new StripeDisputeService()

@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { BaseWebhookHandler } from './base-webhook-handler';
-import { StripeDisputeService } from '@/lib/stripe-disputes';
+import { StripeDisputeService } from '@/lib/stripe/stripe-disputes';
 
 export class DisputeWebhookHandler extends BaseWebhookHandler {
   private disputeService: StripeDisputeService;
