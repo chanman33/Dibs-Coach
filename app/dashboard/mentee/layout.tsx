@@ -8,6 +8,8 @@ import { RouteGuardProvider } from "@/components/auth/RouteGuardContext"
 import { ContainerLoading } from "@/components/loading/container"
 import { useAuth } from "@clerk/nextjs"
 import { useEffect, useState } from "react"
+import { ThemeProvider } from "@/components/theme-provider"
+import { Toaster } from "@/components/ui/sonner"
 
 export default function MenteeLayout({
   children,
@@ -42,12 +44,20 @@ export default function MenteeLayout({
 
   return (
     <RouteGuardProvider required="mentee-dashboard">
-      <div className="flex h-screen">
-        <MenteeSidebar />
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
-      </div>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <div className="flex min-h-screen">
+          <MenteeSidebar />
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+        </div>
+        <Toaster position="top-center" richColors />
+      </ThemeProvider>
     </RouteGuardProvider>
   )
 } 
