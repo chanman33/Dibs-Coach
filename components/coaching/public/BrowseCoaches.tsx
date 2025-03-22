@@ -135,24 +135,26 @@ export function BrowseCoaches({ showFeatured = true }: BrowseCoachesProps) {
             {isLoading ? (
               <LoadingState />
             ) : featuredCoaches.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {featuredCoaches.map(coach => (
-                  <PublicCoachCard
-                    key={coach.ulid}
-                    id={coach.ulid}
-                    name={`${coach.firstName || ''} ${coach.lastName || ''}`}
-                    imageUrl={coach.profileImageUrl || ''}
-                    specialty={coach.coachSkills && coach.coachSkills.length > 0 ? coach.coachSkills[0] : 'General Coach'}
-                    bio={coach.bio || ''}
-                    coachSkills={coach.coachSkills || []}
-                    coachRealEstateDomains={coach.coachRealEstateDomains || []}
-                    coachPrimaryDomain={coach.coachPrimaryDomain}
-                    rating={coach.averageRating ?? undefined}
-                    reviewCount={coach.totalSessions}
-                    hourlyRate={coach.hourlyRate}
-                    profileSlug={coach.profileSlug}
-                  />
-                ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {featuredCoaches
+                  .slice(0, 3) // Limit to exactly 3 coaches
+                  .map((coach) => (
+                    <PublicCoachCard
+                      key={coach.ulid}
+                      id={coach.ulid}
+                      name={`${coach.firstName || ''} ${coach.lastName || ''}`}
+                      imageUrl={coach.profileImageUrl || ''}
+                      specialty={coach.coachSkills && coach.coachSkills.length > 0 ? coach.coachSkills[0] : 'General Coach'}
+                      bio={coach.bio || ''}
+                      coachSkills={coach.coachSkills || []}
+                      coachRealEstateDomains={coach.coachRealEstateDomains || []}
+                      coachPrimaryDomain={coach.coachPrimaryDomain}
+                      rating={coach.averageRating ?? undefined}
+                      reviewCount={coach.totalSessions}
+                      hourlyRate={coach.hourlyRate}
+                      profileSlug={coach.profileSlug}
+                    />
+                  ))}
               </div>
             ) : (
               <EmptyState message="No featured coaches available at the moment." />

@@ -76,20 +76,22 @@ export function CoachesList({ coaches, isLoading }: CoachesListProps) {
                   <Loader2 className="h-8 w-8 animate-spin" />
                 </div>
               ) : filteredCoaches.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-6">
-                  {filteredCoaches.map(coach => (
-                    <PublicCoachCard
-                      key={coach.id}
-                      id={coach.id}
-                      name={`${coach.firstName} ${coach.lastName}`}
-                      imageUrl={coach.profileImageUrl}
-                      specialty={coach.specialties[0] || 'General Coach'}
-                      bio={coach.bio}
-                      specialties={coach.specialties}
-                      rating={coach.rating}
-                      reviewCount={coach.reviewCount}
-                    />
-                  ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {filteredCoaches
+                    .slice(0, 3)
+                    .map(coach => (
+                      <PublicCoachCard
+                        key={coach.id}
+                        id={coach.id}
+                        name={`${coach.firstName} ${coach.lastName}`}
+                        imageUrl={coach.profileImageUrl}
+                        specialty={coach.specialties[0] || 'General Coach'}
+                        bio={coach.bio}
+                        coachSkills={coach.specialties}
+                        rating={coach.rating}
+                        reviewCount={coach.reviewCount}
+                      />
+                    ))}
                 </div>
               ) : (
                 <p className="text-center text-muted-foreground py-12">

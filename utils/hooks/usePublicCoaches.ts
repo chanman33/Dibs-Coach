@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { PublicCoach } from '@/utils/types/coach'
+import crypto from 'crypto'
 
 export function usePublicCoaches() {
   const [coaches, setCoaches] = useState<PublicCoach[]>([])
@@ -138,9 +139,9 @@ export function usePublicCoaches() {
                 defaultDuration,
                 minimumDuration,
                 maximumDuration,
-                allowCustomDuration
+                allowCustomDuration,
+                completionPercentage
               `)
-              .eq('isActive', true)
               .eq('profileStatus', 'PUBLISHED')
               .in('userUlid', batchUlids);
               
@@ -182,7 +183,22 @@ export function usePublicCoaches() {
           console.log('[PUBLIC_COACHES_NO_PROFILES]', {
             timestamp: new Date().toISOString()
           });
-          setCoaches([]);
+          
+          // Create default profiles for coach users without profiles, but don't display them
+          console.log('[PUBLIC_COACHES_CREATING_DEFAULT_PROFILES]', {
+            coachCount: coachUsers.length,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Don't display default profiles to end users in public browsing
+          // We only return published profiles
+          if (isMounted) {
+            setCoaches([]);
+            console.log('[PUBLIC_COACHES_STATE_UPDATED_EMPTY]', {
+              message: 'No published coach profiles available',
+              timestamp: new Date().toISOString()
+            });
+          }
           return;
         }
         
@@ -192,7 +208,21 @@ export function usePublicCoaches() {
           timestamp: new Date().toISOString()
         });
         
-        const transformedCoaches = allCoachProfiles.map(profile => {
+        // First filter for coaches with complete profiles
+        const qualifiedProfiles = allCoachProfiles.filter(profile => 
+          profile.completionPercentage >= 80 && 
+          profile.coachSkills && 
+          Array.isArray(profile.coachSkills) && 
+          profile.coachSkills.length > 0
+        );
+        
+        console.log('[PUBLIC_COACHES_QUALIFIED_PROFILES]', {
+          totalProfiles: allCoachProfiles.length,
+          qualifiedProfiles: qualifiedProfiles.length,
+          timestamp: new Date().toISOString()
+        });
+        
+        const transformedCoaches = qualifiedProfiles.map(profile => {
           const user = coachUsers.find(u => u.ulid === profile.userUlid);
           if (!user) return null;
           
@@ -208,6 +238,7 @@ export function usePublicCoaches() {
             coachRealEstateDomains: Array.isArray(profile.coachRealEstateDomains) ? profile.coachRealEstateDomains : [],
             coachPrimaryDomain: profile.coachPrimaryDomain || null,
             slogan: profile.slogan || null,
+            profileSlug: null,
             hourlyRate: profile.hourlyRate || null,
             averageRating: profile.averageRating || null,
             totalSessions: profile.totalSessions || 0,
@@ -227,11 +258,21 @@ export function usePublicCoaches() {
           timestamp: new Date().toISOString()
         });
         
+        // Sort coaches by a combination of factors to get the best recommendations
+        const sortedCoaches = [...transformedCoaches].sort((a, b) => {
+          // First by rating
+          const ratingDiff = (b.averageRating || 0) - (a.averageRating || 0);
+          if (ratingDiff !== 0) return ratingDiff;
+          
+          // Then by total sessions
+          return (b.totalSessions || 0) - (a.totalSessions || 0);
+        });
+        
         if (isMounted) {
-          setCoaches(transformedCoaches);
+          setCoaches(sortedCoaches);
           
           console.log('[PUBLIC_COACHES_STATE_UPDATED]', {
-            coachCount: transformedCoaches.length,
+            coachCount: sortedCoaches.length,
             timestamp: new Date().toISOString()
           });
         }

@@ -105,7 +105,8 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
 
         // The data is already transformed by the server action
         const validCoaches = coachesData.filter(coach => 
-          coach.firstName && coach.lastName && coach.isActive
+          coach.firstName && coach.lastName
+          // Removed the isActive check to allow all coaches
         );
 
         console.log('[CLIENT_BROWSE_COACHES_VALID_COACHES]', {
@@ -135,8 +136,27 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
         // For now, just split into booked and recommended
         // In a real app, we'd use actual booking data and recommendation algorithms
         const booked: BrowseCoachData[] = [];
-        const recommended = [...validCoaches];
         
+        // For recommended coaches, filter to only show PUBLISHED profiles when viewing as someone else
+        const publishedCoaches = role !== 'COACH' 
+          ? validCoaches.filter(coach => 
+              coach.profileStatus === 'PUBLISHED' && 
+              (coach.completionPercentage || 0) >= 80 &&
+              (coach.coachSkills && coach.coachSkills.length > 0)
+            )
+          : validCoaches;
+        
+        const recommended = [...publishedCoaches];
+        
+        // Log the filtering by published status
+        console.log('[CLIENT_BROWSE_COACHES_PUBLISHED_FILTER]', {
+          role,
+          totalCoaches: validCoaches.length,
+          publishedCoaches: publishedCoaches.length,
+          isFiltered: role !== 'COACH',
+          timestamp: new Date().toISOString()
+        });
+
         // Sort recommended coaches by rating and completeness
         recommended.sort((a, b) => {
           // First by rating (if available)
@@ -146,6 +166,15 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
             return -1; // a has rating, b doesn't
           } else if (b.averageRating) {
             return 1; // b has rating, a doesn't
+          }
+          
+          // Then by years coaching experience
+          if (a.yearsCoaching && b.yearsCoaching) {
+            return b.yearsCoaching - a.yearsCoaching;
+          } else if (a.yearsCoaching) {
+            return -1; // a has experience, b doesn't
+          } else if (b.yearsCoaching) {
+            return 1; // b has experience, a doesn't
           }
           
           // Then by total sessions

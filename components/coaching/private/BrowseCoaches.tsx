@@ -89,7 +89,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
   }
 
   const renderCoaches = (coaches: BrowseCoachData[], isBooked: boolean = false) => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
       {coaches.map(coach => (
         <PrivateCoachCard
           key={coach.ulid}
@@ -109,53 +109,6 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
           coachRealEstateDomains={coach.coachRealEstateDomains || []}
           coachPrimaryDomain={coach.coachPrimaryDomain}
           isBooked={isBooked}
-          onProfileClick={() => handleCoachClick(coach)}
-          sessionConfig={{
-            durations: [
-              coach.minimumDuration,
-              coach.defaultDuration,
-              coach.maximumDuration
-            ],
-            rates: {
-              [coach.minimumDuration]: (coach.hourlyRate || 0) * (coach.minimumDuration / 60),
-              [coach.defaultDuration]: (coach.hourlyRate || 0) * (coach.defaultDuration / 60),
-              [coach.maximumDuration]: (coach.hourlyRate || 0) * (coach.maximumDuration / 60)
-            },
-            currency: 'USD',
-            defaultDuration: coach.defaultDuration,
-            allowCustomDuration: coach.allowCustomDuration,
-            minimumDuration: coach.minimumDuration,
-            maximumDuration: coach.maximumDuration,
-            isActive: coach.isActive
-          }}
-          profileSlug={coach.profileSlug}
-        />
-      ))}
-    </div>
-  );
-
-  // Dedicated function for rendering recommended coaches with consistent formatting
-  const renderRecommendedCoaches = (coaches: BrowseCoachData[]) => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {coaches.map(coach => (
-        <PrivateCoachCard
-          key={coach.ulid}
-          id={coach.ulid}
-          userId={coach.userId}
-          name={`${coach.firstName} ${coach.lastName}`}
-          imageUrl={coach.profileImageUrl || ''}
-          specialty={coach.coachSkills?.[0] || 'General Coach'}
-          bio={coach.bio || ''}
-          experience={coach.yearsCoaching 
-            ? `${coach.yearsCoaching} years of coaching experience` 
-            : null}
-          certifications={[]}
-          availability={coach.isActive ? "Available" : "Unavailable"}
-          sessionLength={`${coach.defaultDuration} minutes`}
-          coachSkills={coach.coachSkills || []}
-          coachRealEstateDomains={coach.coachRealEstateDomains || []}
-          coachPrimaryDomain={coach.coachPrimaryDomain}
-          isBooked={false}
           onProfileClick={() => handleCoachClick(coach)}
           sessionConfig={{
             durations: [
@@ -185,7 +138,9 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
   const getTopRecommendedCoaches = (coaches: BrowseCoachData[], count: number = 3): BrowseCoachData[] => {
     // Filter out coaches that are already booked
     const availableCoaches = coaches.filter(coach => 
-      !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid)
+      !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid) &&
+      coach.coachSkills && 
+      coach.coachSkills.length > 0
     );
     
     // Sort by a combination of factors to get the best recommendations
@@ -282,6 +237,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
                     .filter(coach => 
                       !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid)
                     )
+                    .slice(0, 3) // Limit to exactly 3 coaches in "All Coaches" section
                     .map(coach => ({
                       ...coach,
                       specialty: coach.coachSkills?.[0] || 'General Coach'
@@ -302,9 +258,11 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
           <h2 className="text-2xl font-bold tracking-tight">Recommended Coaches</h2>
-          <p className="text-sm text-muted-foreground">
-            Top rated coaches that match your interests and expertise level
-          </p>
+          {role === USER_CAPABILITIES.COACH && (
+            <p className="text-xs text-muted-foreground">
+              Note: Only coaches with published profiles are visible to mentees.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="pt-4">
           {isLoading ? (
@@ -312,10 +270,10 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : filteredRecommendedCoaches.length > 0 ? (
-            renderRecommendedCoaches(getTopRecommendedCoaches(filteredRecommendedCoaches))
+            renderCoaches(getTopRecommendedCoaches(filteredRecommendedCoaches, 3))
           ) : (
             <p className="text-center text-muted-foreground py-12">
-              No recommended coaches available at the moment. Please check back later!
+              No recommended coaches available at the moment.
             </p>
           )}
         </CardContent>

@@ -24,6 +24,8 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
         displayName,
         bio,
         profileImageUrl,
+        capabilities,
+        isCoach,
         CoachProfile (
           slogan,
           coachSkills,
@@ -35,7 +37,6 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
           profileSlug
         )
       `)
-      .eq('isCoach', true)
       .eq('status', 'ACTIVE')
       .order('createdAt', { ascending: false }) as { data: CoachWithProfile[] | null, error: any }
 
@@ -51,7 +52,11 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
     }
 
     const publicCoaches = coaches
-      ?.filter(coach => coach.CoachProfile)
+      ?.filter(coach => 
+        (Array.isArray(coach.capabilities) && coach.capabilities.includes('COACH')) || 
+        coach.isCoach === true
+      )
+      ?.filter(coach => coach.CoachProfile && coach.CoachProfile.profileStatus === 'PUBLISHED')
       .map(coach => ({
         ulid: coach.ulid,
         userUlid: coach.ulid, // Using ulid as userUlid for compatibility

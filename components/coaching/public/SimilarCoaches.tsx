@@ -126,66 +126,71 @@ export function SimilarCoaches({ currentCoachId, skills, domains }: SimilarCoach
   }
   
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-      {similarCoaches.map(coach => (
-        <Card key={coach.ulid} className="h-full flex flex-col">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-3">
-              <div className="relative w-12 h-12 rounded-full overflow-hidden">
-                {coach.profileImageUrl ? (
-                  <Image 
-                    src={coach.profileImageUrl} 
-                    alt={coach.displayName || `${coach.firstName} ${coach.lastName}`} 
-                    fill
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-muted flex items-center justify-center text-sm font-semibold text-muted-foreground">
-                    {coach.firstName?.[0]}{coach.lastName?.[0]}
-                  </div>
-                )}
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <h2 className="text-2xl font-semibold mb-6">Similar Coaches</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {similarCoaches
+          .slice(0, 3) // Limit to exactly 3 coaches 
+          .map(coach => (
+          <Card key={coach.ulid} className="h-full flex flex-col">
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-3">
+                <div className="relative w-12 h-12 rounded-full overflow-hidden">
+                  {coach.profileImageUrl ? (
+                    <Image 
+                      src={coach.profileImageUrl} 
+                      alt={coach.displayName || `${coach.firstName} ${coach.lastName}`} 
+                      fill
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-muted flex items-center justify-center text-sm font-semibold text-muted-foreground">
+                      {coach.firstName?.[0]}{coach.lastName?.[0]}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <CardTitle className="text-base">{coach.displayName || `${coach.firstName} ${coach.lastName}`}</CardTitle>
+                  <CardDescription className="text-xs truncate">
+                    {coach.coachSkills?.[0] || 'Coach'}
+                  </CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle className="text-base">{coach.displayName || `${coach.firstName} ${coach.lastName}`}</CardTitle>
-                <CardDescription className="text-xs truncate">
-                  {coach.coachSkills?.[0] || 'Coach'}
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="flex-grow pb-4">
-            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{coach.bio || 'No bio available'}</p>
-            
-            {coach.coachSkills && coach.coachSkills.length > 0 && (
-              <div className="flex flex-wrap gap-1 mb-3">
-                {coach.coachSkills.slice(0, 2).map(skill => (
-                  <span
-                    key={skill}
-                    className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
-                  >
-                    {skill}
-                  </span>
-                ))}
-                {coach.coachSkills.length > 2 && (
-                  <span className="text-xs text-muted-foreground">
-                    +{coach.coachSkills.length - 2} more
-                  </span>
-                )}
-              </div>
-            )}
-            
-            <Link href={`/profile/${coach.profileSlug || coach.ulid}`} className="block w-full">
-              <Button 
-                className="w-full mt-2" 
-                variant="outline"
-                size="sm"
-              >
-                View Profile
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      ))}
+            </CardHeader>
+            <CardContent className="flex-grow pb-4">
+              <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{coach.bio || 'No bio available'}</p>
+              
+              {coach.coachSkills && coach.coachSkills.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {coach.coachSkills.slice(0, 2).map(skill => (
+                    <span
+                      key={skill}
+                      className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
+                    >
+                      {skill}
+                    </span>
+                  ))}
+                  {coach.coachSkills.length > 2 && (
+                    <span className="text-xs text-muted-foreground">
+                      +{coach.coachSkills.length - 2} more
+                    </span>
+                  )}
+                </div>
+              )}
+              
+              <Link href={`/profile/${coach.profileSlug || coach.ulid}`} className="block w-full">
+                <Button 
+                  className="w-full mt-2" 
+                  variant="outline"
+                  size="sm"
+                >
+                  View Profile
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 } 

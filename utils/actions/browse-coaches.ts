@@ -4,6 +4,7 @@ import { createAuthClient } from '@/utils/auth'
 import { BrowseCoachData } from '@/utils/types/browse-coaches'
 import { withServerAction } from '@/utils/middleware/withServerAction'
 import { ACTIVE_DOMAINS, REAL_ESTATE_DOMAINS, RealEstateDomain } from '@/utils/types/coach'
+import crypto from 'crypto'
 
 interface DbCoach {
   ulid: string
@@ -140,9 +141,7 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
           completionPercentage,
           profileSlug
         `)
-        .in('userUlid', coachUsers.map(u => u.ulid))
-        .eq('profileStatus', 'PUBLISHED')
-        .eq('isActive', true);
+        .in('userUlid', coachUsers.map(u => u.ulid));
         
       console.log('[BROWSE_COACHES_COACH_PROFILES]', {
         count: coachProfilesData?.length || 0,
@@ -154,7 +153,92 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
         console.log('[BROWSE_COACHES_NO_COACH_PROFILES]', {
           timestamp: new Date().toISOString()
         });
-        return { data: [], error: null };
+        
+        // Create basic profiles for coach users without profiles
+        const defaultProfiles = coachUsers.map(user => ({
+          ulid: crypto.randomUUID(),  // Generate a random UUID for the profile
+          userUlid: user.ulid,
+          coachSkills: [] as string[],
+          coachRealEstateDomains: [] as string[],
+          coachPrimaryDomain: null,
+          hourlyRate: null,
+          yearsCoaching: null,
+          totalSessions: 0,
+          averageRating: null,
+          defaultDuration: 60,
+          minimumDuration: 30,
+          maximumDuration: 90,
+          allowCustomDuration: false,
+          isActive: true,
+          slogan: null,
+          profileStatus: 'DRAFT',
+          completionPercentage: 0,
+          profileSlug: null
+        }));
+        
+        console.log('[BROWSE_COACHES_CREATED_DEFAULT_PROFILES]', {
+          count: defaultProfiles.length,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Continue with the default profiles
+        const combinedData = defaultProfiles.map(profile => {
+          const user = coachUsers.find(u => u.ulid === profile.userUlid);
+          if (!user) return null;
+          
+          return {
+            ulid: user.ulid,
+            userId: user.userId,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            profileImageUrl: user.profileImageUrl,
+            bio: user.bio,
+            capabilities: user.capabilities,
+            CoachProfile: profile
+          };
+        }).filter(Boolean) as unknown as DbCoach[];
+        
+        console.log('[BROWSE_COACHES_DEFAULT_COMBINED_DATA]', {
+          count: combinedData.length,
+          timestamp: new Date().toISOString()
+        });
+        
+        if (combinedData.length === 0) {
+          return { data: [], error: null };
+        }
+        
+        // Continue with transformation
+        console.log('[BROWSE_COACHES_DEFAULT_TRANSFORM_START]', { 
+          coachCount: combinedData.length,
+          timestamp: new Date().toISOString()
+        });
+        
+        const transformedCoaches: BrowseCoachData[] = combinedData.map((coach) => ({
+          ulid: coach.ulid,
+          userId: coach.userId,
+          firstName: coach.firstName,
+          lastName: coach.lastName,
+          profileImageUrl: coach.profileImageUrl,
+          bio: coach.bio,
+          coachSkills: [],
+          coachRealEstateDomains: [],
+          coachPrimaryDomain: null,
+          hourlyRate: null,
+          yearsCoaching: null,
+          totalSessions: 0,
+          averageRating: null,
+          defaultDuration: 60,
+          minimumDuration: 30,
+          maximumDuration: 90,
+          allowCustomDuration: false,
+          isActive: true,
+          slogan: null,
+          profileStatus: 'DRAFT',
+          completionPercentage: 0,
+          profileSlug: null
+        }));
+        
+        return { data: transformedCoaches, error: null };
       }
       
       // Filter coaches based on active domains
@@ -163,6 +247,26 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
         .map(([domain]) => domain);
 
       const filteredCoachProfiles = coachProfilesData.filter(profile => {
+        // Only include profiles with sufficient completion percentage if they're published
+        if (profile.profileStatus === 'PUBLISHED' && (profile.completionPercentage || 0) < 80) {
+          console.log('[BROWSE_COACHES_INCOMPLETE_PUBLISHED_PROFILE]', {
+            userUlid: profile.userUlid,
+            completionPercentage: profile.completionPercentage,
+            timestamp: new Date().toISOString()
+          });
+          return false;
+        }
+        
+        // Exclude profiles with no skills
+        if (profile.profileStatus === 'PUBLISHED' && 
+            (!profile.coachSkills || !Array.isArray(profile.coachSkills) || profile.coachSkills.length === 0)) {
+          console.log('[BROWSE_COACHES_NO_SKILLS_PROFILE]', {
+            userUlid: profile.userUlid,
+            timestamp: new Date().toISOString()
+          });
+          return false;
+        }
+        
         // Check if the coach has any skills in active domains or if their primary domain is active
         return (
           (profile.coachRealEstateDomains && profile.coachRealEstateDomains.some((domain: string) => 
@@ -232,18 +336,9 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
       });
 
       const transformedCoaches: BrowseCoachData[] = combinedData
-        .filter(coach => {
-          const hasCoachProfile = !!coach.CoachProfile;
-          if (!hasCoachProfile) {
-            console.log('[BROWSE_COACHES_MISSING_PROFILE]', { 
-              coachUlid: coach.ulid,
-              timestamp: new Date().toISOString()
-            });
-          }
-          return hasCoachProfile;
-        })
         .map((coach) => {
-          const transformedCoach = {
+          // Always create a transformed coach even if coach profile is missing
+          return {
             ulid: coach.ulid,
             userId: coach.userId,
             firstName: coach.firstName,
@@ -261,30 +356,12 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
             minimumDuration: coach.CoachProfile?.minimumDuration || 30,
             maximumDuration: coach.CoachProfile?.maximumDuration || 90,
             allowCustomDuration: coach.CoachProfile?.allowCustomDuration || false,
-            isActive: coach.CoachProfile?.isActive || false,
+            isActive: coach.CoachProfile?.isActive ?? true,
             slogan: coach.CoachProfile?.slogan || null,
             profileStatus: coach.CoachProfile?.profileStatus || 'DRAFT',
             completionPercentage: coach.CoachProfile?.completionPercentage || 0,
             profileSlug: coach.CoachProfile?.profileSlug || null
           };
-          
-          // Log incomplete profiles to help identify data quality issues
-          const incompleteFields = [];
-          if (!transformedCoach.firstName || !transformedCoach.lastName) incompleteFields.push('name');
-          if (!transformedCoach.bio) incompleteFields.push('bio');
-          if (!transformedCoach.profileImageUrl) incompleteFields.push('profileImage');
-          if (!transformedCoach.coachSkills.length) incompleteFields.push('skills');
-          if (!transformedCoach.hourlyRate) incompleteFields.push('hourlyRate');
-          
-          if (incompleteFields.length > 0) {
-            console.log('[BROWSE_COACHES_INCOMPLETE_PROFILE]', {
-              coachUlid: coach.ulid,
-              incompleteFields,
-              timestamp: new Date().toISOString()
-            });
-          }
-          
-          return transformedCoach;
         });
 
       console.log('[BROWSE_COACHES_TRANSFORM_COMPLETE]', { 
