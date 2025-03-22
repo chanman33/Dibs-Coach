@@ -113,6 +113,7 @@ export interface Goal {
 export interface ClientGoal {
   ulid: string;
   userUlid: string;
+  organizationUlid?: string; // Added for organization goals
   title: string;
   description: string | null;
   target: number; // Parsed from JSON
@@ -122,6 +123,18 @@ export interface ClientGoal {
   status: GoalStatus;
   createdAt: string;
   updatedAt: string;
+  organization?: { // Added for organization details
+    name: string;
+    type?: string;
+    industry?: string;
+  };
+  user?: { // Added for user details
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+    email?: string;
+    profileImageUrl?: string;
+  };
 }
 
 // Input types

@@ -25,7 +25,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { GOAL_STATUS, GOAL_TYPE } from "@/utils/types/goal";
-import { createOrganizationGoal } from "@/utils/actions/goals";
+import { createOrganizationGoal } from "@/utils/actions/goals-organization";
 
 // Form data type definition
 type GoalFormData = {

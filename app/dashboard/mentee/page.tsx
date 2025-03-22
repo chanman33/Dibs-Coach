@@ -41,7 +41,98 @@ function MenteeDashboard() {
           toast.error('Failed to load goal data')
           return
         }
-        setGoals(data || [])
+
+        // Transform the data to match ClientGoal interface and sort by personal/org goals
+        const transformedGoals = (data || []).map(goal => {
+          const typedGoal = goal as any;
+            
+          // Parse target value correctly
+          let targetValue = 0;
+          if (typedGoal.target) {
+            try {
+              if (typeof typedGoal.target === 'string') {
+                const parsedTarget = JSON.parse(typedGoal.target);
+                targetValue = parsedTarget?.value || 0;
+              } else if (typeof typedGoal.target === 'object') {
+                targetValue = typedGoal.target?.value || 0;
+              }
+            } catch (e) {
+              console.error('[TARGET_PARSE_ERROR]', {
+                error: e,
+                target: typedGoal.target,
+                goalId: typedGoal.ulid,
+                timestamp: new Date().toISOString()
+              });
+            }
+          }
+          
+          // Parse progress value correctly
+          let progressValue = 0;
+          if (typedGoal.progress) {
+            try {
+              if (typeof typedGoal.progress === 'string') {
+                const parsedProgress = JSON.parse(typedGoal.progress);
+                progressValue = parsedProgress?.value || 0;
+              } else if (typeof typedGoal.progress === 'object') {
+                progressValue = typedGoal.progress?.value || 0;
+              }
+            } catch (e) {
+              console.error('[PROGRESS_PARSE_ERROR]', {
+                error: e,
+                progress: typedGoal.progress,
+                goalId: typedGoal.ulid,
+                timestamp: new Date().toISOString()
+              });
+            }
+          }
+          
+          // Parse the due date correctly
+          let deadline = typedGoal.dueDate;
+          if (deadline) {
+            try {
+              const date = new Date(deadline);
+              if (!isNaN(date.getTime())) {
+                deadline = date.toISOString().split('T')[0];
+              }
+            } catch (e) {
+              console.error('[DATE_PARSE_ERROR]', {
+                error: e,
+                dueDate: typedGoal.dueDate,
+                goalId: typedGoal.ulid,
+                timestamp: new Date().toISOString()
+              });
+            }
+          }
+          
+          return {
+            ulid: typedGoal.ulid,
+            userUlid: typedGoal.userUlid,
+            organizationUlid: typedGoal.organizationUlid,
+            title: typedGoal.title,
+            description: typedGoal.description || null,
+            target: targetValue,
+            current: progressValue,
+            deadline: deadline,
+            type: typedGoal.type,
+            status: typedGoal.status,
+            createdAt: typedGoal.createdAt || new Date().toISOString(),
+            updatedAt: typedGoal.updatedAt || new Date().toISOString(),
+            organization: typedGoal.organization,
+            user: typedGoal.user
+          };
+        });
+
+        // Sort goals: personal goals first, then organization goals
+        const sortedGoals = transformedGoals.sort((a, b) => {
+          // If a is a personal goal and b is an org goal, a comes first
+          if (!a.organizationUlid && b.organizationUlid) return -1;
+          // If a is an org goal and b is a personal goal, b comes first
+          if (a.organizationUlid && !b.organizationUlid) return 1;
+          // If both are the same type, sort by creation date (newest first)
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        
+        setGoals(sortedGoals);
       } catch (error) {
         console.error('[FETCH_GOALS_ERROR]', error)
         toast.error('Failed to load goal data')
@@ -221,6 +312,11 @@ function MenteeDashboard() {
   }
 
   const formatValue = (value: number, format: string) => {
+    // Handle null or undefined values
+    if (value === null || value === undefined) {
+      return '0'
+    }
+
     switch (format) {
       case "currency":
         return new Intl.NumberFormat('en-US', {
@@ -550,10 +646,13 @@ function MenteeDashboard() {
                                 word.charAt(0).toUpperCase() + word.slice(1)
                               ).join(' ')}
                             </Badge>
-                            <Badge variant="secondary" className="flex items-center gap-1">
-                              <BarChart className="h-3 w-3" />
-                              {getProgressPercentage(currentGoal.current, currentGoal.target)}% Complete
-                            </Badge>
+                            {currentGoal.organizationUlid && currentGoal.organization && (
+                              <Badge variant="secondary" className="flex items-center gap-1">
+                                <Briefcase className="h-3 w-3" />
+                                {currentGoal.organization.name}
+                              </Badge>
+                            )}
+
                           </div>
                         </div>
                         <div className="flex items-center gap-1">

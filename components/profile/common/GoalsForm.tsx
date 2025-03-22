@@ -40,7 +40,7 @@ import { useForm, type SubmitHandler } from "react-hook-form"
 import * as z from "zod"
 import { Badge } from "@/components/ui/badge"
 import { PlusCircle, Pencil, X, Loader2, Target, Clock, TrendingUp, Trophy, Home, DollarSign, Users, Star, Globe, Award, BookOpen, Settings } from "lucide-react"
-import { createGoal, updateGoal, deleteGoal, fetchGoals } from "@/utils/actions/goals"
+import { fetchGoals, deleteGoal as deleteGoalAction, updateOrganizationGoal } from "@/utils/actions/goals"
 import { toast } from "sonner"
 import { 
   GOAL_STATUS, 
@@ -53,6 +53,13 @@ import {
   type ClientGoal
 } from "@/utils/types/goals"
 import { type ValidationError } from "@/utils/types/errors"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 // Validation schema
 const goalSchema = z.object({
@@ -143,11 +150,14 @@ const getGoalTypeIcon = (type: string) => {
 
 const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
   const [goals, setGoals] = useState<ClientGoal[]>([])
-  const [showForm, setShowForm] = useState(false)
+  const [isFormOpen, setIsFormOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [formErrors, setFormErrors] = useState<ValidationError['details']['fieldErrors']>({})
   const [currentEditingGoal, setCurrentEditingGoal] = useState<ClientGoal | null>(null)
+  const [isLoadingGoals, setIsLoadingGoals] = useState(true);
+  const [lastFetchTimestamp, setLastFetchTimestamp] = useState<number>(0);
+  const FETCH_COOLDOWN = 2000; // 2 seconds cooldown between fetches
 
   const form = useForm<GoalFormValues>({
     resolver: zodResolver(goalSchema),
@@ -163,44 +173,149 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
   })
 
   useEffect(() => {
-    loadGoals()
-  }, [])
+    const fetchGoalsWithCooldown = async () => {
+      const now = Date.now();
+      if (now - lastFetchTimestamp < FETCH_COOLDOWN) {
+        console.log('[FETCH_SKIPPED]', {
+          reason: 'cooldown',
+          timeSinceLastFetch: now - lastFetchTimestamp,
+          cooldown: FETCH_COOLDOWN,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      setIsLoadingGoals(true);
+      try {
+        const { data, error } = await fetchGoals({});
+        
+        if (error) {
+          console.error('[LOAD_GOALS_ERROR]', {
+            error,
+            timestamp: new Date().toISOString()
+          });
+          toast.error("Failed to load goals");
+          return;
+        }
+        
+        if (data) {
+          // Transform the data to match the ClientGoal interface
+          const clientGoals: ClientGoal[] = data.map(goal => {
+            const typedGoal = goal as any;
+            
+            // Parse target value correctly - handle both string JSON and object formats
+            let targetValue = 0;
+            if (typedGoal.target) {
+              try {
+                if (typeof typedGoal.target === 'string') {
+                  // If it's a JSON string, parse it
+                  const parsedTarget = JSON.parse(typedGoal.target);
+                  targetValue = parsedTarget?.value || 0;
+                } else if (typeof typedGoal.target === 'object') {
+                  // If it's already an object, use the value directly
+                  targetValue = typedGoal.target?.value || 0;
+                }
+              } catch (e) {
+                console.error('[TARGET_PARSE_ERROR]', {
+                  error: e,
+                  target: typedGoal.target,
+                  goalId: typedGoal.ulid,
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+            
+            // Parse progress value correctly - handle both string JSON and object formats
+            let progressValue = 0;
+            if (typedGoal.progress) {
+              try {
+                if (typeof typedGoal.progress === 'string') {
+                  // If it's a JSON string, parse it
+                  const parsedProgress = JSON.parse(typedGoal.progress);
+                  progressValue = parsedProgress?.value || 0;
+                } else if (typeof typedGoal.progress === 'object') {
+                  // If it's already an object, use the value directly
+                  progressValue = typedGoal.progress?.value || 0;
+                }
+              } catch (e) {
+                console.error('[PROGRESS_PARSE_ERROR]', {
+                  error: e,
+                  progress: typedGoal.progress,
+                  goalId: typedGoal.ulid,
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+            
+            // Parse the due date correctly
+            let deadline = typedGoal.dueDate;
+            if (deadline) {
+              try {
+                // Try to format the date as YYYY-MM-DD for form compatibility
+                const date = new Date(deadline);
+                if (!isNaN(date.getTime())) {
+                  deadline = date.toISOString().split('T')[0];
+                }
+              } catch (e) {
+                console.error('[DATE_PARSE_ERROR]', {
+                  error: e,
+                  dueDate: typedGoal.dueDate,
+                  goalId: typedGoal.ulid,
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+            
+            return {
+              ulid: typedGoal.ulid,
+              userUlid: typedGoal.userUlid,
+              organizationUlid: typedGoal.organizationUlid,
+              title: typedGoal.title,
+              description: typedGoal.description || null,
+              target: targetValue,
+              current: progressValue,
+              deadline: deadline,
+              type: typedGoal.type as GoalType,
+              status: typedGoal.status as GoalStatus,
+              createdAt: typedGoal.createdAt || new Date().toISOString(),
+              updatedAt: typedGoal.updatedAt || new Date().toISOString(),
+              organization: typedGoal.organization,
+              user: typedGoal.user
+            };
+          });
+          
+          setGoals(clientGoals);
+          setLastFetchTimestamp(now);
+        }
+      } catch (error) {
+        console.error("[LOAD_GOALS_ERROR]", {
+          error,
+          stack: error instanceof Error ? error.stack : undefined,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Failed to load goals");
+      } finally {
+        setIsLoadingGoals(false);
+        setIsInitialLoading(false);
+      }
+    };
+
+    fetchGoalsWithCooldown();
+  }, [lastFetchTimestamp]);
 
   const loadGoals = async () => {
-    try {
-      console.log('[LOAD_GOALS_START]', {
+    const now = Date.now();
+    if (now - lastFetchTimestamp < FETCH_COOLDOWN) {
+      console.log('[MANUAL_FETCH_SKIPPED]', {
+        reason: 'cooldown',
+        timeSinceLastFetch: now - lastFetchTimestamp,
+        cooldown: FETCH_COOLDOWN,
         timestamp: new Date().toISOString()
       });
-
-      const { data, error } = await fetchGoals({})
-      
-      if (error) {
-        console.error('[LOAD_GOALS_ERROR]', {
-          error,
-          timestamp: new Date().toISOString()
-        });
-        toast.error("Failed to load goals")
-        return
-      }
-      
-      if (data) {
-        console.log('[LOAD_GOALS_SUCCESS]', {
-          count: data.length,
-          timestamp: new Date().toISOString()
-        });
-        setGoals(data)
-      }
-    } catch (error) {
-      console.error("[LOAD_GOALS_ERROR]", {
-        error,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
-      });
-      toast.error("Failed to load goals")
-    } finally {
-      setIsInitialLoading(false)
+      return;
     }
-  }
+    setLastFetchTimestamp(now);
+  };
 
   const handleSubmit: SubmitHandler<GoalFormValues> = async (data) => {
     setIsLoading(true);
@@ -228,11 +343,10 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
         return;
       }
 
-      // Prepare the goal data with the correct field names for the database schema
-      const baseGoalData = {
+      // Prepare the goal data for the onSubmit handler
+      const formValues: GoalFormValues = {
         title: data.title,
         description: data.description,
-        // These fields will be converted to the correct database format in the server action
         target: data.target,
         current: data.current,
         deadline: data.deadline,
@@ -241,15 +355,38 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       };
 
       console.log('[GOAL_SUBMIT]', {
-        data: baseGoalData,
+        data: formValues,
         isEdit: !!currentEditingGoal,
         timestamp: new Date().toISOString()
       });
 
       if (currentEditingGoal) {
-        const result = await updateGoal({ 
+        // For editing, format data for the updateOrganizationGoal API
+        const apiData = {
+          title: data.title,
+          description: data.description || "",
+          target: { 
+            value: Number(data.target)  // Ensure it's converted to a number
+          },
+          progress: { 
+            value: Number(data.current), // Ensure it's converted to a number
+            lastUpdated: new Date().toISOString()
+          },
+          startDate: new Date(currentEditingGoal.createdAt),
+          dueDate: new Date(data.deadline),
+          type: data.type,
+          status: data.status || GOAL_STATUS.IN_PROGRESS,
+        };
+        
+        console.log('[UPDATE_GOAL_DATA]', {
+          goalId: currentEditingGoal.ulid,
+          data: apiData,
+          timestamp: new Date().toISOString()
+        });
+        
+        const result = await updateOrganizationGoal({ 
           goalUlid: currentEditingGoal.ulid,
-          ...baseGoalData 
+          data: apiData 
         });
         if (result.error) {
           console.error('[UPDATE_GOAL_ERROR]', {
@@ -258,12 +395,98 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
           });
           throw result.error;
         }
+
+        // Force an immediate refresh of goals after update
+        const { data: freshGoals, error } = await fetchGoals({});
+        if (!error && freshGoals) {
+          // Transform the data to match the ClientGoal interface
+          const clientGoals: ClientGoal[] = freshGoals.map(goal => {
+            const typedGoal = goal as any;
+            
+            // Parse target value correctly
+            let targetValue = 0;
+            if (typedGoal.target) {
+              try {
+                if (typeof typedGoal.target === 'string') {
+                  const parsedTarget = JSON.parse(typedGoal.target);
+                  targetValue = parsedTarget?.value || 0;
+                } else if (typeof typedGoal.target === 'object') {
+                  targetValue = typedGoal.target?.value || 0;
+                }
+              } catch (e) {
+                console.error('[TARGET_PARSE_ERROR]', {
+                  error: e,
+                  target: typedGoal.target,
+                  goalId: typedGoal.ulid,
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+            
+            // Parse progress value correctly
+            let progressValue = 0;
+            if (typedGoal.progress) {
+              try {
+                if (typeof typedGoal.progress === 'string') {
+                  const parsedProgress = JSON.parse(typedGoal.progress);
+                  progressValue = parsedProgress?.value || 0;
+                } else if (typeof typedGoal.progress === 'object') {
+                  progressValue = typedGoal.progress?.value || 0;
+                }
+              } catch (e) {
+                console.error('[PROGRESS_PARSE_ERROR]', {
+                  error: e,
+                  progress: typedGoal.progress,
+                  goalId: typedGoal.ulid,
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+            
+            // Parse the due date correctly
+            let deadline = typedGoal.dueDate;
+            if (deadline) {
+              try {
+                const date = new Date(deadline);
+                if (!isNaN(date.getTime())) {
+                  deadline = date.toISOString().split('T')[0];
+                }
+              } catch (e) {
+                console.error('[DATE_PARSE_ERROR]', {
+                  error: e,
+                  dueDate: typedGoal.dueDate,
+                  goalId: typedGoal.ulid,
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+            
+            return {
+              ulid: typedGoal.ulid,
+              userUlid: typedGoal.userUlid,
+              organizationUlid: typedGoal.organizationUlid,
+              title: typedGoal.title,
+              description: typedGoal.description || null,
+              target: targetValue,
+              current: progressValue,
+              deadline: deadline,
+              type: typedGoal.type as GoalType,
+              status: typedGoal.status as GoalStatus,
+              createdAt: typedGoal.createdAt || new Date().toISOString(),
+              updatedAt: typedGoal.updatedAt || new Date().toISOString(),
+              organization: typedGoal.organization,
+              user: typedGoal.user
+            };
+          });
+          
+          setGoals(clientGoals);
+        }
       } else {
-        await onSubmit(baseGoalData);
+        // For new goals, use the form values
+        await onSubmit(formValues);
       }
       
       toast.success(`Goal ${currentEditingGoal ? 'updated' : 'created'} successfully!`);
-      await loadGoals();
       handleCloseForm();
     } catch (error) {
       console.error('[SUBMIT_GOAL_ERROR]', {
@@ -278,24 +501,29 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
   };
 
   const handleEditGoal = (goal: ClientGoal) => {
-    setCurrentEditingGoal(goal)
+    console.log('[EDIT_GOAL]', {
+      goal,
+      timestamp: new Date().toISOString()
+    });
     
-    // Reset form with values from the goal
+    // Reset form
     form.reset({
       title: goal.title,
-      description: goal.description || undefined,
-      target: goal.target,
-      current: goal.current,
-      deadline: goal.deadline,
-      type: goal.type as GoalType,
-      status: goal.status as GoalStatus
-    })
+      description: goal.description || '',
+      // Ensure numeric values are properly converted
+      target: typeof goal.target === 'number' ? goal.target : Number(goal.target) || 0,
+      current: typeof goal.current === 'number' ? goal.current : Number(goal.current) || 0,
+      deadline: goal.deadline || new Date().toISOString().split('T')[0],
+      type: goal.type,
+      status: goal.status
+    });
     
-    setShowForm(true)
-  }
+    setCurrentEditingGoal(goal);
+    setIsFormOpen(true);
+  };
 
   const handleCloseForm = () => {
-    setShowForm(false)
+    setIsFormOpen(false)
     setCurrentEditingGoal(null)
     form.reset({
       title: "",
@@ -319,13 +547,13 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       type: GOAL_TYPE.CUSTOM,
       deadline: new Date().toISOString().split('T')[0],
     })
-    setShowForm(true)
+    setIsFormOpen(true)
   }
 
   const handleDeleteGoal = async (goal: ClientGoal) => {
     setIsLoading(true)
     try {
-      const { error } = await deleteGoal({ goalUlid: goal.ulid })
+      const { error } = await deleteGoalAction(goal.ulid)
       if (error) throw error
       toast.success("Goal deleted successfully")
       await loadGoals()
@@ -351,8 +579,15 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
   }
 
   const getProgressPercentage = (current: number, target: number) => {
-    return Math.min(Math.round((current / target) * 100), 100)
-  }
+    if (!target || target <= 0) return 0;
+    if (current >= target) return 100;
+    
+    // Calculate percentage with safety checks
+    const percentage = Math.min(100, Math.max(0, (current / target) * 100));
+    
+    // If it's not a valid number, return 0
+    return isNaN(percentage) || !isFinite(percentage) ? 0 : percentage;
+  };
 
   const getFormatForGoalType = (type: string): "number" | "currency" | "percentage" | "time" => {
     switch (type) {
@@ -458,6 +693,10 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
     { value: "custom", label: "Custom Goal", group: "Other" },
   ]
 
+  // Group goals by personal and organization
+  const personalGoals = goals.filter(goal => !goal.organizationUlid || goal.userUlid === goal.organizationUlid);
+  const organizationGoals = goals.filter(goal => goal.organizationUlid && goal.userUlid !== goal.organizationUlid);
+
   return (
     <div className="space-y-8">
       {/* Goals List */}
@@ -495,80 +734,127 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
             </div>
           </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {goals.map((goal) => (
-              <Card key={goal.ulid} className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h4 className="font-semibold">{goal.title}</h4>
-                    <Badge variant="secondary" className="mt-1 flex items-center gap-1.5">
-                      {getGoalTypeIcon(goal.type)}
-                      {goal.type.split('_').map(word => 
-                        word.charAt(0).toUpperCase() + word.slice(1)
-                      ).join(' ')}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={getStatusColor(goal.status)}>
-                      {goal.status.replace(/_/g, " ").toUpperCase()}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditGoal(goal)}
-                      className="h-8 w-8 p-0"
-                      disabled={isLoading}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                  </div>
+          <div className="flex flex-col gap-8">
+            {personalGoals.length > 0 && (
+              <div>
+                <h4 className="text-md font-semibold mb-4">Your Personal Goals</h4>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {personalGoals.map((goal) => (
+                    <Card key={goal.ulid} className="p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h4 className="font-semibold">{goal.title}</h4>
+                          <Badge variant="secondary" className="mt-1 flex items-center gap-1.5">
+                            {getGoalTypeIcon(goal.type)}
+                            {goal.type.split('_').map(word => 
+                              word.charAt(0).toUpperCase() + word.slice(1)
+                            ).join(' ')}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getStatusColor(goal.status)}>
+                            {goal.status.replace(/_/g, " ").toUpperCase()}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditGoal(goal)}
+                            className="h-8 w-8 p-0"
+                            disabled={isLoading}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-2">{goal.description}</p>
+                      <div className="mt-4 space-y-2">
+                        <div className="text-sm font-medium text-gray-700">Progress:</div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-gray-200 rounded-full">
+                            <div 
+                              className="h-2 bg-blue-500 rounded-full"
+                              style={{ width: `${getProgressPercentage(goal.current, goal.target)}%` }}
+                            />
+                          </div>
+                          <span className="text-sm text-gray-600">
+                            {formatValue(goal.current, getFormatForGoalType(goal.type))} / {formatValue(goal.target, getFormatForGoalType(goal.type))}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-2 text-sm text-gray-600">
+                        Deadline: {new Date(goal.deadline).toLocaleDateString()}
+                      </div>
+                    </Card>
+                  ))}
                 </div>
-                <p className="text-sm text-gray-600 mt-2">{goal.description}</p>
-                <div className="mt-4 space-y-2">
-                  <div className="text-sm font-medium text-gray-700">Progress:</div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-2 bg-gray-200 rounded-full">
-                      <div 
-                        className="h-2 bg-blue-500 rounded-full"
-                        style={{ width: `${getProgressPercentage(goal.current, goal.target)}%` }}
-                      />
-                    </div>
-                    <span className="text-sm text-gray-600">
-                      {formatValue(goal.current, getFormatForGoalType(goal.type))} / {formatValue(goal.target, getFormatForGoalType(goal.type))}
-                    </span>
-                  </div>
+              </div>
+            )}
+            
+            {organizationGoals.length > 0 && (
+              <div>
+                <h4 className="text-md font-semibold mb-4">Organization Goals</h4>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {organizationGoals.map((goal) => (
+                    <Card key={goal.ulid} className="p-4 border-indigo-300">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold">{goal.title}</h4>
+                            {goal.organization && (
+                              <Badge variant="outline" className="bg-indigo-50">
+                                {goal.organization.name}
+                              </Badge>
+                            )}
+                          </div>
+                          <Badge variant="secondary" className="mt-1 flex items-center gap-1.5">
+                            {getGoalTypeIcon(goal.type)}
+                            {goal.type.split('_').map(word => 
+                              word.charAt(0).toUpperCase() + word.slice(1)
+                            ).join(' ')}
+                          </Badge>
+                        </div>
+                        <Badge className={getStatusColor(goal.status)}>
+                          {goal.status.replace(/_/g, " ").toUpperCase()}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-2">{goal.description}</p>
+                      <div className="mt-4 space-y-2">
+                        <div className="text-sm font-medium text-gray-700">Progress:</div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-gray-200 rounded-full">
+                            <div 
+                              className="h-2 bg-indigo-500 rounded-full"
+                              style={{ width: `${getProgressPercentage(goal.current, goal.target)}%` }}
+                            />
+                          </div>
+                          <span className="text-sm text-gray-600">
+                            {formatValue(goal.current, getFormatForGoalType(goal.type))} / {formatValue(goal.target, getFormatForGoalType(goal.type))}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-2 text-sm text-gray-600">
+                        Deadline: {new Date(goal.deadline).toLocaleDateString()}
+                      </div>
+                    </Card>
+                  ))}
                 </div>
-                <div className="mt-2 text-sm text-gray-600">
-                  Deadline: {new Date(goal.deadline).toLocaleDateString()}
-                </div>
-              </Card>
-            ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Goal Form */}
-      {showForm && (
-        <Card className="p-6">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h3 className="text-lg font-semibold">
-                {currentEditingGoal ? 'Update Goal' : 'Add New Goal'}
-              </h3>
-              <p className="text-sm text-muted-foreground mt-1">
-                Fields marked with <span className="text-destructive">*</span> are required
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCloseForm}
-              className="h-8 w-8 p-0"
-              disabled={isLoading}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+      {/* Goal Form Dialog */}
+      <Dialog open={isFormOpen} onOpenChange={(open) => !isLoading && !open && handleCloseForm()}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              {currentEditingGoal ? 'Update Goal' : 'Add New Goal'}
+            </DialogTitle>
+            <DialogDescription>
+              Fields marked with <span className="text-destructive">*</span> are required
+            </DialogDescription>
+          </DialogHeader>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8">
@@ -826,8 +1112,8 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
               </div>
             </form>
           </Form>
-        </Card>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

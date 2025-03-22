@@ -48,7 +48,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { GOAL_STATUS, GOAL_TYPE, GoalStatus } from "@/utils/types/goal";
-import { fetchOrganizationGoals, createOrganizationGoal, updateOrganizationGoal } from "@/utils/actions/goals";
+import { fetchOrganizationGoals, createOrganizationGoal, updateOrganizationGoal, deleteOrganizationGoal } from "@/utils/actions/goals-organization";
 import { fetchOrganizationMembers } from "@/utils/actions/organization-members";
 import { fetchUserOrganizations } from "@/utils/actions/organization-actions";
 import { cn } from "@/lib/utils";

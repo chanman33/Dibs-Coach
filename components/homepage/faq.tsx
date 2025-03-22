@@ -39,7 +39,7 @@ export function FAQ() {
                 <AccordionItem value="item-4">
                     <AccordionTrigger>What's the difference between subscription tiers?</AccordionTrigger>
                     <AccordionContent>
-                        Our tiers are designed for different stages of your real estate career. The Starter plan ($199/mo) includes one monthly session and basic AI tools. Growth Pro ($599/mo) includes four monthly sessions and advanced AI features. Elite Brokerage is customized for teams with volume-based pricing and white-labeled solutions. Save 10% with annual billing on all plans.
+                        We offer two main options: a Free tier that lets you pay-as-you-go for individual coaching sessions, and our Team & Enterprise solution for brokerages and real estate teams. The Free tier gives you access to book individual sessions at standard rates, while the Team & Enterprise option includes custom coaching programs, volume-based session pricing, and dedicated support for your entire team.
                     </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="item-5">
