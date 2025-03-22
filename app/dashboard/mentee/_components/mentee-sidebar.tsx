@@ -32,6 +32,7 @@ export function MenteeSidebar() {
   const pathname = usePathname()
   const [isToolsExpanded, setIsToolsExpanded] = useState(true)
   const [isOrgExpanded, setIsOrgExpanded] = useState(true)
+  const [isRealtorToolsExpanded, setIsRealtorToolsExpanded] = useState(true)
   const authContext = useAuthContext()
   const [hasRealtorDomain, setHasRealtorDomain] = useState(false)
   const { organizationName, organizationRole, organizations } = useOrganization()
@@ -144,21 +145,26 @@ export function MenteeSidebar() {
 
             {/* Shared Tools */}
             <Separator className="my-3" />
-            <div className="pl-3">
-              {/* <NavLink href="/dashboard/mentee/tools/ai-agent" icon={Bot}>
-                AI Agent
-              </NavLink>
-              <NavLink href="/dashboard/mentee/tools/ai-listings" icon={Building2}>
-                AI Listing Generator
-              </NavLink> */}
 
-              {/* Income Calculator - Only show if user has REALTOR domain */}
-              {hasRealtorDomain && (
-                <NavLink href="/dashboard/mentee/tools/income-calc" icon={Calculator}>
-                  Income Calculator
-                </NavLink>
-              )}
-            </div>
+            {/* Realtor Tools - Only show if user has REALTOR domain */}
+            {hasRealtorDomain && (
+              <>
+                <button
+                  onClick={() => setIsRealtorToolsExpanded(!isRealtorToolsExpanded)}
+                  className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
+                >
+                  <span className="font-semibold">Realtor Tools</span>
+                  {isRealtorToolsExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </button>
+                {isRealtorToolsExpanded && (
+                  <div className="pl-3 grid gap-1">
+                    <NavLink href="/dashboard/mentee/tools/income-calc" icon={Calculator}>
+                      Income Calculator
+                    </NavLink>
+                  </div>
+                )}
+              </>
+            )}
           </nav>
         </div>
       </div>
