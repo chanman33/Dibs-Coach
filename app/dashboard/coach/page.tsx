@@ -1035,13 +1035,13 @@ export default function CoachDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center pb-2">
-            <div className="grid gap-1">
-              <CardTitle className="flex items-center gap-2 text-xl">
+          <CardHeader className="flex flex-row items-center pb-3">
+            <div className="grid gap-1.5">
+              <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-primary" />
                 Financial Overview
               </CardTitle>
-              <CardDescription className="text-sm">
+              <CardDescription>
                 Detailed revenue and payment tracking
               </CardDescription>
             </div>
@@ -1052,8 +1052,8 @@ export default function CoachDashboard() {
               </Link>
             </Button>
           </CardHeader>
-          <CardContent>
-            <div>
+          <CardContent className="pt-2">
+            <div style={{ maxHeight: '320px', overflowY: 'auto' }} className="pr-2">
               {isLoading || isLoadingAnalytics ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -1061,20 +1061,20 @@ export default function CoachDashboard() {
               ) : (
                 <>
                   {/* Payment Status */}
-                  <div className="mb-5">
+                  <div className="mb-6">
                     <h3 className="text-sm font-medium flex items-center mb-3">
                       <Wallet className="h-4 w-4 mr-2 text-primary" />
                       Payment Status
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-muted/20 rounded-lg hover:bg-muted/30 transition-colors">
+                      <div className="p-3 bg-muted/30 rounded-lg hover:bg-muted/40 transition-colors">
                         <div className="text-xs text-muted-foreground">Pending Payout</div>
                         <div className="text-2xl font-semibold mt-1.5 flex items-baseline">
                           <span className="text-base mr-0.5">$</span>
                           <span>{analyticsData?.availableBalance || 0}</span>
                         </div>
                       </div>
-                      <div className="p-3 bg-muted/20 rounded-lg hover:bg-muted/30 transition-colors">
+                      <div className="p-3 bg-muted/30 rounded-lg hover:bg-muted/40 transition-colors">
                         <div className="text-xs text-muted-foreground">Next Payment</div>
                         <div className="text-2xl font-semibold mt-1.5">
                           {analyticsData?.nextPayoutDate ? format(new Date(analyticsData.nextPayoutDate), 'MMM d') : 'N/A'}
@@ -1084,12 +1084,12 @@ export default function CoachDashboard() {
                   </div>
                   
                   {/* Monthly Revenue Comparison */}
-                  <div className="mb-5">
+                  <div>
                     <h3 className="text-sm font-medium flex items-center mb-3">
                       <TrendingUp className="h-4 w-4 mr-2 text-primary" />
                       Monthly Performance
                     </h3>
-                    <div className="p-3 bg-muted/20 rounded-lg hover:bg-muted/30 transition-colors">
+                    <div className="p-3.5 bg-muted/30 rounded-lg hover:bg-muted/40 transition-colors">
                       <div className="flex items-center justify-between">
                         <div className="grid grid-cols-2 gap-6">
                           <div>
@@ -1112,33 +1112,6 @@ export default function CoachDashboard() {
                             <ArrowUpDown className="h-4 w-4 mr-1" />
                             {dashboardStats?.revenueGrowth ? Math.abs(dashboardStats.revenueGrowth) : 0}%
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Session Economics */}
-                  <div>
-                    <h3 className="text-sm font-medium flex items-center mb-3">
-                      <FileText className="h-4 w-4 mr-2 text-primary" />
-                      Session Economics
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-3 bg-muted/20 rounded-lg hover:bg-muted/30 transition-colors">
-                        <div className="text-xs text-muted-foreground">Avg. Revenue/Session</div>
-                        <div className="text-2xl font-semibold mt-1.5 flex items-baseline">
-                          <span className="text-base mr-0.5">$</span>
-                          <span>
-                            {analyticsData?.totalSessions && analyticsData.totalEarnings 
-                              ? Math.round(analyticsData.totalEarnings / analyticsData.totalSessions) 
-                              : 0}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="p-3 bg-muted/20 rounded-lg hover:bg-muted/30 transition-colors">
-                        <div className="text-xs text-muted-foreground">Sessions to Date</div>
-                        <div className="text-2xl font-semibold mt-1.5">
-                          {analyticsData?.totalSessions || 0}
                         </div>
                       </div>
                     </div>
