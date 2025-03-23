@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
 import { CoachProfileFormValues, CoachProfileInitialData } from "../types";
 import { ProfileStatus } from "@/utils/types/coach";
-import { ProfessionalRecognition } from "@/utils/types/recognition";
+import { ProfessionalRecognition, SerializableProfessionalRecognition } from "@/utils/types/recognition";
 import { toast } from "sonner";
 import { updateRecognitions } from "@/utils/actions/recognition-actions";
 import { 
@@ -896,20 +896,24 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updateRecognitionsData = async (data: ProfessionalRecognition[]) => {
     setIsSubmitting(true);
     try {
+      // Convert dates to ISO strings for server action
+      const serializableData: SerializableProfessionalRecognition[] = data.map(rec => ({
+        ...rec,
+        issueDate: rec.issueDate instanceof Date ? rec.issueDate.toISOString() : String(rec.issueDate),
+        expiryDate: rec.expiryDate instanceof Date ? rec.expiryDate.toISOString() : 
+                   (rec.expiryDate ? String(rec.expiryDate) : null),
+        createdAt: rec.createdAt instanceof Date ? rec.createdAt.toISOString() : rec.createdAt,
+        updatedAt: rec.updatedAt instanceof Date ? rec.updatedAt.toISOString() : rec.updatedAt
+      }));
+      
       console.log("[PROFILE_CONTEXT_UPDATE_RECOGNITIONS]", {
-        recognitionsCount: data.length,
-        recognitions: JSON.stringify(data, (key, value) => {
-          // Handle Date objects for logging
-          if (value instanceof Date) {
-            return value.toISOString();
-          }
-          return value;
-        }, 2),
+        recognitionsCount: serializableData.length,
+        recognitions: JSON.stringify(serializableData),
         timestamp: new Date().toISOString()
       });
       
       // Call the server action to update recognitions
-      const result = await updateRecognitions(data);
+      const result = await updateRecognitions(serializableData);
       
       console.log("[PROFILE_CONTEXT_RECOGNITION_RESULT]", {
         success: !result.error,

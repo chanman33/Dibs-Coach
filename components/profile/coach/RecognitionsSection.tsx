@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react";
-import { ProfessionalRecognition } from "@/utils/types/recognition";
+import { ProfessionalRecognition, SerializableProfessionalRecognition } from "@/utils/types/recognition";
 import { RecognitionsTab } from "@/components/profile/coach/RecognitionsTab";
 import { updateRecognitions, testDirectDatabaseAccess } from "@/utils/actions/recognition-actions";
 import { toast } from "sonner";
@@ -24,18 +24,12 @@ export function RecognitionsSection({
   const [recognitions, setRecognitions] = useState<ProfessionalRecognition[]>(initialRecognitions);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (updatedRecognitions: ProfessionalRecognition[]) => {
+  const handleSubmit = async (updatedRecognitions: SerializableProfessionalRecognition[]) => {
     setIsSubmitting(true);
     try {
       console.log("[RECOGNITION_SECTION_SUBMIT]", {
         recognitionsCount: updatedRecognitions.length,
-        recognitions: JSON.stringify(updatedRecognitions, (key, value) => {
-          // Handle Date objects for logging
-          if (value instanceof Date) {
-            return value.toISOString();
-          }
-          return value;
-        }, 2),
+        recognitions: JSON.stringify(updatedRecognitions),
         timestamp: new Date().toISOString()
       });
       

@@ -97,7 +97,7 @@ export function BusinessSidebar() {
                 <NavLink href="/dashboard/business/performance/goals" icon={Target}>
                   Goal Tracking
                 </NavLink>
-                <NavLink href="/dashboard/business/performance/ " icon={UserCog}>
+                <NavLink href="/dashboard/business/performance/plans" icon={UserCog}>
                   Development Plans
                 </NavLink>
                 <NavLink href="/dashboard/business/performance/analytics" icon={BarChart3}>

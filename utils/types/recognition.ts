@@ -31,21 +31,25 @@ export const ProfessionalRecognitionSchema = z.object({
   issueDate: z.union([
     z.string(),
     z.date()
-  ]).transform(val => typeof val === 'string' ? new Date(val) : val),
+  ]),
   expiryDate: z.union([
     z.string(),
     z.date(),
     z.null()
-  ]).nullable().optional()
-    .transform(val => val && typeof val === 'string' ? new Date(val) : val),
+  ]).nullable().optional(),
   verificationUrl: z.string().nullable().optional(),
   isVisible: z.boolean().default(true),
   industryType: z.string().nullable().optional(),
   metadata: z.record(z.any()).nullable().optional(),
-  createdAt: z.union([z.string(), z.date()]).optional()
-    .transform(val => val && typeof val === 'string' ? new Date(val) : val),
-  updatedAt: z.union([z.string(), z.date()]).optional()
-    .transform(val => val && typeof val === 'string' ? new Date(val) : val),
+  createdAt: z.union([z.string(), z.date()]).optional(),
+  updatedAt: z.union([z.string(), z.date()]).optional(),
 });
 
 export type ProfessionalRecognition = z.infer<typeof ProfessionalRecognitionSchema>;
+
+export type SerializableProfessionalRecognition = Omit<ProfessionalRecognition, 'issueDate' | 'expiryDate' | 'createdAt' | 'updatedAt'> & {
+  issueDate: string;
+  expiryDate?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+};

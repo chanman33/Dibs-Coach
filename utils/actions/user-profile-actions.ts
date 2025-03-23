@@ -442,24 +442,36 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
         source: 'server'
       });
 
-      // Use the realEstateDomains as both domain specialties and active domains
-      const realEstateDomains = userData.realEstateDomains || [];
+      // Ensure all data is primitives (strings, numbers, booleans, etc.)
+      // Create new primitive arrays to avoid potential prototype issues
+      const capabilities = Array.isArray(userData.capabilities) 
+        ? userData.capabilities.map(cap => String(cap)) 
+        : [];
+      
+      const realEstateDomains = Array.isArray(userData.realEstateDomains) 
+        ? userData.realEstateDomains.map(domain => String(domain)) 
+        : [];
+      
+      const primaryRealEstateDomain = userData.primaryDomain 
+        ? String(userData.primaryDomain) 
+        : null;
 
       // Log processed data before returning
       console.log("[FETCH_USER_CAPABILITIES_PROCESSED]", {
         userUlid,
-        processedCapabilities: userData.capabilities || [],
+        processedCapabilities: capabilities,
         processedRealEstateDomains: realEstateDomains,
-        processedPrimaryDomain: userData.primaryDomain,
+        processedPrimaryDomain: primaryRealEstateDomain,
         timestamp: new Date().toISOString(),
         source: 'server'
       });
 
+      // Return a plain object with primitives
       return {
         data: {
-          capabilities: userData.capabilities || [],
+          capabilities,
           realEstateDomains,
-          primaryRealEstateDomain: userData.primaryDomain
+          primaryRealEstateDomain
         },
         error: null
       };

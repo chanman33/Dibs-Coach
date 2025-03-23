@@ -5,7 +5,7 @@ import { createAuthClient } from "../auth"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import type { ApiResponse } from "@/utils/types/api"
 import { revalidatePath } from "next/cache"
-import { ProfessionalRecognition, ProfessionalRecognitionSchema } from "@/utils/types/recognition"
+import { ProfessionalRecognition, ProfessionalRecognitionSchema, SerializableProfessionalRecognition } from "@/utils/types/recognition"
 
 interface UpdateRecognitionsResponse {
   success: boolean;
@@ -13,7 +13,7 @@ interface UpdateRecognitionsResponse {
 }
 
 // Helper function to prepare recognition data for Supabase
-const prepareForDatabase = (recognition: ProfessionalRecognition, userUlid: string, timestamp: string) => {
+const prepareForDatabase = (recognition: SerializableProfessionalRecognition, userUlid: string, timestamp: string) => {
   // Ensure ulid is always a string
   if (!recognition.ulid) {
     console.error("[PREPARE_DATABASE_ERROR]", {
@@ -28,9 +28,7 @@ const prepareForDatabase = (recognition: ProfessionalRecognition, userUlid: stri
     ulid: recognition.ulid,
     title: recognition.title,
     type: recognition.type,
-    issueDate: recognition.issueDate instanceof Date 
-      ? recognition.issueDate.toISOString() 
-      : recognition.issueDate,
+    issueDate: recognition.issueDate,
     isVisible: recognition.isVisible,
     industryType: recognition.industryType,
     hasMetadata: !!recognition.metadata,
@@ -45,12 +43,8 @@ const prepareForDatabase = (recognition: ProfessionalRecognition, userUlid: stri
     type: recognition.type,
     description: recognition.description || null,
     issuer: recognition.issuer || null,
-    issueDate: recognition.issueDate instanceof Date 
-      ? recognition.issueDate.toISOString() 
-      : recognition.issueDate,
-    expiryDate: recognition.expiryDate instanceof Date 
-      ? recognition.expiryDate.toISOString() 
-      : recognition.expiryDate,
+    issueDate: recognition.issueDate, // Already a string
+    expiryDate: recognition.expiryDate || null, // Already a string or null
     verificationUrl: recognition.verificationUrl || null,
     isVisible: recognition.isVisible !== false,
     industryType: recognition.industryType || null,
@@ -80,7 +74,7 @@ const convertFromDatabase = (record: any): ProfessionalRecognition => {
   };
 };
 
-export const updateRecognitions = withServerAction<UpdateRecognitionsResponse, ProfessionalRecognition[]>(
+export const updateRecognitions = withServerAction<UpdateRecognitionsResponse, SerializableProfessionalRecognition[]>(
   async (recognitions, { userUlid }) => {
     try {
       // Debug authentication context
@@ -112,8 +106,13 @@ export const updateRecognitions = withServerAction<UpdateRecognitionsResponse, P
         timestamp: new Date().toISOString()
       });
       
-      // Validate all recognitions
-      const validationResults = recognitions.map(recognition => 
+      // Validate all recognitions - prepare data for validation
+      const validationData = recognitions.map(recognition => ({
+        ...recognition,
+        // No need to convert strings to Date here since we removed transforms
+      }));
+      
+      const validationResults = validationData.map(recognition => 
         ProfessionalRecognitionSchema.safeParse(recognition)
       );
 
@@ -261,60 +260,43 @@ export const updateRecognitions = withServerAction<UpdateRecognitionsResponse, P
       
       console.log("[SERVER_ACTION_UPSERT_SUCCESS]", {
         userUlid,
-        timestamp
-      });
-
-      // Fetch updated recognitions
-      console.log("[SERVER_ACTION_FETCHING_UPDATED]", {
-        userUlid,
+        upsertCount: upsertData.length,
         timestamp
       });
       
-      const { data: updatedRecognitions, error: refetchError } = await supabase
+      // Fetch updated recognitions
+      const { data: updatedRecognitions, error: fetchUpdatedError } = await supabase
         .from("ProfessionalRecognition")
         .select("*")
-        .eq("userUlid", userUlid)
-        .order("issueDate", { ascending: false });
-
-      if (refetchError) {
-        console.error("[REFETCH_RECOGNITIONS_ERROR]", {
+        .eq("userUlid", userUlid);
+        
+      if (fetchUpdatedError) {
+        console.error("[FETCH_UPDATED_RECOGNITIONS_ERROR]", {
           userUlid,
-          error: refetchError,
-          timestamp
+          error: fetchUpdatedError,
+          timestamp: new Date().toISOString()
         });
         return {
           data: null,
           error: {
             code: "DATABASE_ERROR",
             message: "Failed to fetch updated recognitions",
-            details: refetchError
+            details: fetchUpdatedError
           }
         };
       }
       
-      console.log("[SERVER_ACTION_UPDATED_RECOGNITIONS]", {
-        userUlid,
-        updatedCount: updatedRecognitions?.length || 0,
-        timestamp
-      });
-
-      // Convert the database response to the expected ProfessionalRecognition type
-      const typedRecognitions: ProfessionalRecognition[] = updatedRecognitions.map(convertFromDatabase);
-
-      revalidatePath('/dashboard/coach/profile');
-      revalidatePath('/dashboard/profile/recognitions');
+      // Map database records to domain objects
+      const domainRecognitions = (updatedRecognitions || []).map(convertFromDatabase);
       
-      console.log("[SERVER_ACTION_COMPLETE]", {
-        userUlid,
-        success: true,
-        recognitionsCount: typedRecognitions.length,
-        timestamp
-      });
-
+      // Revalidate related paths
+      revalidatePath('/profile');
+      revalidatePath('/profile/coach');
+      
       return {
         data: {
           success: true,
-          recognitions: typedRecognitions
+          recognitions: domainRecognitions
         },
         error: null
       };

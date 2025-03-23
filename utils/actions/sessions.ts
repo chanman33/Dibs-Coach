@@ -152,7 +152,7 @@ export const fetchCoachSessions = withServerAction<TransformedSession[]>(
     try {
       if (!roleContext.capabilities?.includes('COACH')) {
         return {
-          data: null,
+          data: [],
           error: {
             code: 'FORBIDDEN',
             message: 'Only coaches can access this endpoint'
@@ -189,7 +189,7 @@ export const fetchCoachSessions = withServerAction<TransformedSession[]>(
       if (sessionsError) {
         console.error('[FETCH_COACH_SESSIONS_ERROR]', { userUlid, error: sessionsError })
         return {
-          data: null,
+          data: [],
           error: {
             code: 'FETCH_ERROR',
             message: 'Failed to fetch coach sessions'
@@ -197,34 +197,102 @@ export const fetchCoachSessions = withServerAction<TransformedSession[]>(
         }
       }
 
-      // Transform and validate the data
-      const transformedSessions = (sessions as unknown as DbSessionWithMentee[]).map((session): TransformedSession => ({
-        ulid: session.ulid,
-        durationMinutes: Math.round(
-          (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)
-        ),
-        status: session.status,
-        startTime: session.startTime,
-        endTime: session.endTime,
-        createdAt: session.createdAt,
-        userRole: 'coach',
-        otherParty: session.mentee,
-        sessionType: session.sessionType,
-        zoomMeetingUrl: session.zoomMeetingUrl,
-        paymentStatus: session.paymentStatus
-      }))
+      // Handle empty sessions case explicitly
+      if (!sessions || sessions.length === 0) {
+        console.log('[FETCH_COACH_SESSIONS] No sessions found for coach', userUlid);
+        return {
+          data: [],
+          error: null
+        };
+      }
 
-      // Validate transformed sessions
-      const validatedSessions = z.array(TransformedSessionSchema).parse(transformedSessions)
+      // Ensure we're returning serializable data by creating completely new objects with primitive values
+      const safelySerializedSessions = [];
+      
+      for (const session of sessions) {
+        // Calculate duration as a number
+        let durationMinutes = 0;
+        try {
+          const startMs = new Date(session.startTime).getTime();
+          const endMs = new Date(session.endTime).getTime();
+          durationMinutes = Math.round((endMs - startMs) / (1000 * 60));
+        } catch (e) {
+          console.error('Error calculating duration:', e);
+        }
 
-      return {
-        data: validatedSessions,
-        error: null
+        // Ensure mentee object is valid
+        const mentee = session.mentee || {};
+        
+        // Ensure status is a valid SessionStatus enum value - normalize to uppercase
+        let status = (session.status || 'SCHEDULED').toUpperCase();
+        
+        // Map to known enum values
+        let statusEnum: SessionStatus;
+        switch (status) {
+          case 'SCHEDULED':
+            statusEnum = SessionStatus.SCHEDULED;
+            break;
+          case 'COMPLETED':
+            statusEnum = SessionStatus.COMPLETED;
+            break;
+          case 'CANCELLED':
+            statusEnum = SessionStatus.CANCELLED;
+            break;
+          case 'NO_SHOW':
+            statusEnum = SessionStatus.NO_SHOW;
+            break;
+          default:
+            statusEnum = SessionStatus.SCHEDULED;
+        }
+
+        // Create a plain object with string and number fields only
+        const plainSessionObject = {
+          ulid: String(session.ulid || ''),
+          durationMinutes: Number(durationMinutes),
+          status: statusEnum,
+          startTime: String(session.startTime || ''),
+          endTime: String(session.endTime || ''),
+          createdAt: String(session.createdAt || ''),
+          userRole: 'coach',
+          otherParty: {
+            ulid: String(mentee.ulid || ''),
+            firstName: mentee.firstName ? String(mentee.firstName) : null,
+            lastName: mentee.lastName ? String(mentee.lastName) : null,
+            email: mentee.email ? String(mentee.email) : null,
+            profileImageUrl: mentee.profileImageUrl ? String(mentee.profileImageUrl) : null
+          },
+          sessionType: session.sessionType ? String(session.sessionType) : null,
+          zoomMeetingUrl: session.zoomMeetingUrl ? String(session.zoomMeetingUrl) : null,
+          paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null
+        };
+        
+        safelySerializedSessions.push(plainSessionObject);
+      }
+
+      try {
+        // Double-check validation using schema
+        const validatedSessions = z.array(TransformedSessionSchema).parse(safelySerializedSessions);
+        
+        // Return the serialized data
+        return {
+          data: validatedSessions,
+          error: null
+        };
+      } catch (validationError) {
+        console.error('[FETCH_COACH_SESSIONS_VALIDATION_ERROR]', validationError);
+        // If validation fails, return an empty array instead of throwing
+        return {
+          data: [],
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Failed to validate session data'
+          }
+        };
       }
     } catch (error) {
       console.error('[FETCH_COACH_SESSIONS_ERROR]', error)
       return {
-        data: null,
+        data: [],  // Return empty array instead of null on error
         error: {
           code: 'INTERNAL_ERROR',
           message: 'An unexpected error occurred',
@@ -298,29 +366,87 @@ export const fetchUpcomingSessions = withServerAction<TransformedSession[]>(
         }
       }
 
-      // Transform and validate the data
-      const transformedSessions = (sessions as unknown as DbSessionWithMentee[]).map((session): TransformedSession => ({
-        ulid: session.ulid,
-        durationMinutes: Math.round(
-          (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)
-        ),
-        status: session.status,
-        startTime: session.startTime,
-        endTime: session.endTime,
-        createdAt: session.createdAt,
-        userRole: 'coach',
-        otherParty: session.mentee,
-        sessionType: session.sessionType,
-        zoomMeetingUrl: session.zoomMeetingUrl,
-        paymentStatus: session.paymentStatus
-      }))
+      // Ensure we're returning serializable data by creating completely new objects with primitive values
+      const safelySerializedSessions = [];
+      
+      for (const session of sessions) {
+        // Calculate duration as a number
+        let durationMinutes = 0;
+        try {
+          const startMs = new Date(session.startTime).getTime();
+          const endMs = new Date(session.endTime).getTime();
+          durationMinutes = Math.round((endMs - startMs) / (1000 * 60));
+        } catch (e) {
+          console.error('Error calculating duration:', e);
+        }
 
-      // Validate transformed sessions
-      const validatedSessions = z.array(TransformedSessionSchema).parse(transformedSessions)
+        // Ensure mentee object is valid
+        const mentee = session.mentee || {};
+        
+        // Ensure status is a valid SessionStatus enum value - normalize to uppercase
+        let status = (session.status || 'SCHEDULED').toUpperCase();
+        
+        // Map to known enum values
+        let statusEnum: SessionStatus;
+        switch (status) {
+          case 'SCHEDULED':
+            statusEnum = SessionStatus.SCHEDULED;
+            break;
+          case 'COMPLETED':
+            statusEnum = SessionStatus.COMPLETED;
+            break;
+          case 'CANCELLED':
+            statusEnum = SessionStatus.CANCELLED;
+            break;
+          case 'NO_SHOW':
+            statusEnum = SessionStatus.NO_SHOW;
+            break;
+          default:
+            statusEnum = SessionStatus.SCHEDULED;
+        }
 
-      return {
-        data: validatedSessions,
-        error: null
+        // Create a plain object with primitive values
+        const plainSessionObject = {
+          ulid: String(session.ulid || ''),
+          durationMinutes: Number(durationMinutes),
+          status: statusEnum,
+          startTime: String(session.startTime || ''),
+          endTime: String(session.endTime || ''),
+          createdAt: String(session.createdAt || ''),
+          userRole: 'coach',
+          otherParty: {
+            ulid: String(mentee.ulid || ''),
+            firstName: mentee.firstName ? String(mentee.firstName) : null,
+            lastName: mentee.lastName ? String(mentee.lastName) : null,
+            email: mentee.email ? String(mentee.email) : null,
+            profileImageUrl: mentee.profileImageUrl ? String(mentee.profileImageUrl) : null
+          },
+          sessionType: session.sessionType ? String(session.sessionType) : null,
+          zoomMeetingUrl: session.zoomMeetingUrl ? String(session.zoomMeetingUrl) : null,
+          paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null
+        };
+        
+        safelySerializedSessions.push(plainSessionObject);
+      }
+
+      try {
+        // Double-check validation using schema
+        const validatedSessions = z.array(TransformedSessionSchema).parse(safelySerializedSessions);
+        
+        // Return the serialized data
+        return {
+          data: validatedSessions,
+          error: null
+        };
+      } catch (validationError) {
+        console.error('[FETCH_UPCOMING_SESSIONS_VALIDATION_ERROR]', validationError);
+        return {
+          data: [],
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Failed to validate session data'
+          }
+        };
       }
     } catch (error) {
       console.error('[FETCH_UPCOMING_SESSIONS_ERROR]', error)

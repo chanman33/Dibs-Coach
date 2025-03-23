@@ -1,7 +1,13 @@
 "use client"
 
 import { useState } from "react";
-import { ProfessionalRecognition, RecognitionType, RecognitionTypeValues } from "@/utils/types/recognition";
+import { 
+  ProfessionalRecognition, 
+  ProfessionalRecognitionSchema, 
+  RecognitionType, 
+  SerializableProfessionalRecognition, 
+  type RecognitionTypeValues 
+} from "@/utils/types/recognition";
 import { 
   Card, 
   CardContent, 
@@ -95,7 +101,7 @@ const getDomainLabel = (domainId: string): string => {
 
 interface RecognitionsTabProps {
   initialRecognitions: ProfessionalRecognition[];
-  onSubmit: (recognitions: ProfessionalRecognition[]) => Promise<void>;
+  onSubmit: (recognitions: SerializableProfessionalRecognition[]) => Promise<void>;
   isSubmitting: boolean;
   selectedSkills?: string[];
 }
@@ -319,23 +325,25 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
       setIsSaving(true);
       
       // Create a deep clone of the recognitions and ensure they have the correct structure
+      // Use the serializable type for server action compatibility
       const validatedRecognitions = recognitionsToSave.map(recognition => {
         // Generate a new ulid if needed
         const ulid = recognition.ulid || generateId();
         
-        // Ensure all required fields are present and properly formatted
+        // Convert Date objects to ISO strings before passing to server action
         return {
           ulid,
           title: recognition.title,
           type: recognition.type,
           issuer: recognition.issuer || "",
+          // Convert Date objects to ISO strings
           issueDate: recognition.issueDate instanceof Date 
-            ? recognition.issueDate 
-            : new Date(recognition.issueDate),
+            ? recognition.issueDate.toISOString() 
+            : String(recognition.issueDate),
           expiryDate: recognition.expiryDate 
             ? (recognition.expiryDate instanceof Date 
-                ? recognition.expiryDate 
-                : new Date(recognition.expiryDate)) 
+                ? recognition.expiryDate.toISOString() 
+                : String(recognition.expiryDate)) 
             : null,
           description: recognition.description || null,
           verificationUrl: recognition.verificationUrl || null,

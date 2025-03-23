@@ -1,7 +1,15 @@
 import { z } from "zod";
-import { Currency, SessionStatus, SessionType } from "@prisma/client";
+import { Currency, SessionType } from "@prisma/client";
 
-export { SessionStatus, SessionType }
+// Export enum with uppercase values to match database schema
+export enum SessionStatus {
+  SCHEDULED = "SCHEDULED",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+  NO_SHOW = "NO_SHOW"
+}
+
+export { SessionType }
 
 export interface User {
   ulid: string
@@ -25,13 +33,36 @@ export interface TransformedSession {
   paymentStatus: string | null
 }
 
+// Schema for validating transformed session data
+export const UserSchema = z.object({
+  ulid: z.string(),
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
+  email: z.string().nullable(),
+  profileImageUrl: z.string().nullable()
+});
+
+export const TransformedSessionSchema = z.object({
+  ulid: z.string(),
+  durationMinutes: z.number(),
+  status: z.nativeEnum(SessionStatus),
+  startTime: z.string(),
+  endTime: z.string(),
+  createdAt: z.string(),
+  userRole: z.enum(['coach', 'mentee']),
+  otherParty: UserSchema,
+  sessionType: z.string().nullable(),
+  zoomMeetingUrl: z.string().nullable(),
+  paymentStatus: z.string().nullable()
+});
+
 export const sessionSchema = z.object({
   id: z.number().describe("Internal database ID"),
   menteeDbId: z.number(),
   coachDbId: z.number(),
   startTime: z.date(),
   endTime: z.date(),
-  status: z.nativeEnum(SessionStatus).default("SCHEDULED"),
+  status: z.nativeEnum(SessionStatus).default(SessionStatus.SCHEDULED),
   sessionNotes: z.string().nullable(),
   zoomMeetingId: z.string().nullable(),
   zoomMeetingUrl: z.string().nullable(),

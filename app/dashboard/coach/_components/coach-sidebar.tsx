@@ -46,7 +46,7 @@ export function CoachSidebar() {
         const result = await fetchUserCapabilities()
         if (result.data) {
           const { realEstateDomains } = result.data
-          const isRealtor = realEstateDomains?.includes(REAL_ESTATE_DOMAINS.REALTOR) || false
+          const isRealtor = realEstateDomains?.includes('REALTOR') || false
           
           setHasRealtorDomain(isRealtor)
         }
