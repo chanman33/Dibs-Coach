@@ -9,7 +9,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { getCoachApplication } from "@/utils/actions/coach-application"
 import { fetchRealtorProfile, updateRealtorProfile } from "@/utils/actions/realtor-profile"
 import { Badge } from "@/components/ui/badge"
-import { Loader2 } from "lucide-react"
+import { Loader2, Target, ListChecks, Calendar } from "lucide-react"
 import type { ApplicationResponse } from "@/utils/types/coach-application"
 import type { GoalFormValues } from "@/utils/types/goals"
 import { updateUserProfile } from "@/utils/actions/user-profile-actions"
@@ -19,6 +19,8 @@ import { toast } from "sonner"
 import { COACH_APPLICATION_STATUS, type CoachApplicationStatus } from "@/utils/types/coach-application"
 import { createGoal } from "@/utils/actions/goals"
 import { fetchUserProfile } from "@/utils/actions/user-profile-actions"
+import { ComingSoon } from "@/components/profile/common/ComingSoon"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 
 interface ProfileData {
   user: {
@@ -294,6 +296,7 @@ export default function AgentProfilePage() {
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="goals">Goals</TabsTrigger>
+          <TabsTrigger value="plans">Plans</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -367,6 +370,59 @@ export default function AgentProfilePage() {
                 </>
               )}
             </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="plans">
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Target className="mr-2 h-5 w-5 text-primary" />
+                    Development Plans
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ComingSoon 
+                    title="Development Plans"
+                    description="Create structured plans to achieve your goals. Link specific actions to your goals and track your progress over time."
+                    showImage={false}
+                  />
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <ListChecks className="mr-2 h-5 w-5 text-primary" />
+                    Habit Tracker
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ComingSoon 
+                    title="Habit Tracker"
+                    description="Build consistency with daily habit tracking. Turn your plans into sustainable habits that lead to long-term success."
+                    showImage={false}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Calendar className="mr-2 h-5 w-5 text-primary" />
+                  Plan Calendar
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ComingSoon 
+                  title="Plan Calendar"
+                  description="Visualize your plans and goals on a calendar. Schedule actions, set deadlines, and never miss an important milestone."
+                />
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>
