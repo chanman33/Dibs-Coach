@@ -2,10 +2,11 @@
 import { CoachAnalyticsDashboard } from '../_components/CoachAnalyticsDashboard'
 import { Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
-import { useAuthContext } from '@/components/auth/providers'
+import { useCentralizedAuth } from '@/app/provider'
 
 export default function CoachAnalyticsPage() {
-  const { userUlid } = useAuthContext()
+  const { authData } = useCentralizedAuth()
+  const { userUlid } = authData || {}
   
   return (
     <Suspense fallback={

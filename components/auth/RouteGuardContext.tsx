@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthContext } from '@/components/auth/providers';
+import { useCentralizedAuth } from '@/app/provider';
 import { useOrganization } from '@/utils/auth/OrganizationContext';
 import { permissionService } from '@/utils/auth';
 import { ContainerLoading } from '@/components/loading/container';
@@ -51,7 +51,7 @@ export function RouteGuardProvider({
 }: RouteGuardProviderProps) {
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const authContext = useAuthContext();
+  const { authData: authContext } = useCentralizedAuth();
   const { organizationRole, isLoading: isOrgLoading, organizations, organizationUlid } = useOrganization();
   const router = useRouter();
   

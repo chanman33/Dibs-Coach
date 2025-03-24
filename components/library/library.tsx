@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { BookOpen, Video, FileText, ExternalLink, Lock, Filter, X, Home, Wallet, Building, FileCheck, Shield, Building2, Clock } from "lucide-react"
-import { useAuthContext } from "@/components/auth/providers"
+import { useCentralizedAuth } from '@/app/provider'
 import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
 import { fetchUserCapabilities } from "@/utils/actions/user-profile-actions"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -208,7 +208,7 @@ export function Library() {
   const [showCoachOnly, setShowCoachOnly] = useState<boolean>(false)
   const [isFilterOpen, setIsFilterOpen] = useState<boolean>(false)
   const [activeFiltersCount, setActiveFiltersCount] = useState<number>(0)
-  const authContext = useAuthContext()
+  const { authData: authContext } = useCentralizedAuth()
 
   useEffect(() => {
     const getUserInfo = async () => {

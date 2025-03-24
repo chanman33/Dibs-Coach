@@ -84,13 +84,6 @@ export const getAuthContext = cache(async (): Promise<UserContext | null> => {
 })
 
 /**
- * React hook for client components to access auth context
- */
-export function useAuthContext() {
-  return cache(getAuthContext)
-}
-
-/**
  * Gets the current user's ID if authenticated
  */
 export async function getCurrentUserId(): Promise<string | null> {

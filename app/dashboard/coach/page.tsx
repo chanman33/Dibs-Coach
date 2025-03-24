@@ -21,7 +21,7 @@ import { TopMentee } from '@/utils/types/mentee'
 import { format, isAfter } from 'date-fns'
 import { toast } from 'sonner'
 import { createClient } from '@/utils/supabase/client'
-import { useAuthContext } from '@/components/auth/providers'
+import { useCentralizedAuth } from '@/app/provider'
 import {
   Dialog,
   DialogContent,
@@ -53,7 +53,8 @@ export default function CoachDashboard() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [analyticsData, setAnalyticsData] = useState<CoachAnalytics | null>(null)
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true)
-  const { userUlid } = useAuthContext()
+  const { authData } = useCentralizedAuth()
+  const { userUlid } = authData || {}
 
   const currentGoal = goals[currentGoalIndex]
 

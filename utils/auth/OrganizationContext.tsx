@@ -1,7 +1,8 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import { useAuth } from '@clerk/nextjs';
+import { useCentralizedAuth } from '@/app/provider';
 
 export interface OrganizationContextType {
   organizationUlid: string | null;
@@ -37,90 +38,18 @@ export const useOrganization = () => {
 };
 
 export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
-  const { isSignedIn, isLoaded: isAuthLoaded } = useAuth();
+  // Get auth status from Clerk and our centralized context
+  const { isSignedIn, isLoaded: isClerkLoaded } = useAuth();
+  const { isInitialized: isAuthInitialized } = useCentralizedAuth();
+  
   const [organizationUlid, setOrganizationUlid] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [organizationRole, setOrganizationRole] = useState<string | null>(null);
   const [organizations, setOrganizations] = useState<OrganizationMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    // Skip organization loading if not signed in
-    if (!isAuthLoaded) return;
-    
-    if (!isSignedIn) {
-      // User is not authenticated, reset state and stop loading
-      setOrganizations([]);
-      setOrganizationUlid(null);
-      setOrganizationName(null);
-      setOrganizationRole(null);
-      setIsLoading(false);
-      console.log('[ORGANIZATION_CONTEXT] User not authenticated, skipping organization fetch');
-      return;
-    }
-    
-    // Load active organization from localStorage on initial render
-    const storedOrgId = localStorage.getItem('activeOrganizationUlid');
-    if (storedOrgId) {
-      setOrganizationUlid(storedOrgId);
-    }
-    
-    // Fetch user's organizations
-    fetchOrganizations();
-  }, [isSignedIn, isAuthLoaded]);
-
-  useEffect(() => {
-    // When organizationUlid changes, update localStorage
-    if (organizationUlid) {
-      localStorage.setItem('activeOrganizationUlid', organizationUlid);
-      
-      // Find the organization in the list and update name and role
-      const activeOrg = organizations.find(org => org.organizationUlid === organizationUlid);
-      if (activeOrg) {
-        setOrganizationName(activeOrg.organization.name);
-        setOrganizationRole(activeOrg.role);
-        console.log('[ORGANIZATION_CONTEXT] Organization switched:', {
-          id: organizationUlid,
-          name: activeOrg.organization.name,
-          role: activeOrg.role,
-          status: activeOrg.status,
-          type: activeOrg.organization.type,
-          tier: activeOrg.organization.tier,
-          timestamp: new Date().toISOString(),
-          availableOrgs: organizations.length
-        });
-      } else {
-        // If organization not found in list, we might need to reload organizations
-        console.warn('[ORGANIZATION_CONTEXT] Organization not found in list:', {
-          id: organizationUlid,
-          organizations: organizations.map(o => ({
-            id: o.organizationUlid, 
-            name: o.organization.name,
-            role: o.role,
-            status: o.status
-          })),
-          timestamp: new Date().toISOString()
-        });
-        
-        // If we have an organizationUlid but it's not in our current list and we're not loading,
-        // we should try to load organizations again
-        if (!isLoading && organizations.length > 0) {
-          console.log('[ORGANIZATION_CONTEXT] Refreshing organizations to find selected org');
-          refreshOrganizations();
-        }
-      }
-    } else {
-      localStorage.removeItem('activeOrganizationUlid');
-      setOrganizationName(null);
-      setOrganizationRole(null);
-      console.log('[ORGANIZATION_CONTEXT] Organization context cleared', {
-        timestamp: new Date().toISOString(),
-        availableOrgs: organizations.length
-      });
-    }
-  }, [organizationUlid, organizations, isLoading]);
-
-  const fetchOrganizations = async () => {
+  
+  // Define fetchOrganizations as useCallback to prevent recreation on each render
+  const fetchOrganizations = useCallback(async () => {
     // Skip if user is not authenticated
     if (!isSignedIn) {
       setIsLoading(false);
@@ -134,7 +63,9 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
       if (!response.ok) {
         if (response.status === 401) {
           // Authentication error - user may have been logged out during the request
-          console.log('[ORGANIZATION_CONTEXT] Authentication required for organization data');
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[ORGANIZATION_CONTEXT] Authentication required for organization data');
+          }
           setOrganizations([]);
           return;
         }
@@ -151,24 +82,21 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
         // Immediately set role and name to avoid race condition
         setOrganizationName(firstOrg.organization.name);
         setOrganizationRole(firstOrg.role);
-        console.log('[ORGANIZATION_CONTEXT] Set initial organization:', {
-          id: firstOrg.organizationUlid,
-          name: firstOrg.organization.name,
-          role: firstOrg.role,
-          timestamp: new Date().toISOString()
-        });
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[ORGANIZATION_CONTEXT] Set initial organization:', {
+            id: firstOrg.organizationUlid,
+            name: firstOrg.organization.name
+          });
+        }
       } else if (organizationUlid && data.organizations?.length > 0) {
         // If we already have an organizationUlid, make sure we update the role and name
         const selectedOrg = data.organizations.find((org: OrganizationMember) => org.organizationUlid === organizationUlid);
         if (selectedOrg) {
           setOrganizationName(selectedOrg.organization.name);
           setOrganizationRole(selectedOrg.role);
-          console.log('[ORGANIZATION_CONTEXT] Updated organization details after fetch:', {
-            id: organizationUlid,
-            name: selectedOrg.organization.name,
-            role: selectedOrg.role,
-            timestamp: new Date().toISOString()
-          });
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[ORGANIZATION_CONTEXT] Updated organization details after fetch');
+          }
         }
       }
     } catch (error) {
@@ -177,24 +105,115 @@ export const OrganizationProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [isSignedIn, organizationUlid]);
 
-  const refreshOrganizations = async () => {
+  // Define refreshOrganizations after fetchOrganizations
+  const refreshOrganizations = useCallback(async () => {
     await fetchOrganizations();
-  };
+  }, [fetchOrganizations]);
+  
+  // Wait for both Clerk auth and our auth context before loading organizations
+  const isAuthReady = isClerkLoaded && isAuthInitialized;
+  
+  // Now that refreshOrganizations is defined, we can use it in useMemo
+  const contextValue = useMemo(() => ({
+    organizationUlid,
+    setOrganizationUlid,
+    organizationName,
+    organizationRole,
+    isLoading,
+    organizations,
+    refreshOrganizations
+  }), [organizationUlid, organizationName, organizationRole, isLoading, organizations, refreshOrganizations]);
+
+  // Only try to load organizations when Clerk and auth context are ready
+  useEffect(() => {
+    // Skip organization loading if auth isn't ready
+    if (!isAuthReady) return;
+    
+    if (!isSignedIn) {
+      // User is not authenticated, reset state and stop loading
+      setOrganizations([]);
+      setOrganizationUlid(null);
+      setOrganizationName(null);
+      setOrganizationRole(null);
+      setIsLoading(false);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[ORGANIZATION_CONTEXT] User not authenticated, skipping organization fetch');
+      }
+      return;
+    }
+    
+    // Load active organization from localStorage only when auth is confirmed
+    try {
+      const storedOrgId = localStorage.getItem('activeOrganizationUlid');
+      if (storedOrgId) {
+        setOrganizationUlid(storedOrgId);
+      }
+    } catch (error) {
+      console.error('[ORGANIZATION_CONTEXT] Error reading from localStorage:', error);
+    }
+    
+    // Fetch user's organizations
+    fetchOrganizations();
+  }, [isAuthReady, isSignedIn, fetchOrganizations]);
+
+  useEffect(() => {
+    // When organizationUlid changes, update localStorage
+    if (!isAuthReady) return;
+    
+    if (organizationUlid) {
+      try {
+        localStorage.setItem('activeOrganizationUlid', organizationUlid);
+      } catch (error) {
+        console.error('[ORGANIZATION_CONTEXT] Error writing to localStorage:', error);
+      }
+      
+      // Find the organization in the list and update name and role
+      const activeOrg = organizations.find(org => org.organizationUlid === organizationUlid);
+      if (activeOrg) {
+        setOrganizationName(activeOrg.organization.name);
+        setOrganizationRole(activeOrg.role);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[ORGANIZATION_CONTEXT] Organization switched:', {
+            id: organizationUlid,
+            name: activeOrg.organization.name,
+            role: activeOrg.role
+          });
+        }
+      } else {
+        // If organization not found in list, we might need to reload organizations
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[ORGANIZATION_CONTEXT] Organization not found in list:', {
+            id: organizationUlid
+          });
+        }
+        
+        // If we have an organizationUlid but it's not in our current list and we're not loading,
+        // we should try to load organizations again
+        if (!isLoading && organizations.length > 0) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[ORGANIZATION_CONTEXT] Refreshing organizations to find selected org');
+          }
+          refreshOrganizations();
+        }
+      }
+    } else {
+      try {
+        localStorage.removeItem('activeOrganizationUlid');
+      } catch (error) {
+        console.error('[ORGANIZATION_CONTEXT] Error removing from localStorage:', error);
+      }
+      setOrganizationName(null);
+      setOrganizationRole(null);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[ORGANIZATION_CONTEXT] Organization context cleared');
+      }
+    }
+  }, [organizationUlid, organizations, isLoading, isAuthReady, refreshOrganizations]);
 
   return (
-    <OrganizationContext.Provider
-      value={{
-        organizationUlid,
-        setOrganizationUlid,
-        organizationName,
-        organizationRole,
-        isLoading,
-        organizations,
-        refreshOrganizations
-      }}
-    >
+    <OrganizationContext.Provider value={contextValue}>
       {children}
     </OrganizationContext.Provider>
   );

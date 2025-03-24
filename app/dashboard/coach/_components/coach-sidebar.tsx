@@ -24,7 +24,7 @@ import {
   Briefcase,
   CreditCard
 } from "lucide-react"
-import { useAuthContext } from "@/components/auth/providers"
+import { useCentralizedAuth } from '@/app/provider'
 import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
 import { fetchUserCapabilities } from "@/utils/actions/user-profile-actions"
 import { SidebarOrganizationSection } from "@/components/organization/sidebar-organization-section"
@@ -35,7 +35,7 @@ export function CoachSidebar() {
   const [isToolsExpanded, setIsToolsExpanded] = useState(true)
   const [isRealtorToolsExpanded, setIsRealtorToolsExpanded] = useState(true)
   const [isOrgExpanded, setIsOrgExpanded] = useState(true)
-  const authContext = useAuthContext()
+  const { authData: authContext } = useCentralizedAuth()
   const [hasRealtorDomain, setHasRealtorDomain] = useState(false)
   const { organizationName, organizationRole, organizations } = useOrganization()
   const hasOrganization = !!organizationName && organizations.length > 0

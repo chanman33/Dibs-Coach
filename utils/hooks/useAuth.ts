@@ -1,23 +1,34 @@
 'use client';
 
 import { useUser } from '@clerk/nextjs';
-import { useAuthContext } from '@/components/auth/providers';
 import { permissionService } from '@/utils/auth';
-import type { SystemRole, UserCapability } from '@/utils/roles/roles';
+import type { SystemRole, UserCapability, OrgRole } from '@/utils/roles/roles';
 import type { Ulid } from '@/utils/types/auth';
+import { useCentralizedAuth } from '@/app/provider';
+import { useOrganization } from '@/utils/auth/OrganizationContext';
 
 interface UseAuthReturn {
-  // Clerk auth state
+  // Authentication state
   isLoading: boolean;
   isSignedIn: boolean | null;
   userId: string | null;
   
-  // Role context state
+  // User context
   userUlid: Ulid | null;
   systemRole: SystemRole;
   capabilities: UserCapability[];
   
+  // Organization context
+  organizationUlid: string | null;
+  organizationName: string | null;
+  organizationRole: string | null;
+  isOrgLoading: boolean;
+  
+  // Combined loading state
+  isFullyLoaded: boolean;
+  
   // Permission helpers
+  hasPermission: (capability: UserCapability) => boolean;
   canAccessBusinessDashboard: () => boolean;
   canAccessCoachDashboard: () => boolean;
   canAccessMenteeDashboard: () => boolean;
@@ -25,34 +36,86 @@ interface UseAuthReturn {
 }
 
 /**
- * Combined hook for auth state and role context
- * Provides type-safe access to both Clerk auth and role data
- * with permission utility methods
+ * Unified hook for authentication, user roles, and organization context
+ * Follows the correct verification flow:
+ * 1. Clerk Session (isSignedIn)
+ * 2. User Role (systemRole)
+ * 3. User Capabilities (capabilities)
+ * 4. Organization Context (organizationRole)
  */
 export function useAuth(): UseAuthReturn {
-  const { isLoaded, isSignedIn, user } = useUser();
-  const authContext = useAuthContext();
+  // 1. Clerk authentication
+  const { isLoaded: isClerkLoaded, isSignedIn, user } = useUser();
   
-  // Set the auth context in the permission service
-  if (authContext) {
-    permissionService.setUser(authContext);
+  // 2. User role and capabilities
+  const { authData, isLoading: isAuthLoading } = useCentralizedAuth();
+  
+  // 3. Organization context
+  const { 
+    organizationUlid, 
+    organizationName, 
+    organizationRole, 
+    isLoading: isOrgLoading 
+  } = useOrganization();
+  
+  // Calculate fully loaded state - ensures we've verified all three levels
+  const isFullyLoaded = isClerkLoaded && !isAuthLoading && !isOrgLoading;
+  
+  // Only set the auth context in the permission service when everything is loaded
+  if (authData && isSignedIn && isFullyLoaded) {
+    try {
+      // Set the complete context including organization data
+      permissionService.setUser({
+        ...authData,
+        organizationUlid: organizationUlid || undefined,
+        organizationName: organizationName || undefined,
+        orgRole: organizationRole as OrgRole | undefined
+      });
+    } catch (error) {
+      console.error('[AUTH_HOOK] Error setting user in permission service:', error);
+    }
   }
 
+  // Create safe permission check functions that gracefully handle missing auth data
+  const safePermissionCheck = (checkFn: () => boolean): boolean => {
+    try {
+      return checkFn();
+    } catch (error) {
+      return false;
+    }
+  };
+  
+  // Generic capability check helper
+  const hasPermission = (capability: UserCapability): boolean => {
+    if (!isFullyLoaded || !isSignedIn || !authData) return false;
+    return authData.capabilities.includes(capability);
+  };
+
   return {
-    // Clerk auth state
-    isLoading: !isLoaded,
+    // Authentication state
+    isLoading: !isClerkLoaded || isAuthLoading,
     isSignedIn: isSignedIn || false,
     userId: user?.id || null,
     
-    // Role context state
-    userUlid: authContext.userUlid,
-    systemRole: authContext.systemRole,
-    capabilities: authContext.capabilities,
+    // User context - with sensible defaults
+    userUlid: authData?.userUlid || null,
+    systemRole: authData?.systemRole || 'USER',
+    capabilities: authData?.capabilities || [],
     
-    // Permission helper methods
-    canAccessBusinessDashboard: () => permissionService.canAccessBusinessDashboard(),
-    canAccessCoachDashboard: () => permissionService.canAccessCoachDashboard(),
-    canAccessMenteeDashboard: () => permissionService.canAccessMenteeDashboard(),
-    canAccessSystemDashboard: () => permissionService.canAccessSystemDashboard()
+    // Organization context
+    organizationUlid,
+    organizationName,
+    organizationRole,
+    isOrgLoading,
+    
+    // Combined loading state
+    isFullyLoaded,
+    
+    // Permission helpers with proper error handling
+    hasPermission,
+    canAccessBusinessDashboard: () => safePermissionCheck(permissionService.canAccessBusinessDashboard),
+    canAccessCoachDashboard: () => safePermissionCheck(permissionService.canAccessCoachDashboard),
+    canAccessMenteeDashboard: () => safePermissionCheck(permissionService.canAccessMenteeDashboard),
+    canAccessSystemDashboard: () => safePermissionCheck(permissionService.canAccessSystemDashboard)
   };
 }

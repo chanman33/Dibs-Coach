@@ -1,7 +1,6 @@
 import Provider from '@/app/provider'
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
-import { AuthProviders } from '@/components/auth/providers'
 import { Analytics } from "@vercel/analytics/react"
 import { GeistSans } from 'geist/font/sans'
 import type { Metadata } from 'next'
@@ -69,11 +68,10 @@ export default async function RootLayout({
   try {
     authContext = await getAuthContext();
     
-    if (authContext) {
+    if (authContext && process.env.NODE_ENV === 'development') {
       console.log('[ROOT_LAYOUT] Initializing auth context:', {
         userId: authContext.userId,
         systemRole: authContext.systemRole,
-        capabilities: authContext.capabilities,
         timestamp: new Date().toISOString()
       });
     }
@@ -104,19 +102,17 @@ export default async function RootLayout({
             variables: { colorPrimary: '#4f46e5' }
           }}
         >
-          <AuthProviders initialState={authContext}>
-            <Provider>
-              <ThemeProvider
-                attribute="class"
-                defaultTheme="system"
-                enableSystem
-                disableTransitionOnChange
-              >
-                {children}
-                <Toaster />
-              </ThemeProvider>
-            </Provider>
-          </AuthProviders>
+          <Provider initialAuthState={authContext}>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="system"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+              <Toaster />
+            </ThemeProvider>
+          </Provider>
         </ClerkProvider>
         <Analytics />
       </body>

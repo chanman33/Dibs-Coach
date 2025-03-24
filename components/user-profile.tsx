@@ -29,7 +29,7 @@ import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { useState, useEffect } from "react"
 import { useOrganization } from "@/utils/auth/OrganizationContext"
-import { useAuthContext } from "@/components/auth/providers"
+import { useCentralizedAuth } from '@/app/provider'
 
 // Default image placeholder
 const DEFAULT_IMAGE_URL = '/placeholder.svg';
@@ -69,7 +69,7 @@ export function UserProfile() {
     const pathname = usePathname()
     const [imgError, setImgError] = useState(false)
     const { organizationName, organizationRole } = useOrganization();
-    const authContext = useAuthContext();
+    const { authData } = useCentralizedAuth();
     const [userContext, setUserContext] = useState<'coach' | 'mentee' | null>(null);
     
     // Only use Clerk's useUser if auth is enabled
@@ -83,12 +83,12 @@ export function UserProfile() {
             setUserContext('coach');
         } else if (pathname?.includes('/mentee')) {
             setUserContext('mentee');
-        } else if (authContext?.capabilities?.includes('COACH')) {
+        } else if (authData?.capabilities?.includes('COACH')) {
             setUserContext('coach');
         } else {
             setUserContext('mentee'); // Default to mentee
         }
-    }, [pathname, authContext]);
+    }, [pathname, authData]);
 
     if (!config?.auth?.enabled) {
         router.back()

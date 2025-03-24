@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { MenteeSidebar } from "./_components/mentee-sidebar"
-import { useAuthContext } from "@/components/auth/providers"
+import { useCentralizedAuth } from '@/app/provider'
 import { USER_CAPABILITIES } from "@/utils/roles/roles"
 import { RouteGuardProvider } from "@/components/auth/RouteGuardContext"
 import { ContainerLoading } from "@/components/loading/container"
@@ -18,6 +18,7 @@ export default function MenteeLayout({
 }) {
   const router = useRouter()
   const { isSignedIn, isLoaded: isAuthLoaded } = useAuth()
+  const { authData: authContext } = useCentralizedAuth()
   const [loading, setLoading] = useState(true)
   
   // Handle unauthenticated users
