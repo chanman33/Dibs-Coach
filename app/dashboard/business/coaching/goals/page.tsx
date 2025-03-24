@@ -56,7 +56,7 @@ import { useAuth } from "@/utils/hooks/useAuth";
 import { RouteGuardProvider } from "@/components/auth/RouteGuardContext";
 import { ContainerLoading } from "@/components/loading";
 import React from "react";
-import GoalFormDialog from "@/app/dashboard/business/performance/goals/components/GoalFormDialog";
+import GoalFormDialog from "@/app/dashboard/business/coaching/goals/GoalFormDialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import type { Database } from "@/types/supabase";

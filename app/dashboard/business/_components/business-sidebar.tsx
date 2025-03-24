@@ -30,7 +30,7 @@ export function BusinessSidebar() {
   const [isTeamExpanded, setIsTeamExpanded] = useState(true)
   const [isCoachingExpanded, setIsCoachingExpanded] = useState(true)
   const [isPerformanceExpanded, setIsPerformanceExpanded] = useState(true)
-  const [isAdminExpanded, setIsAdminExpanded] = useState(false)
+  const [isAdminExpanded, setIsAdminExpanded] = useState(true)
   const [isAnalyticsExpanded, setIsAnalyticsExpanded] = useState(false)
 
   const NavLink = ({ href, icon: Icon, children }: { href: string; icon: any; children: React.ReactNode }) => (
@@ -47,8 +47,8 @@ export function BusinessSidebar() {
   )
 
   return (
-    <div className="lg:block hidden border-r h-full">
-      <div className="flex h-full max-h-screen flex-col gap-2">
+    <div className="lg:block hidden border-r min-h-screen">
+      <div className="flex flex-col gap-2 h-full">
         <div className="flex h-[55px] items-center justify-between border-b px-3 w-full">
           <Link className="flex items-center gap-2 font-semibold ml-1" href="/dashboard/business">
             <span>Business Portal</span>
@@ -77,34 +77,13 @@ export function BusinessSidebar() {
                 <NavLink href="/dashboard/business/coaching/sessions" icon={CalendarClock}>
                   Coaching Sessions
                 </NavLink>
-                <NavLink href="/dashboard/business/coaching/library" icon={GraduationCap}>
-                  Training Library
+                <NavLink href="/dashboard/business/coaching/goals" icon={Target}>
+                  Goal Tracking
                 </NavLink>
+
               </div>
             )}
 
-            {/* Performance & Goals */}
-            <Separator className="my-3" />
-            <button
-              onClick={() => setIsPerformanceExpanded(!isPerformanceExpanded)}
-              className="flex items-center justify-between rounded-lg px-3 py-2 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50"
-            >
-              <span className="font-semibold">Performance & Goals</span>
-              {isPerformanceExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-            {isPerformanceExpanded && (
-              <div className="pl-3 grid gap-1">
-                <NavLink href="/dashboard/business/performance/goals" icon={Target}>
-                  Goal Tracking
-                </NavLink>
-                <NavLink href="/dashboard/business/performance/plans" icon={UserCog}>
-                  Development Plans
-                </NavLink>
-                <NavLink href="/dashboard/business/performance/analytics" icon={BarChart3}>
-                  Performance Metrics
-                </NavLink>
-              </div>
-            )}
 
             {/* Business Administration */}
             <Separator className="my-3" />
@@ -117,16 +96,16 @@ export function BusinessSidebar() {
             </button>
             {isAdminExpanded && (
               <div className="pl-3 grid gap-1">
-                <NavLink href="/dashboard/business/profile" icon={Building2}>
+                <NavLink href="/dashboard/business/settings/profile" icon={Building2}>
                   Business Profile
                 </NavLink>
-                <NavLink href="/dashboard/business/team/members" icon={Users}>
+                <NavLink href="/dashboard/business/settings/team" icon={Users}>
                   Team Management
                 </NavLink>
-                <NavLink href="/dashboard/business/team/roles" icon={Briefcase}>
+                <NavLink href="/dashboard/business/settings/permissions" icon={Briefcase}>
                   Roles & Permissions
                 </NavLink>
-                <NavLink href="/dashboard/business/admin/billing" icon={DollarSign}>
+                <NavLink href="/dashboard/business/settings/billing" icon={DollarSign}>
                   Billing & Subscription
                 </NavLink>
 

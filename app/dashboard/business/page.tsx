@@ -42,12 +42,6 @@ export default function BusinessDashboard() {
                 Set Goals
               </Link>
             </Button>
-            <Button asChild variant="outline">
-              <Link href="/dashboard/business/coaching/training">
-                <GraduationCap className="mr-2 h-4 w-4" />
-                Training Programs
-              </Link>
-            </Button>
             <Button asChild variant="outline" className="relative">
               <Link href="/dashboard/business/admin/billing">
                 <AlertCircle className="mr-2 h-4 w-4 text-amber-500" />
