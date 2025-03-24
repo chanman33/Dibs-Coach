@@ -1,23 +1,34 @@
 "use client"
-import { CoachSessionsDashboard } from '../_components/CoachSessionsDashboard'
-import { Suspense, useState } from 'react'
+
+import { Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { CoachSessionsDashboard } from '../_components/CoachSessionsDashboard'
 
-export default function CoachSessionsPage() {
-  // Create a fresh QueryClient for each page render to avoid shared state issues
-  const [queryClient] = useState(() => new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 5 * 60 * 1000, // 5 minutes
-        retry: false, // Disable retries by default
-        refetchOnWindowFocus: false, // Disable refetching on window focus
-        refetchOnMount: false, // Disable refetching on mount
-        refetchOnReconnect: false, // Disable refetching on reconnect
-      },
+// Log for debugging
+console.log('[DEBUG_PAGE] CoachSessionsPage module loaded')
+
+// Create a client with enhanced serialization settings
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: false,
+      refetchOnWindowFocus: false,
+      refetchOnMount: false,
+      // Disable structural sharing to prevent non-serializable objects
+      structuralSharing: false
     },
-  }))
+  },
+})
 
+/**
+ * Coach Sessions Page Component
+ * Provides query client context and suspense boundary for the sessions dashboard
+ */
+export default function CoachSessionsPage() {
+  console.log('[DEBUG_PAGE] CoachSessionsPage component rendered')
+  
   return (
     <QueryClientProvider client={queryClient}>
       <Suspense fallback={
@@ -29,4 +40,4 @@ export default function CoachSessionsPage() {
       </Suspense>
     </QueryClientProvider>
   )
-}
+} 

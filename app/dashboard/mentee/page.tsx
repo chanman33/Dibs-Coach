@@ -153,7 +153,7 @@ function MenteeDashboard() {
         // Find the next upcoming session
         const now = new Date()
         const upcomingSessions = data?.filter(session =>
-          session.status === SessionStatus.SCHEDULED &&
+          session.status === 'SCHEDULED' &&
           isAfter(new Date(session.startTime), now)
         ).sort((a, b) =>
           new Date(a.startTime).getTime() - new Date(b.startTime).getTime()

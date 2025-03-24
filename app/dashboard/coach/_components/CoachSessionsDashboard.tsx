@@ -1,185 +1,176 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { fetchCoachSessions } from '@/utils/actions/sessions'
-import { TransformedSession, SessionStatus } from '@/utils/types/session'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { SESSION_STATUS, TransformedSession, SessionsAnalytics, defaultAnalytics } from '@/utils/types/session'
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, Search, Filter, Users, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
+import { Calendar, Clock, Search, Filter, Users, CheckCircle2, XCircle } from "lucide-react"
 import { format } from 'date-fns'
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from 'next/link'
 
-interface Analytics {
-  total: number
-  scheduled: number
-  completed: number
-  cancelled: number
-  no_show: number
-}
-
 // Status badge colors
-const getStatusColor = (status: string) => {
-  // Normalize status to lowercase for comparison
-  const lowerStatus = status.toLowerCase();
-  switch (lowerStatus) {
-    case SessionStatus.SCHEDULED.toLowerCase():
-      return 'bg-blue-500'
-    case SessionStatus.COMPLETED.toLowerCase():
-      return 'bg-green-500'
-    case SessionStatus.CANCELLED.toLowerCase():
-      return 'bg-red-500'
-    case SessionStatus.NO_SHOW.toLowerCase():
-      return 'bg-yellow-500'
-    default:
-      return 'bg-gray-500'
-  }
+const statusColorMap: Record<string, string> = {
+  'SCHEDULED': 'bg-blue-500',
+  'COMPLETED': 'bg-green-500',
+  'CANCELLED': 'bg-red-500',
+  'NO_SHOW': 'bg-yellow-500'
 }
 
 /**
- * Safely formats a date string without persisting a Date object in a closure
+ * Format date safely without persisting Date objects in state/closures
  */
 function formatDate(dateString: string, formatString: string): string {
   try {
-    // Use a local function variable so the Date object isn't captured in a closure
-    const date = new Date(dateString);
-    return format(date, formatString);
+    const date = new Date(dateString)
+    return format(date, formatString)
   } catch (e) {
-    console.error('Date formatting error:', e);
-    return dateString;
+    console.error('Date formatting error:', e)
+    return dateString
   }
 }
 
 /**
- * Dashboard component that shows coach sessions
+ * Coach Sessions Dashboard Component
  */
 export function CoachSessionsDashboard() {
-  // State hooks
+  // Local state for filtering and tabs
   const [filter, setFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTab, setSelectedTab] = useState('upcoming')
 
-  // Get the current ISO string without creating a Date object in state
-  const nowString = useMemo(() => new Date().toISOString(), []);
+  // Get current timestamp once for all comparisons
+  const nowString = useMemo(() => new Date().toISOString(), [])
 
   // Fetch sessions data
-  const { data: response, isLoading } = useQuery({
+  const { data: response, isLoading, error } = useQuery({
     queryKey: ['coach-sessions'],
-    queryFn: fetchCoachSessions,
+    queryFn: async () => {
+      console.log('[DEBUG_CLIENT] Calling fetchCoachSessions')
+      try {
+        // @ts-ignore - Temporarily ignore type error while type definitions are aligned
+        const result = await fetchCoachSessions({})
+        console.log('[DEBUG_CLIENT] fetchCoachSessions returned:', { 
+          hasData: !!result?.data,
+          dataLength: result?.data?.length || 0,
+          hasError: !!result?.error,
+          isResultSerializable: canSerialize(result || {})
+        })
+        return result
+      } catch (error) {
+        console.error('[DEBUG_CLIENT] Error calling fetchCoachSessions:', error)
+        throw error
+      }
+    },
     retry: false,
     refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000 // 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    // Add parsing and serialization safety
+    select: (data) => {
+      console.log('[DEBUG_CLIENT] Processing response in select')
+      // Force JSON serialization to ensure plain objects
+      try {
+        const serialized = JSON.parse(JSON.stringify(data))
+        console.log('[DEBUG_CLIENT] Successfully serialized response')
+        return serialized
+      } catch (e) {
+        console.error('[DEBUG_CLIENT] Failed to parse sessions data:', e)
+        return { data: [], error: null }
+      }
+    }
   })
 
-  // Get sessions data
+  // Helper function to check serializability
+  function canSerialize(obj: any): boolean {
+    if (obj === undefined) return false
+    try {
+      JSON.stringify(obj)
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+  
+  // Log errors
+  useEffect(() => {
+    if (error) {
+      console.error('[DEBUG_CLIENT] Query error:', error)
+    }
+  }, [error])
+
+  // Sessions data access with safe fallback
   const sessions = useMemo(() => {
-    // Make sure we're working with a fresh array
-    return Array.isArray(response?.data) ? [...response.data] : [];
-  }, [response?.data]);
-
-  // Check if the coach has any sessions
-  const hasNoSessions = useMemo(() => sessions.length === 0, [sessions]);
-
+    const result = response?.data || []
+    console.log('[DEBUG_CLIENT] Sessions extracted from response:', { 
+      count: result.length,
+      isSerializable: canSerialize(result)
+    })
+    return result
+  }, [response?.data])
+  
   // Filter and sort sessions
   const filteredSessions = useMemo(() => {
-    // If there are no sessions, return an empty array
-    if (hasNoSessions) return [];
+    if (!sessions.length) return []
     
     return [...sessions]
       .filter((session: TransformedSession) => {
-        // Filter by search query
+        // Filter by search query (case insensitive)
         const matchesSearch = searchQuery === '' || 
           (session.otherParty.firstName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-          (session.otherParty.lastName?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+          (session.otherParty.lastName?.toLowerCase() || '').includes(searchQuery.toLowerCase())
         
-        // Filter by status - normalize to same case for comparison
-        const matchesFilter = filter === 'all' || session.status === filter;
+        // Filter by status
+        const matchesFilter = filter === 'all' || session.status === filter
         
-        // Filter by tab - compare string timestamps
-        const isUpcoming = session.startTime > nowString;
-        const matchesTab = selectedTab === 'upcoming' ? isUpcoming : !isUpcoming;
+        // Filter by tab - upcoming or past
+        const isUpcoming = session.startTime > nowString
+        const matchesTab = selectedTab === 'upcoming' ? isUpcoming : !isUpcoming
 
-        return matchesSearch && matchesFilter && matchesTab;
+        return matchesSearch && matchesFilter && matchesTab
       })
       .sort((a: TransformedSession, b: TransformedSession) => {
         // Sort by start time
-        if (selectedTab === 'upcoming') {
-          return a.startTime > b.startTime ? 1 : -1;
-        } else {
-          return a.startTime < b.startTime ? 1 : -1;
-        }
-      });
-  }, [sessions, searchQuery, filter, selectedTab, nowString, hasNoSessions]);
+        return selectedTab === 'upcoming'
+          ? new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+          : new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+      })
+  }, [sessions, searchQuery, filter, selectedTab, nowString])
 
-  // Calculate analytics
-  const analytics = useMemo(() => {
-    // Create a fresh object with default values
-    const result = {
-      total: 0,
-      scheduled: 0,
-      completed: 0,
-      cancelled: 0,
-      no_show: 0
-    };
+  // Calculate analytics once
+  const analytics: SessionsAnalytics = useMemo(() => {
+    if (!sessions.length) return defaultAnalytics
     
-    // If there are no sessions, return the default values
-    if (hasNoSessions) return result;
-    
-    // Count sessions by status
-    sessions.forEach((session: TransformedSession) => {
-      result.total++;
+    return sessions.reduce((acc: SessionsAnalytics, session: TransformedSession) => {
+      acc.total++
       
-      // Convert status to lowercase for comparison
-      const status = session.status.toLowerCase();
-      if (status === SessionStatus.SCHEDULED.toLowerCase()) result.scheduled++;
-      else if (status === SessionStatus.COMPLETED.toLowerCase()) result.completed++;
-      else if (status === SessionStatus.CANCELLED.toLowerCase()) result.cancelled++;
-      else if (status === SessionStatus.NO_SHOW.toLowerCase()) result.no_show++;
-    });
-    
-    return result;
-  }, [sessions, hasNoSessions]);
+      // Increment the appropriate counter based on status
+      switch (session.status) {
+        case 'SCHEDULED':
+          acc.scheduled++
+          break
+        case 'COMPLETED':
+          acc.completed++
+          break
+        case 'CANCELLED':
+          acc.cancelled++
+          break
+        case 'NO_SHOW':
+          acc.no_show++
+          break
+      }
+      
+      return acc
+    }, { ...defaultAnalytics }) // Start with a fresh copy of defaultAnalytics
+  }, [sessions])
 
   if (isLoading) {
-    return (
-      <div className="space-y-6 p-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <Skeleton className="h-8 w-64" />
-            <Skeleton className="h-4 w-48 mt-2" />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader className="pb-2">
-                <Skeleton className="h-4 w-24" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-8 w-16" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-        <Card>
-          <CardHeader>
-            <Skeleton className="h-6 w-32" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-24 w-full" />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
+    return <SessionsLoadingSkeleton />
   }
 
   return (
@@ -193,223 +184,237 @@ export function CoachSessionsDashboard() {
 
       {/* Analytics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.total}</div>
-            <p className="text-xs text-muted-foreground mt-1">All time sessions</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <div className="text-2xl font-bold">{analytics.completed}</div>
-              <Badge variant="secondary" className="bg-green-100 text-green-700">
-                {((analytics.completed) / (analytics.total || 1) * 100).toFixed(0)}%
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Successfully completed</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Upcoming</CardTitle>
-            <Calendar className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <div className="text-2xl font-bold">{analytics.scheduled}</div>
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700">Active</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Scheduled sessions</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cancelled/No-Show</CardTitle>
-            <XCircle className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-2">
-              <div className="text-2xl font-bold">{analytics.cancelled + analytics.no_show}</div>
-              <Badge variant="secondary" className="bg-red-100 text-red-700">
-                {((analytics.cancelled + analytics.no_show) / (analytics.total || 1) * 100).toFixed(0)}%
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Missed sessions</p>
-          </CardContent>
-        </Card>
+        <AnalyticsCard 
+          title="Total Sessions" 
+          value={analytics.total} 
+          icon={<Users className="h-4 w-4 text-muted-foreground" />}
+          description="All time sessions" 
+        />
+        <AnalyticsCard 
+          title="Completed" 
+          value={analytics.completed} 
+          icon={<CheckCircle2 className="h-4 w-4 text-green-500" />}
+          percentage={(analytics.completed / (analytics.total || 1) * 100).toFixed(0)}
+          badgeColor="bg-green-100 text-green-700"
+          description="Successfully completed" 
+        />
+        <AnalyticsCard 
+          title="Upcoming" 
+          value={analytics.scheduled} 
+          icon={<Calendar className="h-4 w-4 text-blue-500" />}
+          badgeText="Active"
+          badgeColor="bg-blue-100 text-blue-700"
+          description="Scheduled sessions" 
+        />
+        <AnalyticsCard 
+          title="Cancelled/No-Show" 
+          value={analytics.cancelled + analytics.no_show} 
+          icon={<XCircle className="h-4 w-4 text-red-500" />}
+          percentage={((analytics.cancelled + analytics.no_show) / (analytics.total || 1) * 100).toFixed(0)}
+          badgeColor="bg-red-100 text-red-700"
+          description="Missed sessions" 
+        />
       </div>
 
-      {/* Session List or Welcome Message */}
-      {hasNoSessions ? (
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader>
-            <CardTitle>Welcome to Your Coaching Dashboard</CardTitle>
-            <CardDescription>You don't have any coaching sessions yet</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="flex flex-col items-center text-center p-8">
-              <Calendar className="h-16 w-16 text-blue-500 mb-4" />
-              <h2 className="text-2xl font-semibold mb-2">No Sessions Found</h2>
-              <p className="text-muted-foreground max-w-md mb-6">
-                When you book sessions with mentees, they will appear here. You'll be able to track
-                upcoming sessions, review past sessions, and manage your coaching schedule.
-              </p>
-              <Link href="/dashboard/coach/availability">
-                <Button className="mt-2">
-                  Set Your Availability
-                </Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="border-b">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <CardTitle>Sessions</CardTitle>
-                <CardDescription>View and manage your coaching sessions</CardDescription>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search mentee..."
-                    className="pl-8 w-[200px] focus:w-[300px] transition-all"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <Select value={filter} onValueChange={setFilter}>
-                  <SelectTrigger className="w-[140px]">
-                    <Filter className="mr-2 h-4 w-4" />
-                    <SelectValue placeholder="Filter" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value={SessionStatus.SCHEDULED}>Scheduled</SelectItem>
-                    <SelectItem value={SessionStatus.COMPLETED}>Completed</SelectItem>
-                    <SelectItem value={SessionStatus.CANCELLED}>Cancelled</SelectItem>
-                    <SelectItem value={SessionStatus.NO_SHOW}>No Show</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
-              <TabsList className="w-full justify-start border-b rounded-none h-auto p-0 mb-4">
-                <TabsTrigger 
-                  value="upcoming" 
-                  className="data-[state=active]:border-primary data-[state=active]:bg-transparent border-b-2 border-transparent rounded-none"
-                >
-                  Upcoming
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="past" 
-                  className="data-[state=active]:border-primary data-[state=active]:bg-transparent border-b-2 border-transparent rounded-none"
-                >
-                  Past Sessions
-                </TabsTrigger>
+      {/* Sessions List */}
+      <Card>
+        <CardHeader className="space-y-0">
+          <div className="flex items-center justify-between pb-4">
+            <CardTitle>Sessions</CardTitle>
+            <Tabs defaultValue={selectedTab} onValueChange={setSelectedTab} className="w-[400px]">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+                <TabsTrigger value="past">Past</TabsTrigger>
               </TabsList>
-              <TabsContent value="upcoming" className="space-y-4">
-                {filteredSessions.map((session: TransformedSession) => (
-                  <div 
-                    key={session.ulid}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-all hover:shadow-sm group"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="space-y-1">
-                        <p className="font-medium group-hover:text-primary transition-colors">
-                          {session.otherParty.firstName || ''} {session.otherParty.lastName || ''}
-                        </p>
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {formatDate(session.startTime, 'PPP')}
-                          <Clock className="ml-4 mr-2 h-4 w-4" />
-                          {formatDate(session.startTime, 'p')} - {formatDate(session.endTime, 'p')}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge 
-                        className={`${getStatusColor(session.status)} px-2 py-0.5 text-white`}
-                      >
-                        {session.status}
-                      </Badge>
-                      {session.status === SessionStatus.SCHEDULED && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          className="hover:bg-primary hover:text-white transition-colors"
-                        >
-                          Join Call
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-                {filteredSessions.length === 0 && (
-                  <div className="text-center py-12">
-                    <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-lg font-medium">No sessions found</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {searchQuery ? 'Try adjusting your search or filters' : 'No upcoming sessions scheduled'}
-                    </p>
-                  </div>
-                )}
-              </TabsContent>
-              <TabsContent value="past" className="space-y-4">
-                {filteredSessions.map((session: TransformedSession) => (
-                  <div 
-                    key={session.ulid}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-all hover:shadow-sm group"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="space-y-1">
-                        <p className="font-medium group-hover:text-primary transition-colors">
-                          {session.otherParty.firstName || ''} {session.otherParty.lastName || ''}
-                        </p>
-                        <div className="flex items-center text-sm text-muted-foreground">
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {formatDate(session.startTime, 'PPP')}
-                          <Clock className="ml-4 mr-2 h-4 w-4" />
-                          {formatDate(session.startTime, 'p')} - {formatDate(session.endTime, 'p')}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge 
-                        className={`${getStatusColor(session.status)} px-2 py-0.5 text-white`}
-                      >
-                        {session.status}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-                {filteredSessions.length === 0 && (
-                  <div className="text-center py-12">
-                    <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-lg font-medium">No sessions found</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {searchQuery ? 'Try adjusting your search or filters' : 'No past sessions available'}
-                    </p>
-                  </div>
-                )}
-              </TabsContent>
             </Tabs>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-2 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by mentee name..."
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <Select value={filter} onValueChange={setFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <Filter className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Filter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
+                <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                <SelectItem value="NO_SHOW">No Show</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          <div className="space-y-4">
+            {filteredSessions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No sessions found</p>
+                {sessions.length > 0 && (
+                  <Button variant="link" onClick={() => {
+                    setFilter('all')
+                    setSearchQuery('')
+                  }}>
+                    Clear filters
+                  </Button>
+                )}
+              </div>
+            ) : (
+              filteredSessions.map((session) => (
+                <SessionCard key={session.ulid} session={session} />
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+/**
+ * Analytics Card Component
+ */
+interface AnalyticsCardProps {
+  title: string
+  value: number
+  icon: React.ReactNode
+  percentage?: string
+  badgeText?: string
+  badgeColor?: string
+  description: string
+}
+
+function AnalyticsCard({ title, value, icon, percentage, badgeText, badgeColor, description }: AnalyticsCardProps) {
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        {icon}
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-baseline gap-2">
+          <div className="text-2xl font-bold">{value}</div>
+          {(percentage || badgeText) && (
+            <Badge variant="secondary" className={badgeColor}>
+              {percentage ? `${percentage}%` : badgeText}
+            </Badge>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">{description}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Session Card Component
+ */
+interface SessionCardProps {
+  session: TransformedSession
+}
+
+function SessionCard({ session }: SessionCardProps) {
+  const mentee = session.otherParty
+  const menteeName = [mentee.firstName, mentee.lastName].filter(Boolean).join(' ') || 'Unknown Mentee'
+  const statusColor = statusColorMap[session.status] || 'bg-gray-500'
+  const formattedDate = formatDate(session.startTime, 'MMM d, yyyy')
+  const formattedTime = formatDate(session.startTime, 'h:mm a')
+
+  return (
+    <Card className="hover:shadow-md transition-shadow">
+      <CardContent className="p-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between">
+          <div className="space-y-1 mb-4 md:mb-0">
+            <div className="flex items-center gap-2">
+              <h4 className="text-lg font-semibold">{menteeName}</h4>
+              <Badge className={statusColor}>{session.status}</Badge>
+            </div>
+            <div className="flex items-center text-muted-foreground gap-4">
+              <span className="flex items-center gap-1">
+                <Calendar className="h-4 w-4" /> {formattedDate}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock className="h-4 w-4" /> {formattedTime}
+              </span>
+              <span>{session.durationMinutes} min</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {session.status === 'SCHEDULED' && (
+              <>
+                {session.zoomMeetingUrl && (
+                  <Button size="sm" variant="outline" asChild>
+                    <a href={session.zoomMeetingUrl} target="_blank" rel="noopener noreferrer">
+                      Join Zoom
+                    </a>
+                  </Button>
+                )}
+                <Button size="sm" asChild>
+                  <Link href={`/dashboard/coach/sessions/${session.ulid}`}>
+                    View Details
+                  </Link>
+                </Button>
+              </>
+            )}
+            {session.status !== 'SCHEDULED' && (
+              <Button size="sm" variant="outline" asChild>
+                <Link href={`/dashboard/coach/sessions/${session.ulid}`}>
+                  View Details
+                </Link>
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+/**
+ * Loading Skeleton Component
+ */
+function SessionsLoadingSkeleton() {
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-48 mt-2" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {Array(4).fill(0).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="pb-2">
+              <Skeleton className="h-4 w-24" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-16" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-32" />
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {Array(3).fill(0).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 } 
