@@ -96,7 +96,6 @@ const realtorProfileSchema = z.object({
   specializations: z.array(z.string()),
   transactionVolume: z.coerce.number().min(0, "Transaction volume must be 0 or greater").optional(),
   transactionCount: z.coerce.number().min(0, "Transaction count must be 0 or greater").optional(),
-  achievements: z.string().optional(),
 });
 
 // Type for the form values
@@ -112,7 +111,6 @@ interface RealtorProfileInitialData {
   specializations?: string[];
   transactionVolume?: number;
   transactionCount?: number;
-  achievements?: string;
 }
 
 // Props for the component
@@ -140,7 +138,6 @@ export function RealtorProfileForm({
       specializations: initialData?.specializations || [],
       transactionVolume: initialData?.transactionVolume || 0,
       transactionCount: initialData?.transactionCount || 0,
-      achievements: initialData?.achievements || "",
     },
   });
 
@@ -414,32 +411,6 @@ export function RealtorProfileForm({
                     )}
                   />
                 </div>
-              </div>
-
-              {/* Achievements */}
-              <div className="space-y-4 pt-4 border-t">
-                <h4 className="text-md font-medium">Achievements</h4>
-                
-                <FormField
-                  control={form.control}
-                  name="achievements"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Notable Achievements</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          {...field} 
-                          placeholder="List your notable achievements, awards, and recognitions"
-                          className="min-h-[100px]"
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Share your professional accomplishments that demonstrate your expertise
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </div>
             </div>
           </Card>

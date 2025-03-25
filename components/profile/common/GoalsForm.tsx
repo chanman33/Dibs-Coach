@@ -185,119 +185,172 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
         return;
       }
 
+      // Retry configuration
+      const MAX_RETRIES = 2; // Maximum retries
+      const RETRY_DELAY = 500; // Base delay in ms
+      
+      // Helper function to create a delay
+      const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
       setIsLoadingGoals(true);
-      try {
-        const { data, error } = await fetchGoals({});
+      
+      // Retry loop
+      let attempt = 0;
+      let lastError = null;
+      let success = false;
+      
+      while (attempt < MAX_RETRIES && !success) {
+        attempt++;
         
-        if (error) {
-          console.error('[LOAD_GOALS_ERROR]', {
+        try {
+          const { data, error } = await fetchGoals({});
+          
+          if (error) {
+            console.error('[LOAD_GOALS_ERROR]', {
+              error,
+              attempt,
+              maxRetries: MAX_RETRIES,
+              timestamp: new Date().toISOString()
+            });
+            
+            lastError = error;
+            
+            if (attempt < MAX_RETRIES) {
+              // Wait before retry with exponential backoff
+              const backoffTime = RETRY_DELAY * Math.pow(2, attempt - 1);
+              console.log('[RETRY_FETCH_GOALS]', {
+                attempt,
+                nextAttempt: attempt + 1,
+                backoffTime,
+                timestamp: new Date().toISOString()
+              });
+              await delay(backoffTime);
+              continue;
+            } else {
+              toast.error("Failed to load goals");
+              break;
+            }
+          }
+          
+          if (data) {
+            // Transform the data to match the ClientGoal interface
+            const clientGoals: ClientGoal[] = data.map(goal => {
+              const typedGoal = goal as any;
+              
+              // Parse target value correctly - handle both string JSON and object formats
+              let targetValue = 0;
+              if (typedGoal.target) {
+                try {
+                  if (typeof typedGoal.target === 'string') {
+                    // If it's a JSON string, parse it
+                    const parsedTarget = JSON.parse(typedGoal.target);
+                    targetValue = parsedTarget?.value || 0;
+                  } else if (typeof typedGoal.target === 'object') {
+                    // If it's already an object, use the value directly
+                    targetValue = typedGoal.target?.value || 0;
+                  }
+                } catch (e) {
+                  console.error('[TARGET_PARSE_ERROR]', {
+                    error: e,
+                    target: typedGoal.target,
+                    goalId: typedGoal.ulid,
+                    timestamp: new Date().toISOString()
+                  });
+                }
+              }
+              
+              // Parse progress value correctly - handle both string JSON and object formats
+              let progressValue = 0;
+              if (typedGoal.progress) {
+                try {
+                  if (typeof typedGoal.progress === 'string') {
+                    // If it's a JSON string, parse it
+                    const parsedProgress = JSON.parse(typedGoal.progress);
+                    progressValue = parsedProgress?.value || 0;
+                  } else if (typeof typedGoal.progress === 'object') {
+                    // If it's already an object, use the value directly
+                    progressValue = typedGoal.progress?.value || 0;
+                  }
+                } catch (e) {
+                  console.error('[PROGRESS_PARSE_ERROR]', {
+                    error: e,
+                    progress: typedGoal.progress,
+                    goalId: typedGoal.ulid,
+                    timestamp: new Date().toISOString()
+                  });
+                }
+              }
+              
+              // Parse the due date correctly
+              let deadline = typedGoal.dueDate;
+              if (deadline) {
+                try {
+                  // Try to format the date as YYYY-MM-DD for form compatibility
+                  const date = new Date(deadline);
+                  if (!isNaN(date.getTime())) {
+                    deadline = date.toISOString().split('T')[0];
+                  }
+                } catch (e) {
+                  console.error('[DATE_PARSE_ERROR]', {
+                    error: e,
+                    dueDate: typedGoal.dueDate,
+                    goalId: typedGoal.ulid,
+                    timestamp: new Date().toISOString()
+                  });
+                }
+              }
+              
+              return {
+                ulid: typedGoal.ulid,
+                userUlid: typedGoal.userUlid,
+                organizationUlid: typedGoal.organizationUlid,
+                title: typedGoal.title,
+                description: typedGoal.description || null,
+                target: targetValue,
+                current: progressValue,
+                deadline: deadline,
+                type: typedGoal.type as GoalType,
+                status: typedGoal.status as GoalStatus,
+                createdAt: typedGoal.createdAt || new Date().toISOString(),
+                updatedAt: typedGoal.updatedAt || new Date().toISOString(),
+                organization: typedGoal.organization,
+                user: typedGoal.user
+              };
+            });
+            
+            setGoals(clientGoals);
+            setLastFetchTimestamp(now);
+            success = true;
+          }
+        } catch (error) {
+          lastError = error;
+          
+          console.error("[LOAD_GOALS_ERROR]", {
             error,
+            stack: error instanceof Error ? error.stack : undefined,
+            attempt,
+            maxRetries: MAX_RETRIES,
             timestamp: new Date().toISOString()
           });
-          toast.error("Failed to load goals");
-          return;
-        }
-        
-        if (data) {
-          // Transform the data to match the ClientGoal interface
-          const clientGoals: ClientGoal[] = data.map(goal => {
-            const typedGoal = goal as any;
-            
-            // Parse target value correctly - handle both string JSON and object formats
-            let targetValue = 0;
-            if (typedGoal.target) {
-              try {
-                if (typeof typedGoal.target === 'string') {
-                  // If it's a JSON string, parse it
-                  const parsedTarget = JSON.parse(typedGoal.target);
-                  targetValue = parsedTarget?.value || 0;
-                } else if (typeof typedGoal.target === 'object') {
-                  // If it's already an object, use the value directly
-                  targetValue = typedGoal.target?.value || 0;
-                }
-              } catch (e) {
-                console.error('[TARGET_PARSE_ERROR]', {
-                  error: e,
-                  target: typedGoal.target,
-                  goalId: typedGoal.ulid,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            }
-            
-            // Parse progress value correctly - handle both string JSON and object formats
-            let progressValue = 0;
-            if (typedGoal.progress) {
-              try {
-                if (typeof typedGoal.progress === 'string') {
-                  // If it's a JSON string, parse it
-                  const parsedProgress = JSON.parse(typedGoal.progress);
-                  progressValue = parsedProgress?.value || 0;
-                } else if (typeof typedGoal.progress === 'object') {
-                  // If it's already an object, use the value directly
-                  progressValue = typedGoal.progress?.value || 0;
-                }
-              } catch (e) {
-                console.error('[PROGRESS_PARSE_ERROR]', {
-                  error: e,
-                  progress: typedGoal.progress,
-                  goalId: typedGoal.ulid,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            }
-            
-            // Parse the due date correctly
-            let deadline = typedGoal.dueDate;
-            if (deadline) {
-              try {
-                // Try to format the date as YYYY-MM-DD for form compatibility
-                const date = new Date(deadline);
-                if (!isNaN(date.getTime())) {
-                  deadline = date.toISOString().split('T')[0];
-                }
-              } catch (e) {
-                console.error('[DATE_PARSE_ERROR]', {
-                  error: e,
-                  dueDate: typedGoal.dueDate,
-                  goalId: typedGoal.ulid,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            }
-            
-            return {
-              ulid: typedGoal.ulid,
-              userUlid: typedGoal.userUlid,
-              organizationUlid: typedGoal.organizationUlid,
-              title: typedGoal.title,
-              description: typedGoal.description || null,
-              target: targetValue,
-              current: progressValue,
-              deadline: deadline,
-              type: typedGoal.type as GoalType,
-              status: typedGoal.status as GoalStatus,
-              createdAt: typedGoal.createdAt || new Date().toISOString(),
-              updatedAt: typedGoal.updatedAt || new Date().toISOString(),
-              organization: typedGoal.organization,
-              user: typedGoal.user
-            };
-          });
           
-          setGoals(clientGoals);
-          setLastFetchTimestamp(now);
+          if (attempt < MAX_RETRIES) {
+            // Wait before retry with exponential backoff
+            const backoffTime = RETRY_DELAY * Math.pow(2, attempt - 1);
+            console.log('[RETRY_FETCH_GOALS]', {
+              attempt,
+              nextAttempt: attempt + 1,
+              backoffTime,
+              timestamp: new Date().toISOString()
+            });
+            await delay(backoffTime);
+          } else {
+            toast.error("Failed to load goals");
+          }
         }
-      } catch (error) {
-        console.error("[LOAD_GOALS_ERROR]", {
-          error,
-          stack: error instanceof Error ? error.stack : undefined,
-          timestamp: new Date().toISOString()
-        });
-        toast.error("Failed to load goals");
-      } finally {
-        setIsLoadingGoals(false);
-        setIsInitialLoading(false);
       }
+      
+      setIsLoadingGoals(false);
+      setIsInitialLoading(false);
     };
 
     fetchGoalsWithCooldown();
@@ -314,6 +367,8 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       });
       return;
     }
+    
+    // Just update timestamp to trigger the useEffect which contains the retry logic
     setLastFetchTimestamp(now);
   };
 

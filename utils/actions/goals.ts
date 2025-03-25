@@ -24,9 +24,10 @@ import { createAuthClient } from "@/utils/auth";
 /**
  * Fetch user's personal goals
  * This function will also fetch organization goals that are visible to the user
+ * Includes retry logic to handle occasional failures
  */
 export const fetchGoals = withServerAction<GoalWithRelations[], GetGoals>(
-  async (params, context): Promise<ApiResponse<GoalWithRelations[]>> => {
+  async (params = {}, context): Promise<ApiResponse<GoalWithRelations[]>> => {
     const requestId = generateUlid();
     console.log("[FETCH_GOALS_START]", { 
       requestId,
@@ -35,124 +36,168 @@ export const fetchGoals = withServerAction<GoalWithRelations[], GetGoals>(
       timestamp: new Date().toISOString()
     });
     
-    try {
-      const supabase = await createAuthClient();
-      
-      // Get user's organization memberships in a single query
-      const { data: userOrgs, error: orgsError } = await supabase
-        .from("OrganizationMember")
-        .select("organizationUlid, organization:organizationUlid(name, type, industry)")
-        .eq("userUlid", context.userUlid)
-        .eq("status", "ACTIVE");
-      
-      if (orgsError) {
-        console.error("[FETCH_USER_ORGS_ERROR]", { 
-          requestId,
-          error: orgsError, 
-          message: orgsError.message, 
-          timestamp: new Date().toISOString()
-        });
-        throw orgsError;
-      }
-      
-      const userOrgIds = userOrgs?.map(org => org.organizationUlid) || [];
-      
-      // Build an optimized query to fetch all goals in one go
-      let query = supabase
-        .from("Goal")
-        .select(`
-          *,
-          user:userUlid (
-            firstName,
-            lastName,
-            email,
-            displayName,
-            profileImageUrl
-          ),
-          organization:organizationUlid (
-            name,
-            type,
-            industry
-          )
-        `);
+    // Retry configuration
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 500; // ms
+    
+    // Helper function to create a delay
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    
+    // Retry loop
+    let lastError = null;
+    
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const supabase = await createAuthClient();
+        
+        // Get user's organization memberships in a single query
+        const { data: userOrgs, error: orgsError } = await supabase
+          .from("OrganizationMember")
+          .select("organizationUlid, organization:organizationUlid(name, type, industry)")
+          .eq("userUlid", context.userUlid)
+          .eq("status", "ACTIVE");
+        
+        if (orgsError) {
+          console.error("[FETCH_USER_ORGS_ERROR]", { 
+            requestId,
+            error: orgsError, 
+            message: orgsError.message, 
+            timestamp: new Date().toISOString(),
+            attempt
+          });
+          // Store error but continue to retry
+          lastError = orgsError;
+          if (attempt < MAX_RETRIES) {
+            await delay(RETRY_DELAY * attempt); // Exponential backoff
+            continue;
+          }
+          throw orgsError;
+        }
+        
+        const userOrgIds = userOrgs?.map(org => org.organizationUlid) || [];
+        
+        // Build an optimized query to fetch all goals in one go
+        let query = supabase
+          .from("Goal")
+          .select(`
+            *,
+            user:userUlid (
+              firstName,
+              lastName,
+              email,
+              displayName,
+              profileImageUrl
+            ),
+            organization:organizationUlid (
+              name,
+              type,
+              industry
+            )
+          `);
 
-      // Build filter conditions
-      const conditions = [];
-      
-      // Always include user's personal goals
-      conditions.push(`userUlid.eq.${context.userUlid}`);
-      
-      // Include organization goals if user belongs to any orgs
-      if (userOrgIds.length > 0) {
-        conditions.push(`organizationUlid.in.(${userOrgIds.join(',')})`);
-      }
-      
-      // Add optional filters
-      if (params.status) {
-        const validStatus = Object.values(GOAL_STATUS).find(s => s === params.status);
-        if (validStatus) {
-          query = query.eq("status", validStatus);
+        // Build filter conditions
+        const conditions = [];
+        
+        // Always include user's personal goals
+        conditions.push(`userUlid.eq.${context.userUlid}`);
+        
+        // Include organization goals if user belongs to any orgs
+        if (userOrgIds.length > 0) {
+          conditions.push(`organizationUlid.in.(${userOrgIds.join(',')})`);
         }
-      }
-      if (params.type) {
-        const validType = Object.values(GOAL_TYPE).find(t => t === params.type);
-        if (validType) {
-          query = query.eq("type", validType);
+        
+        // Add optional filters
+        if (params.status) {
+          const validStatus = Object.values(GOAL_STATUS).find(s => s === params.status);
+          if (validStatus) {
+            query = query.eq("status", validStatus);
+          }
         }
-      }
-      if (params.userUlid) {
-        query = query.eq("userUlid", params.userUlid);
-      }
-      if (params.organizationUlid) {
-        query = query.eq("organizationUlid", params.organizationUlid);
-      }
-      
-      // Combine all conditions with OR
-      query = query.or(conditions.join(','));
-      
-      // Execute query
-      const { data: goals, error: goalsError } = await query;
-      
-      if (goalsError) {
-        console.error("[FETCH_GOALS_ERROR]", { 
+        if (params.type) {
+          const validType = Object.values(GOAL_TYPE).find(t => t === params.type);
+          if (validType) {
+            query = query.eq("type", validType);
+          }
+        }
+        if (params.userUlid) {
+          query = query.eq("userUlid", params.userUlid);
+        }
+        if (params.organizationUlid) {
+          query = query.eq("organizationUlid", params.organizationUlid);
+        }
+        
+        // Combine all conditions with OR
+        query = query.or(conditions.join(','));
+        
+        // Execute query
+        const { data: goals, error: goalsError } = await query;
+        
+        if (goalsError) {
+          console.error("[FETCH_GOALS_ERROR]", { 
+            requestId,
+            error: goalsError, 
+            message: goalsError.message,
+            timestamp: new Date().toISOString(),
+            attempt
+          });
+          // Store error but continue to retry
+          lastError = goalsError;
+          if (attempt < MAX_RETRIES) {
+            await delay(RETRY_DELAY * attempt); // Exponential backoff
+            continue;
+          }
+          throw goalsError;
+        }
+        
+        // Check for overdue goals and update their status
+        const updatedGoals = await updateOverdueGoals(goals || []);
+        
+        console.log("[FETCH_GOALS_SUCCESS]", { 
           requestId,
-          error: goalsError, 
-          message: goalsError.message,
-          timestamp: new Date().toISOString()
+          totalGoals: updatedGoals.length,
+          personalGoals: updatedGoals.filter(g => g.userUlid === context.userUlid && !g.organizationUlid).length,
+          orgGoals: updatedGoals.filter(g => g.organizationUlid).length,
+          timestamp: new Date().toISOString(),
+          attempt
         });
-        throw goalsError;
+        
+        return { data: updatedGoals, error: null };
+      } catch (error) {
+        // Store error
+        lastError = error;
+        
+        // Log only on final attempt
+        if (attempt === MAX_RETRIES) {
+          console.error("[FETCH_GOALS_ERROR_AFTER_RETRIES]", {
+            requestId,
+            error,
+            message: error instanceof Error ? error.message : "Unknown error",
+            userUlid: context.userUlid,
+            stack: error instanceof Error ? error.stack : undefined,
+            timestamp: new Date().toISOString(),
+            attempts: attempt
+          });
+        } else {
+          console.log("[FETCH_GOALS_RETRYING]", { 
+            requestId,
+            attempt,
+            nextAttempt: attempt + 1,
+            delay: RETRY_DELAY * attempt,
+            timestamp: new Date().toISOString()
+          });
+          await delay(RETRY_DELAY * attempt); // Exponential backoff
+        }
       }
-      
-      // Check for overdue goals and update their status
-      const updatedGoals = await updateOverdueGoals(goals || []);
-      
-      console.log("[FETCH_GOALS_SUCCESS]", { 
-        requestId,
-        totalGoals: updatedGoals.length,
-        personalGoals: updatedGoals.filter(g => g.userUlid === context.userUlid && !g.organizationUlid).length,
-        orgGoals: updatedGoals.filter(g => g.organizationUlid).length,
-        timestamp: new Date().toISOString()
-      });
-      
-      return { data: updatedGoals, error: null };
-    } catch (error) {
-      console.error("[FETCH_GOALS_ERROR]", {
-        requestId,
-        error,
-        message: error instanceof Error ? error.message : "Unknown error",
-        userUlid: context.userUlid,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
-      });
-      
-      return {
-        data: null,
-        error: {
-          code: "FETCH_ERROR" as ApiErrorCode,
-          message: error instanceof Error ? error.message : "Failed to fetch goals",
-        },
-      };
     }
+    
+    // If all retries failed
+    return {
+      data: null,
+      error: {
+        code: "FETCH_ERROR" as ApiErrorCode,
+        message: lastError instanceof Error ? lastError.message : "Failed to fetch goals after multiple retries",
+      },
+    };
   }
 );
 

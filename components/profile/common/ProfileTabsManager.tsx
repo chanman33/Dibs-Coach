@@ -2,15 +2,14 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Award, Building, Home, ListChecks, User, Briefcase, Globe, Target, Info, List, Building2, CalendarRange, Clock } from "lucide-react";
+import { Award, Building, Home, User, Briefcase, Globe, Info, List, Building2 } from "lucide-react";
 import { CoachProfileFormValues } from "../types";
 import { ProfessionalRecognition } from "@/utils/types/recognition";
 import GeneralForm from "./GeneralForm";
 import { RecognitionsTab } from "../coach/RecognitionsTab";
 import MarketingInfo from "../coach/MarketingInfo";
 import { MarketingInfo as MarketingInfoType } from "@/utils/types/marketing";
-import GoalsForm from "./GoalsForm";
-import { Goal, GoalFormValues } from "@/utils/types/goals";
+import { Goal } from "@/utils/types/goals";
 import ListingsForm from "../industry/realtor/ListingsForm";
 import { toast } from "sonner";
 import { type ApiResponse } from "@/utils/types/api";
@@ -82,9 +81,11 @@ interface ProfileTabsManagerProps {
   privateCreditFormContent?: React.ReactNode;
   creditListingsContent?: React.ReactNode;
   initialRecognitions?: ProfessionalRecognition[];
-  onSubmitRecognitions: (recognitions: ProfessionalRecognition[]) => Promise<void>;
+  onSubmitRecognitions?: (recognitions: ProfessionalRecognition[]) => Promise<void>;
   initialMarketingInfo?: MarketingInfoType;
   onSubmitMarketingInfo?: (data: MarketingInfoType) => Promise<void>;
+  // The Goals and Plans tabs have been moved to their own pages,
+  // but these props are kept for backward compatibility
   initialGoals?: Goal[];
   onSubmitGoals?: (goals: Goal[]) => Promise<void>;
   isSubmitting?: boolean;
@@ -344,7 +345,7 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
       content: (
         <RecognitionsTab 
           initialRecognitions={initialRecognitions}
-          onSubmit={onSubmitRecognitions}
+          onSubmit={onSubmitRecognitions || (async () => {})}
           isSubmitting={isSubmitting}
         />
       ),
@@ -362,72 +363,9 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
         />
       ),
       requiredCapabilities: ["COACH"],
-    },
-    {
-      id: "goals",
-      label: "Goals",
-      icon: <Target className="h-4 w-4" />,
-      content: (
-        <GoalsForm
-          open={true}
-          onClose={() => {}}
-          onSubmit={async (data: GoalFormValues) => {
-            if (onSubmitGoals) {
-              await onSubmitGoals([]);
-            }
-          }}
-        />
-      ),
-      requiredCapabilities: ["COACH"],
-    },
-    {
-      id: "plans",
-      label: "Plans",
-      icon: <ListChecks className="h-4 w-4" />,
-      content: (
-        <div className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="p-4 border rounded-lg bg-card">
-              <div className="flex items-center gap-2 mb-2">
-                <Target className="h-5 w-5 text-primary" />
-                <h3 className="font-semibold">Development Plans</h3>
-              </div>
-              <ComingSoon 
-                title="Development Plans"
-                description="Create structured plans to achieve your goals. Link specific actions to your goals and track your progress over time."
-                showImage={false}
-              />
-            </div>
-            
-            <div className="p-4 border rounded-lg bg-card">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="h-5 w-5 text-primary" />
-                <h3 className="font-semibold">Habit Tracker</h3>
-              </div>
-              <ComingSoon 
-                title="Habit Tracker"
-                description="Build consistency with daily habit tracking. Turn your plans into sustainable habits that lead to long-term success."
-                showImage={false}
-              />
-            </div>
-          </div>
-          
-          <div className="p-4 border rounded-lg bg-card">
-            <div className="flex items-center gap-2 mb-2">
-              <CalendarRange className="h-5 w-5 text-primary" />
-              <h3 className="font-semibold">Plan Calendar</h3>
-            </div>
-            <ComingSoon 
-              title="Plan Calendar"
-              description="Visualize your plans and goals on a calendar. Schedule actions, set deadlines, and never miss an important milestone."
-              showImage={false}
-            />
-          </div>
-        </div>
-      ),
-      requiredCapabilities: ["COACH"],
     }
-  ], [
+  ],
+  [
     generalUserInfo,
     onSubmitGeneral,
     coachFormContent,
@@ -435,7 +373,6 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
     onSubmitRecognitions,
     initialMarketingInfo,
     onSubmitMarketingInfo,
-    onSubmitGoals,
     isSubmitting,
     selectedSkills
   ]);

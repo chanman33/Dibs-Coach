@@ -22,7 +22,9 @@ import {
   GraduationCap,
   BookOpen,
   Briefcase,
-  CreditCard
+  CreditCard,
+  Target,
+  ListChecks
 } from "lucide-react"
 import { useCentralizedAuth } from '@/app/provider'
 import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
@@ -47,7 +49,7 @@ export function CoachSidebar() {
         if (result.data) {
           const { realEstateDomains } = result.data
           const isRealtor = realEstateDomains?.includes('REALTOR') || false
-          
+
           setHasRealtorDomain(isRealtor)
         }
       } catch (error) {
@@ -81,11 +83,11 @@ export function CoachSidebar() {
               <span>Coach Portal</span>
             </Link>
           </div>
-          
+
           {/* Organization Switcher - Uses the shared component */}
           <SidebarOrganizationSection />
         </div>
-        
+
         <div className="flex-1 overflow-y-auto py-2">
           <nav className="grid items-start px-4 text-sm font-medium gap-1">
             {/* Main Navigation */}
@@ -114,7 +116,12 @@ export function CoachSidebar() {
 
             {/* Resource Library */}
             <Separator className="my-3" />
-            
+            <NavLink href="/dashboard/coach/goals" icon={Target}>
+              Goals
+            </NavLink>
+            <NavLink href="/dashboard/coach/plans" icon={ListChecks}>
+              Plans
+            </NavLink>
             <NavLink href="/dashboard/coach/library" icon={BookOpen}>
               <div className="flex items-center gap-2">
                 <span className="font-semibold">Library</span>
