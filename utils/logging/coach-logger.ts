@@ -6,6 +6,8 @@
  * Log coach profile data with consistent formatting
  */
 export function logCoachProfile(context: string, coach: any) {
+  if (process.env.NODE_ENV !== 'development') return;
+  
   console.log(`[${context}]`, {
     ulid: coach.ulid,
     userId: coach.userId,
@@ -78,6 +80,8 @@ export function logCoachFiltering(context: string, {
   after: number,
   filters: Record<string, any>
 }) {
+  if (process.env.NODE_ENV !== 'development') return;
+  
   console.log(`[${context}_FILTERING]`, {
     before,
     after,
@@ -102,6 +106,8 @@ export function logCoachQuery(context: string, {
   filters?: Record<string, any>,
   order?: Record<string, string>
 }) {
+  if (process.env.NODE_ENV !== 'development') return;
+  
   console.log(`[${context}_QUERY]`, {
     table,
     joins,
@@ -123,6 +129,8 @@ export function logCoachQueryResults(context: string, {
   count: number,
   error?: any
 }) {
+  if (process.env.NODE_ENV !== 'development') return;
+  
   console.log(`[${context}_QUERY_RESULTS]`, {
     success,
     count,

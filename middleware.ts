@@ -44,6 +44,15 @@ function updateMetrics(operation: string, data: { duration: number, error?: Erro
   if (metric.latency.length > 100) metric.latency.shift()
   
   metrics.set(operation, metric)
+  
+  // Only log metrics in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[METRICS_${operation.toUpperCase()}]`, {
+      duration: data.duration,
+      error: data.error?.message,
+      timestamp: new Date().toISOString()
+    })
+  }
 }
 
 export default authMiddleware({
@@ -96,7 +105,7 @@ export default authMiddleware({
           return NextResponse.redirect(new URL(ONBOARDING_ROUTE, req.url))
         }
       } catch (error) {
-        // Always log errors
+        // Only log errors
         console.error('[AUTH_ERROR]', {
           code: 'MIDDLEWARE_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
@@ -120,8 +129,10 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder files
+     * - static files with extensions
      */
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
-    '/',
+    "/((?!.+\\.[\\w]+$|_next).*)",
+    "/",
+    "/(api|trpc)(.*)"
   ]
 }

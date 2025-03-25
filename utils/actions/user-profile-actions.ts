@@ -396,75 +396,31 @@ export interface UserCapabilitiesResponse {
 export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, void>(
   async (_, { userUlid }): Promise<ApiResponse<UserCapabilitiesResponse>> => {
     try {
-      console.log("[FETCH_USER_CAPABILITIES_START]", {
-        userUlid,
-        timestamp: new Date().toISOString(),
-        source: 'server'
-      });
-
-      const supabase = await createAuthClient();
-
-      // Get user capabilities
-      const { data: userData, error: userError } = await supabase
-        .from("User")
-        .select(`
-          capabilities,
-          realEstateDomains,
-          primaryDomain
-        `)
-        .eq("ulid", userUlid)
-        .single();
-
-      if (userError) {
-        console.error("[CAPABILITIES_FETCH_ERROR]", { 
-          userUlid, 
-          error: userError,
+      // Start logging only in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log("[FETCH_USER_CAPABILITIES_START]", {
+          userUlid,
           timestamp: new Date().toISOString(),
           source: 'server'
         });
-        return {
-          data: null,
-          error: {
-            code: 'DATABASE_ERROR',
-            message: 'Failed to fetch user capabilities',
-            details: userError
-          }
-        };
       }
 
-      // Log raw data from database
-      console.log("[FETCH_USER_CAPABILITIES_RAW_DATA]", {
-        userUlid,
-        rawCapabilities: userData.capabilities,
-        rawRealEstateDomains: userData.realEstateDomains,
-        rawPrimaryDomain: userData.primaryDomain,
-        timestamp: new Date().toISOString(),
-        source: 'server'
-      });
+      const supabase = createAuthClient();
+      const { data: userData, error } = await supabase
+        .from('User')
+        .select('capabilities, realEstateDomains, primaryDomain')
+        .eq('ulid', userUlid)
+        .single();
 
-      // Ensure all data is primitives (strings, numbers, booleans, etc.)
-      // Create new primitive arrays to avoid potential prototype issues
-      const capabilities = Array.isArray(userData.capabilities) 
-        ? userData.capabilities.map(cap => String(cap)) 
-        : [];
-      
-      const realEstateDomains = Array.isArray(userData.realEstateDomains) 
-        ? userData.realEstateDomains.map(domain => String(domain)) 
-        : [];
-      
+      if (error) {
+        throw error;
+      }
+
+      const capabilities = (userData.capabilities || []).filter(Boolean);
+      const realEstateDomains = (userData.realEstateDomains || []).filter(Boolean);
       const primaryRealEstateDomain = userData.primaryDomain 
         ? String(userData.primaryDomain) 
         : null;
-
-      // Log processed data before returning
-      console.log("[FETCH_USER_CAPABILITIES_PROCESSED]", {
-        userUlid,
-        processedCapabilities: capabilities,
-        processedRealEstateDomains: realEstateDomains,
-        processedPrimaryDomain: primaryRealEstateDomain,
-        timestamp: new Date().toISOString(),
-        source: 'server'
-      });
 
       // Return a plain object with primitives
       return {
@@ -476,6 +432,7 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
         error: null
       };
     } catch (error) {
+      // Always log errors
       console.error("[CAPABILITIES_FETCH_ERROR]", {
         userUlid,
         error,

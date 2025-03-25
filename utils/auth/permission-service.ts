@@ -44,27 +44,19 @@ class PermissionService {
   setUser(user: AuthContext | null): void {
     const now = Date.now();
     
-    // Check if this is the same user, with no difference in org details
-    if (this.user && user && this.user.userId === user.userId) {
-      const sameOrg = this.user.organizationUlid === user.organizationUlid;
-      const sameOrgRole = this.user.orgRole === user.orgRole;
-      
-      // If nothing significant changed, don't clear the cache
-      if (sameOrg && sameOrgRole) {
-        console.log('[PERMISSION_SERVICE] Same user context, preserving cache');
-        this.user = user; // Update reference but keep cache
-        this.lastSetTimestamp = now;
-        return;
+    // Clear cache if user changes
+    if (this.user?.userId !== user?.userId) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PERMISSION_SERVICE] User context changed, clearing cache');
       }
+      this.cache.clear();
     }
     
-    // Clear cache when changing user or significant user details
-    console.log('[PERMISSION_SERVICE] User context changed, clearing cache');
-    this.cache.clear();
     this.user = user;
     this.lastSetTimestamp = now;
     
-    if (user) {
+    // Only log in development
+    if (process.env.NODE_ENV === 'development' && user) {
       console.log('[PERMISSION_SERVICE] User set:', { 
         userId: user.userId,
         role: user.systemRole,
@@ -84,11 +76,7 @@ class PermissionService {
           organizationName: user.organizationName,
           timestamp: new Date().toISOString()
         });
-      } else {
-        console.log('[PERMISSION_SERVICE] No organization role set for user');
       }
-    } else {
-      console.log('[PERMISSION_SERVICE] User unset');
     }
   }
 
