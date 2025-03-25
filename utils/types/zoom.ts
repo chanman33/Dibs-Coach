@@ -13,17 +13,26 @@ export interface ZoomSessionConfig {
 }
 
 export interface ZoomSession {
-  id: string;
-  hostId: string;
-  topic: string;
-  startTime: string;
-  duration: number;
-  status: ZoomSessionStatus;
+  ulid: string;
+  sessionUlid: string;
+  sessionName: string;
+  hostUlid: string;
+  startUrl: string | null;
+  joinUrl: string | null;
+  status: 'SCHEDULED' | 'STARTED' | 'ENDED' | 'CANCELLED';
+  metadata: any | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export type ZoomSessionStatus = 'scheduled' | 'started' | 'ended' | 'failed';
+export const ZOOM_SESSION_STATUS = {
+  SCHEDULED: 'SCHEDULED',
+  STARTED: 'STARTED',
+  ENDED: 'ENDED',
+  CANCELLED: 'CANCELLED'
+} as const;
+
+export type ZoomSessionStatus = typeof ZOOM_SESSION_STATUS[keyof typeof ZOOM_SESSION_STATUS];
 
 // Media types
 export interface ZoomMediaState {

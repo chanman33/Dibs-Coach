@@ -513,21 +513,21 @@ model Session {
 }
 
 model Payment {
-  ulid            String        @id @db.Char(26)
-  sessionUlid     String?       @unique @db.Char(26)
-  payerUlid       String        @db.Char(26)
-  payeeUlid       String        @db.Char(26)
-  amount          Decimal       @db.Decimal(10, 2)
-  currency        Currency      @default(USD)
-  status          PaymentStatus @default(PENDING)
+  ulid            String            @id @db.Char(26)
+  sessionUlid     String?           @unique @db.Char(26)
+  payerUlid       String            @db.Char(26)
+  payeeUlid       String            @db.Char(26)
+  amount          Decimal           @db.Decimal(10, 2)
+  currency        Currency          @default(USD)
+  status          PaymentStatus     @default(PENDING)
   stripePaymentId String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
   chargebacks     Chargeback[]
-  disputes        Dispute[]     @relation("PaymentDisputes")
-  payee           User          @relation("Payee", fields: [payeeUlid], references: [ulid])
-  payer           User          @relation("Payer", fields: [payerUlid], references: [ulid])
-  session         Session?      @relation("SessionPayment", fields: [sessionUlid], references: [ulid])
+  disputes        Dispute[]         @relation("PaymentDisputes")
+  payee           User              @relation("Payee", fields: [payeeUlid], references: [ulid])
+  payer           User              @relation("Payer", fields: [payerUlid], references: [ulid])
+  session         Session?          @relation("SessionPayment", fields: [sessionUlid], references: [ulid])
   refunds         Refund[]
 
   @@index([sessionUlid])
@@ -1195,7 +1195,7 @@ model PaymentMethod {
   userUlid          String?      @db.Char(26)
   organizationUlid  String?      @db.Char(26)
   stripePaymentId   String       @unique
-  type              String
+  type              PaymentMethodType
   isDefault         Boolean      @default(false)
   last4             String
   brand             String?
@@ -1229,7 +1229,7 @@ model BillingEvent {
   createdAt         DateTime      @default(now()) @db.Timestamptz(6)
   updatedAt         DateTime      @updatedAt @db.Timestamptz(6)
   subscription      Subscription? @relation(fields: [subscriptionUlid], references: [ulid])
-  paymentMethod     PaymentMethod? @relation(fields: [paymentMethodUlid], references: [ulid])
+  paymentMethod     PaymentMethod? @relation(fields: [paymentMethodUlid], references: [ulid], onDelete: SetNull)
   organization      Organization? @relation(fields: [organizationUlid], references: [ulid])
   user              User?         @relation(fields: [userUlid], references: [ulid])
 
@@ -1261,23 +1261,6 @@ model Invoice {
   @@index([subscriptionUlid])
   @@index([userUlid])
   @@map("Invoice")
-}
-
-model ZoomSession {
-  ulid        String   @id @db.Char(26)
-  sessionUlid String   @unique @db.Char(26)
-  sessionName String
-  hostUlid    String   @db.Char(26)
-  startUrl    String?
-  joinUrl     String?
-  status      String   @default("scheduled")
-  metadata    Json?
-  createdAt   DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
-  session     Session  @relation(fields: [sessionUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([sessionUlid])
-  @@map("ZoomSession")
 }
 
 model CoachingAvailabilitySchedule {
@@ -1465,7 +1448,7 @@ enum PaymentStatus {
   REFUNDED
 }
 
-enum PaymentMethod {
+enum PaymentMethodType {
   credit_card
   debit_card
   bank_transfer
@@ -1971,4 +1954,28 @@ model CalBooking {
   @@index([status])
   @@index([startTime])
   @@map("CalBooking")
+}
+
+enum ZoomSessionStatus {
+  SCHEDULED
+  STARTED
+  ENDED
+  CANCELLED
+}
+
+model ZoomSession {
+  ulid        String   @id @db.Char(26)
+  sessionUlid String   @unique @db.Char(26)
+  sessionName String
+  hostUlid    String   @db.Char(26)
+  startUrl    String?
+  joinUrl     String?
+  status      String   @default("SCHEDULED")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
+  session     Session  @relation(fields: [sessionUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([sessionUlid])
+  @@map("ZoomSession")
 }

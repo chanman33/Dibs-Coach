@@ -3,7 +3,7 @@
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { auth } from '@clerk/nextjs/server';
-import { ZoomSession, ZoomSessionConfig } from '@/utils/types/zoom';
+import { ZoomSession, ZoomSessionConfig, ZoomSessionStatus, ZOOM_SESSION_STATUS } from '@/utils/types/zoom';
 import { handleZoomError } from './middleware/zoom-error-handler';
 import { type SupabaseClient } from '@supabase/supabase-js';
 import type {
@@ -13,62 +13,48 @@ import type {
   SessionMeetingConfig,
 } from '@/utils/types/zoom';
 import { env } from '@/lib/env';
-import { createAuthClient, getUserUlidAndRole } from '@/utils/auth';
+import { createAuthClient } from '@/utils/auth';
+import { getUserById } from '@/utils/auth/user-management';
+import { generateUlid } from '@/utils/ulid';
 
-// Initialize Supabase client
-const getSupabase = async () => {
-  const cookieStore = await cookies();
-  
-  return createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          cookieStore.set({ name, value, ...options });
-        },
-        remove(name: string, options: any) {
-          cookieStore.delete({ name, ...options });
-        },
-      },
-    }
-  );
-};
-
-export async function createZoomSession(config: Omit<ZoomSessionConfig, 'token'>) {
+export async function createZoomSession(config: Omit<ZoomSessionConfig, 'token'>): Promise<ZoomSession> {
   try {
     const { userId } = await auth();
     if (!userId) throw new Error('Unauthorized');
 
-    const supabase = await getSupabase();
+    const supabase = await createAuthClient();
     
-    // Get user's database ID
-    const { data: user } = await supabase
-      .from('User')
-      .select('id')
-      .eq('userId', userId)
-      .single();
-    
+    // Get user's database ID using our standard pattern
+    const user = await getUserById(userId);
     if (!user) throw new Error('User not found');
 
-    // Create session record
+    // Create session record with ULID
+    const ulid = generateUlid();
+    const sessionUlid = generateUlid();
+
+    const sessionData: ZoomSession = {
+      ulid,
+      sessionUlid,
+      sessionName: config.sessionName,
+      hostUlid: user.userUlid,
+      status: ZOOM_SESSION_STATUS.SCHEDULED,
+      startUrl: null,
+      joinUrl: null,
+      metadata: {},
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
     const { data: session, error } = await supabase
       .from('ZoomSession')
-      .insert({
-        hostId: user.id,
-        topic: config.sessionName,
-        status: 'scheduled',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      })
+      .insert(sessionData)
       .select()
       .single();
 
     if (error) throw error;
-    return session;
+    if (!session) throw new Error('Failed to create session');
+    
+    return session as ZoomSession;
   } catch (error) {
     throw handleZoomError(error);
   }
@@ -79,12 +65,12 @@ export async function getZoomSession(sessionId: string): Promise<ZoomSession> {
     const { userId } = await auth();
     if (!userId) throw new Error('Unauthorized');
 
-    const supabase = await getSupabase();
+    const supabase = await createAuthClient();
     
     const { data: session, error } = await supabase
       .from('ZoomSession')
       .select('*')
-      .eq('id', sessionId)
+      .eq('ulid', sessionId) // Use ulid instead of id
       .single();
 
     if (error) throw error;
@@ -101,7 +87,7 @@ export async function updateZoomSessionStatus(sessionId: string, status: ZoomSes
     const { userId } = await auth();
     if (!userId) throw new Error('Unauthorized');
 
-    const supabase = await getSupabase();
+    const supabase = await createAuthClient();
     
     const { error } = await supabase
       .from('ZoomSession')
@@ -109,7 +95,7 @@ export async function updateZoomSessionStatus(sessionId: string, status: ZoomSes
         status,
         updatedAt: new Date().toISOString()
       })
-      .eq('id', sessionId);
+      .eq('ulid', sessionId);
 
     if (error) throw error;
   } catch (error) {
@@ -122,12 +108,12 @@ export async function deleteZoomSession(sessionId: string) {
     const { userId } = await auth();
     if (!userId) throw new Error('Unauthorized');
 
-    const supabase = await getSupabase();
+    const supabase = await createAuthClient();
     
     const { error } = await supabase
       .from('ZoomSession')
       .delete()
-      .eq('id', sessionId);
+      .eq('ulid', sessionId);
 
     if (error) throw error;
   } catch (error) {
@@ -137,13 +123,15 @@ export async function deleteZoomSession(sessionId: string) {
 
 export class ZoomService {
   private baseUrl = 'https://api.zoom.us/v2'
-  private supabase: SupabaseClient;
+  private supabase!: SupabaseClient;
   private userId: string | null = null;
   private userUlid: string | null = null;
-  private accessToken: string | null = null;
+  private accessToken: string;
 
   constructor() {
-    this.supabase = null as any;
+    if (!env.ZOOM_ACCESS_TOKEN) {
+      throw new Error('ZOOM_ACCESS_TOKEN is required');
+    }
     this.accessToken = env.ZOOM_ACCESS_TOKEN;
   }
 
@@ -152,10 +140,11 @@ export class ZoomService {
     if (!userId) throw new Error('Unauthorized');
     
     this.userId = userId;
-    const { userUlid } = await getUserUlidAndRole(userId);
-    this.userUlid = userUlid;
+    const user = await getUserById(userId);
+    if (!user) throw new Error('User not found');
     
-    this.supabase = await getSupabase();
+    this.userUlid = user.userUlid;
+    this.supabase = await createAuthClient();
     return this;
   }
 
