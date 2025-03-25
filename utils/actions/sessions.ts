@@ -370,4 +370,145 @@ export const fetchUpcomingSessions = withServerAction<any>(
       }
     }
   }
+)
+
+/**
+ * Fetches sessions for any user (mentee or coach)
+ */
+export const fetchUserSessions = withServerAction<any>(
+  async (params, { userUlid, roleContext }) => {
+    try {
+      console.log('[DEBUG_USER_SESSIONS] Starting fetchUserSessions', { userUlid, capabilities: roleContext?.capabilities })
+      
+      const supabase = await createAuthClient()
+      
+      // Determine if user is a coach, mentee, or both
+      const isCoach = roleContext.capabilities?.includes('COACH')
+      const isMentee = roleContext.capabilities?.includes('MENTEE')
+      
+      if (!isCoach && !isMentee) {
+        console.log('[DEBUG_USER_SESSIONS] User lacks required capabilities', { capabilities: roleContext.capabilities })
+        return {
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'User must be either a coach or mentee'
+          }
+        }
+      }
+
+      // Query sessions based on user role
+      let query = supabase
+        .from('Session')
+        .select(`
+          ulid,
+          menteeUlid,
+          coachUlid,
+          startTime,
+          endTime,
+          status,
+          sessionType,
+          zoomMeetingUrl,
+          paymentStatus,
+          createdAt,
+          mentee:User!Session_menteeUlid_fkey (
+            ulid,
+            firstName,
+            lastName,
+            email,
+            profileImageUrl
+          ),
+          coach:User!Session_coachUlid_fkey (
+            ulid,
+            firstName,
+            lastName,
+            email,
+            profileImageUrl
+          )
+        `)
+        .order('startTime', { ascending: false })
+
+      // If user is only a coach, filter by coachUlid
+      if (isCoach && !isMentee) {
+        query = query.eq('coachUlid', userUlid)
+      }
+      // If user is only a mentee, filter by menteeUlid
+      else if (isMentee && !isCoach) {
+        query = query.eq('menteeUlid', userUlid)
+      }
+      // If user is both, get sessions where they are either coach or mentee
+      else {
+        query = query.or(`coachUlid.eq.${userUlid},menteeUlid.eq.${userUlid}`)
+      }
+
+      const { data: sessions, error: sessionsError } = await query
+
+      if (sessionsError) {
+        console.error('[DEBUG_USER_SESSIONS] Supabase error', { error: sessionsError })
+        return {
+          data: null,
+          error: {
+            code: 'FETCH_ERROR',
+            message: 'Failed to fetch user sessions'
+          }
+        }
+      }
+
+      // Handle empty sessions case
+      if (!sessions || sessions.length === 0) {
+        console.log('[DEBUG_USER_SESSIONS] No sessions found')
+        return { data: [], error: null }
+      }
+
+      // Transform sessions into client-friendly format
+      const transformedSessions = sessions.map((session: any) => {
+        // Determine if the user is the coach or mentee in this session
+        const userRole = session.coachUlid === userUlid ? 'coach' : 'mentee'
+        const otherParty = userRole === 'coach' ? session.mentee : session.coach
+
+        return {
+          ulid: String(session.ulid),
+          durationMinutes: Math.round(
+            (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)
+          ),
+          status: String(session.status || 'SCHEDULED'),
+          startTime: String(session.startTime),
+          endTime: String(session.endTime),
+          createdAt: String(session.createdAt),
+          userRole,
+          otherParty: {
+            ulid: String(otherParty.ulid),
+            firstName: otherParty.firstName ? String(otherParty.firstName) : null,
+            lastName: otherParty.lastName ? String(otherParty.lastName) : null,
+            email: otherParty.email ? String(otherParty.email) : null,
+            profileImageUrl: otherParty.profileImageUrl ? String(otherParty.profileImageUrl) : null
+          },
+          sessionType: session.sessionType ? String(session.sessionType) : null,
+          zoomMeetingUrl: session.zoomMeetingUrl ? String(session.zoomMeetingUrl) : null,
+          paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null
+        }
+      })
+
+      return {
+        data: transformedSessions,
+        error: null
+      }
+    } catch (error) {
+      console.error('[DEBUG_USER_SESSIONS] Unexpected error', { 
+        error,
+        errorType: error?.constructor?.name,
+        errorJSON: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+        timestamp: new Date().toISOString()
+      })
+      
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      }
+    }
+  }
 ) 
