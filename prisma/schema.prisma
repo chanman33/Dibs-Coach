@@ -81,6 +81,11 @@ model User {
   featureWaitlists         FeatureWaitlist[]
   calendarIntegration      CalendarIntegration?
   calBookings              CalBooking[]
+  seatLicenses             SeatLicense[]                  @relation("licensedUser")
+  assignedLicenses         SeatLicense[]                  @relation("licenseAssigner")
+  budgetAllocations        BudgetAllocation[]
+  orgPaymentMethods        PaymentMethod[]
+  billingEvents            BillingEvent[]
 
   @@index([userId])
   @@index([email])
@@ -170,6 +175,8 @@ model Organization {
   trainingResources TrainingResource[]
   featureWaitlists  FeatureWaitlist[]
   goals             Goal[]
+  paymentMethods    PaymentMethod[]
+  billingEvents     BillingEvent[]
 
   @@index([status])
   @@index([type])
@@ -1104,26 +1111,135 @@ model ProfessionalRecognition {
 }
 
 model Subscription {
-  ulid                 String        @id @db.Char(26)
-  userUlid             String?       @db.Char(26)
-  organizationUlid     String?       @db.Char(26)
-  stripeSubscriptionId String        @unique
+  ulid                 String             @id @db.Char(26)
+  userUlid             String?            @db.Char(26)
+  organizationUlid     String?            @db.Char(26)
+  stripeSubscriptionId String             @unique
   status               String
   planType             PlanType
-  currentPeriodStart   DateTime      @db.Timestamptz(6)
-  currentPeriodEnd     DateTime      @db.Timestamptz(6)
-  cancelAtPeriodEnd    Boolean       @default(false)
-  canceledAt           DateTime?     @db.Timestamptz(6)
+  currentPeriodStart   DateTime           @db.Timestamptz(6)
+  currentPeriodEnd     DateTime           @db.Timestamptz(6)
+  cancelAtPeriodEnd    Boolean            @default(false)
+  canceledAt           DateTime?          @db.Timestamptz(6)
   metadata             Json?
-  createdAt            DateTime      @default(now()) @db.Timestamptz(6)
-  updatedAt            DateTime      @updatedAt @db.Timestamptz(6)
+  totalSeats           Int                @default(1)
+  usedSeats            Int                @default(0)
+  seatPrice            Decimal?           @db.Decimal(10, 2)
+  billingCycle         String             @default("monthly")
+  billingDay           Int?
+  autoRenew            Boolean            @default(true)
+  createdAt            DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime           @updatedAt @db.Timestamptz(6)
   invoices             Invoice[]
-  organization         Organization? @relation(fields: [organizationUlid], references: [ulid])
-  user                 User?         @relation(fields: [userUlid], references: [ulid])
+  organization         Organization?      @relation(fields: [organizationUlid], references: [ulid])
+  user                 User?              @relation(fields: [userUlid], references: [ulid])
+  seatLicenses         SeatLicense[]
+  budgetAllocations    BudgetAllocation[]
+  billingEvents        BillingEvent[]
 
   @@index([userUlid])
   @@index([organizationUlid])
   @@map("Subscription")
+}
+
+model SeatLicense {
+  ulid               String       @id @db.Char(26)
+  subscriptionUlid   String       @db.Char(26)
+  userUlid           String       @db.Char(26)
+  status             String       @default("active")
+  assignedByUserUlid String?      @db.Char(26)
+  departmentName     String?
+  teamName           String?
+  metadata           Json?
+  assignedAt         DateTime     @default(now()) @db.Timestamptz(6)
+  revokedAt          DateTime?    @db.Timestamptz(6)
+  createdAt          DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt @db.Timestamptz(6)
+  subscription       Subscription @relation(fields: [subscriptionUlid], references: [ulid], onDelete: Cascade)
+  user               User         @relation("licensedUser", fields: [userUlid], references: [ulid])
+  assignedBy         User?        @relation("licenseAssigner", fields: [assignedByUserUlid], references: [ulid])
+
+  @@unique([subscriptionUlid, userUlid])
+  @@index([subscriptionUlid])
+  @@index([userUlid])
+  @@index([assignedByUserUlid])
+  @@index([status])
+  @@map("SeatLicense")
+}
+
+model BudgetAllocation {
+  ulid             String       @id @db.Char(26)
+  subscriptionUlid String       @db.Char(26)
+  name             String
+  type             String
+  targetUlid       String?      @db.Char(26)
+  amount           Decimal      @db.Decimal(10, 2)
+  spent            Decimal      @default(0) @db.Decimal(10, 2)
+  startDate        DateTime     @db.Timestamptz(6)
+  endDate          DateTime     @db.Timestamptz(6)
+  autoRenew        Boolean      @default(true)
+  metadata         Json?
+  createdAt        DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(6)
+  subscription     Subscription @relation(fields: [subscriptionUlid], references: [ulid], onDelete: Cascade)
+  user             User?        @relation(fields: [targetUlid], references: [ulid])
+
+  @@index([subscriptionUlid])
+  @@index([targetUlid])
+  @@index([type])
+  @@map("BudgetAllocation")
+}
+
+model PaymentMethod {
+  ulid              String       @id @db.Char(26)
+  userUlid          String?      @db.Char(26)
+  organizationUlid  String?      @db.Char(26)
+  stripePaymentId   String       @unique
+  type              String
+  isDefault         Boolean      @default(false)
+  last4             String
+  brand             String?
+  expMonth          Int?
+  expYear           Int?
+  country           String?
+  billingAddress    Json?
+  metadata          Json?
+  createdAt         DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime     @updatedAt @db.Timestamptz(6)
+  user              User?        @relation(fields: [userUlid], references: [ulid])
+  organization      Organization? @relation(fields: [organizationUlid], references: [ulid])
+  billingEvents     BillingEvent[]
+
+  @@index([userUlid])
+  @@index([organizationUlid])
+  @@index([isDefault])
+  @@map("PaymentMethod")
+}
+
+model BillingEvent {
+  ulid              String        @id @db.Char(26)
+  subscriptionUlid  String?       @db.Char(26)
+  paymentMethodUlid String?       @db.Char(26)
+  organizationUlid  String?       @db.Char(26)
+  userUlid          String?       @db.Char(26)
+  type              String
+  amount            Decimal?      @db.Decimal(10, 2)
+  description       String
+  metadata          Json?
+  createdAt         DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(6)
+  subscription      Subscription? @relation(fields: [subscriptionUlid], references: [ulid])
+  paymentMethod     PaymentMethod? @relation(fields: [paymentMethodUlid], references: [ulid])
+  organization      Organization? @relation(fields: [organizationUlid], references: [ulid])
+  user              User?         @relation(fields: [userUlid], references: [ulid])
+
+  @@index([subscriptionUlid])
+  @@index([paymentMethodUlid])
+  @@index([organizationUlid])
+  @@index([userUlid])
+  @@index([type])
+  @@index([createdAt])
+  @@map("BillingEvent")
 }
 
 model Invoice {
@@ -1726,30 +1842,25 @@ enum ProfileStatus {
   ARCHIVED
 }
 
-// Training Library Models
 model TrainingResource {
   id             String   @id @default(uuid())
   title          String
   description    String
-  type           String   // "article", "video", "course", etc.
-  access         String   // "free", "premium", "affiliate", etc.
+  type           String
+  access         String
   url            String?
   thumbnail      String?
   partner        String?
-  status         String?  // "published", "draft", "coming_soon", etc.
+  status         String?
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   organizationId String?  @map("organization_id")
   createdById    String   @map("created_by_id")
-
-  // Relationships
   organization   Organization? @relation(fields: [organizationId], references: [ulid])
   createdBy      User          @relation(fields: [createdById], references: [ulid])
-  
-  // Many-to-many relationships
   domains        ResourceDomain[]
   assignments    ResourceAssignment[]
-  sections       CourseSection[]      // For structured courses with multiple sections
+  sections       CourseSection[]
 
   @@map("TrainingResource")
 }
@@ -1758,8 +1869,6 @@ model ResourceDomain {
   id          String           @id @default(uuid())
   domain      String
   resourceId  String           @map("resource_id")
-  
-  // Relationships
   resource    TrainingResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
   @@unique([resourceId, domain])
@@ -1773,11 +1882,8 @@ model ResourceAssignment {
   assignedById String           @map("assigned_by_id")
   assignedAt   DateTime         @default(now()) @map("assigned_at")
   dueDate      DateTime?        @map("due_date")
-  status       String           @default("assigned") // "assigned", "in_progress", "completed"
+  status       String           @default("assigned")
   completedAt  DateTime?        @map("completed_at")
-  progress     Int              @default(0) // Progress percentage
-  
-  // Relationships
   resource     TrainingResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   user         User             @relation("UserAssignments", fields: [userId], references: [ulid], onDelete: Cascade)
   assignedBy   User             @relation("AssignedByUser", fields: [assignedById], references: [ulid])
@@ -1794,9 +1900,7 @@ model CourseSection {
   resourceId  String           @map("resource_id")
   content     String?
   videoUrl    String?          @map("video_url")
-  duration    Int?             // Duration in minutes
-  
-  // Relationships
+  duration    Int?
   resource    TrainingResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
 
   @@map("CourseSection")
@@ -1810,8 +1914,6 @@ model FeatureWaitlist {
   organization_id String?     @db.Char(26)
   created_at     DateTime     @default(now())
   updated_at     DateTime     @updatedAt
-  
-  // Add relations
   user           User?        @relation(fields: [user_id], references: [ulid])
   organization   Organization? @relation(fields: [organization_id], references: [ulid])
 
@@ -1822,7 +1924,6 @@ model FeatureWaitlist {
   @@map("FeatureWaitlist")
 }
 
-// New model for Cal.com integration
 model CalendarIntegration {
   ulid                    String    @id @db.Char(26)
   userUlid                String    @unique @db.Char(26)

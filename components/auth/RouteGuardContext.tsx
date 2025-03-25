@@ -12,6 +12,8 @@ import { OrgRole } from '@/utils/roles/roles';
 export type AuthorizationLevel = 
   | 'business-dashboard'
   | 'business-analytics'
+  | 'business-billing'
+  | 'business-permissions'
   | 'member-management'
   | 'coach-dashboard'
   | 'mentee-dashboard'
@@ -93,6 +95,10 @@ export function RouteGuardProvider({
         return permissionService.canAccessBusinessDashboard();
       case 'business-analytics':
         return permissionService.canViewOrgAnalytics();
+      case 'business-billing':
+        return permissionService.canAccessBusinessBilling();
+      case 'business-permissions':
+        return permissionService.canAccessBusinessPermissions();
       case 'member-management':
         return permissionService.canManageOrgMembers();
       case 'coach-dashboard':
@@ -184,6 +190,8 @@ export function RouteGuardProvider({
           const messages: Record<AuthorizationLevel, string> = {
             'business-dashboard': 'Insufficient permissions to access business dashboard',
             'business-analytics': 'You need organization analytics permission',
+            'business-billing': 'You need business billing permission',
+            'business-permissions': 'You need business permissions to access this page',
             'member-management': 'Insufficient permissions to manage members',
             'coach-dashboard': 'You need coach capabilities to access this page',
             'mentee-dashboard': 'You need mentee capabilities to access this page',

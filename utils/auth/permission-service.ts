@@ -335,6 +335,82 @@ class PermissionService {
   }
 
   /**
+   * Check if user can access business billing
+   */
+  canAccessBusinessBilling(): boolean {
+    if (!this.user) return false;
+    
+    const cacheKey = 'business_billing_access';
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    
+    // System owners always have access
+    if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
+      console.log('[PERMISSION_SERVICE] System owner bypassing business billing access check');
+      this.cache.set(cacheKey, true);
+      return true;
+    }
+    
+    // Required org role must be OWNER, DIRECTOR, or MANAGER for billing access
+    const hasRequiredRole = this.user.orgRole === ORG_ROLES.OWNER || 
+                           this.user.orgRole === ORG_ROLES.DIRECTOR;
+                           
+    const result = hasRequiredRole;
+    
+    console.log('[PERMISSION_SERVICE] Business billing access check:', {
+      userId: this.user.userId,
+      orgRole: this.user.orgRole || 'none',
+      hasRequiredRole,
+      result,
+      organizationUlid: this.user.organizationUlid || 'none',
+      organizationName: this.user.organizationName || 'none',
+      timestamp: new Date().toISOString()
+    });
+    
+    this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  /**
+   * Check if user can access business permissions
+   */
+  canAccessBusinessPermissions(): boolean {
+    if (!this.user) return false;
+    
+    const cacheKey = 'business_permissions_access';
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey)!;
+    }
+    
+    // System owners always have access
+    if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
+      console.log('[PERMISSION_SERVICE] System owner bypassing business permissions access check');
+      this.cache.set(cacheKey, true);
+      return true;
+    }
+    
+    // Required org role must be OWNER or DIRECTOR for permissions management
+    const hasRequiredRole = this.user.orgRole === ORG_ROLES.OWNER || 
+                           this.user.orgRole === ORG_ROLES.DIRECTOR;
+                           
+    const result = hasRequiredRole;
+    
+    console.log('[PERMISSION_SERVICE] Business permissions access check:', {
+      userId: this.user.userId,
+      orgRole: this.user.orgRole || 'none',
+      hasRequiredRole,
+      result,
+      organizationUlid: this.user.organizationUlid || 'none',
+      organizationName: this.user.organizationName || 'none',
+      timestamp: new Date().toISOString()
+    });
+    
+    this.cache.set(cacheKey, result);
+    return result;
+  }
+
+  /**
    * Check if user is an organization owner
    */
   isOrganizationOwner(): boolean {
