@@ -114,9 +114,14 @@ export default authMiddleware({
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
-    // Include API routes
-    '/(api|trpc)(.*)'
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder files
+     */
+    '/((?!_next/static|_next/image|favicon.ico|public).*)',
+    '/',
   ]
 }

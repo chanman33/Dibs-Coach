@@ -18,6 +18,7 @@ import {
   Briefcase,
   BarChart3,
   Building2,
+  CreditCard,
 } from "lucide-react"
 
 export function SystemSidebar() {
@@ -104,6 +105,14 @@ export function SystemSidebar() {
             {/* <NavLink href="/dashboard/system/analytics/reports" icon={FileText}>
               Reports
             </NavLink> */}
+
+            <Separator className="my-2" />
+
+            {/* Billing */}
+            <div className="text-xs uppercase text-gray-500 mt-2 mb-1">Billing</div>
+            <NavLink href="/dashboard/system/billing" icon={CreditCard}>
+              Billing Management
+            </NavLink>
 
             <Separator className="my-2" />
 
