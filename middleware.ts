@@ -30,6 +30,10 @@ const metrics = new Map<string, {
   latency: number[]
 }>()
 
+// Only log every N requests to reduce noise
+const METRICS_LOG_FREQUENCY = 20
+let requestCounter = 0
+
 function updateMetrics(operation: string, data: { duration: number, error?: Error }) {
   const metric = metrics.get(operation) || { hits: 0, misses: 0, errors: 0, latency: [] }
   
@@ -45,13 +49,28 @@ function updateMetrics(operation: string, data: { duration: number, error?: Erro
   
   metrics.set(operation, metric)
   
-  // Only log metrics in development
+  // Only log metrics in development for errors or periodically
   if (process.env.NODE_ENV === 'development') {
-    console.log(`[METRICS_${operation.toUpperCase()}]`, {
-      duration: data.duration,
-      error: data.error?.message,
-      timestamp: new Date().toISOString()
-    })
+    if (data.error || (operation !== 'success' && operation !== 'public_route')) {
+      // Always log errors and important operations
+      console.log(`[METRICS_${operation.toUpperCase()}]`, {
+        duration: data.duration,
+        error: data.error?.message,
+        timestamp: new Date().toISOString()
+      })
+    } else if (++requestCounter % METRICS_LOG_FREQUENCY === 0) {
+      // Log success metrics occasionally to reduce console noise
+      console.log(`[METRICS_SUMMARY]`, {
+        success: metrics.get('success')?.hits || 0,
+        publicRoutes: metrics.get('public_route')?.hits || 0,
+        errors: Array.from(metrics.values()).reduce((sum, m) => sum + m.errors, 0),
+        avgLatency: Array.from(metrics.values())
+          .flatMap(m => m.latency)
+          .reduce((sum, latency) => sum + latency, 0) / 
+          Math.max(1, Array.from(metrics.values()).flatMap(m => m.latency).length),
+        timestamp: new Date().toISOString()
+      })
+    }
   }
 }
 

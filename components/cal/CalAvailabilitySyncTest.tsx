@@ -18,6 +18,7 @@ import {
   SelectTrigger, 
   SelectValue
 } from '@/components/ui/select'
+import { calApiClient, CalEventType, CalTimeSlot } from '@/lib/cal/cal-api'
 
 interface TestResult {
   success: boolean
@@ -38,87 +39,108 @@ export default function CalAvailabilitySyncTest() {
   const [date, setDate] = useState<Date | undefined>(new Date())
   const [slots, setSlots] = useState<TimeSlot[]>([])
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date())
+  const [eventTypes, setEventTypes] = useState<CalEventType[]>([])
+  const [selectedEventType, setSelectedEventType] = useState<number | null>(null)
   
-  // Clear slots when date changes
+  // Fetch event types on component mount
+  useEffect(() => {
+    fetchEventTypes()
+  }, [])
+  
+  // Clear slots when date or event type changes
   useEffect(() => {
     setSlots([])
-  }, [date])
+  }, [date, selectedEventType])
   
-  // Fetch mock availability for the selected date
-  const fetchAvailability = async () => {
-    if (!date) return
-    
+  // Fetch event types from Cal.com
+  const fetchEventTypes = async () => {
     try {
       setLoading(true)
-      const formattedDate = format(date, 'yyyy-MM-dd')
-      const response = await fetch(`/api/cal/test/availability?date=${formattedDate}`)
-      
-      if (response.ok) {
-        const data = await response.json()
-        if (data.data?.slots) {
-          setSlots(data.data.slots)
-          setResult({
-            success: true,
-            message: `Successfully fetched availability for ${formattedDate}`,
-            data: {
-              timezone: data.data.timezone,
-              slotCount: data.data.slots.length,
-              availableSlots: data.data.slots.filter((slot: TimeSlot) => slot.available).length
-            }
-          })
-          toast.success('Availability fetched successfully')
-        } else {
-          setResult({
-            success: false,
-            message: 'No availability data returned',
-            error: 'Empty response'
-          })
-          toast.error('Failed to fetch availability')
-        }
-      } else {
-        setResult({
-          success: false,
-          message: 'Failed to fetch availability',
-          error: `API Error: ${response.status}`
-        })
-        toast.error('API error')
+      const types = await calApiClient.getEventTypes()
+      setEventTypes(types)
+      if (types.length > 0) {
+        setSelectedEventType(types[0].id)
       }
+      toast.success('Event types fetched successfully')
     } catch (error) {
-      setResult({
-        success: false,
-        message: 'Exception while fetching availability',
-        error: error instanceof Error ? error.message : String(error)
-      })
-      toast.error('Error fetching availability')
+      console.error('Failed to fetch event types:', error)
+      toast.error('Failed to fetch event types')
     } finally {
       setLoading(false)
     }
   }
   
-  // Simulate syncing local availability to Cal.com
-  const syncAvailability = async () => {
+  // Fetch availability from Cal.com
+  const fetchAvailability = async () => {
+    if (!date || !selectedEventType) return
+    
     try {
       setLoading(true)
-      // This is just a simulation for the test page
-      setTimeout(() => {
-        setResult({
-          success: true,
-          message: 'Availability sync simulation completed',
-          data: {
-            syncedSlots: slots.length,
-            timestamp: new Date().toISOString()
-          }
-        })
-        toast.success('Sync simulation completed')
-        setLoading(false)
-      }, 2000)
+      const startDate = new Date(date)
+      startDate.setHours(0, 0, 0, 0)
+      
+      const endDate = new Date(date)
+      endDate.setHours(23, 59, 59, 999)
+      
+      const calSlots = await calApiClient.getAvailability(
+        selectedEventType,
+        startDate.toISOString(),
+        endDate.toISOString()
+      )
+      
+      // Convert Cal.com slots to our format
+      const formattedSlots: TimeSlot[] = calSlots.map(slot => ({
+        start: slot.time,
+        end: new Date(new Date(slot.time).getTime() + 60 * 60 * 1000).toISOString(), // Assuming 1-hour slots
+        available: !slot.bookingId
+      }))
+      
+      setSlots(formattedSlots)
+      setResult({
+        success: true,
+        message: `Successfully fetched availability for ${format(date, 'yyyy-MM-dd')}`,
+        data: {
+          eventTypeId: selectedEventType,
+          slotCount: formattedSlots.length,
+          availableSlots: formattedSlots.filter(slot => slot.available).length
+        }
+      })
+      toast.success('Availability fetched successfully')
     } catch (error) {
+      console.error('Failed to fetch availability:', error)
       setResult({
         success: false,
-        message: 'Error in sync simulation',
+        message: 'Failed to fetch availability',
         error: error instanceof Error ? error.message : String(error)
       })
-      toast.error('Sync simulation failed')
+      toast.error('Failed to fetch availability')
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  // Create a test booking
+  const createTestBooking = async (slot: TimeSlot) => {
+    if (!selectedEventType) return
+    
+    try {
+      setLoading(true)
+      await calApiClient.createBooking({
+        eventTypeId: selectedEventType,
+        start: slot.start,
+        end: slot.end,
+        name: 'Test User',
+        email: 'test@example.com',
+        notes: 'Test booking from availability sync test'
+      })
+      
+      toast.success('Test booking created successfully')
+      // Refresh availability after booking
+      await fetchAvailability()
+    } catch (error) {
+      console.error('Failed to create test booking:', error)
+      toast.error('Failed to create test booking')
+    } finally {
       setLoading(false)
     }
   }
@@ -133,38 +155,6 @@ export default function CalAvailabilitySyncTest() {
     const today = new Date()
     setCalendarMonth(today)
     setDate(today)
-  }
-  
-  // Generate list of months for the month selector
-  const getMonthOptions = () => {
-    const months = []
-    const currentYear = new Date().getFullYear()
-    
-    // Add 6 months before and 6 months after current month
-    for (let i = -6; i <= 6; i++) {
-      const monthDate = new Date()
-      monthDate.setMonth(monthDate.getMonth() + i)
-      months.push({
-        value: `${monthDate.getFullYear()}-${monthDate.getMonth()}`,
-        label: format(monthDate, 'MMMM yyyy')
-      })
-    }
-    
-    return months
-  }
-  
-  // Handle month change from the select dropdown
-  const handleMonthChange = (value: string) => {
-    const [year, month] = value.split('-').map(Number)
-    const newDate = new Date()
-    newDate.setFullYear(year)
-    newDate.setMonth(month)
-    setCalendarMonth(startOfMonth(newDate))
-  }
-  
-  // Get current month-year value for the select
-  const getCurrentMonthValue = () => {
-    return `${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}`
   }
   
   // Add navigation handlers
@@ -182,6 +172,25 @@ export default function CalAvailabilitySyncTest() {
         <Card className="flex-1">
           <CardContent className="pt-6">
             <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <Label className="text-lg font-semibold">Select Event Type</Label>
+                <Select
+                  value={selectedEventType?.toString()}
+                  onValueChange={(value) => setSelectedEventType(Number(value))}
+                >
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="Select event type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {eventTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id.toString()}>
+                        {type.title} ({type.length}min)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <div className="flex items-center justify-between mb-4">
                 <Label className="text-lg font-semibold">Select Date</Label>
                 <div className="flex items-center gap-2">
@@ -263,7 +272,7 @@ export default function CalAvailabilitySyncTest() {
               
               <Button
                 onClick={fetchAvailability}
-                disabled={loading || !date}
+                disabled={loading || !date || !selectedEventType}
                 className="w-full mt-4"
               >
                 {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CalendarIcon className="mr-2 h-4 w-4" />}
@@ -284,21 +293,16 @@ export default function CalAvailabilitySyncTest() {
                       {slots.filter(slot => slot.available).length} of {slots.length} slots available
                     </span>
                   )}
-                  <Button
-                    onClick={syncAvailability}
-                    disabled={loading || slots.length === 0}
-                    size="sm"
-                    variant="outline"
-                  >
-                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Simulate Sync
-                  </Button>
                 </div>
               </div>
               
               {!date ? (
                 <div className="py-8 text-center text-muted-foreground">
                   Please select a date from the calendar.
+                </div>
+              ) : !selectedEventType ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  Please select an event type.
                 </div>
               ) : slots.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground">
@@ -315,9 +319,21 @@ export default function CalAvailabilitySyncTest() {
                         }`}
                       >
                         <span className="font-medium">{formatTime(slot.start)} - {formatTime(slot.end)}</span>
-                        <Badge variant={slot.available ? "default" : "secondary"}>
-                          {slot.available ? 'Available' : 'Unavailable'}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={slot.available ? "default" : "secondary"}>
+                            {slot.available ? 'Available' : 'Unavailable'}
+                          </Badge>
+                          {slot.available && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => createTestBooking(slot)}
+                              disabled={loading}
+                            >
+                              Test Book
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

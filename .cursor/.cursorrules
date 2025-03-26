@@ -50,7 +50,7 @@ database:
         - "User not users"
         - "CoachApplication not coach_applications"
         - "RealtorProfile not realtor_profile"
-        - "CalendlyIntegration"
+        - "CalIntegration"
       rules:
         - "Must match exact case in queries"
         - "Singular form, not plural"
