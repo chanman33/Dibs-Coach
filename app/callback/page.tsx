@@ -94,55 +94,57 @@ export default function CalOAuthCallback() {
     exchangeCodeForToken()
   }, [searchParams, router])
 
-  const navigateToTest = () => {
-    router.push('/test/cal-availability-test')
+  const navigateToSettings = () => {
+    router.push('/dashboard/settings?tab=integrations&success=true')
   }
   
   return (
-    <div className="container mx-auto max-w-md py-20">
+    <div className="container mx-auto max-w-md py-12">
       <Card>
         <CardHeader>
-          <CardTitle className="text-center">Cal.com Integration</CardTitle>
+          <CardTitle>Cal.com Integration</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col items-center space-y-6">
+        <CardContent className="space-y-4">
           {status === 'loading' && (
-            <>
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <p className="text-center">{message}</p>
-            </>
+            <div className="flex flex-col items-center justify-center space-y-4 py-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-center text-sm text-muted-foreground">{message}</p>
+            </div>
           )}
-          
+
           {status === 'success' && (
-            <>
-              <CheckCircle className="h-12 w-12 text-green-500" />
-              <Alert className="bg-green-50">
+            <div className="space-y-4">
+              <Alert className="bg-green-50 border-green-200">
+                <CheckCircle className="h-4 w-4 text-green-600" />
                 <AlertTitle>Success!</AlertTitle>
                 <AlertDescription>{message}</AlertDescription>
               </Alert>
-              <Button onClick={navigateToTest}>
-                Return to Testing Page
-              </Button>
-            </>
+              <div className="flex justify-center">
+                <Button onClick={navigateToSettings}>
+                  Return to Settings
+                </Button>
+              </div>
+            </div>
           )}
-          
+
           {status === 'error' && (
-            <>
-              <XCircle className="h-12 w-12 text-red-500" />
+            <div className="space-y-4">
               <Alert variant="destructive">
+                <XCircle className="h-4 w-4" />
                 <AlertTitle>Connection Failed</AlertTitle>
                 <AlertDescription>
                   {message}
                   {errorDetails && (
-                    <div className="mt-2 text-sm bg-red-100/50 p-2 rounded">
-                      {errorDetails}
-                    </div>
+                    <p className="mt-2 text-sm">{errorDetails}</p>
                   )}
                 </AlertDescription>
               </Alert>
-              <Button onClick={navigateToTest} variant="outline">
-                Return to Testing Page
-              </Button>
-            </>
+              <div className="flex justify-center">
+                <Button onClick={navigateToSettings} variant="outline">
+                  Return to Settings
+                </Button>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

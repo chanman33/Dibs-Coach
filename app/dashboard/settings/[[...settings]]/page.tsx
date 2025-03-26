@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { useOrganization } from '@/utils/auth/OrganizationContext'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CalConnectedStatus, useCalIntegrationStatus } from '@/components/cal/CalConnectedStatus'
 
 // Map organization types to icons and colors
 const orgTypeConfig: Record<string, { icon: any, color: string }> = {
@@ -82,6 +83,7 @@ export default function Settings() {
   const searchParams = useSearchParams();
   const hasSuccessParam = searchParams.get('success') === 'true';
   const hasErrorParam = searchParams.get('error') === 'true';
+  const { isConnected: isCalConnected, loading: isCalStatusLoading } = useCalIntegrationStatus()
 
   // Set the active tab based on the URL parameter
   useEffect(() => {
@@ -404,42 +406,87 @@ export default function Settings() {
                       </svg>
                     </div>
                     <div>
-                      <h3 className="text-lg font-medium">Cal.com</h3>
+                      <h3 className="text-lg font-medium">Dibs Scheduling</h3>
                       <p className="text-sm text-muted-foreground">
-                        Connect your Cal.com account to sync your availability and manage bookings
+                        Enable online booking for your coaching sessions
                       </p>
                     </div>
                   </div>
                   
                   <div>
-                    <Button 
-                      variant="default" 
-                      onClick={() => window.location.href = `/api/cal/oauth/authorize?redirect=${encodeURIComponent('/dashboard/settings?tab=integrations&success=true')}&error_redirect=${encodeURIComponent('/dashboard/settings?tab=integrations&error=true')}`}
-                    >
-                      Connect Cal.com
-                    </Button>
+                    {!isCalConnected && !isCalStatusLoading && (
+                      <Button 
+                        variant="default" 
+                        onClick={() => {
+                          if (!user?.emailAddresses?.[0]?.emailAddress) {
+                            toast.error("Email is required to enable scheduling");
+                            return;
+                          }
+                          
+                          setLoading(true);
+                          fetch('/api/cal/create-managed-user', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                              email: user.emailAddresses[0].emailAddress,
+                              name: user.fullName || 'Coach',
+                              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                            })
+                          })
+                            .then(response => response.json())
+                            .then(data => {
+                              if (data.error) {
+                                throw new Error(data.error);
+                              }
+                              // Navigate to the success route
+                              router.push('/dashboard/settings?tab=integrations&success=true');
+                            })
+                            .catch(error => {
+                              console.error('Scheduling integration error:', error);
+                              router.push('/dashboard/settings?tab=integrations&error=true');
+                            })
+                            .finally(() => {
+                              setLoading(false);
+                            });
+                        }}
+                        disabled={loading}
+                      >
+                        {loading ? <LoadingSpinner size="sm" /> : 'Enable Scheduling'}
+                      </Button>
+                    )}
+                    
+                    {isCalStatusLoading && (
+                      <Button variant="outline" disabled>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Checking status...
+                      </Button>
+                    )}
                   </div>
                 </div>
                 
-                {hasSuccessParam && (
+                {hasSuccessParam && !isCalConnected && (
                   <Alert className="mt-4 bg-green-50 border-green-200">
                     <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertTitle>Successfully connected!</AlertTitle>
+                    <AlertTitle>Successfully enabled!</AlertTitle>
                     <AlertDescription>
-                      Your Cal.com account has been successfully connected.
+                      Online scheduling has been successfully enabled for your account.
                     </AlertDescription>
                   </Alert>
                 )}
                 
-                {hasErrorParam && (
+                {hasErrorParam && !isCalConnected && (
                   <Alert className="mt-4 bg-red-50 border-red-200" variant="destructive">
                     <XCircle className="h-4 w-4" />
-                    <AlertTitle>Connection failed</AlertTitle>
+                    <AlertTitle>Setup failed</AlertTitle>
                     <AlertDescription>
-                      There was an error connecting your Cal.com account. Please try again.
+                      There was an error enabling scheduling. Please try again.
                     </AlertDescription>
                   </Alert>
                 )}
+                
+                <CalConnectedStatus />
               </div>
               
               <div className="border rounded-lg p-6 opacity-60">

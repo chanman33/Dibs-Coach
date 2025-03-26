@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/utils/hooks/useAuth';
 import { useCalBookings } from '@/utils/hooks/useCalBookings';
+import Link from 'next/link';
 
 interface TestResult {
   success: boolean;
@@ -318,8 +319,13 @@ export default function CalWebhookTest() {
                   <XCircle className="h-5 w-5" />
                   <AlertTitle>No Cal.com integration detected</AlertTitle>
                 </div>
-                <AlertDescription>
-                  Please connect your Cal.com account first. Webhook events may not work properly.
+                <AlertDescription className="space-y-2">
+                  <p>Please connect your Cal.com account first. Webhook events require a Cal.com connection.</p>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/dashboard/settings?tab=integrations">
+                      Go to Integration Settings
+                    </Link>
+                  </Button>
                 </AlertDescription>
               </Alert>
             )}

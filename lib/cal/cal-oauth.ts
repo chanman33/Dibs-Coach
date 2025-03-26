@@ -22,14 +22,19 @@ export const calOAuthClient = {
     params.append('redirect_uri', calConfig.redirectUrl);
     params.append('response_type', 'code');
     params.append('scope', 'calendar availability:read availability:write');
-    params.append('organization_id', this.organizationId);
+    
+    // Ensure organizationId is not empty before adding it
+    if (this.organizationId) {
+      params.append('organization_id', this.organizationId);
+    }
     
     // Add state parameter if provided
     if (state) {
       params.append('state', state);
     }
 
-    return `https://api.cal.com/oauth/authorize?${params.toString()}`;
+    // Use app.cal.com instead of api.cal.com for OAuth
+    return `https://app.cal.com/auth/oauth?${params.toString()}`;
   },
 
   // Exchange authorization code for access token
