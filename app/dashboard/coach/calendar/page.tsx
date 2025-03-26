@@ -42,7 +42,7 @@ const calendarStyles = `
   .rbc-time-content {
     overflow-y: auto !important;
     max-height: calc(100% - 80px) !important;
-    border-top: 1px solid #ddd;
+    border-top: 1px solid hsl(var(--border));
   }
   
   /* Ensure consistent time slot heights for predictable scrolling */
@@ -63,7 +63,8 @@ const calendarStyles = `
   
   /* Calendar wrapper */
   .calendar-wrapper {
-    height: 600px !important;
+    height: 100% !important;
+    min-height: 600px;
     overflow: hidden;
   }
   
@@ -80,7 +81,7 @@ const calendarStyles = `
     }
     
     .calendar-wrapper {
-      height: 500px !important;
+      min-height: 500px;
     }
   }
 `;
@@ -142,7 +143,7 @@ export default function CoachCalendarPage() {
   }))
 
   return (
-    <div className="container mx-auto py-6 px-4">
+    <div className="container mx-auto py-6 px-4 h-full min-h-screen">
       <style jsx global>{calendarStyles}</style>
       <CoachingCalendar
         sessions={transformedSessions}
@@ -152,8 +153,6 @@ export default function CoachCalendarPage() {
         userRole="coach"
         coachDbId={coachDbId || undefined}
       />
-      
-
     </div>
   )
 } 
