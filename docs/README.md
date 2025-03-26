@@ -143,6 +143,7 @@ Or Cloudflare Tunnel
 - yarn dev
 - Run `cloudflared tunnel --url http://localhost:3000`
 - Set the frontend url in the .env file.
+- Update webhook urls on Cal and Clerk dashboards
 
 
 ## Additional Configuration
