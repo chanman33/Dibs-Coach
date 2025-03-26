@@ -9,19 +9,25 @@ interface CalOAuthToken {
 }
 
 export const calOAuthClient = {
-  clientId: env.NEXT_PUBLIC_CAL_CLIENT_ID,
-  clientSecret: env.CAL_CLIENT_SECRET,
-  organizationId: env.NEXT_PUBLIC_CAL_ORGANIZATION_ID,
+  clientId: env.NEXT_PUBLIC_CAL_CLIENT_ID || '',
+  clientSecret: env.CAL_CLIENT_SECRET || '',
+  organizationId: env.NEXT_PUBLIC_CAL_ORGANIZATION_ID || '',
 
   // Generate OAuth URL for user authorization
-  getAuthUrl() {
-    const params = new URLSearchParams({
-      client_id: this.clientId,
-      redirect_uri: calConfig.redirectUrl,
-      response_type: 'code',
-      scope: 'calendar availability:read availability:write',
-      organization_id: this.organizationId,
-    });
+  getAuthUrl(state?: string) {
+    const params = new URLSearchParams();
+    
+    // Add required parameters
+    params.append('client_id', this.clientId);
+    params.append('redirect_uri', calConfig.redirectUrl);
+    params.append('response_type', 'code');
+    params.append('scope', 'calendar availability:read availability:write');
+    params.append('organization_id', this.organizationId);
+    
+    // Add state parameter if provided
+    if (state) {
+      params.append('state', state);
+    }
 
     return `https://api.cal.com/oauth/authorize?${params.toString()}`;
   },

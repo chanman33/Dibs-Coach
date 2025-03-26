@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useRouter, useSearchParams } from "next/navigation"
 import { fetchUserCapabilities, type UserCapabilitiesResponse } from "@/utils/actions/user-profile-actions"
 import { type ApiResponse } from "@/utils/types/api"
-import { Loader2, Building, Building2, Users2, Network, ArrowRight, Check } from 'lucide-react'
+import { Loader2, Building, Building2, Users2, Network, ArrowRight, Check, CheckCircle, XCircle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import Link from 'next/link'
@@ -80,6 +80,8 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState("account")
   const { organizations, organizationUlid, setOrganizationUlid, isLoading: isLoadingOrgs } = useOrganization();
   const searchParams = useSearchParams();
+  const hasSuccessParam = searchParams.get('success') === 'true';
+  const hasErrorParam = searchParams.get('error') === 'true';
 
   // Set the active tab based on the URL parameter
   useEffect(() => {
@@ -105,7 +107,7 @@ export default function Settings() {
       toast.success('Operation completed successfully!');
       
       // Create a new URLSearchParams without the success parameter
-      const newParams = new URLSearchParams(searchParams);
+      const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete('success');
       
       // Update the URL without the success parameter
@@ -118,7 +120,7 @@ export default function Settings() {
       toast.error(`Error: ${error}`);
       
       // Create a new URLSearchParams without the error parameter
-      const newParams = new URLSearchParams(searchParams);
+      const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete('error');
       
       // Update the URL without the error parameter
@@ -131,7 +133,7 @@ export default function Settings() {
     setActiveTab(value);
     
     // Create a new URLSearchParams
-    const newParams = new URLSearchParams(searchParams);
+    const newParams = new URLSearchParams(searchParams.toString());
     newParams.set('tab', value);
     
     // Log the tab change
@@ -327,6 +329,12 @@ export default function Settings() {
             Organizations
           </TabsTrigger>
           <TabsTrigger
+            value="integrations"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+          >
+            Integrations
+          </TabsTrigger>
+          <TabsTrigger
             value="notifications"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
@@ -370,6 +378,94 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-4">
               {renderOrganizationsContent()}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="integrations" className="space-y-4 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Calendar Integrations</CardTitle>
+              <CardDescription>
+                Connect your calendar service to enable scheduling and availability management
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="border rounded-lg p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 2V5" stroke="#3E63DD" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M16 2V5" stroke="#3E63DD" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 9H21" stroke="#3E63DD" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M19 4H5C3.89543 4 3 4.89543 3 6V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V6C21 4.89543 20.1046 4 19 4Z" stroke="#3E63DD" strokeWidth="1.5" />
+                        <path d="M12 12H9V15H12V12Z" fill="#3E63DD" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium">Cal.com</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Connect your Cal.com account to sync your availability and manage bookings
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Button 
+                      variant="default" 
+                      onClick={() => window.location.href = `/api/cal/oauth/authorize?redirect=${encodeURIComponent('/dashboard/settings?tab=integrations&success=true')}&error_redirect=${encodeURIComponent('/dashboard/settings?tab=integrations&error=true')}`}
+                    >
+                      Connect Cal.com
+                    </Button>
+                  </div>
+                </div>
+                
+                {hasSuccessParam && (
+                  <Alert className="mt-4 bg-green-50 border-green-200">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <AlertTitle>Successfully connected!</AlertTitle>
+                    <AlertDescription>
+                      Your Cal.com account has been successfully connected.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {hasErrorParam && (
+                  <Alert className="mt-4 bg-red-50 border-red-200" variant="destructive">
+                    <XCircle className="h-4 w-4" />
+                    <AlertTitle>Connection failed</AlertTitle>
+                    <AlertDescription>
+                      There was an error connecting your Cal.com account. Please try again.
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+              
+              <div className="border rounded-lg p-6 opacity-60">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="#3E63DD" strokeWidth="2" />
+                        <path d="M16.24 17.36L9.88001 14.88C9.56001 14.76 9.32001 14.36 9.32001 14V8.00001" stroke="#3E63DD" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium">Google Calendar</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Connect your Google Calendar to sync events and manage availability
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Button variant="outline" disabled>
+                      Coming Soon
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
