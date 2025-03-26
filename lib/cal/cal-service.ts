@@ -46,7 +46,7 @@ export const calService = {
       {
         method: 'POST',
         headers: {
-          'x-cal-secret-key': env.CAL_CLIENT_SECRET,
+          'x-cal-secret-key': env.CAL_CLIENT_SECRET || '',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -185,7 +185,7 @@ export const calService = {
         {
           method: 'POST',
           headers: {
-            'x-cal-secret-key': env.CAL_CLIENT_SECRET,
+            'x-cal-secret-key': env.CAL_CLIENT_SECRET || '',
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -250,6 +250,52 @@ export const calService = {
       return data;
     } catch (error) {
       console.error('[CAL_INTEGRATION_GET_ERROR]', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get a user's availability from Cal.com API
+   */
+  async getUserAvailability(calUserId: number, accessToken: string, date: string): Promise<any> {
+    try {
+      // Validate the token before making the API call
+      if (!accessToken) {
+        throw new Error('No access token provided');
+      }
+
+      // Format date for Cal.com API (YYYY-MM-DD)
+      const formattedDate = new Date(date).toISOString().split('T')[0];
+      
+      // Call Cal.com API to get user availability
+      const response = await fetch(
+        `https://api.cal.com/v2/availability?userId=${calUserId}&dateFrom=${formattedDate}&dateTo=${formattedDate}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('[CAL_AVAILABILITY_ERROR]', {
+          status: response.status,
+          error: errorData,
+          timestamp: new Date().toISOString()
+        });
+        throw new Error(`Failed to fetch availability: ${response.status} ${JSON.stringify(errorData)}`);
+      }
+
+      const availabilityData = await response.json();
+      return availabilityData.data;
+    } catch (error) {
+      console.error('[CAL_AVAILABILITY_ERROR]', {
+        error,
+        timestamp: new Date().toISOString()
+      });
       throw error;
     }
   },

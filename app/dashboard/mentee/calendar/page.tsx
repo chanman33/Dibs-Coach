@@ -5,7 +5,6 @@ import { fetchUserSessions } from '@/utils/actions/sessions'
 import { MenteeCalendar } from '@/components/mentee/MenteeCalendar'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { generateMockSessions, mockConfig, MockDataScenario } from '@/utils/mock/calendar-data'
 
 interface ExtendedSession {
   ulid: string
@@ -43,16 +42,11 @@ export default function MenteeCalendarPage() {
   const { data: sessions, isLoading } = useQuery<ExtendedSession[]>({
     queryKey: ['mentee-sessions'],
     queryFn: async () => {
-      if (mockConfig.enabled) {
-        // Use mock data in development
-        return generateMockSessions(mockConfig.scenario)
-      }
-      
-      // Use real API in production
+      // Always use real API data
       const response = await fetchUserSessions(null)
       if (!response?.data) return []
       
-      return response.data.map(session => ({
+      return response.data.map((session: any) => ({
         ulid: session.ulid,
         startTime: session.startTime,
         endTime: session.endTime,

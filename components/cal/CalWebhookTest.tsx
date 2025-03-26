@@ -6,8 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '@/utils/hooks/useAuth';
 import { useCalBookings } from '@/utils/hooks/useCalBookings';
@@ -22,7 +20,6 @@ interface TestResult {
 export default function CalWebhookTest() {
   const [loading, setLoading] = useState(false);
   const [webhookResult, setWebhookResult] = useState<TestResult | null>(null);
-  const [webhookSecret, setWebhookSecret] = useState('');
   const [customPayload, setCustomPayload] = useState('');
   const [selectedTab, setSelectedTab] = useState('booking-created');
   const { isSignedIn, userUlid } = useAuth();
@@ -134,24 +131,6 @@ export default function CalWebhookTest() {
     }
   };
 
-  const generateWebhookSignature = (payload: string, secret: string) => {
-    // This simulates how Cal.com actually generates signatures
-    // Generate a simple hex signature that mimics Cal.com's signature format
-    const encoder = new TextEncoder();
-    const data = encoder.encode(payload);
-    
-    // Create a simple hash-like string (not cryptographically secure but works for testing)
-    let hash = 0;
-    for (let i = 0; i < data.length; i++) {
-      hash = ((hash << 5) - hash) + data[i];
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    
-    // Convert to hex and ensure it's always the same length
-    const hexHash = Math.abs(hash).toString(16).padStart(8, '0');
-    return `sha256=${hexHash.repeat(8)}`; // Make it look like a SHA256 hash
-  };
-
   const preparePayload = (templateKey: string) => {
     const template = JSON.parse(JSON.stringify(eventTemplates[templateKey as keyof typeof eventTemplates]));
     
@@ -181,16 +160,11 @@ export default function CalWebhookTest() {
       // Prepare the payload
       const payload = customPayload || preparePayload(selectedTab);
       
-      // Generate a signature (in a real scenario, this would be done by Cal.com)
-      const signature = generateWebhookSignature(payload, webhookSecret);
-      
-      // Send the webhook to our endpoint
-      const response = await fetch('/api/cal/webhooks/receiver', {
+      // Send the webhook to our test endpoint that handles signature generation
+      const response = await fetch('/api/cal/test/webhook', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Cal-Signature-256': signature,
-          'X-Test-Mode': 'true' // Mark this as a test request
+          'Content-Type': 'application/json'
         },
         body: payload
       });
@@ -198,10 +172,10 @@ export default function CalWebhookTest() {
       const result = await response.json();
       
       setWebhookResult({
-        success: response.ok,
-        message: response.ok ? 'Webhook processed successfully' : 'Failed to process webhook',
-        data: result,
-        error: !response.ok ? result.error : undefined
+        success: response.ok && result.success,
+        message: result.message || (response.ok ? 'Webhook processed successfully' : 'Failed to process webhook'),
+        data: result.data,
+        error: !response.ok || !result.success ? result.error : undefined
       });
     } catch (error) {
       setWebhookResult({
@@ -229,96 +203,123 @@ export default function CalWebhookTest() {
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* Webhook Secret Input */}
-            <div>
-              <Label htmlFor="webhook-secret">Webhook Secret</Label>
-              <Input
-                id="webhook-secret"
-                placeholder="Enter your Cal.com webhook secret"
-                value={webhookSecret}
-                onChange={(e) => setWebhookSecret(e.target.value)}
-                className="mt-1"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                This is the secret you configured in your Cal.com webhook settings
-              </p>
-            </div>
+            <Alert>
+              <AlertTitle>Test Mode</AlertTitle>
+              <AlertDescription>
+                This tool sends test webhook events to your webhook handler. 
+                The webhook secret is securely stored in environment variables.
+              </AlertDescription>
+            </Alert>
             
             {/* Webhook Event Type Selection */}
             <Tabs
               defaultValue="booking-created"
               value={selectedTab}
               onValueChange={handleTabChange}
-              className="mt-4"
             >
-              <TabsList className="mb-4">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="booking-created">Booking Created</TabsTrigger>
                 <TabsTrigger value="booking-cancelled">Booking Cancelled</TabsTrigger>
                 <TabsTrigger value="booking-rescheduled">Booking Rescheduled</TabsTrigger>
               </TabsList>
               
               <TabsContent value="booking-created">
-                <p className="mb-2">Test how your system handles new booking creation events.</p>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Test the booking created webhook event.
+                </p>
               </TabsContent>
+              
               <TabsContent value="booking-cancelled">
-                <p className="mb-2">Test how your system handles booking cancellation events.</p>
-                {bookings.length === 0 && !bookingsLoading && (
-                  <Alert variant="destructive" className="mt-2">
-                    <AlertTitle>No existing bookings found</AlertTitle>
-                    <AlertDescription>
-                      Create a booking first to test cancellation functionality.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                <p className="text-sm text-muted-foreground mb-4">
+                  Test the booking cancelled webhook event.
+                  {bookings.length === 0 && " (No existing bookings found for cancellation test)"}
+                </p>
               </TabsContent>
+              
               <TabsContent value="booking-rescheduled">
-                <p className="mb-2">Test how your system handles booking reschedule events.</p>
-                {bookings.length === 0 && !bookingsLoading && (
-                  <Alert variant="destructive" className="mt-2">
-                    <AlertTitle>No existing bookings found</AlertTitle>
-                    <AlertDescription>
-                      Create a booking first to test rescheduling functionality.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                <p className="text-sm text-muted-foreground mb-4">
+                  Test the booking rescheduled webhook event.
+                  {bookings.length === 0 && " (No existing bookings found for rescheduling test)"}
+                </p>
               </TabsContent>
             </Tabs>
             
-            {/* Payload Editor */}
+            {/* Custom Payload Editor */}
             <div>
-              <Label htmlFor="webhook-payload">Webhook Payload</Label>
-              <Textarea
-                id="webhook-payload"
-                value={customPayload}
-                onChange={(e) => setCustomPayload(e.target.value)}
-                className="font-mono h-72 mt-1"
-              />
+              <label htmlFor="payload" className="block text-sm font-medium mb-2">
+                Webhook Payload
+              </label>
+              <div className="relative">
+                <Textarea
+                  id="payload"
+                  rows={15}
+                  value={customPayload}
+                  onChange={(e) => setCustomPayload(e.target.value)}
+                  className="font-mono text-xs"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                You can edit the payload for more specific test scenarios
+              </p>
             </div>
             
-            {/* Test Button */}
-            <Button onClick={testWebhook} disabled={loading || !webhookSecret}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Test Webhook
-            </Button>
-          
-            {/* Test Results */}
+            {/* Test Webhook Button */}
+            <div className="flex justify-end">
+              <Button 
+                onClick={testWebhook} 
+                disabled={loading || !customPayload}
+                className="flex items-center gap-2"
+              >
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                Test Webhook
+              </Button>
+            </div>
+            
+            {/* Test Result */}
             {webhookResult && (
-              <Alert className={`mt-4 ${webhookResult.success ? 'bg-green-50' : 'bg-red-50'}`}>
-                {webhookResult.success ? (
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                ) : (
-                  <XCircle className="h-4 w-4 text-red-600" />
-                )}
-                <AlertTitle>
-                  {webhookResult.success ? 'Success' : 'Error'}
-                </AlertTitle>
+              <div className="mt-6">
+                <Alert variant={webhookResult.success ? "default" : "destructive"}>
+                  <div className="flex items-center gap-2">
+                    {webhookResult.success ? (
+                      <CheckCircle className="h-5 w-5" />
+                    ) : (
+                      <XCircle className="h-5 w-5" />
+                    )}
+                    <AlertTitle>{webhookResult.message}</AlertTitle>
+                  </div>
+                  <AlertDescription>
+                    <div className="mt-2">
+                      <Textarea
+                        readOnly
+                        value={JSON.stringify(webhookResult.success ? webhookResult.data : webhookResult.error, null, 2)}
+                        rows={5}
+                        className="font-mono text-xs bg-muted"
+                      />
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+            
+            {/* Integration Status */}
+            {calendarIntegration ? (
+              <Alert className="mt-6 bg-green-50">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <AlertTitle>Cal.com integration detected</AlertTitle>
+                </div>
                 <AlertDescription>
-                  {webhookResult.message}
-                  {webhookResult.error && (
-                    <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
-                      {JSON.stringify(webhookResult.error, null, 2)}
-                    </pre>
-                  )}
+                  Your Cal.com account is connected to user ID {calendarIntegration.calManagedUserId}.
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert variant="destructive" className="mt-6">
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-5 w-5" />
+                  <AlertTitle>No Cal.com integration detected</AlertTitle>
+                </div>
+                <AlertDescription>
+                  Please connect your Cal.com account first. Webhook events may not work properly.
                 </AlertDescription>
               </Alert>
             )}

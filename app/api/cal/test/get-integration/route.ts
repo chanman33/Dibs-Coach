@@ -27,7 +27,7 @@ interface CalIntegrationResponse {
   } | null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const { userId } = auth();
     if (!userId) {
@@ -35,23 +35,50 @@ export async function GET() {
     }
 
     const supabase = createAuthClient();
+    const url = new URL(request.url);
+    const useTestUser = url.searchParams.get('lastTestUser') === 'true';
     
-    // Fetch user's database ID (ULID) from User table using Clerk userId
-    const { data: user, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single();
+    let userUlid: string;
     
-    if (userError) {
-      console.error('[GET_USER_ERROR]', userError);
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Failed to fetch user data' 
-      }, { status: 500 });
-    }
+    if (useTestUser) {
+      // For test purposes, get the most recently created test user
+      // This is useful for the Cal DB Test page
+      const { data: testUser, error: testUserError } = await supabase
+        .from('User')
+        .select('ulid')
+        .like('userId', 'test_%')
+        .order('createdAt', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (testUserError || !testUser) {
+        console.error('[GET_TEST_USER_ERROR]', testUserError || 'No test user found');
+        return NextResponse.json({ 
+          success: false, 
+          error: 'No test user found. Please create a test user first.' 
+        }, { status: 404 });
+      }
+      
+      userUlid = testUser.ulid;
+      console.log('[USING_TEST_USER]', { userUlid });
+    } else {
+      // Regular flow - get the logged-in user's ULID
+      const { data: user, error: userError } = await supabase
+        .from('User')
+        .select('ulid')
+        .eq('userId', userId)
+        .single();
+      
+      if (userError) {
+        console.error('[GET_USER_ERROR]', userError);
+        return NextResponse.json({ 
+          success: false, 
+          error: 'Failed to fetch user data' 
+        }, { status: 500 });
+      }
 
-    const userUlid = user?.ulid;
+      userUlid = user?.ulid;
+    }
     
     // Get Cal.com integration data from the CalendarIntegration table
     const { data: integration, error } = await supabase
@@ -69,24 +96,23 @@ export async function GET() {
       }, { status: 500 });
     }
 
-    // If no integration found, return mock data for testing
+    // If no integration found, return a clear error message
     if (!integration) {
-      console.log('[MOCK_CAL_INTEGRATION]', { userId, userUlid });
+      console.log('[NO_CAL_INTEGRATION_FOUND]', { 
+        userId, 
+        userUlid, 
+        isTestUser: useTestUser 
+      });
       
-      // Create a mock token for testing purposes
-      const mockToken = 'cal_test_' + Math.random().toString(36).substring(2, 15);
+      const errorMessage = useTestUser
+        ? 'No Cal.com integration found for the test user. Please create a test user with Cal.com integration first.'
+        : 'No Cal.com integration found for this user. Please connect your Cal.com account first.';
       
       return NextResponse.json({
-        success: true,
-        data: { 
-          integration: {
-            calAccessToken: mockToken,
-            provider: 'CAL',
-            userUlid: userUlid || '',
-            calRefreshToken: null
-          }
-        }
-      });
+        success: false,
+        error: errorMessage,
+        data: null
+      }, { status: 404 });
     }
 
     // In a real app, we should never return the full tokens to the client

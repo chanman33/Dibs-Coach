@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs'
 import { createAuthClient } from '@/utils/auth'
+import { calService } from '@/lib/cal/cal-service'
 
 // Type for time slots
 interface TimeSlot {
@@ -55,25 +56,88 @@ export async function GET(request: Request) {
       }, { status: 400 })
     }
 
+    // Get the supabase client
     const supabase = createAuthClient()
     
-    // For testing purposes, we'll use mock data rather than database
-    // In a real implementation, we would fetch from the database
+    // Get the user's ULID from Clerk ID
+    const { data: user, error: userError } = await supabase
+      .from('User')
+      .select('ulid')
+      .eq('userId', userId)
+      .single()
     
-    // Generate mock availability
-    const mockSlots = generateMockTimeSlots(date)
-    console.log('[MOCK_AVAILABILITY]', { date, slotsCount: mockSlots.length })
+    if (userError) {
+      console.error('[GET_AVAILABILITY_ERROR] User lookup error:', {
+        error: userError,
+        userId,
+        timestamp: new Date().toISOString()
+      })
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Failed to fetch user data' 
+      }, { status: 500 })
+    }
     
-    return NextResponse.json({
-      success: true,
-      data: {
-        timezone: 'UTC',
-        slots: mockSlots
-      }
-    })
-
+    // Get the user's Cal.com integration
+    const { data: integration, error: integrationError } = await supabase
+      .from('CalendarIntegration')
+      .select('*')
+      .eq('userUlid', user.ulid)
+      .eq('provider', 'CAL')
+      .maybeSingle()
+    
+    if (integrationError) {
+      console.error('[GET_AVAILABILITY_ERROR] Integration lookup error:', {
+        error: integrationError,
+        userUlid: user.ulid,
+        timestamp: new Date().toISOString()
+      })
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Failed to fetch calendar integration' 
+      }, { status: 500 })
+    }
+    
+    if (!integration) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'No Cal.com integration found for this user' 
+      }, { status: 404 })
+    }
+    
+    // Attempt to fetch real availability data from Cal.com API
+    try {
+      // This should call the Cal.com API using the user's token
+      // Implementing the function in calService
+      const availabilityData = await calService.getUserAvailability(
+        integration.calManagedUserId,
+        integration.calAccessToken,
+        date
+      )
+      
+      return NextResponse.json({
+        success: true,
+        data: availabilityData
+      })
+    } catch (error) {
+      console.error('[GET_AVAILABILITY_ERROR] Cal.com API error:', {
+        error,
+        date,
+        userUlid: user.ulid,
+        timestamp: new Date().toISOString()
+      })
+      
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Failed to fetch availability from Cal.com API' 
+      }, { status: 502 }) // 502 Bad Gateway for external service failure
+    }
   } catch (error) {
-    console.error('[GET_AVAILABILITY_ERROR]', error)
+    console.error('[GET_AVAILABILITY_ERROR] Unexpected error:', {
+      error,
+      timestamp: new Date().toISOString()
+    })
+    
     return NextResponse.json({ 
       success: false, 
       error: 'Internal server error'

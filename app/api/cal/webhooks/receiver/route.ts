@@ -68,34 +68,47 @@ interface CalWebhookEvent {
  * Verify the Cal.com webhook signature
  */
 function verifyCalSignature(request: NextRequest, body: string): boolean {
-  if (!env.NEXT_PUBLIC_CAL_WEBHOOK_SECRET) {
-    console.error('[WEBHOOK_ERROR] No webhook secret configured');
+  if (!env.CAL_WEBHOOK_SECRET) {
+    console.error('[WEBHOOK_ERROR] No webhook secret configured', {
+      timestamp: new Date().toISOString()
+    });
     return false;
   }
 
   const signature = request.headers.get('X-Cal-Signature-256');
   if (!signature) {
-    console.error('[WEBHOOK_ERROR] No signature provided in headers');
+    console.error('[WEBHOOK_ERROR] No signature provided in headers', {
+      headers: Object.fromEntries(request.headers.entries()),
+      timestamp: new Date().toISOString()
+    });
     return false;
   }
 
   // For test mode, accept any signature
   if (request.headers.get('X-Test-Mode') === 'true') {
-    console.log('[WEBHOOK] Test mode enabled, skipping signature verification');
+    console.log('[WEBHOOK] Test mode enabled, skipping signature verification', {
+      timestamp: new Date().toISOString()
+    });
     return true;
   }
 
   try {
-    const hmac = crypto.createHmac('sha256', env.NEXT_PUBLIC_CAL_WEBHOOK_SECRET);
+    const hmac = crypto.createHmac('sha256', env.CAL_WEBHOOK_SECRET);
     const digest = hmac.update(body).digest('hex');
     const signatureHash = `sha256=${digest}`;
 
+    // Use timingSafeEqual to prevent timing attacks
     return crypto.timingSafeEqual(
       Buffer.from(signatureHash),
       Buffer.from(signature)
     );
   } catch (error) {
-    console.error('[WEBHOOK_ERROR] Signature verification failed:', error);
+    console.error('[WEBHOOK_ERROR] Signature verification failed:', {
+      error,
+      signature: signature ? signature.substring(0, 20) + '...' : 'undefined', // Only log part of the signature
+      timestamp: new Date().toISOString(),
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return false;
   }
 }
@@ -247,57 +260,104 @@ async function processBookingEvent(
 }
 
 export async function POST(request: NextRequest) {
-  // Parse request body as text for signature verification
-  const body = await request.text();
-  
-  // Verify webhook signature
-  if (!verifyCalSignature(request, body)) {
-    console.error('[CAL_WEBHOOK_ERROR] Invalid webhook signature');
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-  }
-  
   try {
-    // Parse the event
-    const event: CalWebhookEvent = JSON.parse(body);
-    const { triggerEvent } = event;
-    
-    console.log(`[CAL_WEBHOOK] Received ${triggerEvent} event`);
-    
-    // Initialize Supabase client
-    const supabase = createAuthClient();
-    
-    // Process different event types
-    switch (triggerEvent) {
-      case CalWebhookEventType.BOOKING_CREATED:
-      case CalWebhookEventType.BOOKING_UPDATED:
-      case CalWebhookEventType.BOOKING_RESCHEDULED:
-      case CalWebhookEventType.BOOKING_CANCELLED:
-      case CalWebhookEventType.BOOKING_REJECTED:
-      case CalWebhookEventType.BOOKING_REQUESTED:
-        const success = await processBookingEvent(event, supabase);
-        if (!success) {
-          return NextResponse.json({ error: 'Failed to process booking event' }, { status: 500 });
-        }
-        break;
-        
-      case CalWebhookEventType.MEETING_ENDED:
-        // Process meeting ended event (could update session status, etc.)
-        console.log('[CAL_WEBHOOK] Meeting ended event received:', event.payload);
-        break;
-        
-      case CalWebhookEventType.FORM_SUBMITTED:
-        // Process form submission
-        console.log('[CAL_WEBHOOK] Form submission received:', event.payload);
-        break;
-        
-      default:
-        console.log(`[CAL_WEBHOOK] Unhandled event type: ${triggerEvent}`);
+    // Ensure webhook secret is configured
+    if (!env.CAL_WEBHOOK_SECRET) {
+      console.error('[CAL_WEBHOOK_ERROR] Webhook secret is not configured');
+      return NextResponse.json({ 
+        error: 'Webhook secret is not configured' 
+      }, { status: 500 });
+    }
+
+    // Parse request body as text for signature verification
+    let body;
+    try {
+      body = await request.text();
+    } catch (error) {
+      console.error('[CAL_WEBHOOK_ERROR] Failed to read request body:', error);
+      return NextResponse.json({ 
+        error: 'Failed to read request body' 
+      }, { status: 400 });
     }
     
-    // Return success response
-    return NextResponse.json({ success: true });
+    // Verify webhook signature
+    if (!verifyCalSignature(request, body)) {
+      console.error('[CAL_WEBHOOK_ERROR] Invalid webhook signature');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+    
+    try {
+      // Parse the event
+      const event: CalWebhookEvent = JSON.parse(body);
+      const { triggerEvent } = event;
+      
+      console.log(`[CAL_WEBHOOK] Received ${triggerEvent} event`);
+      
+      // Initialize Supabase client
+      const supabase = createAuthClient();
+      
+      // Process different event types
+      switch (triggerEvent) {
+        case CalWebhookEventType.BOOKING_CREATED:
+        case CalWebhookEventType.BOOKING_UPDATED:
+        case CalWebhookEventType.BOOKING_RESCHEDULED:
+        case CalWebhookEventType.BOOKING_CANCELLED:
+        case CalWebhookEventType.BOOKING_REJECTED:
+        case CalWebhookEventType.BOOKING_REQUESTED:
+          const success = await processBookingEvent(event, supabase);
+          if (!success) {
+            return NextResponse.json({ 
+              error: 'Failed to process booking event',
+              event_type: triggerEvent 
+            }, { status: 500 });
+          }
+          break;
+          
+        case CalWebhookEventType.MEETING_ENDED:
+          // Process meeting ended event (could update session status, etc.)
+          console.log('[CAL_WEBHOOK] Meeting ended event received:', event.payload);
+          // TODO: Implement meeting ended handling
+          break;
+          
+        case CalWebhookEventType.FORM_SUBMITTED:
+          // Process form submission
+          console.log('[CAL_WEBHOOK] Form submission received:', event.payload);
+          // TODO: Implement form submission handling
+          break;
+          
+        default:
+          console.log(`[CAL_WEBHOOK] Unhandled event type: ${triggerEvent}`);
+          return NextResponse.json({ 
+            message: `Unhandled event type: ${triggerEvent}`,
+            status: 'ignored' 
+          }, { status: 200 });
+      }
+      
+      // Return success response
+      return NextResponse.json({ 
+        success: true,
+        event_type: triggerEvent
+      });
+    } catch (error) {
+      console.error('[CAL_WEBHOOK_ERROR] Error processing webhook payload:', {
+        error,
+        body: body.substring(0, 200), // Log just the first 200 chars for debugging
+        timestamp: new Date().toISOString()
+      });
+      return NextResponse.json({ 
+        error: 'Failed to process webhook payload',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      }, { status: 400 });
+    }
   } catch (error) {
-    console.error('[CAL_WEBHOOK_ERROR] Error processing webhook:', error);
-    return NextResponse.json({ error: 'Failed to process webhook' }, { status: 500 });
+    console.error('[CAL_WEBHOOK_ERROR] Unhandled exception:', {
+      error,
+      timestamp: new Date().toISOString(),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    return NextResponse.json({ 
+      error: 'Internal server error',
+      message: 'An unexpected error occurred while processing the webhook'
+    }, { status: 500 });
   }
 } 

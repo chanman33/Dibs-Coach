@@ -63,7 +63,7 @@ export default function CalDbTest() {
     setGetResult(null);
     
     try {
-      const response = await fetch('/api/cal/test/get-integration');
+      const response = await fetch('/api/cal/test/get-integration?lastTestUser=true');
       const result = await response.json();
       
       setGetResult({

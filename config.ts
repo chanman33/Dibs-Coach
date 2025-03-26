@@ -10,7 +10,7 @@ const config = {
   },
   development: {
     mockData: {
-      calendar: process.env.NEXT_PUBLIC_USE_MOCK_CALENDAR === 'true',
+      // Calendar mocking has been removed to ensure only live API usage
       // Add other mock data toggles here as needed
     }
   }

@@ -121,6 +121,6 @@ export const generateMockSessions = (scenario: MockDataScenario = MockDataScenar
 
 // Development configuration
 export const mockConfig = {
-  enabled: config.development.mockData.calendar,
-  scenario: process.env.NEXT_PUBLIC_MOCK_CALENDAR_SCENARIO as MockDataScenario || MockDataScenario.MIXED_SESSIONS
+  enabled: false, // Calendar mocking permanently disabled to ensure only live API usage
+  scenario: MockDataScenario.MIXED_SESSIONS
 } 
