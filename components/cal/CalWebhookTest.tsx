@@ -269,7 +269,28 @@ export default function CalWebhookTest({
       
       // Handle non-OK responses immediately
       if (!calResponse.ok) {
-        throw new Error(`API returned status ${calResponse.status}`);
+        const errorData = await calResponse.json();
+        
+        // Handle token expiration
+        if (calResponse.status === 498 && errorData.error === 'TOKEN_EXPIRED') {
+          console.log('[VALIDATE_BOOKINGS] Token expired, attempting refresh...');
+          
+          // Attempt to refresh the token
+          const refreshResponse = await fetch('/api/cal/refresh-token', {
+            method: 'POST',
+          });
+          const refreshData = await refreshResponse.json();
+          
+          if (refreshData.success) {
+            console.log('[VALIDATE_BOOKINGS] Token refreshed successfully, retrying validation...');
+            // Retry the validation after successful token refresh
+            return validateBookingsHandler();
+          } else {
+            throw new Error('Failed to refresh expired token. Please try refreshing manually.');
+          }
+        }
+        
+        throw new Error(errorData.error || `API returned status ${calResponse.status}`);
       }
       
       // Parse the response defensively
@@ -294,13 +315,13 @@ export default function CalWebhookTest({
       }
       
       // Validate response structure
-      if (!calData.data || typeof calData.data !== 'object') {
-        console.error('[BOOKING_VALIDATION_DATA_ERROR]', 'Invalid data structure in response');
+      if (!calData.bookings || !Array.isArray(calData.bookings)) {
+        console.error('[BOOKING_VALIDATION_DATA_ERROR]', 'Invalid bookings array in response');
         throw new Error('Invalid data structure in API response');
       }
       
       // Safely access and validate bookings arrays
-      const calBookings = (Array.isArray(calData.data.bookings) ? calData.data.bookings : []) as CalBooking[];
+      const calBookings = calData.bookings as CalBooking[];
       const dbBookings = (Array.isArray(bookings) ? bookings : []) as DbBooking[];
       
       // Update state with validation results
@@ -472,7 +493,21 @@ export default function CalWebhookTest({
                       {validationResult.error && (
                         <Alert variant="destructive">
                           <AlertTitle>Validation Error</AlertTitle>
-                          <AlertDescription>{validationResult.error}</AlertDescription>
+                          <AlertDescription>
+                            {validationResult.error.includes('Failed to refresh expired token') ? (
+                              <div className="space-y-2">
+                                <p>Your Cal.com access token has expired and automatic refresh failed.</p>
+                                <p className="text-sm">Please try:</p>
+                                <ol className="list-decimal pl-5 text-sm space-y-1">
+                                  <li>Click the "Refresh Cal.com Token" button above</li>
+                                  <li>If that doesn't work, try reconnecting your Cal.com account in settings</li>
+                                  <li>If problems persist, please contact support</li>
+                                </ol>
+                              </div>
+                            ) : (
+                              validationResult.error
+                            )}
+                          </AlertDescription>
                         </Alert>
                       )}
                       

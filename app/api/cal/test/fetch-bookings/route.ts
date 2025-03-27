@@ -127,6 +127,16 @@ export async function GET(request: NextRequest) {
       });
 
       if (!calResponse.ok) {
+        // Check specifically for token expiration (status 498 or 401)
+        if (calResponse.status === 498 || calResponse.status === 401) {
+          return NextResponse.json({
+            success: false,
+            error: 'TOKEN_EXPIRED',
+            message: 'Cal.com access token has expired',
+            bookings: []
+          }, { status: 498 });
+        }
+
         console.error('[API_ERROR]', {
           context: 'CAL_FETCH_BOOKINGS_API_ERROR',
           status: calResponse.status,
