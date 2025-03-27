@@ -26,8 +26,15 @@ function generateWebhookSignature(payload: string): string {
  */
 export async function POST(request: NextRequest) {
   try {
+    console.log('[CAL_WEBHOOK_TEST] Processing webhook test request', {
+      timestamp: new Date().toISOString()
+    });
+
     // Ensure webhook secret is configured
     if (!env.CAL_WEBHOOK_SECRET) {
+      console.error('[CAL_WEBHOOK_TEST_ERROR] Webhook secret is not configured', {
+        timestamp: new Date().toISOString()
+      });
       return NextResponse.json({
         success: false,
         message: 'Cal.com webhook secret is not configured',
@@ -39,7 +46,16 @@ export async function POST(request: NextRequest) {
     let payload;
     try {
       payload = await request.json();
+      console.log('[CAL_WEBHOOK_TEST] Received webhook payload', {
+        type: payload.type || payload.triggerEvent,
+        uid: payload.payload?.uid,
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
+      console.error('[CAL_WEBHOOK_TEST_ERROR] Invalid JSON payload', {
+        error,
+        timestamp: new Date().toISOString()
+      });
       return NextResponse.json({
         success: false,
         message: 'Invalid JSON payload',
@@ -47,11 +63,31 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
+    // Transform payload to match our internal format if needed
+    // Cal.com API v2 uses 'type' while our internal code expects 'triggerEvent'
+    if (payload.type && !payload.triggerEvent) {
+      console.log('[CAL_WEBHOOK_TEST] Transforming payload format', {
+        from: 'type',
+        to: 'triggerEvent',
+        value: payload.type,
+        timestamp: new Date().toISOString()
+      });
+      payload.triggerEvent = payload.type;
+    }
+    
     // Generate a signature
     let signature;
     try {
       signature = generateWebhookSignature(JSON.stringify(payload));
+      console.log('[CAL_WEBHOOK_TEST] Generated webhook signature', {
+        signatureLength: signature.length,
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
+      console.error('[CAL_WEBHOOK_TEST_ERROR] Failed to generate signature', {
+        error,
+        timestamp: new Date().toISOString()
+      });
       return NextResponse.json({
         success: false,
         message: 'Failed to generate webhook signature',
@@ -62,16 +98,46 @@ export async function POST(request: NextRequest) {
     // Forward the request to the webhook endpoint
     let response;
     try {
-      response = await fetch(new URL('/api/cal/webhooks/receiver', request.url), {
+      // Use the environment variable instead of the request origin
+      const baseUrl = env.FRONTEND_URL;
+      
+      // Fix protocol for localhost (use http instead of https)
+      const fixedBaseUrl = baseUrl.includes('localhost') ? baseUrl.replace('https:', 'http:') : baseUrl;
+      // Use the correct API route path
+      const webhookUrl = `${fixedBaseUrl}/api/cal/webhooks/receiver`;
+      
+      console.log('[CAL_WEBHOOK_TEST] Forwarding request to webhook endpoint', {
+        environmentUrl: baseUrl,
+        fixedUrl: fixedBaseUrl,
+        webhookUrl,
+        method: 'POST',
+        triggerEvent: payload.triggerEvent || payload.type,
+        timestamp: new Date().toISOString()
+      });
+      
+      response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Cal-Signature-256': signature,
-          'X-Test-Mode': 'true'
+          'X-Test-Mode': 'true',
+          'Accept': 'application/json'
         },
         body: JSON.stringify(payload)
       });
+      
+      console.log('[CAL_WEBHOOK_TEST] Received response from webhook endpoint', {
+        status: response.status,
+        ok: response.ok,
+        contentType: response.headers.get('content-type'),
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
+      console.error('[CAL_WEBHOOK_TEST_ERROR] Failed to forward request', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       return NextResponse.json({
         success: false,
         message: 'Failed to forward request to webhook endpoint',
@@ -81,13 +147,69 @@ export async function POST(request: NextRequest) {
     
     // Parse the response from the webhook endpoint
     let responseData;
+    let responseText = '';
+    
     try {
-      responseData = await response.json();
+      // First try to get the response as text for debugging
+      responseText = await response.text();
+      
+      // Check content type
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('[CAL_WEBHOOK_TEST_ERROR] Received non-JSON response', {
+          contentType,
+          status: response.status,
+          responsePreview: responseText.substring(0, 200),
+          timestamp: new Date().toISOString()
+        });
+        
+        // Return a meaningful error with details
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid response content type from webhook endpoint',
+          error: 'The webhook endpoint returned a non-JSON response',
+          statusCode: response.status,
+          contentType: contentType || 'undefined',
+          details: responseText.substring(0, 500), // Include more of the response for debugging
+          solution: 'Check that the webhook endpoint is not redirecting to an authentication page'
+        }, { status: 500 });
+      }
+      
+      // Try to parse the text as JSON
+      try {
+        responseData = JSON.parse(responseText);
+        console.log('[CAL_WEBHOOK_TEST] Parsed response data', {
+          success: response.ok,
+          data: responseData,
+          timestamp: new Date().toISOString()
+        });
+      } catch (jsonError) {
+        console.error('[CAL_WEBHOOK_TEST_ERROR] Failed to parse JSON response', {
+          error: jsonError,
+          responsePreview: responseText.substring(0, 200),
+          timestamp: new Date().toISOString()
+        });
+        
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid JSON response from webhook endpoint',
+          error: jsonError instanceof Error ? jsonError.message : 'JSON parse error',
+          responseText: responseText.substring(0, 500) // Include more of the response for debugging
+        }, { status: 500 });
+      }
     } catch (error) {
+      console.error('[CAL_WEBHOOK_TEST_ERROR] Invalid response from webhook endpoint', {
+        error,
+        status: response.status,
+        statusText: response.statusText,
+        timestamp: new Date().toISOString()
+      });
+      
       return NextResponse.json({
         success: false,
-        message: 'Invalid response from webhook endpoint',
-        error: 'The webhook endpoint returned an invalid response'
+        message: 'Error reading response from webhook endpoint',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: response.status
       }, { status: 500 });
     }
     
@@ -98,8 +220,9 @@ export async function POST(request: NextRequest) {
       statusCode: response.status
     });
   } catch (error) {
-    console.error('[WEBHOOK_TEST_ERROR]', {
+    console.error('[CAL_WEBHOOK_TEST_ERROR] Unhandled exception', {
       error, 
+      stack: error instanceof Error ? error.stack : undefined,
       timestamp: new Date().toISOString()
     });
     

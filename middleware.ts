@@ -9,6 +9,8 @@ const publicPaths = [
   '/sign-up(.*)',
   '/api/webhooks(.*)',
   '/api/auth/(.*)',
+  '/api/cal/webhooks/receiver',
+  '/api/cal/test/webhook',
   '/contact-sales(.*)',
   '/coaches(.*)',
   '/pricing(.*)',

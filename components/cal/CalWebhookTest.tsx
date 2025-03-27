@@ -62,40 +62,21 @@ const safeFormatDate = (dateStr: string | undefined | null): string => {
 // Template payloads for different webhook events
 const eventTemplates = {
   'booking-created': {
-    triggerEvent: 'BOOKING_CREATED',
-    createdAt: new Date().toISOString(),
+    type: 'BOOKING_CREATED',
     payload: {
+      type: 'Cal',
+      eventTypeId: 123,
       uid: `mock-booking-${Date.now()}`,
       title: 'Test Booking',
-      eventTypeId: 123,
+      description: 'Test booking created via webhook',
       startTime: new Date(Date.now() + 3600000).toISOString(),
       endTime: new Date(Date.now() + 7200000).toISOString(),
-      attendees: [
-        {
-          email: 'attendee@example.com',
-          name: 'Test Attendee',
-          timeZone: 'America/New_York',
-          language: { locale: 'en' }
-        }
-      ],
-      organizer: {
-        id: 0,
-        name: 'Test Organizer',
-        email: 'organizer@example.com',
-        timeZone: 'America/New_York',
-        language: { locale: 'en' }
-      }
-    }
-  },
-  'booking-cancelled': {
-    triggerEvent: 'BOOKING_CANCELLED',
-    createdAt: new Date().toISOString(),
-    payload: {
-      uid: '',
-      title: 'Cancelled Booking',
-      eventTypeId: 123,
-      startTime: new Date(Date.now() + 3600000).toISOString(),
-      endTime: new Date(Date.now() + 7200000).toISOString(),
+      status: 'ACCEPTED',
+      responses: {},
+      metadata: {
+        videoCallUrl: "https://meet.google.com/example"
+      },
+      location: "Zoom",
       attendees: [
         {
           email: 'attendee@example.com',
@@ -111,18 +92,25 @@ const eventTemplates = {
         timeZone: 'America/New_York',
         language: { locale: 'en' }
       },
-      cancellationReason: 'Testing webhook cancellation'
-    }
+      price: 0,
+      currency: "usd",
+      recurringEventId: null
+    },
+    createdAt: new Date().toISOString()
   },
-  'booking-rescheduled': {
-    triggerEvent: 'BOOKING_RESCHEDULED',
-    createdAt: new Date().toISOString(),
+  'booking-cancelled': {
+    type: 'BOOKING_CANCELLED',
     payload: {
+      type: 'Cal',
       uid: '',
-      title: 'Rescheduled Booking',
+      title: 'Cancelled Booking',
       eventTypeId: 123,
-      startTime: new Date(Date.now() + 86400000).toISOString(),
-      endTime: new Date(Date.now() + 90000000).toISOString(),
+      startTime: new Date(Date.now() + 3600000).toISOString(),
+      endTime: new Date(Date.now() + 7200000).toISOString(),
+      status: 'CANCELLED',
+      responses: {},
+      metadata: {},
+      location: "Zoom",
       attendees: [
         {
           email: 'attendee@example.com',
@@ -137,8 +125,47 @@ const eventTemplates = {
         email: 'organizer@example.com',
         timeZone: 'America/New_York',
         language: { locale: 'en' }
-      }
-    }
+      },
+      cancellationReason: 'Testing webhook cancellation',
+      price: 0,
+      currency: "usd",
+      recurringEventId: null
+    },
+    createdAt: new Date().toISOString()
+  },
+  'booking-rescheduled': {
+    type: 'BOOKING_RESCHEDULED',
+    payload: {
+      type: 'Cal',
+      uid: '',
+      title: 'Rescheduled Booking',
+      eventTypeId: 123,
+      startTime: new Date(Date.now() + 86400000).toISOString(),
+      endTime: new Date(Date.now() + 90000000).toISOString(),
+      status: 'ACCEPTED',
+      responses: {},
+      metadata: {},
+      location: "Zoom",
+      attendees: [
+        {
+          email: 'attendee@example.com',
+          name: 'Test Attendee',
+          timeZone: 'America/New_York',
+          language: { locale: 'en' }
+        }
+      ],
+      organizer: {
+        id: 0,
+        name: 'Test Organizer',
+        email: 'organizer@example.com',
+        timeZone: 'America/New_York',
+        language: { locale: 'en' }
+      },
+      price: 0,
+      currency: "usd",
+      recurringEventId: null
+    },
+    createdAt: new Date().toISOString()
   }
 };
 
@@ -167,14 +194,16 @@ export default function CalWebhookTest({
   const [calendarIntegration, setCalendarIntegration] = useState<CalendarIntegration | null>(null);
   
   useEffect(() => {
-    if (isSignedIn && userUlid) {
+    if (isSignedIn && userUlid && !calendarIntegration) {
       fetchCalendarIntegration();
     }
-  }, [isSignedIn, userUlid]);
+  }, [isSignedIn, userUlid, calendarIntegration]);
   
   const fetchCalendarIntegration = async () => {
     try {
-      const response = await fetch('/api/cal/test/get-integration');
+      const response = await fetch('/api/cal/test/get-integration', {
+        cache: 'force-cache'
+      });
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data?.integration) {
@@ -194,7 +223,36 @@ export default function CalWebhookTest({
     
     // Set the organizer ID if we have managed user data
     if (calendarIntegration?.calManagedUserId) {
-      templateCopy.payload.organizer.id = calendarIntegration.calManagedUserId;
+      // Log the actual value for debugging
+      console.log('[CAL_WEBHOOK_TEST] Setting organizer ID', {
+        calManagedUserId: calendarIntegration.calManagedUserId,
+        type: typeof calendarIntegration.calManagedUserId,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Safely parse the value as a number, falling back to the original value if parsing fails
+      try {
+        // Handle string, number, or any other type
+        const parsedId = typeof calendarIntegration.calManagedUserId === 'string' 
+          ? parseInt(calendarIntegration.calManagedUserId) 
+          : calendarIntegration.calManagedUserId;
+          
+        if (!isNaN(Number(parsedId))) {
+          templateCopy.payload.organizer.id = Number(parsedId);
+        } else {
+          console.error('[CAL_WEBHOOK_TEST_ERROR] Failed to parse calManagedUserId', {
+            value: calendarIntegration.calManagedUserId,
+            parsedId,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch (error) {
+        console.error('[CAL_WEBHOOK_TEST_ERROR] Error parsing calManagedUserId', {
+          error,
+          value: calendarIntegration.calManagedUserId,
+          timestamp: new Date().toISOString()
+        });
+      }
     }
     
     // For cancelled or rescheduled events, use an existing booking ID if available
@@ -217,6 +275,11 @@ export default function CalWebhookTest({
     try {
       // Prepare the payload
       const payload = customPayload || preparePayload(selectedTab);
+      console.log('[CAL_WEBHOOK_TEST] Sending webhook test payload', {
+        type: JSON.parse(payload).type,
+        length: payload.length,
+        timestamp: new Date().toISOString()
+      });
       
       // Send the webhook to our test endpoint that handles signature generation
       const response = await fetch('/api/cal/test/webhook', {
@@ -227,14 +290,44 @@ export default function CalWebhookTest({
         body: payload
       });
       
+      console.log('[CAL_WEBHOOK_TEST] Received webhook test response', {
+        status: response.status,
+        ok: response.ok,
+        timestamp: new Date().toISOString()
+      });
+      
       const result = await response.json();
+      console.log('[CAL_WEBHOOK_TEST] Parsed webhook test result', {
+        success: result.success,
+        statusCode: result.statusCode,
+        timestamp: new Date().toISOString(),
+        data: result.data
+      });
+      
+      if (!response.ok || !result.success) {
+        console.error('[CAL_WEBHOOK_TEST_ERROR] Webhook test failed', {
+          error: result.error,
+          message: result.message,
+          statusCode: result.statusCode,
+          data: result.data,
+          timestamp: new Date().toISOString()
+        });
+      }
       
       setWebhookResult({
         type: response.ok && result.success ? 'success' : 'error',
         message: result.message || (response.ok ? 'Webhook processed successfully' : 'Failed to process webhook'),
-        details: !response.ok || !result.success ? result.error : undefined
+        details: !response.ok || !result.success 
+          ? (typeof result.error === 'string' ? result.error : JSON.stringify(result, null, 2))
+          : JSON.stringify(result.data, null, 2)
       });
     } catch (error) {
+      console.error('[CAL_WEBHOOK_TEST_ERROR] Exception during webhook test', {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
+      
       setWebhookResult({
         type: 'error',
         message: 'Error sending webhook',
@@ -640,10 +733,21 @@ export default function CalWebhookTest({
                               <Textarea
                                 readOnly
                                 value={webhookResult.details || 'No additional details available'}
-                                rows={5}
+                                rows={8}
                                 className="font-mono text-xs bg-muted"
                               />
                             </div>
+                            {webhookResult.type === 'error' && (
+                              <div className="mt-2 text-sm">
+                                <p className="font-medium mb-1">Common Issues:</p>
+                                <ul className="list-disc pl-4 space-y-1">
+                                  <li>Missing or invalid <code>CAL_WEBHOOK_SECRET</code> in environment variables</li>
+                                  <li>Organizer ID in webhook doesn't match any CalendarIntegration</li>
+                                  <li>Webhook payload format doesn't match API expectations</li>
+                                  <li>Check server logs for detailed error information</li>
+                                </ul>
+                              </div>
+                            )}
                           </AlertDescription>
                         </Alert>
                       </div>

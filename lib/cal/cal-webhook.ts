@@ -149,7 +149,7 @@ export const calWebhookService = {
    * @returns The full webhook URL
    */
   getWebhookUrl(): string {
-    const baseDomain = env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    return `${baseDomain}/api/cal/webhook`;
+    const baseDomain = env.FRONTEND_URL;
+    return `${baseDomain}/api/cal/webhooks/receiver`;
   }
 }; 
