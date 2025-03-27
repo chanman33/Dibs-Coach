@@ -3,6 +3,7 @@ import { env } from '@/lib/env';
 import { createAuthClient } from '@/utils/auth';
 import { generateUlid } from '@/utils/ulid';
 import { Database } from '@/types/supabase';
+import { refreshCalAccessToken as refreshCalToken, isCalTokenExpired } from '@/utils/auth/cal-token-service';
 
 interface CalUserData {
   id: number;
@@ -161,68 +162,22 @@ export const calService = {
   },
 
   /**
-   * Refresh the Cal.com access token
+   * Refresh the Cal.com access token using the centralized token service
    */
   async refreshCalToken(userUlid: string): Promise<CalTokenData> {
     try {
-      const supabase = createAuthClient();
+      // Use the centralized token service
+      const result = await refreshCalToken(userUlid);
       
-      // Get the current integration data
-      const { data: integration, error: fetchError } = await supabase
-        .from('CalendarIntegration')
-        .select()
-        .eq('userUlid', userUlid)
-        .single();
-
-      if (fetchError) {
-        console.error('[CAL_TOKEN_FETCH_ERROR]', fetchError);
-        throw new Error('Calendar integration not found');
+      if (!result.success || !result.tokens) {
+        throw new Error(result.error || 'Failed to refresh token');
       }
-
-      // Call the Cal.com API to refresh the token
-      const response = await fetch(
-        `https://api.cal.com/v2/oauth-clients/${env.NEXT_PUBLIC_CAL_CLIENT_ID}/refresh`,
-        {
-          method: 'POST',
-          headers: {
-            'x-cal-secret-key': env.CAL_CLIENT_SECRET || '',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            refreshToken: integration.calRefreshToken,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`Failed to refresh Cal.com token: ${JSON.stringify(error)}`);
-      }
-
-      const tokenData = await response.json();
-      const now = new Date().toISOString();
       
-      // Update the database with the new tokens
-      const { error: updateError } = await supabase
-        .from('CalendarIntegration')
-        .update({
-          calAccessToken: tokenData.accessToken,
-          calRefreshToken: tokenData.refreshToken,
-          calAccessTokenExpiresAt: new Date(tokenData.accessTokenExpiresAt).toISOString(),
-          lastSyncedAt: now,
-          updatedAt: now
-        })
-        .eq('userUlid', userUlid);
-
-      if (updateError) {
-        console.error('[CAL_TOKEN_UPDATE_ERROR]', updateError);
-        throw updateError;
-      }
-
+      // Map the token service result to the expected CalTokenData format
       return {
-        accessToken: tokenData.accessToken,
-        refreshToken: tokenData.refreshToken,
-        accessTokenExpiresAt: tokenData.accessTokenExpiresAt,
+        accessToken: result.tokens.access_token,
+        refreshToken: result.tokens.refresh_token || '',
+        accessTokenExpiresAt: Date.now() + (result.tokens.expires_in * 1000)
       };
     } catch (error) {
       console.error('[CAL_TOKEN_REFRESH_ERROR]', error);
@@ -308,23 +263,25 @@ export const calService = {
       const supabase = createAuthClient();
       const { data: integration, error } = await supabase
         .from('CalendarIntegration')
-        .select()
+        .select('calAccessToken, calAccessTokenExpiresAt')
         .eq('userUlid', userUlid)
         .single();
 
-      if (error) {
+      if (error || !integration) {
         console.error('[CAL_TOKEN_CHECK_ERROR]', error);
         throw new Error('Calendar integration not found');
       }
 
-      // If token expires within the next 5 minutes, refresh it
-      const now = new Date();
-      const expiresAt = new Date(integration.calAccessTokenExpiresAt);
-      const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
-
-      if (expiresAt < fiveMinutesFromNow) {
-        const newTokens = await this.refreshCalToken(userUlid);
-        return newTokens.accessToken;
+      // Use the utility function from token-service
+      const isExpired = await isCalTokenExpired(integration.calAccessTokenExpiresAt, 5); // 5 minutes buffer
+      
+      if (isExpired) {
+        // Use the centralized token refresh
+        const result = await refreshCalToken(userUlid);
+        if (!result.success || !result.tokens) {
+          throw new Error(result.error || 'Failed to refresh token');
+        }
+        return result.tokens.access_token;
       }
 
       return integration.calAccessToken;
@@ -333,4 +290,119 @@ export const calService = {
       throw error;
     }
   },
+
+  /**
+   * Fetch a user's Cal.com bookings
+   */
+  async fetchUserCalBookings(userUlid: string) {
+    try {
+      // Get the user's Cal.com integration
+      const supabase = createAuthClient();
+      const { data: integration, error } = await supabase
+        .from('CalendarIntegration')
+        .select('calAccessToken, calAccessTokenExpiresAt')
+        .eq('userUlid', userUlid)
+        .single();
+      
+      if (error) {
+        console.error('[CAL_SERVICE_ERROR]', {
+          context: 'FETCH_INTEGRATION',
+          error,
+          userUlid,
+          timestamp: new Date().toISOString()
+        });
+        return {
+          success: false,
+          error: 'Failed to fetch calendar integration'
+        };
+      }
+      
+      if (!integration?.calAccessToken) {
+        return {
+          success: false,
+          error: 'No Cal.com integration found or missing access token'
+        };
+      }
+      
+      let accessToken = integration.calAccessToken;
+      
+      // Check if token needs refreshing
+      const isExpired = await isCalTokenExpired(integration.calAccessTokenExpiresAt);
+      if (isExpired) {
+        console.log('[CAL_SERVICE] Refreshing token before fetching bookings');
+        
+        const refreshResult = await refreshCalToken(userUlid);
+        if (refreshResult.success && refreshResult.tokens?.access_token) {
+          accessToken = refreshResult.tokens.access_token;
+        }
+      }
+      
+      // Fetch bookings from Cal.com API
+      const response = await fetch('https://api.cal.com/v2/bookings', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'cal-api-version': '2024-08-13'
+        }
+      });
+      
+      // Handle errors
+      if (!response.ok) {
+        // If token expired, try refreshing once more (just in case the expiry check missed it)
+        if ((response.status === 498 || response.status === 401)) {
+          console.log('[CAL_SERVICE] Token appears expired, attempting refresh');
+          
+          const refreshResult = await refreshCalToken(userUlid);
+          if (refreshResult.success && refreshResult.tokens?.access_token) {
+            // Retry with new token
+            const retryResponse = await fetch('https://api.cal.com/v2/bookings', {
+              headers: {
+                'Authorization': `Bearer ${refreshResult.tokens.access_token}`,
+                'cal-api-version': '2024-08-13'
+              }
+            });
+            
+            if (retryResponse.ok) {
+              const bookingsData = await retryResponse.json();
+              return {
+                success: true,
+                data: bookingsData
+              };
+            }
+          }
+        }
+        
+        // If we got here, something is still wrong
+        console.error('[CAL_SERVICE_ERROR]', {
+          context: 'FETCH_BOOKINGS',
+          status: response.status,
+          statusText: response.statusText,
+          userUlid,
+          timestamp: new Date().toISOString()
+        });
+        
+        return {
+          success: false,
+          error: `Failed to fetch bookings: ${response.status} ${response.statusText}`
+        };
+      }
+      
+      const bookingsData = await response.json();
+      return {
+        success: true,
+        data: bookingsData
+      };
+      
+    } catch (error) {
+      console.error('[CAL_SERVICE_ERROR]', {
+        context: 'GENERAL',
+        error,
+        timestamp: new Date().toISOString()
+      });
+      
+      return {
+        success: false,
+        error: 'Error fetching bookings'
+      };
+    }
+  }
 }; 

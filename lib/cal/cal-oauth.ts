@@ -8,6 +8,11 @@ interface CalOAuthToken {
   token_type: string;
 }
 
+/**
+ * Cal.com OAuth client for authorization and token exchange
+ * Note: For token refresh operations, please use the centralized token service
+ * in utils/auth/token-service.ts instead of the methods here.
+ */
 export const calOAuthClient = {
   clientId: env.NEXT_PUBLIC_CAL_CLIENT_ID || '',
   clientSecret: env.CAL_CLIENT_SECRET || '',
@@ -61,7 +66,10 @@ export const calOAuthClient = {
   },
 
   // Refresh access token
+  // @deprecated Use the centralized token refresh service in utils/auth/token-service.ts instead
   async refreshToken(refreshToken: string): Promise<CalOAuthToken> {
+    console.warn('[DEPRECATED] Using deprecated refreshToken method. Please use utils/auth/token-service.ts instead.');
+    
     const response = await fetch('https://api.cal.com/oauth/token', {
       method: 'POST',
       headers: {

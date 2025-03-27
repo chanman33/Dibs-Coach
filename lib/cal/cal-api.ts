@@ -73,6 +73,10 @@ class CalApiClient {
       throw new Error('No refresh token available. Please authenticate first.');
     }
 
+    console.warn('[DEPRECATED] Using deprecated refreshTokens method in CalApiClient. Consider using utils/auth/token-service.ts for token refresh.');
+    
+    // Note: This is retained for backward compatibility, but the central token service
+    // should be preferred for all new code.
     const response = await fetch('https://api.cal.com/v1/auth/refresh', {
       method: 'POST',
       headers: {
