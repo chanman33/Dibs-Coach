@@ -37,6 +37,74 @@ export interface CalManagedUserResponse {
 
 type CalendarIntegration = Database['public']['Tables']['CalendarIntegration']['Row'];
 
+interface TokenRefreshTracker {
+  [userUlid: string]: {
+    lastRefresh: number;
+    attempts: number;
+  }
+}
+
+// Track token refresh attempts to prevent loops
+const tokenRefreshTracker: TokenRefreshTracker = {};
+
+// Add a cooldown period (in milliseconds)
+const TOKEN_REFRESH_COOLDOWN_MS = 30000; // 30 seconds
+const MAX_REFRESH_ATTEMPTS = 3;
+
+/**
+ * Safely refresh a token with loop protection
+ */
+async function safeTokenRefresh(userUlid: string): Promise<any> {
+  const now = Date.now();
+  const tracker = tokenRefreshTracker[userUlid] || { lastRefresh: 0, attempts: 0 };
+  
+  // Check if we're in a potential loop
+  if (now - tracker.lastRefresh < TOKEN_REFRESH_COOLDOWN_MS) {
+    tracker.attempts += 1;
+    
+    // If too many attempts in short period, block refresh
+    if (tracker.attempts >= MAX_REFRESH_ATTEMPTS) {
+      console.warn('[CAL_SERVICE] Token refresh loop detected. Blocking refresh for', userUlid);
+      
+      // Reset after a while
+      setTimeout(() => {
+        if (tokenRefreshTracker[userUlid]) {
+          tokenRefreshTracker[userUlid].attempts = 0;
+        }
+      }, TOKEN_REFRESH_COOLDOWN_MS);
+      
+      return {
+        success: false, 
+        error: 'Token refresh loop detected. Please try again later.'
+      };
+    }
+  } else {
+    // Reset attempts if outside cooldown window
+    tracker.attempts = 1;
+  }
+  
+  // Update tracker
+  tracker.lastRefresh = now;
+  tokenRefreshTracker[userUlid] = tracker;
+  
+  // Proceed with actual token refresh
+  try {
+    // Use imported function directly - FIX: avoid recursive call
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cal/refresh-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userUlid }),
+    });
+    
+    return await response.json();
+  } catch (error) {
+    console.error('[CAL_SERVICE] Token refresh error:', error);
+    return { success: false, error: 'Token refresh failed' };
+  }
+}
+
 export const calService = {
   /**
    * Create a new managed user in Cal.com
@@ -166,8 +234,8 @@ export const calService = {
    */
   async refreshCalToken(userUlid: string): Promise<CalTokenData> {
     try {
-      // Use the centralized token service
-      const result = await refreshCalToken(userUlid);
+      // Use safe refresh with loop protection
+      const result = await safeTokenRefresh(userUlid);
       
       if (!result.success || !result.tokens) {
         throw new Error(result.error || 'Failed to refresh token');

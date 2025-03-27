@@ -3,27 +3,26 @@ import { auth } from '@clerk/nextjs';
 import { createAuthClient } from '@/utils/auth';
 import { withApiAuth } from '@/utils/middleware/withApiAuth';
 import { ApiResponse } from '@/utils/types/api';
+import { Database } from '@/types/supabase';
+
+type DbCalendarIntegration = {
+  ulid: string;
+  userUlid: string;
+  calManagedUserId: number;
+  calAccessToken: string;
+  calRefreshToken: string;
+  calAccessTokenExpiresAt: string;
+};
 
 // Based on the actual schema in prisma/schema.prisma
 interface CalIntegrationResponse {
   integration: {
-    ulid: string;
+    id: string;
     userUlid: string;
-    provider: string;
     calManagedUserId: number;
-    calUsername: string;
     calAccessToken: string;
     calRefreshToken: string;
     calAccessTokenExpiresAt: string;
-    defaultScheduleId: number | null;
-    timeZone: string | null;
-    weekStart: string | null;
-    timeFormat: number | null;
-    locale: string | null;
-    lastSyncedAt: string | null;
-    syncEnabled: boolean;
-    createdAt: string;
-    updatedAt: string;
   } | null;
 }
 
@@ -31,7 +30,10 @@ export async function GET(request: Request) {
   try {
     const { userId } = auth();
     if (!userId) {
-      return new NextResponse('Unauthorized', { status: 401 });
+      return NextResponse.json({ 
+        success: false,
+        error: 'Unauthorized'
+      }, { status: 401 });
     }
 
     const supabase = createAuthClient();
@@ -42,7 +44,6 @@ export async function GET(request: Request) {
     
     if (useTestUser) {
       // For test purposes, get the most recently created test user
-      // This is useful for the Cal DB Test page
       const { data: testUser, error: testUserError } = await supabase
         .from('User')
         .select('ulid')
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
         .eq('userId', userId)
         .single();
       
-      if (userError) {
+      if (userError || !user) {
         console.error('[GET_USER_ERROR]', userError);
         return NextResponse.json({ 
           success: false, 
@@ -77,16 +78,16 @@ export async function GET(request: Request) {
         }, { status: 500 });
       }
 
-      userUlid = user?.ulid;
+      userUlid = user.ulid;
     }
     
     // Get Cal.com integration data from the CalendarIntegration table
     const { data: integration, error } = await supabase
       .from('CalendarIntegration')
-      .select('*')
+      .select('ulid, userUlid, calManagedUserId, calAccessToken, calRefreshToken, calAccessTokenExpiresAt')
       .eq('provider', 'CAL')
       .eq('userUlid', userUlid)
-      .maybeSingle();
+      .maybeSingle() as { data: DbCalendarIntegration | null, error: any };
 
     if (error) {
       console.error('[GET_CAL_INTEGRATION_ERROR]', error);
@@ -109,24 +110,33 @@ export async function GET(request: Request) {
         : 'No Cal.com integration found for this user. Please connect your Cal.com account first.';
       
       return NextResponse.json({
-        success: false,
-        error: errorMessage,
-        data: null
+        success: true,
+        data: {
+          integration: null
+        }
       }, { status: 404 });
     }
 
-    // In a real app, we should never return the full tokens to the client
-    // This is only for testing purposes
+    // Map the integration data to match the expected interface
+    const mappedIntegration: NonNullable<CalIntegrationResponse['integration']> = {
+      id: integration.ulid,
+      userUlid: integration.userUlid,
+      calManagedUserId: integration.calManagedUserId,
+      calAccessToken: integration.calAccessToken,
+      calRefreshToken: integration.calRefreshToken,
+      calAccessTokenExpiresAt: integration.calAccessTokenExpiresAt
+    };
+
+    console.log('[DEBUG] Returning integration:', {
+      ...mappedIntegration,
+      calAccessToken: '***',
+      calRefreshToken: '***'
+    });
+
     return NextResponse.json({
       success: true,
       data: { 
-        integration: {
-          ...integration,
-          calAccessToken: integration.calAccessToken ? 
-            `${integration.calAccessToken.substring(0, 10)}...` : null,
-          calRefreshToken: integration.calRefreshToken ? 
-            `${integration.calRefreshToken.substring(0, 10)}...` : null
-        }
+        integration: mappedIntegration
       }
     });
 

@@ -20,6 +20,22 @@ interface TokenRefreshResult {
   };
 }
 
+// Add these near the top of the file, after imports
+interface TokenRefreshTracker {
+  [userUlid: string]: {
+    lastRefresh: number;
+    attempts: number;
+    inProgress: boolean; // Add inProgress flag to track ongoing refreshes
+  }
+}
+
+// Track token refresh attempts to prevent loops
+const tokenRefreshTracker: TokenRefreshTracker = {};
+
+// Add a cooldown period (in milliseconds)
+const TOKEN_REFRESH_COOLDOWN_MS = 30000; // 30 seconds
+const MAX_REFRESH_ATTEMPTS = 3;
+
 /**
  * Refreshes a Cal.com access token using the stored refresh token
  * This is the single source of truth for Cal.com token refresh in the application
@@ -31,6 +47,55 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
   try {
     console.log('[TOKEN_SERVICE] Attempting to refresh Cal.com token for user:', userUlid);
     
+    // Loop protection: check recent refresh attempts
+    const now = Date.now();
+    const tracker = tokenRefreshTracker[userUlid] || { 
+      lastRefresh: 0, 
+      attempts: 0,
+      inProgress: false 
+    };
+    
+    // If another refresh is already in progress for this user, prevent duplicate
+    if (tracker.inProgress) {
+      console.log('[TOKEN_SERVICE] Token refresh already in progress for user:', userUlid);
+      return { 
+        success: false, 
+        error: 'Token refresh already in progress' 
+      };
+    }
+    
+    // Check if we're in a potential loop
+    if (now - tracker.lastRefresh < TOKEN_REFRESH_COOLDOWN_MS) {
+      tracker.attempts += 1;
+      
+      // If too many attempts in short period, block refresh
+      if (tracker.attempts >= MAX_REFRESH_ATTEMPTS) {
+        console.warn('[TOKEN_SERVICE] Token refresh loop detected. Blocking refresh for user:', userUlid, 'attempts:', tracker.attempts);
+        
+        // Reset after a while
+        setTimeout(() => {
+          if (tokenRefreshTracker[userUlid]) {
+            console.log('[TOKEN_SERVICE] Resetting attempts counter for user:', userUlid);
+            tokenRefreshTracker[userUlid].attempts = 0;
+            tokenRefreshTracker[userUlid].inProgress = false;
+          }
+        }, TOKEN_REFRESH_COOLDOWN_MS);
+        
+        return {
+          success: false, 
+          error: 'Token refresh loop detected. Please try again later.'
+        };
+      }
+    } else {
+      // Reset attempts if outside cooldown window
+      tracker.attempts = 1;
+    }
+    
+    // Update tracker and mark refresh as in progress
+    tracker.lastRefresh = now;
+    tracker.inProgress = true;
+    tokenRefreshTracker[userUlid] = tracker;
+    
     // Get user's Cal.com integration
     const supabase = createAuthClient();
     const { data: integration, error: integrationError } = await supabase
@@ -40,6 +105,7 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
       .single();
 
     if (integrationError || !integration) {
+      tracker.inProgress = false; // release lock
       console.error('[TOKEN_SERVICE_ERROR]', {
         context: 'FETCH_INTEGRATION',
         error: integrationError,
@@ -208,11 +274,21 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
       revalidatePath('/dashboard/settings');
       revalidatePath('/test/cal-webhook-test');
       
+      // Release the lock
+      if (tokenRefreshTracker[userUlid]) {
+        tokenRefreshTracker[userUlid].inProgress = false;
+      }
+      
       return {
         success: true,
         tokens: parsedTokenData
       };
     } catch (error) {
+      // Release the lock on error
+      if (tokenRefreshTracker[userUlid]) {
+        tokenRefreshTracker[userUlid].inProgress = false;
+      }
+      
       console.error('[TOKEN_SERVICE_ERROR]', {
         context: 'UNEXPECTED',
         error,
@@ -222,6 +298,11 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
       return { success: false, error: 'Error refreshing token' };
     }
   } catch (error) {
+    // Release the lock on unexpected error
+    if (userUlid && tokenRefreshTracker[userUlid]) {
+      tokenRefreshTracker[userUlid].inProgress = false;
+    }
+    
     console.error('[TOKEN_SERVICE_ERROR]', {
       context: 'GENERAL',
       error,

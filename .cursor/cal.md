@@ -1,0 +1,236 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Cal.com Integration Guidelines
+
+## Integration Model
+
+We use the **Platform Managed Users** model for our Cal.com integration. This means:
+
+1. We create and manage Cal.com Managed Users on behalf of our coaches
+2. We maintain full control over the booking flow, availability, and calendar management
+3. We don't require coaches to create their own Cal.com accounts
+
+## Environment Setup
+
+### Required Environment Variables
+```typescript
+CAL_CLIENT_ID=your_client_id
+CAL_API_URL=https://api.cal.com/v2
+CAL_CLIENT_SECRET=your_client_secret
+```
+
+## API Endpoint Rules
+
+### For User Management Operations (Platform API)
+- Used for creating, updating, and managing managed users
+- Base URL: `https://api.cal.com/v2/oauth-clients/${clientId}/users`
+- Headers:
+  ```typescript
+  headers: {
+    'x-cal-client-id': env.CAL_CLIENT_ID,
+    'x-cal-secret-key': env.CAL_CLIENT_SECRET,
+    'Content-Type': 'application/json',
+    'cal-api-version': '2024-01-01'
+  }
+  ```
+
+### For Regular API Operations (Using Managed User Token)
+- Used for all other operations (bookings, event types, etc.)
+- Base URL: `https://api.cal.com/v2/`
+- Headers:
+  ```typescript
+  headers: {
+    'Authorization': `Bearer ${integration.calAccessToken}`,
+    'Content-Type': 'application/json',
+    'cal-api-version': '2024-01-01'
+  }
+  ```
+
+## Common Operations
+
+### User Management
+- Create managed user: `POST /v2/oauth-clients/${clientId}/users`
+  ```typescript
+  // Example request body
+  {
+    "email": "user@example.com",
+    "timeZone": "America/New_York",
+    "name": "User Name",
+    "timeFormat": 12,
+    "weekStart": "Sunday"
+  }
+  ```
+- Get managed user: `GET /v2/oauth-clients/${clientId}/users/${managedUserId}`
+- Force refresh token: `POST /v2/oauth-clients/${clientId}/users/${managedUserId}/force-refresh`
+
+### Regular Operations (using access token)
+- Create booking: `POST /v2/bookings`
+- Get event types: `GET /v2/event-types`
+- Get bookings: `GET /v2/bookings`
+- Cancel booking: `DELETE /v2/bookings/${bookingId}`
+- Reschedule booking: `POST /v2/bookings/${bookingId}/reschedule`
+
+## Project Structure
+
+### Library Structure
+- `lib/cal/cal.ts`: Core configuration and utilities
+- `lib/cal/cal-service.ts`: Primary service for Cal.com operations
+- `lib/cal/cal-api.ts`: Client for direct API calls using OAuth tokens
+- `lib/cal/cal-webhook.ts`: Webhook registration and management
+
+### API Endpoints
+- `app/api/cal/webhooks/`: Webhook registration and event handling
+- `app/api/cal/refresh-token/`: Token refresh endpoint
+  ```typescript
+  // Example refresh token endpoint
+  export default async function handler(req, res) {
+    const { authorization } = req.headers;
+    const accessToken = authorization?.split(" ")[1];
+    
+    // Get user from database using access token
+    const user = await getUserByAccessToken(accessToken);
+    
+    // Refresh the token
+    const response = await fetch(`${process.env.CAL_API_URL}/oauth/${process.env.CAL_CLIENT_ID}/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        refreshToken: user.calRefreshToken,
+      }),
+    });
+    
+    const data = await response.json();
+    
+    // Update tokens in database
+    await updateUserTokens(user.id, {
+      calAccessToken: data.accessToken,
+      calRefreshToken: data.refreshToken,
+    });
+    
+    return res.json({ accessToken: data.accessToken });
+  }
+  ```
+- `app/api/cal/bookings/`: Booking management endpoints
+- `app/api/cal/test/`: Testing endpoints
+
+## Authentication Rules
+
+### For Managed User API Endpoints (Platform API)
+- **ALWAYS** use the following headers:
+  ```typescript
+  headers: {
+    'x-cal-client-id': env.CAL_CLIENT_ID,
+    'x-cal-secret-key': env.CAL_CLIENT_SECRET,
+    'Content-Type': 'application/json'
+  }
+  ```
+- **ALWAYS** use the following API URL pattern:
+  ```
+  https://api.cal.com/v2/oauth-clients/${clientId}/users/${managedUserId}/...
+  ```
+
+### For Direct API Access (OAuth)
+- **ALWAYS** use Bearer token authentication:
+  ```typescript
+  headers: {
+    'Authorization': `Bearer ${integration.calAccessToken}`,
+    'Content-Type': 'application/json'
+  }
+  ```
+- **ALWAYS** use the following API URL pattern:
+  ```
+  https://api.cal.com/v2/...
+  ```
+
+## Token Management
+
+1. **ALWAYS** use the centralized token refresh service in `utils/auth/token-service.ts`
+2. **NEVER** implement token refresh directly in components
+3. **ALWAYS** handle token expiration errors with automatic refresh attempts
+4. **ALWAYS** store tokens in Supabase database:
+   ```sql
+   -- Example schema
+   ALTER TABLE users ADD COLUMN cal_access_token TEXT;
+   ALTER TABLE users ADD COLUMN cal_refresh_token TEXT;
+   ALTER TABLE users ADD COLUMN cal_user_id INTEGER;
+   ```
+
+## API Version
+
+1. **ALWAYS** include the Cal.com API version header:
+   ```typescript
+   'cal-api-version': '2024-01-01'
+   ```
+
+## Managed User Operations
+
+### Creating Managed Users
+1. **ALWAYS** use the `calService.createManagedUser()` function
+2. **ALWAYS** store both the managed user ID and credentials
+3. **ALWAYS** set timezone for proper availability management
+
+### Event Types
+1. **ALWAYS** use the platform API endpoint for managed users
+2. **ALWAYS** use the client ID and secret key authentication
+3. **ALWAYS** handle timezone conversions properly
+
+### Bookings
+1. **ALWAYS** use the OAuth token when creating bookings for a managed user
+2. **ALWAYS** include proper error handling and logging
+3. **ALWAYS** validate timezone settings
+
+## Webhook Management
+
+1. **ALWAYS** use the `calWebhookService` for webhook management
+2. **ALWAYS** verify webhook signatures for security
+3. **NEVER** expose the webhook secret in client-side code
+
+## Common Mistakes to Avoid
+
+1. **NEVER** mix authentication methods (don't use OAuth tokens for platform endpoints)
+2. **NEVER** use the v1 API endpoints - always use v2
+3. **NEVER** store credentials in local state
+4. **AVOID** direct API calls in components - use service functions instead
+5. **NEVER** expose API secrets in client-side code
+6. **NEVER** ignore timezone settings
+7. **NEVER** skip token refresh implementation
+
+## Error Handling
+
+1. **ALWAYS** implement comprehensive error handling for API calls
+2. **ALWAYS** log errors with context and timestamp
+3. **ALWAYS** handle token expiration appropriately
+4. **NEVER** expose sensitive error details to the client
+
+## Testing
+
+1. Use the test endpoints for validating integration functionality
+2. Test both the webhook and API integration paths
+3. Validate actual bookings appear in both the database and Cal.com
+4. Test timezone handling across different regions
+
+## Booking Integration Flow
+
+1. Coach calendars are created and managed via managed users
+2. Event types are retrieved and displayed to clients
+3. Bookings are created in Cal.com using the managed user's credentials
+4. Webhook events capture booking changes and sync to our database
+5. We validate booking consistency using the validation endpoint
+
+## Core API Integration Rules
+
+1. **ALWAYS** use the v2 API endpoints
+2. **ALWAYS** include the API version header with every request
+3. **ALWAYS** use the correct authentication method for each endpoint type
+4. **ALWAYS** handle token refresh properly
+5. **ALWAYS** store user credentials securely in Supabase
+6. **ALWAYS** validate input data before sending to Cal.com API
+7. **ALWAYS** implement comprehensive error handling
+8. **ALWAYS** respect and manage timezone settings properly
+
+This document serves as the source of truth for our Cal.com integration approach. 

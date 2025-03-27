@@ -7,7 +7,7 @@ import Link from 'next/link';
 export default function CalWebhookTestPage() {
   return (
     <div className="container mx-auto py-10">
-      <h1 className="text-2xl font-bold mb-6">Scheduling Webhook Testing</h1>
+      <h1 className="text-2xl font-bold mb-6">Cal.com API Testing</h1>
       
       {/* Display scheduling integration status with redirect link */}
       <div className="mb-6">
@@ -18,7 +18,7 @@ export default function CalWebhookTestPage() {
         <AlertTriangle className="h-4 w-4 text-amber-600" />
         <AlertTitle>Developer Testing Tool</AlertTitle>
         <AlertDescription>
-          This page is for testing webhook integrations. Visit the <Link href="/dashboard/settings?tab=integrations" className="underline">settings page</Link> to set up scheduling for your account.
+          This page is for testing Cal.com API integrations. Visit the <Link href="/dashboard/settings?tab=integrations" className="underline">settings page</Link> to set up scheduling for your account.
         </AlertDescription>
       </Alert>
       

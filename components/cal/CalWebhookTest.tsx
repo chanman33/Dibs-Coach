@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
@@ -15,19 +14,13 @@ import { format } from 'date-fns';
 import { validateBookings, BookingValidationResult, CalBooking, DbBooking } from './validateBookings';
 import { toast } from '@/components/ui/use-toast';
 
-interface TestResult {
-  type: 'success' | 'error';
-  message: string;
-  details?: string;
-}
-
 export interface CalendarIntegration {
   id: string;
   userUlid: string;
-  calManagedUserId?: string;
-  calAccessToken?: string;
-  calAccessTokenExpiresAt?: string;
-  calRefreshToken?: string;
+  calManagedUserId: number;
+  calAccessToken: string;
+  calAccessTokenExpiresAt: string;
+  calRefreshToken: string;
 }
 
 export interface CalWebhookTestProps {
@@ -40,17 +33,11 @@ const safeFormatDate = (dateStr: string | undefined | null): string => {
   if (!dateStr) return 'N/A';
   
   try {
-    // First check if the string is a valid date format
     const timestamp = Date.parse(dateStr);
-    if (isNaN(timestamp)) {
-      return 'Invalid date';
-    }
+    if (isNaN(timestamp)) return 'Invalid date';
     
     const date = new Date(timestamp);
-    // Double-check if date is valid
-    if (isNaN(date.getTime())) {
-      return 'Invalid date';
-    }
+    if (isNaN(date.getTime())) return 'Invalid date';
     
     return format(date, 'PPp');
   } catch (e) {
@@ -59,127 +46,18 @@ const safeFormatDate = (dateStr: string | undefined | null): string => {
   }
 };
 
-// Template payloads for different webhook events
-const eventTemplates = {
-  'booking-created': {
-    type: 'BOOKING_CREATED',
-    payload: {
-      type: 'Cal',
-      eventTypeId: 123,
-      uid: `mock-booking-${Date.now()}`,
-      title: 'Test Booking',
-      description: 'Test booking created via webhook',
-      startTime: new Date(Date.now() + 3600000).toISOString(),
-      endTime: new Date(Date.now() + 7200000).toISOString(),
-      status: 'ACCEPTED',
-      responses: {},
-      metadata: {
-        videoCallUrl: "https://meet.google.com/example"
-      },
-      location: "Zoom",
-      attendees: [
-        {
-          email: 'attendee@example.com',
-          name: 'Test Attendee',
-          timeZone: 'America/New_York',
-          language: { locale: 'en' }
-        }
-      ],
-      organizer: {
-        id: 0,
-        name: 'Test Organizer',
-        email: 'organizer@example.com',
-        timeZone: 'America/New_York',
-        language: { locale: 'en' }
-      },
-      price: 0,
-      currency: "usd",
-      recurringEventId: null
-    },
-    createdAt: new Date().toISOString()
-  },
-  'booking-cancelled': {
-    type: 'BOOKING_CANCELLED',
-    payload: {
-      type: 'Cal',
-      uid: '',
-      title: 'Cancelled Booking',
-      eventTypeId: 123,
-      startTime: new Date(Date.now() + 3600000).toISOString(),
-      endTime: new Date(Date.now() + 7200000).toISOString(),
-      status: 'CANCELLED',
-      responses: {},
-      metadata: {},
-      location: "Zoom",
-      attendees: [
-        {
-          email: 'attendee@example.com',
-          name: 'Test Attendee',
-          timeZone: 'America/New_York',
-          language: { locale: 'en' }
-        }
-      ],
-      organizer: {
-        id: 0,
-        name: 'Test Organizer',
-        email: 'organizer@example.com',
-        timeZone: 'America/New_York',
-        language: { locale: 'en' }
-      },
-      cancellationReason: 'Testing webhook cancellation',
-      price: 0,
-      currency: "usd",
-      recurringEventId: null
-    },
-    createdAt: new Date().toISOString()
-  },
-  'booking-rescheduled': {
-    type: 'BOOKING_RESCHEDULED',
-    payload: {
-      type: 'Cal',
-      uid: '',
-      title: 'Rescheduled Booking',
-      eventTypeId: 123,
-      startTime: new Date(Date.now() + 86400000).toISOString(),
-      endTime: new Date(Date.now() + 90000000).toISOString(),
-      status: 'ACCEPTED',
-      responses: {},
-      metadata: {},
-      location: "Zoom",
-      attendees: [
-        {
-          email: 'attendee@example.com',
-          name: 'Test Attendee',
-          timeZone: 'America/New_York',
-          language: { locale: 'en' }
-        }
-      ],
-      organizer: {
-        id: 0,
-        name: 'Test Organizer',
-        email: 'organizer@example.com',
-        timeZone: 'America/New_York',
-        language: { locale: 'en' }
-      },
-      price: 0,
-      currency: "usd",
-      recurringEventId: null
-    },
-    createdAt: new Date().toISOString()
-  }
-};
-
-export default function CalWebhookTest({
-  initialIntegration,
-  hasCompletedOnboarding,
-}: CalWebhookTestProps) {
+export default function CalWebhookTest({ initialIntegration }: CalWebhookTestProps) {
   const [loading, setLoading] = useState(false);
   const [refreshingToken, setRefreshingToken] = useState(false);
-  const [webhookResult, setWebhookResult] = useState<TestResult | null>(null);
-  const [customPayload, setCustomPayload] = useState('');
-  const [selectedTab, setSelectedTab] = useState('booking-created');
+  const [actionResult, setActionResult] = useState<{ type: 'success' | 'error', message: string, details?: string } | null>(null);
+  const [eventTypes, setEventTypes] = useState<any[]>([]);
+  const [selectedEventTypeId, setSelectedEventTypeId] = useState<number | null>(null);
+  const [fetchingEventTypes, setFetchingEventTypes] = useState(false);
   const { isSignedIn, userUlid } = useAuth();
-  const { bookings, isLoading: bookingsLoading } = useCalBookings({ includeHistory: true });
+  const { bookings, isLoading: bookingsLoading, refetch } = useCalBookings({ includeHistory: true });
+  const refreshBookings = () => {
+    refetch();
+  };
   const [validationResult, setValidationResult] = useState<BookingValidationResult>({
     isLoading: false,
     calBookings: [],
@@ -191,146 +69,405 @@ export default function CalWebhookTest({
   });
 
   // Fetch user's calendar integration data
-  const [calendarIntegration, setCalendarIntegration] = useState<CalendarIntegration | null>(null);
+  const [calendarIntegration, setCalendarIntegration] = useState<CalendarIntegration | null>(
+    initialIntegration || null
+  );
+  
+  const [lastTokenRefresh, setLastTokenRefresh] = useState<number>(0);
+  const REFRESH_COOLDOWN = 10000; // 10 seconds cooldown
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   
   useEffect(() => {
     if (isSignedIn && userUlid && !calendarIntegration) {
       fetchCalendarIntegration();
     }
-  }, [isSignedIn, userUlid, calendarIntegration]);
+
+    // Use a delayed load for any secondary actions
+    if (isSignedIn && userUlid && isInitialLoad) {
+      // Set a timeout to fetch event types only after initial integration data is loaded
+      const timer = setTimeout(() => {
+        setIsInitialLoad(false);
+        if (calendarIntegration) {
+          // Only fetch event types if we haven't already and we have valid integration data
+          if (eventTypes.length === 0 && !fetchingEventTypes) {
+            // Check if token is likely valid before attempting fetch
+            const tokenExpiryDate = calendarIntegration.calAccessTokenExpiresAt ? 
+              new Date(calendarIntegration.calAccessTokenExpiresAt) : null;
+            
+            const isExpired = tokenExpiryDate ? new Date() > tokenExpiryDate : false;
+            
+            if (isExpired) {
+              // Instead of automatically refreshing, show a message to the user
+              setActionResult({
+                type: 'error',
+                message: 'Access token appears to be expired',
+                details: 'Please click the "Refresh Cal.com Token" button below to refresh your access token before fetching event types.'
+              });
+            } else {
+              fetchEventTypes();
+            }
+          }
+        }
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isSignedIn, userUlid, calendarIntegration, isInitialLoad, eventTypes.length, fetchingEventTypes]);
   
   const fetchCalendarIntegration = async () => {
     try {
       const response = await fetch('/api/cal/test/get-integration', {
-        cache: 'force-cache'
+        cache: 'no-store'
       });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.data?.integration) {
-          setCalendarIntegration(data.data.integration);
+      
+      if (!response.ok) {
+        if (response.status === 502) {
+          throw new Error('Backend service is unavailable. Please try again later.');
         }
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to fetch integration');
+      }
+      
+      const data = await response.json();
+      console.log('[DEBUG] Integration Response:', data);
+      
+      if (data.success && data.data?.integration) {
+        console.log('[DEBUG] Setting integration:', data.data.integration);
+        setCalendarIntegration(data.data.integration);
+      } else {
+        console.log('[DEBUG] No integration data found:', data);
       }
     } catch (error) {
       console.error('[FETCH_INTEGRATION_ERROR]', error);
-    }
-  };
-
-  const preparePayload = (templateKey: string) => {
-    const template = eventTemplates[templateKey as keyof typeof eventTemplates];
-    if (!template) return '';
-    
-    const templateCopy = JSON.parse(JSON.stringify(template));
-    
-    // Set the organizer ID if we have managed user data
-    if (calendarIntegration?.calManagedUserId) {
-      // Log the actual value for debugging
-      console.log('[CAL_WEBHOOK_TEST] Setting organizer ID', {
-        calManagedUserId: calendarIntegration.calManagedUserId,
-        type: typeof calendarIntegration.calManagedUserId,
-        timestamp: new Date().toISOString()
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to fetch integration',
+        variant: 'destructive'
       });
-      
-      // Safely parse the value as a number, falling back to the original value if parsing fails
-      try {
-        // Handle string, number, or any other type
-        const parsedId = typeof calendarIntegration.calManagedUserId === 'string' 
-          ? parseInt(calendarIntegration.calManagedUserId) 
-          : calendarIntegration.calManagedUserId;
-          
-        if (!isNaN(Number(parsedId))) {
-          templateCopy.payload.organizer.id = Number(parsedId);
-        } else {
-          console.error('[CAL_WEBHOOK_TEST_ERROR] Failed to parse calManagedUserId', {
-            value: calendarIntegration.calManagedUserId,
-            parsedId,
-            timestamp: new Date().toISOString()
-          });
-        }
-      } catch (error) {
-        console.error('[CAL_WEBHOOK_TEST_ERROR] Error parsing calManagedUserId', {
-          error,
-          value: calendarIntegration.calManagedUserId,
-          timestamp: new Date().toISOString()
-        });
-      }
     }
-    
-    // For cancelled or rescheduled events, use an existing booking ID if available
-    if ((templateKey === 'booking-cancelled' || templateKey === 'booking-rescheduled') && bookings.length > 0) {
-      templateCopy.payload.uid = bookings[0].calBookingUid;
-    }
-    
-    return JSON.stringify(templateCopy, null, 2);
   };
 
-  const handleTabChange = (value: string) => {
-    setSelectedTab(value);
-    setCustomPayload(preparePayload(value));
-  };
-
-  const testWebhook = async () => {
-    setLoading(true);
-    setWebhookResult(null);
+  const fetchEventTypes = async () => {
+    // Prevent duplicate calls
+    if (fetchingEventTypes) {
+      return;
+    }
     
     try {
-      // Prepare the payload
-      const payload = customPayload || preparePayload(selectedTab);
-      console.log('[CAL_WEBHOOK_TEST] Sending webhook test payload', {
-        type: JSON.parse(payload).type,
-        length: payload.length,
-        timestamp: new Date().toISOString()
+      console.log('[DEBUG] Current integration state:', {
+        ...calendarIntegration,
+        calAccessToken: calendarIntegration?.calAccessToken ? '***' : null
+      });
+      setFetchingEventTypes(true);
+      
+      if (!calendarIntegration?.calAccessToken || !calendarIntegration?.calManagedUserId) {
+        console.error('[FETCH_EVENT_TYPES_ERROR] Missing required integration data', {
+          hasAccessToken: !!calendarIntegration?.calAccessToken,
+          hasManagedUserId: !!calendarIntegration?.calManagedUserId,
+          integration: {
+            ...calendarIntegration,
+            calAccessToken: calendarIntegration?.calAccessToken ? '***' : null
+          }
+        });
+        setActionResult({
+          type: 'error',
+          message: 'Missing integration data',
+          details: 'The Cal.com integration is missing required data. Please check your integration settings.'
+        });
+        return;
+      }
+      
+      // Check token expiration before making the request
+      const tokenExpiryDate = calendarIntegration.calAccessTokenExpiresAt ? 
+        new Date(calendarIntegration.calAccessTokenExpiresAt) : null;
+      
+      const isExpired = tokenExpiryDate ? new Date() > tokenExpiryDate : false;
+      
+      if (isExpired) {
+        setActionResult({
+          type: 'error',
+          message: 'Access token is expired',
+          details: 'Please click the "Refresh Cal.com Token" button to refresh your access token.'
+        });
+        return;
+      }
+      
+      console.log('[DEBUG] Fetching event types for managed user:', calendarIntegration.calManagedUserId);
+      
+      const tokenResponse = await fetch(`/api/cal/test/event-types`, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
-      // Send the webhook to our test endpoint that handles signature generation
-      const response = await fetch('/api/cal/test/webhook', {
+      console.log('[DEBUG] Event types response status:', tokenResponse.status);
+      
+      if (tokenResponse.ok) {
+        const data = await tokenResponse.json();
+        console.log('[DEBUG] Event types response data:', data);
+        
+        if (data.success && data.eventTypes) {
+          // Extract event types from the nested structure
+          const eventTypeGroups = data.eventTypes.eventTypeGroups || [];
+          const allEventTypes = eventTypeGroups.reduce((acc: any[], group: any) => {
+            if (group.eventTypes && Array.isArray(group.eventTypes)) {
+              return [...acc, ...group.eventTypes];
+            }
+            return acc;
+          }, []);
+          
+          console.log('[DEBUG] Extracted event types:', allEventTypes);
+          
+          setEventTypes(allEventTypes);
+          if (allEventTypes.length > 0) {
+            setSelectedEventTypeId(allEventTypes[0].id);
+            toast({
+              title: "Event types loaded",
+              description: `Loaded ${allEventTypes.length} event types successfully.`,
+              variant: "default"
+            });
+          } else {
+            setActionResult({
+              type: 'error',
+              message: 'No event types found',
+              details: 'No event types are available for this Cal.com user. Please create at least one event type in your Cal.com account.'
+            });
+          }
+        } else {
+          throw new Error(data.error || 'Invalid response format from event types API');
+        }
+      } else {
+        let errorMessage = `Failed to fetch event types: ${tokenResponse.statusText}`;
+        let errorDetails = '';
+        
+        try {
+          const errorData = await tokenResponse.json();
+          console.error('[FETCH_EVENT_TYPES_ERROR] Error response:', errorData);
+          errorMessage = errorData.error || errorMessage;
+          errorDetails = errorData.details || '';
+        } catch (e) {
+          console.error('[FETCH_EVENT_TYPES_ERROR] Error parsing response:', e);
+        }
+        
+        if (tokenResponse.status === 401) {
+          setActionResult({
+            type: 'error',
+            message: 'Authentication error with Cal.com',
+            details: errorDetails || 'Your Cal.com access token appears to be invalid. Please try refreshing your token or reconnecting your Cal.com account.'
+          });
+        } else {
+          throw new Error(errorMessage);
+        }
+      }
+    } catch (error) {
+      console.error('[FETCH_EVENT_TYPES_ERROR]', error);
+      setActionResult({
+        type: 'error',
+        message: 'Error fetching event types',
+        details: error instanceof Error ? error.message : 'Unknown error occurred'
+      });
+    } finally {
+      setFetchingEventTypes(false);
+    }
+  };
+
+  const createBooking = async () => {
+    try {
+      setLoading(true);
+      setActionResult(null);
+      
+      // If no event types loaded yet, fetch them first
+      if (eventTypes.length === 0) {
+        toast({
+          title: "Fetching event types",
+          description: "Loading your Cal.com event types...",
+          variant: "default"
+        });
+        
+        await fetchEventTypes();
+        
+        // If still no event types after fetching, offer to go to Cal.com
+        if (eventTypes.length === 0) {
+          setActionResult({
+            type: 'error',
+            message: 'No event types available',
+            details: 'You need at least one event type in your Cal.com account to create a booking. Please create an event type in your Cal.com account first.'
+          });
+          return;
+        }
+      }
+      
+      if (!selectedEventTypeId) {
+        // If we have event types but none selected, select the first one
+        if (eventTypes.length > 0) {
+          setSelectedEventTypeId(eventTypes[0].id);
+        } else {
+          throw new Error('Please select an event type');
+        }
+      }
+      
+      const createBookingResponse = await fetch('/api/cal/test/create-booking', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: payload
+        body: JSON.stringify({
+          eventTypeId: selectedEventTypeId,
+          startTime: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
+          endTime: new Date(Date.now() + 7200000).toISOString(),   // 2 hours from now
+          attendeeEmail: 'test-attendee@example.com',
+          attendeeName: 'Test Attendee'
+        })
       });
       
-      console.log('[CAL_WEBHOOK_TEST] Received webhook test response', {
-        status: response.status,
-        ok: response.ok,
-        timestamp: new Date().toISOString()
-      });
-      
-      const result = await response.json();
-      console.log('[CAL_WEBHOOK_TEST] Parsed webhook test result', {
-        success: result.success,
-        statusCode: result.statusCode,
-        timestamp: new Date().toISOString(),
-        data: result.data
-      });
-      
-      if (!response.ok || !result.success) {
-        console.error('[CAL_WEBHOOK_TEST_ERROR] Webhook test failed', {
-          error: result.error,
-          message: result.message,
-          statusCode: result.statusCode,
-          data: result.data,
-          timestamp: new Date().toISOString()
-        });
+      if (!createBookingResponse.ok) {
+        const errorData = await createBookingResponse.json();
+        throw new Error(`Failed to create booking: ${errorData.error || 'Unknown error'}`);
       }
       
-      setWebhookResult({
-        type: response.ok && result.success ? 'success' : 'error',
-        message: result.message || (response.ok ? 'Webhook processed successfully' : 'Failed to process webhook'),
-        details: !response.ok || !result.success 
-          ? (typeof result.error === 'string' ? result.error : JSON.stringify(result, null, 2))
-          : JSON.stringify(result.data, null, 2)
-      });
-    } catch (error) {
-      console.error('[CAL_WEBHOOK_TEST_ERROR] Exception during webhook test', {
-        error,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
+      const bookingData = await createBookingResponse.json();
+      
+      setActionResult({
+        type: 'success',
+        message: 'Booking Created Successfully',
+        details: JSON.stringify(bookingData.booking, null, 2)
       });
       
-      setWebhookResult({
+      // Refresh bookings list
+      refreshBookings();
+      
+    } catch (error) {
+      console.error('[CREATE_BOOKING_ERROR]', error);
+      setActionResult({
         type: 'error',
-        message: 'Error sending webhook',
+        message: 'Error creating booking',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelLatestBooking = async () => {
+    try {
+      setLoading(true);
+      setActionResult(null);
+      
+      if (!bookings || bookings.length === 0) {
+        throw new Error('No bookings found to cancel. Please create a booking first.');
+      }
+      
+      const latestBooking = bookings[0];
+      
+      if (!latestBooking.calBookingUid) {
+        throw new Error('The latest booking does not have a Cal.com booking ID.');
+      }
+      
+      const cancelResponse = await fetch('/api/cal/test/cancel-booking', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          bookingUid: latestBooking.calBookingUid,
+          reason: 'Cancelled via testing interface'
+        })
+      });
+      
+      if (!cancelResponse.ok) {
+        const errorData = await cancelResponse.json();
+        throw new Error(`Failed to cancel booking: ${errorData.error || 'Unknown error'}`);
+      }
+      
+      const cancelResult = await cancelResponse.json();
+      
+      setActionResult({
+        type: 'success',
+        message: 'Booking cancelled successfully',
+        details: JSON.stringify({
+          booking: {
+            calBookingUid: latestBooking.calBookingUid,
+            title: latestBooking.title || 'Unknown booking'
+          },
+          cancellationResponse: cancelResult
+        }, null, 2)
+      });
+      
+      // Refresh bookings list
+      refreshBookings();
+      
+    } catch (error) {
+      console.error('[CANCEL_BOOKING_ERROR]', error);
+      setActionResult({
+        type: 'error',
+        message: 'Error cancelling booking',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rescheduleBooking = async () => {
+    try {
+      setLoading(true);
+      setActionResult(null);
+      
+      if (!bookings || bookings.length === 0) {
+        throw new Error('No bookings found to reschedule. Please create a booking first.');
+      }
+      
+      const latestBooking = bookings[0];
+      
+      if (!latestBooking.calBookingUid) {
+        throw new Error('The latest booking does not have a Cal.com booking ID.');
+      }
+      
+      const newStartTime = new Date(Date.now() + 86400000).toISOString(); // 24 hours later
+      const newEndTime = new Date(Date.now() + 90000000).toISOString();   // 25 hours later
+      
+      const rescheduleResponse = await fetch('/api/cal/test/reschedule-booking', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          bookingUid: latestBooking.calBookingUid,
+          startTime: newStartTime,
+          endTime: newEndTime,
+          reason: 'Rescheduled via testing interface'
+        })
+      });
+      
+      if (!rescheduleResponse.ok) {
+        const errorData = await rescheduleResponse.json();
+        throw new Error(`Failed to reschedule booking: ${errorData.error || 'Unknown error'}`);
+      }
+      
+      const rescheduleResult = await rescheduleResponse.json();
+      
+      setActionResult({
+        type: 'success',
+        message: 'Booking rescheduled successfully',
+        details: JSON.stringify({
+          booking: {
+            calBookingUid: latestBooking.calBookingUid,
+            title: latestBooking.title || 'Unknown booking'
+          },
+          newStartTime,
+          newEndTime,
+          rescheduleResponse: rescheduleResult
+        }, null, 2)
+      });
+      
+      // Refresh bookings list
+      refreshBookings();
+      
+    } catch (error) {
+      console.error('[RESCHEDULE_BOOKING_ERROR]', error);
+      setActionResult({
+        type: 'error',
+        message: 'Error rescheduling booking',
         details: error instanceof Error ? error.message : 'Unknown error'
       });
     } finally {
@@ -350,33 +487,18 @@ export default function CalWebhookTest({
     });
     
     try {
-      console.log('[VALIDATE_BOOKINGS] Starting booking validation');
-      
-      // Fetch bookings from Cal.com API
       const calResponse = await fetch('/api/cal/test/fetch-bookings');
       
-      console.log('[VALIDATE_BOOKINGS] API response received:', { 
-        status: calResponse.status,
-        ok: calResponse.ok 
-      });
-      
-      // Handle non-OK responses immediately
       if (!calResponse.ok) {
         const errorData = await calResponse.json();
         
-        // Handle token expiration
         if (calResponse.status === 498 && errorData.error === 'TOKEN_EXPIRED') {
-          console.log('[VALIDATE_BOOKINGS] Token expired, attempting refresh...');
-          
-          // Attempt to refresh the token
           const refreshResponse = await fetch('/api/cal/refresh-token', {
             method: 'POST',
           });
           const refreshData = await refreshResponse.json();
           
           if (refreshData.success) {
-            console.log('[VALIDATE_BOOKINGS] Token refreshed successfully, retrying validation...');
-            // Retry the validation after successful token refresh
             return validateBookingsHandler();
           } else {
             throw new Error('Failed to refresh expired token. Please try refreshing manually.');
@@ -386,38 +508,30 @@ export default function CalWebhookTest({
         throw new Error(errorData.error || `API returned status ${calResponse.status}`);
       }
       
-      // Parse the response defensively
       let calData;
       try {
         calData = await calResponse.json();
-        console.log('[VALIDATE_BOOKINGS] API response parsed:', { 
-          success: calData?.success,
-          hasData: !!calData?.data,
-          hasError: !!calData?.error
-        });
       } catch (parseError) {
-        console.error('[BOOKING_VALIDATION_PARSE_ERROR]', parseError);
         throw new Error('Failed to parse API response');
       }
       
-      // Handle API errors
       if (!calData || !calData.success) {
         const errorMessage = calData?.error || 'Unknown API error';
-        console.error('[BOOKING_VALIDATION_API_ERROR]', { error: errorMessage });
         throw new Error(errorMessage);
       }
       
-      // Validate response structure
       if (!calData.bookings || !Array.isArray(calData.bookings)) {
-        console.error('[BOOKING_VALIDATION_DATA_ERROR]', 'Invalid bookings array in response');
         throw new Error('Invalid data structure in API response');
       }
       
-      // Safely access and validate bookings arrays
-      const calBookings = calData.bookings as CalBooking[];
+      const calBookings = calData.bookings.map((booking: any) => ({
+        uid: booking.calBookingUid,
+        title: booking.title,
+        startTime: booking.startTime,
+        status: booking.status
+      })) as CalBooking[];
       const dbBookings = (Array.isArray(bookings) ? bookings : []) as DbBooking[];
       
-      // Update state with validation results
       const validationResult = validateBookings(calBookings, dbBookings);
       setValidationResult(validationResult);
       
@@ -436,22 +550,69 @@ export default function CalWebhookTest({
   };
 
   const refreshToken = async () => {
+    const now = Date.now();
+    if (now - lastTokenRefresh < REFRESH_COOLDOWN) {
+      toast({
+        title: 'Please wait',
+        description: 'Token refresh is on cooldown. Please wait a few seconds.',
+        variant: 'default'
+      });
+      return;
+    }
+
     setRefreshingToken(true);
+    setLastTokenRefresh(now);
+    
     try {
+      // Clear any previous error state
+      setActionResult(null);
+      
       const res = await fetch('/api/cal/refresh-token', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
+      
+      if (!res.ok) {
+        // Handle HTTP errors
+        let errorMessage = 'Failed to refresh token';
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // Ignore JSON parse errors
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
       const data = await res.json();
       if (data.success) {
         toast({
           title: 'Success',
           description: 'Cal.com token refreshed successfully',
         });
+        // Update the integration data
+        await fetchCalendarIntegration();
+        
+        // Wait a moment before retrying event types to ensure token is active
+        setTimeout(() => {
+          fetchEventTypes();
+        }, 1000);
       } else {
         throw new Error(data.error || 'Failed to refresh token');
       }
     } catch (error: any) {
       console.error('Error refreshing token:', error);
+      
+      // Set actionResult to show the error more prominently
+      setActionResult({
+        type: 'error',
+        message: 'Failed to refresh Cal.com token',
+        details: error.message || 'An unknown error occurred'
+      });
+      
       toast({
         title: 'Error',
         variant: 'destructive',
@@ -462,47 +623,14 @@ export default function CalWebhookTest({
     }
   };
 
-  // Initialize custom payload when user data is loaded
-  useEffect(() => {
-    if (!customPayload && calendarIntegration) {
-      setCustomPayload(preparePayload(selectedTab));
-    }
-  }, [calendarIntegration, selectedTab, customPayload]);
-
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Cal.com Webhook Test</CardTitle>
+          <CardTitle>Cal.com API Testing</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* Configuration Status */}
-            {webhookResult?.details?.includes('CAL_WEBHOOK_SECRET') ? (
-              <Alert variant="destructive">
-                <AlertTitle>Missing Webhook Configuration</AlertTitle>
-                <AlertDescription className="space-y-2">
-                  <p>The webhook secret is not configured. To set it up:</p>
-                  <ol className="list-decimal ml-4 space-y-1">
-                    <li>Go to your Cal.com dashboard</li>
-                    <li>Navigate to Developer Settings → Webhooks</li>
-                    <li>Create a new webhook or view an existing one</li>
-                    <li>Copy the signing secret</li>
-                    <li>Add it to your <code>.env</code> file as <code>CAL_WEBHOOK_SECRET=your_secret</code></li>
-                    <li>Restart your development server</li>
-                  </ol>
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <Alert>
-                <AlertTitle>Test Mode</AlertTitle>
-                <AlertDescription>
-                  This tool sends test webhook events to your webhook handler. 
-                  The webhook secret is securely stored in environment variables.
-                </AlertDescription>
-              </Alert>
-            )}
-            
             {/* Integration Status - Only show if not connected */}
             {!calendarIntegration && (
               <Alert variant="destructive">
@@ -511,7 +639,7 @@ export default function CalWebhookTest({
                   <AlertTitle>No Cal.com integration detected</AlertTitle>
                 </div>
                 <AlertDescription className="space-y-2">
-                  <p>Please connect your Cal.com account first. Webhook events require a Cal.com connection.</p>
+                  <p>Please connect your Cal.com account first.</p>
                   <Button asChild variant="outline" size="sm">
                     <Link href="/dashboard/settings?tab=integrations">
                       Go to Integration Settings
@@ -521,244 +649,278 @@ export default function CalWebhookTest({
               </Alert>
             )}
             
-            {/* Only show webhook testing UI if integration exists */}
+            {/* Only show testing UI if integration exists */}
             {calendarIntegration && (
               <>
-                <Tabs
-                  defaultValue="booking-created"
-                  value={selectedTab}
-                  onValueChange={handleTabChange}
-                >
-                  <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="booking-created">Booking Created</TabsTrigger>
-                    <TabsTrigger value="booking-cancelled">Booking Cancelled</TabsTrigger>
-                    <TabsTrigger value="booking-rescheduled">Booking Rescheduled</TabsTrigger>
-                    <TabsTrigger value="fetch-bookings">Fetch Bookings</TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="booking-created">
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Test the booking created webhook event.
-                    </p>
-                  </TabsContent>
-                  
-                  <TabsContent value="booking-cancelled">
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Test the booking cancelled webhook event.
-                      {bookings.length === 0 && " (No existing bookings found for cancellation test)"}
-                    </p>
-                  </TabsContent>
-                  
-                  <TabsContent value="booking-rescheduled">
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Test the booking rescheduled webhook event.
-                      {bookings.length === 0 && " (No existing bookings found for rescheduling test)"}
-                    </p>
-                  </TabsContent>
-                  
-                  <TabsContent value="fetch-bookings">
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-muted-foreground">
-                          Fetch and validate bookings between Cal.com and database.
-                        </p>
-                        <div className="flex gap-2">
-                          <Button 
-                            onClick={refreshToken} 
-                            disabled={refreshingToken || !calendarIntegration}
-                            variant="outline"
-                            className="flex items-center gap-2"
-                          >
-                            {refreshingToken && <Loader2 className="h-4 w-4 animate-spin" />}
-                            Refresh Cal.com Token
-                          </Button>
-                          <Button 
-                            onClick={validateBookingsHandler}
-                            disabled={validationResult.isLoading || refreshingToken}
-                            className="flex items-center gap-2"
-                          >
-                            {validationResult.isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
-                            Validate Bookings
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      {validationResult.error && (
-                        <Alert variant="destructive">
-                          <AlertTitle>Validation Error</AlertTitle>
-                          <AlertDescription>
-                            {validationResult.error.includes('Failed to refresh expired token') ? (
-                              <div className="space-y-2">
-                                <p>Your Cal.com access token has expired and automatic refresh failed.</p>
-                                <p className="text-sm">Please try:</p>
-                                <ol className="list-decimal pl-5 text-sm space-y-1">
-                                  <li>Click the "Refresh Cal.com Token" button above</li>
-                                  <li>If that doesn't work, try reconnecting your Cal.com account in settings</li>
-                                  <li>If problems persist, please contact support</li>
-                                </ol>
-                              </div>
-                            ) : (
-                              validationResult.error
-                            )}
-                          </AlertDescription>
-                        </Alert>
-                      )}
-                      
-                      {!validationResult.isLoading && validationResult.calBookings && validationResult.calBookings.length === 0 && (
-                        <Alert>
-                          <AlertTitle>No Bookings Found</AlertTitle>
-                          <AlertDescription className="space-y-2">
-                            <p>No bookings were found in your Cal.com account.</p>
-                            <p className="text-sm">This can happen if:</p>
-                            <ul className="list-disc pl-5 text-sm space-y-1">
-                              <li>You haven't created any bookings yet in your Cal.com account</li>
-                              <li>All your bookings have been cancelled or archived</li>
-                              <li>There are API permission issues with your Cal.com connection</li>
-                            </ul>
-                            <p className="mt-2 text-sm">Try creating a test booking:</p>
-                            <ol className="list-decimal pl-5 text-sm space-y-1">
-                              <li>Go to the "Booking Created" tab</li>
-                              <li>Click "Test Webhook" to simulate a new booking</li>
-                              <li>Return to this tab and click "Validate Bookings" again</li>
-                              <li>You should see one booking in your database but not in Cal.com</li>
-                            </ol>
-                          </AlertDescription>
-                        </Alert>
-                      )}
-                      
-                      {!validationResult.isLoading && validationResult.calBookings && validationResult.calBookings.length > 0 && (
-                        <div className="space-y-4">
-                          <div>
-                            <h3 className="text-sm font-medium mb-2">Cal.com Bookings</h3>
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>UID</TableHead>
-                                  <TableHead>Title</TableHead>
-                                  <TableHead>Start Time</TableHead>
-                                  <TableHead>Status</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {validationResult.calBookings.map((booking: any, index: number) => {
-                                  // Create a stable key for React
-                                  const rowKey = booking?.uid ? `booking-${booking.uid}` : `booking-index-${index}`;
-                                  
-                                  return (
-                                    <TableRow key={rowKey}>
-                                      <TableCell className="font-mono text-xs">{booking?.uid || 'N/A'}</TableCell>
-                                      <TableCell>{booking?.title || 'Untitled'}</TableCell>
-                                      <TableCell>{safeFormatDate(booking?.startTime || booking?.start)}</TableCell>
-                                      <TableCell>{booking?.status || 'Unknown'}</TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
-                          </div>
-                          
-                          {validationResult.mismatches && (validationResult.mismatches.calOnly.length > 0 || validationResult.mismatches.dbOnly.length > 0) && (
-                            <Alert variant="destructive">
-                              <AlertTitle>Data Inconsistencies Found</AlertTitle>
-                              <AlertDescription>
-                                <div className="mt-2 space-y-2">
-                                  {validationResult.mismatches.calOnly.map((booking, index) => (
-                                    <div key={`cal-only-${booking.uid}-${index}`} className="text-sm">
-                                      Booking <code className="text-xs">{booking.uid}</code> exists in Cal.com but not in database
-                                    </div>
-                                  ))}
-                                  {validationResult.mismatches.dbOnly.map((booking, index) => (
-                                    <div key={`db-only-${booking.calBookingUid}-${index}`} className="text-sm">
-                                      Booking <code className="text-xs">{booking.calBookingUid}</code> exists in database but not in Cal.com
-                                    </div>
-                                  ))}
-                                </div>
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                {/* Event Type Selection */}
+                {eventTypes.length > 0 ? (
+                  <div className="mb-4">
+                    <label htmlFor="eventType" className="block text-sm font-medium mb-2">
+                      Event Type
+                    </label>
+                    <select
+                      id="eventType"
+                      value={selectedEventTypeId || ''}
+                      onChange={(e) => setSelectedEventTypeId(Number(e.target.value))}
+                      className="w-full p-2 border rounded-md"
+                    >
+                      {eventTypes.map((eventType) => (
+                        <option key={eventType.id} value={eventType.id}>
+                          {eventType.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div className="mb-4">
+                    <Alert>
+                      <AlertTitle>No Event Types Loaded</AlertTitle>
+                      <AlertDescription className="flex flex-col gap-2">
+                        <p>No event types are currently loaded. You can fetch them manually or they will be loaded when creating a booking.</p>
+                        <Button 
+                          onClick={fetchEventTypes} 
+                          disabled={fetchingEventTypes}
+                          variant="outline" 
+                          size="sm"
+                          className="self-start"
+                        >
+                          {fetchingEventTypes ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Fetch Event Types
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
                 
-                {/* Show payload editor and test button only for webhook test tabs */}
-                {selectedTab !== 'fetch-bookings' && (
-                  <>
-                    {/* Custom Payload Editor */}
-                    <div>
-                      <label htmlFor="payload" className="block text-sm font-medium mb-2">
-                        Webhook Payload
-                      </label>
-                      <div className="relative">
-                        <Textarea
-                          id="payload"
-                          rows={15}
-                          value={customPayload}
-                          onChange={(e) => setCustomPayload(e.target.value)}
-                          className="font-mono text-xs"
-                        />
+                {/* Main testing actions */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardHeader className="py-4">
+                      <CardTitle className="text-base">Booking Operations</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <Button
+                          onClick={createBooking}
+                          disabled={loading || !selectedEventTypeId}
+                          className="w-full"
+                        >
+                          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Create New Booking
+                        </Button>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <Button
+                            onClick={cancelLatestBooking}
+                            disabled={loading || bookings.length === 0}
+                            variant="outline"
+                          >
+                            Cancel Latest
+                          </Button>
+                          <Button
+                            onClick={rescheduleBooking}
+                            disabled={loading || bookings.length === 0}
+                            variant="outline"
+                          >
+                            Reschedule Latest
+                          </Button>
+                        </div>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        You can edit the payload for more specific test scenarios
-                      </p>
-                    </div>
-                    
-                    {/* Test Webhook Button */}
-                    <div className="flex justify-end">
-                      <Button 
-                        onClick={testWebhook} 
-                        disabled={loading || !customPayload}
-                        className="flex items-center gap-2"
-                      >
-                        {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                        Test Webhook
-                      </Button>
-                    </div>
-                    
-                    {/* Test Result */}
-                    {webhookResult && (
-                      <div className="mt-6">
-                        <Alert variant={webhookResult.type === 'success' ? "default" : "destructive"}>
-                          <div className="flex items-center gap-2">
-                            {webhookResult.type === 'success' ? (
-                              <CheckCircle className="h-5 w-5" />
-                            ) : (
-                              <XCircle className="h-5 w-5" />
-                            )}
-                            <AlertTitle>{webhookResult.message}</AlertTitle>
-                          </div>
-                          <AlertDescription>
-                            <div className="mt-2">
-                              <Textarea
-                                readOnly
-                                value={webhookResult.details || 'No additional details available'}
-                                rows={8}
-                                className="font-mono text-xs bg-muted"
-                              />
-                            </div>
-                            {webhookResult.type === 'error' && (
-                              <div className="mt-2 text-sm">
-                                <p className="font-medium mb-1">Common Issues:</p>
-                                <ul className="list-disc pl-4 space-y-1">
-                                  <li>Missing or invalid <code>CAL_WEBHOOK_SECRET</code> in environment variables</li>
-                                  <li>Organizer ID in webhook doesn't match any CalendarIntegration</li>
-                                  <li>Webhook payload format doesn't match API expectations</li>
-                                  <li>Check server logs for detailed error information</li>
-                                </ul>
-                              </div>
-                            )}
-                          </AlertDescription>
-                        </Alert>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="py-4">
+                      <CardTitle className="text-base">Authentication</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <Button 
+                          onClick={refreshToken} 
+                          disabled={refreshingToken}
+                          variant="outline"
+                          className="w-full"
+                        >
+                          {refreshingToken ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Refresh Cal.com Token
+                        </Button>
+                        
+                        <Button 
+                          onClick={validateBookingsHandler}
+                          disabled={validationResult.isLoading || refreshingToken}
+                          className="w-full"
+                        >
+                          {validationResult.isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                          Validate Bookings
+                        </Button>
                       </div>
+                    </CardContent>
+                  </Card>
+                </div>
+                
+                {/* Action Result */}
+                {actionResult && (
+                  <Alert variant={actionResult.type === 'success' ? "default" : "destructive"}>
+                    <div className="flex items-center gap-2">
+                      {actionResult.type === 'success' ? (
+                        <CheckCircle className="h-5 w-5" />
+                      ) : (
+                        <XCircle className="h-5 w-5" />
+                      )}
+                      <AlertTitle>{actionResult.message}</AlertTitle>
+                    </div>
+                    {actionResult.details && (
+                      <AlertDescription>
+                        <div className="mt-2">
+                          <Textarea
+                            readOnly
+                            value={actionResult.details}
+                            rows={6}
+                            className="font-mono text-xs bg-muted"
+                          />
+                        </div>
+                      </AlertDescription>
                     )}
-                  </>
+                  </Alert>
+                )}
+                
+                {/* Validation Results */}
+                {validationResult.error && (
+                  <Alert variant="destructive">
+                    <AlertTitle>Validation Error</AlertTitle>
+                    <AlertDescription>
+                      {validationResult.error.includes('Failed to refresh expired token') ? (
+                        <div className="space-y-2">
+                          <p>Your Cal.com access token has expired and automatic refresh failed.</p>
+                          <p className="text-sm">Try clicking the "Refresh Cal.com Token" button above.</p>
+                        </div>
+                      ) : (
+                        validationResult.error
+                      )}
+                    </AlertDescription>
+                  </Alert>
                 )}
               </>
             )}
           </div>
         </CardContent>
       </Card>
+      
+      {/* Bookings Card - Always shown as a separate card when integration exists */}
+      {calendarIntegration && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Bookings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium">Booking History</h3>
+                <Button 
+                  onClick={refreshBookings} 
+                  variant="outline" 
+                  size="sm"
+                  disabled={bookingsLoading}
+                >
+                  {bookingsLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Refresh
+                </Button>
+              </div>
+              
+              {bookingsLoading ? (
+                <div className="flex justify-center p-6">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : bookings && bookings.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Attendee</TableHead>
+                      <TableHead>Start Time</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bookings.map((booking, index) => (
+                      <TableRow key={`booking-${booking.calBookingUid || index}`}>
+                        <TableCell className="font-mono text-xs">
+                          {booking.calBookingUid?.substring(0, 8)}...
+                        </TableCell>
+                        <TableCell>{booking.title || 'Untitled'}</TableCell>
+                        <TableCell>{booking.attendeeName || 'Unknown'}</TableCell>
+                        <TableCell>{safeFormatDate(booking.startTime)}</TableCell>
+                        <TableCell>
+                          <span className={
+                            booking.status === 'CANCELLED' 
+                              ? 'text-red-500' 
+                              : booking.status === 'CONFIRMED' 
+                                ? 'text-green-500' 
+                                : 'text-yellow-500'
+                          }>
+                            {booking.status || 'Unknown'}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <Alert>
+                  <AlertTitle>No Bookings Found</AlertTitle>
+                  <AlertDescription>
+                    No bookings were found in your account. Try creating a test booking.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {/* Cal.com Bookings (only shown when validation has been run) */}
+              {!validationResult.isLoading && validationResult.calBookings && validationResult.calBookings.length > 0 && (
+                <div className="mt-8 space-y-4 border-t pt-4">
+                  <h3 className="text-lg font-medium">Cal.com Bookings</h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>UID</TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Start Time</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {validationResult.calBookings.map((booking, index) => (
+                        <TableRow key={`cal-booking-${booking.uid || index}`}>
+                          <TableCell className="font-mono text-xs">{booking.uid || 'N/A'}</TableCell>
+                          <TableCell>{booking.title || 'Untitled'}</TableCell>
+                          <TableCell>{safeFormatDate(booking.startTime || booking.start)}</TableCell>
+                          <TableCell>{booking.status || 'Unknown'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  
+                  {validationResult.mismatches && (validationResult.mismatches.calOnly.length > 0 || validationResult.mismatches.dbOnly.length > 0) && (
+                    <Alert variant="destructive">
+                      <AlertTitle>Data Inconsistencies Found</AlertTitle>
+                      <AlertDescription>
+                        <div className="mt-2 space-y-2">
+                          {validationResult.mismatches.calOnly.length > 0 && (
+                            <p>{validationResult.mismatches.calOnly.length} booking(s) exist in Cal.com but not in database</p>
+                          )}
+                          {validationResult.mismatches.dbOnly.length > 0 && (
+                            <p>{validationResult.mismatches.dbOnly.length} booking(s) exist in database but not in Cal.com</p>
+                          )}
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
