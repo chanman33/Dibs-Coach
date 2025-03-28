@@ -44,40 +44,12 @@ class PermissionService {
   setUser(user: AuthContext | null): void {
     const now = Date.now();
     
-    // Clear cache if user changes
     if (this.user?.userId !== user?.userId) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[PERMISSION_SERVICE] User context changed, clearing cache');
-      }
       this.cache.clear();
     }
     
     this.user = user;
     this.lastSetTimestamp = now;
-    
-    // Only log in development
-    if (process.env.NODE_ENV === 'development' && user) {
-      console.log('[PERMISSION_SERVICE] User set:', { 
-        userId: user.userId,
-        role: user.systemRole,
-        capabilities: user.capabilities,
-        orgRole: user.orgRole || 'none',
-        orgLevel: user.orgLevel || 'none',
-        organizationUlid: user.organizationUlid || 'none',
-        organizationName: user.organizationName || 'none',
-        timestamp: this.lastSetTimestamp
-      });
-      
-      if (user.orgRole) {
-        console.log('[PERMISSION_SERVICE] Organization context:', {
-          orgRole: user.orgRole,
-          orgLevel: user.orgLevel,
-          organizationUlid: user.organizationUlid,
-          organizationName: user.organizationName,
-          timestamp: new Date().toISOString()
-        });
-      }
-    }
   }
 
   /**
@@ -100,26 +72,15 @@ class PermissionService {
    */
   check(options: AuthOptions): boolean {
     if (!this.user) {
-      console.log('[PERMISSION_SERVICE] No user context available for permission check');
       return false;
     }
     
-    // SIMPLIFIED FOR DEVELOPMENT: All authenticated users with org role pass permission checks
     const hasOrganization = !!this.user.organizationUlid && !!this.user.orgRole;
     
-    // System owners always bypass checks
     if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER || hasOrganization) {
-      console.log('[PERMISSION_SERVICE] Simplified check passed for development', {
-        systemRole: this.user.systemRole,
-        orgRole: this.user.orgRole || 'none',
-        hasOrganization,
-        timestamp: new Date().toISOString()
-      });
       return true;
     }
     
-    // Only fail for users with no org membership
-    console.log('[PERMISSION_SERVICE] Simplified check failed - no organization membership');
     return false;
   }
 
@@ -127,45 +88,18 @@ class PermissionService {
    * Check if user can access business dashboard
    */
   canAccessBusinessDashboard(): boolean {
-    if (!this.user) {
-      console.log('[PERMISSION_SERVICE] No user available for business dashboard check');
-      return false;
-    }
+    if (!this.user) return false;
     
     const cacheKey = 'business_dashboard_access';
     if (this.cache.has(cacheKey)) {
-      const cachedResult = this.cache.get(cacheKey)!;
-      console.log('[PERMISSION_SERVICE] Using cached business dashboard access result:', cachedResult);
-      return cachedResult;
+      return this.cache.get(cacheKey)!;
     }
     
-    // SIMPLIFIED FOR DEVELOPMENT: All authenticated users with organization access pass
-    // This should match the server-side checks in withServerAction
     const hasValidOrg = !!this.user.organizationUlid && !!this.user.orgRole;
-    
-    // Ensure the org role is one of the allowed business dashboard roles
     const hasValidOrgRole = !!this.user.orgRole && 
       (businessDashboardRoles as readonly string[]).includes(this.user.orgRole);
-    
-    // System owners always have access
     const isSystemOwner = this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER;
-    
-    // Simplified result for development:
-    // - System owners always have access
-    // - Users with valid org contexts and valid org roles have access
     const result = isSystemOwner || (hasValidOrg && hasValidOrgRole);
-    
-    // Log the check
-    console.log('[PERMISSION_SERVICE] Business dashboard access check:', {
-      userId: this.user.userId,
-      orgRole: this.user.orgRole || 'none',
-      organizationUlid: this.user.organizationUlid || 'none',
-      isSystemOwner,
-      hasValidOrg,
-      hasValidOrgRole,
-      result,
-      timestamp: new Date().toISOString()
-    });
     
     this.cache.set(cacheKey, result);
     return result;
@@ -257,31 +191,16 @@ class PermissionService {
       return this.cache.get(cacheKey)!;
     }
     
-    // System owners always have access
     if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
-      console.log('[PERMISSION_SERVICE] System owner bypassing organization analytics check');
       this.cache.set(cacheKey, true);
       return true;
     }
     
-    // Required org role must be OWNER or ADMIN
     const hasRequiredRole = this.user.orgRole === ORG_ROLES.OWNER || 
                            this.user.orgRole === ORG_ROLES.DIRECTOR;
-                           
-    const result = hasRequiredRole;
     
-    console.log('[PERMISSION_SERVICE] Organization analytics access check:', {
-      userId: this.user.userId,
-      orgRole: this.user.orgRole || 'none',
-      hasRequiredRole,
-      result,
-      organizationUlid: this.user.organizationUlid || 'none',
-      organizationName: this.user.organizationName || 'none',
-      timestamp: new Date().toISOString()
-    });
-    
-    this.cache.set(cacheKey, result);
-    return result;
+    this.cache.set(cacheKey, hasRequiredRole);
+    return hasRequiredRole;
   }
 
   /**
@@ -295,31 +214,16 @@ class PermissionService {
       return this.cache.get(cacheKey)!;
     }
     
-    // System owners always have access
     if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
-      console.log('[PERMISSION_SERVICE] System owner bypassing organization member management check');
       this.cache.set(cacheKey, true);
       return true;
     }
     
-    // Required org role must be OWNER or DIRECTOR
     const hasRequiredRole = this.user.orgRole === ORG_ROLES.OWNER || 
                            this.user.orgRole === ORG_ROLES.DIRECTOR;
-                           
-    const result = hasRequiredRole;
     
-    console.log('[PERMISSION_SERVICE] Organization member management check:', {
-      userId: this.user.userId,
-      orgRole: this.user.orgRole || 'none',
-      hasRequiredRole,
-      result,
-      organizationUlid: this.user.organizationUlid || 'none',
-      organizationName: this.user.organizationName || 'none',
-      timestamp: new Date().toISOString()
-    });
-    
-    this.cache.set(cacheKey, result);
-    return result;
+    this.cache.set(cacheKey, hasRequiredRole);
+    return hasRequiredRole;
   }
 
   /**
@@ -333,31 +237,16 @@ class PermissionService {
       return this.cache.get(cacheKey)!;
     }
     
-    // System owners always have access
     if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
-      console.log('[PERMISSION_SERVICE] System owner bypassing business billing access check');
       this.cache.set(cacheKey, true);
       return true;
     }
     
-    // Required org role must be OWNER, DIRECTOR, or MANAGER for billing access
     const hasRequiredRole = this.user.orgRole === ORG_ROLES.OWNER || 
                            this.user.orgRole === ORG_ROLES.DIRECTOR;
-                           
-    const result = hasRequiredRole;
     
-    console.log('[PERMISSION_SERVICE] Business billing access check:', {
-      userId: this.user.userId,
-      orgRole: this.user.orgRole || 'none',
-      hasRequiredRole,
-      result,
-      organizationUlid: this.user.organizationUlid || 'none',
-      organizationName: this.user.organizationName || 'none',
-      timestamp: new Date().toISOString()
-    });
-    
-    this.cache.set(cacheKey, result);
-    return result;
+    this.cache.set(cacheKey, hasRequiredRole);
+    return hasRequiredRole;
   }
 
   /**
@@ -371,31 +260,16 @@ class PermissionService {
       return this.cache.get(cacheKey)!;
     }
     
-    // System owners always have access
     if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
-      console.log('[PERMISSION_SERVICE] System owner bypassing business permissions access check');
       this.cache.set(cacheKey, true);
       return true;
     }
     
-    // Required org role must be OWNER or DIRECTOR for permissions management
     const hasRequiredRole = this.user.orgRole === ORG_ROLES.OWNER || 
                            this.user.orgRole === ORG_ROLES.DIRECTOR;
-                           
-    const result = hasRequiredRole;
     
-    console.log('[PERMISSION_SERVICE] Business permissions access check:', {
-      userId: this.user.userId,
-      orgRole: this.user.orgRole || 'none',
-      hasRequiredRole,
-      result,
-      organizationUlid: this.user.organizationUlid || 'none',
-      organizationName: this.user.organizationName || 'none',
-      timestamp: new Date().toISOString()
-    });
-    
-    this.cache.set(cacheKey, result);
-    return result;
+    this.cache.set(cacheKey, hasRequiredRole);
+    return hasRequiredRole;
   }
 
   /**
@@ -409,26 +283,13 @@ class PermissionService {
       return this.cache.get(cacheKey)!;
     }
     
-    // System owners are treated as organization owners
     if (this.user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
-      console.log('[PERMISSION_SERVICE] System owner automatically granted organization owner status');
       this.cache.set(cacheKey, true);
       return true;
     }
     
     const hasOrgUlid = !!this.user.organizationUlid;
     const isOwner = hasOrgUlid && this.user.orgRole === ORG_ROLES.OWNER;
-    
-    // Log the check result
-    console.log('[PERMISSION_SERVICE] Organization owner check:', {
-      userId: this.user.userId,
-      orgRole: this.user.orgRole || 'none',
-      hasOrgUlid,
-      organizationUlid: this.user.organizationUlid || 'none',
-      organizationName: this.user.organizationName || 'none',
-      isOwner,
-      timestamp: new Date().toISOString()
-    });
     
     this.cache.set(cacheKey, isOwner);
     return isOwner;
@@ -439,7 +300,6 @@ class PermissionService {
    */
   clearCache(): void {
     this.cache.clear();
-    console.log('[PERMISSION_SERVICE] Cache cleared');
   }
 
   /**
@@ -486,122 +346,66 @@ class PermissionService {
       requireOrganization
     } = options;
 
-    // System owners bypass all checks - they have god-mode access
     if (user.systemRole === SYSTEM_ROLES.SYSTEM_OWNER) {
-      console.log('[PERMISSION_SERVICE] System owner bypassing permission checks');
       return true;
     }
 
-    // Check if organization is required
     if (requireOrganization && !user.orgRole) {
-      console.log('[PERMISSION_SERVICE] Organization required but user has no org role');
       return false;
     }
 
     const checks: boolean[] = [];
 
-    // System role check
     if (requiredSystemRole) {
       const hasSystemRole = systemRoleHierarchy[user.systemRole] >= systemRoleHierarchy[requiredSystemRole];
       checks.push(hasSystemRole);
     }
 
-    // Organization role check
     if (requiredOrgRole && user.orgRole) {
       const orgRoleValue = ORG_ROLES[user.orgRole] || 0;
       const requiredValue = ORG_ROLES[requiredOrgRole] || 0;
       const hasOrgRole = orgRoleValue >= requiredValue;
       checks.push(hasOrgRole);
-      
-      console.log('[PERMISSION_SERVICE] Organization role check:', {
-        requiredRole: requiredOrgRole,
-        userRole: user.orgRole,
-        hasRequiredRole: hasOrgRole,
-        requiredRoleValue: requiredValue,
-        userRoleValue: orgRoleValue,
-        organizationUlid: user.organizationUlid || 'none',
-        organizationName: user.organizationName || 'none',
-        userId: user.userId,
-        timestamp: new Date().toISOString()
-      });
     } else if (requiredOrgRole) {
-      console.log('[PERMISSION_SERVICE] Required organization role not met:', {
-        requiredRole: requiredOrgRole,
-        userRole: user.orgRole || 'none',
-        hasOrgRole: !!user.orgRole,
-        userId: user.userId,
-        timestamp: new Date().toISOString()
-      });
-      
-      // If organization role is required but user has no role, this check fails
       checks.push(false);
     }
 
-    // Organization level check
     if (requiredOrgLevel && user.orgLevel) {
       const levelValue = orgLevelHierarchy[user.orgLevel] || 0;
       const requiredValue = orgLevelHierarchy[requiredOrgLevel] || 0;
       const hasOrgLevel = levelValue >= requiredValue;
       checks.push(hasOrgLevel);
-      
-      console.log('[PERMISSION_SERVICE] Organization level check:', {
-        requiredLevel: requiredOrgLevel,
-        userLevel: user.orgLevel,
-        hasRequiredLevel: hasOrgLevel,
-        userId: user.userId,
-        timestamp: new Date().toISOString()
-      });
     } else if (requiredOrgLevel) {
-      console.log('[PERMISSION_SERVICE] Required organization level not met:', {
-        requiredLevel: requiredOrgLevel,
-        userLevel: user.orgLevel || 'none',
-        hasOrgLevel: !!user.orgLevel,
-        userId: user.userId,
-        timestamp: new Date().toISOString()
-      });
-      
-      // If organization level is required but user has no level, this check fails
       checks.push(false);
     }
 
-    // Permissions check
     if (requiredPermissions && requiredPermissions.length > 0) {
       for (const permission of requiredPermissions) {
         const hasRequiredPermission = hasPermission(user, permission as Permission);
         checks.push(hasRequiredPermission);
         
-        // Short-circuit for requireAny policy
         if (policy === 'requireAny' && hasRequiredPermission) {
           return true;
         }
       }
     }
 
-    // Capabilities check
     if (requiredCapabilities && requiredCapabilities.length > 0) {
       for (const capability of requiredCapabilities) {
         const hasCapability = user.capabilities.includes(capability);
         checks.push(hasCapability);
         
-        // Short-circuit for requireAny policy
         if (policy === 'requireAny' && hasCapability) {
           return true;
         }
       }
     }
 
-    // If no checks were performed, deny access
     if (checks.length === 0) {
-      console.log('[PERMISSION_SERVICE] No permission checks were performed');
       return false;
     }
 
-    // Apply the policy
-    if (policy === 'requireAll') {
-      return checks.every(result => result);
-    } else {
-      return checks.some(result => result);
-    }
+    return policy === 'requireAll' ? checks.every(result => result) : checks.some(result => result);
   }
 
   /**

@@ -9,8 +9,7 @@ const publicPaths = [
   '/sign-up(.*)',
   '/api/webhooks(.*)',
   '/api/auth/(.*)',
-  '/api/cal/webhooks/receiver',
-  '/api/cal/test/webhook',
+  '/api/cal/(.*)',
   '/contact-sales(.*)',
   '/coaches(.*)',
   '/pricing(.*)',
@@ -109,7 +108,16 @@ export default authMiddleware({
     const isProtectedRoute = req.nextUrl.pathname.startsWith('/dashboard') ||
                             req.nextUrl.pathname.startsWith('/settings') ||
                             req.nextUrl.pathname.startsWith('/admin') ||
-                            req.nextUrl.pathname.startsWith('/coach')
+                            req.nextUrl.pathname.startsWith('/coach') ||
+                            (req.nextUrl.pathname.startsWith('/api') && 
+                             !req.nextUrl.pathname.startsWith('/api/cal/') &&
+                             !publicPaths.some(path => {
+                               if (path.includes('(.*)')) {
+                                 const basePath = path.replace('(.*)', '')
+                                 return req.nextUrl.pathname.startsWith(basePath)
+                               }
+                               return path === req.nextUrl.pathname
+                             }))
     
     if (isProtectedRoute) {
       try {

@@ -1264,28 +1264,41 @@ model Invoice {
 }
 
 model CoachingAvailabilitySchedule {
-  ulid                String   @id @db.Char(26)
-  userUlid            String   @db.Char(26)
-  name                String
-  timezone            String
-  rules               Json
-  isDefault           Boolean  @default(false)
-  active              Boolean  @default(true)
+  ulid            String    @id @db.Char(26)
+  userUlid        String    @db.Char(26)
+  name            String
+  timeZone        String    // Changed from "timezone" to "timeZone" to match Cal.com API
+  calScheduleId   Int?      // Explicit field instead of nested in JSON
+  availability    Json      // Store the availability array directly
+  overrides       Json?     // Store date-specific overrides
+  syncSource      String    @default("LOCAL") // Tracks where the schedule originated: LOCAL, CALCOM, SYNCED
+  lastSyncedAt    DateTime? // When the schedule was last synced with Cal.com
+  isDefault       Boolean   @default(false)
+  active          Boolean   @default(true)
+  
+  // Session related fields
   allowCustomDuration Boolean  @default(true)
-  averageRating       Decimal? @db.Decimal(3, 2)
-  bufferAfter         Int      @default(0)
-  bufferBefore        Int      @default(0)
-  calendlyEnabled     Boolean  @default(false)
   defaultDuration     Int      @default(60)
   maximumDuration     Int      @default(120)
   minimumDuration     Int      @default(30)
+  bufferAfter         Int      @default(0)
+  bufferBefore        Int      @default(0)
+  
+  // Optional fields
+  averageRating       Decimal? @db.Decimal(3, 2)
   totalSessions       Int      @default(0)
+  
+  // Integration related fields
   zoomEnabled         Boolean  @default(false)
+  calendlyEnabled     Boolean  @default(false)
+  
   createdAt           DateTime @default(now()) @db.Timestamptz(6)
   updatedAt           DateTime @updatedAt @db.Timestamptz(6)
   user                User     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
 
   @@index([userUlid])
+  @@index([calScheduleId]) // Add index for better lookup by Cal.com schedule ID
+  @@unique([userUlid, calScheduleId]) // Each user can only have one schedule per Cal schedule ID
   @@map("CoachingAvailabilitySchedule")
 }
 

@@ -77,6 +77,9 @@ export default function CalWebhookTest({ initialIntegration }: CalWebhookTestPro
   const REFRESH_COOLDOWN = 10000; // 10 seconds cooldown
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   
+  // Add this near the top of the component after other state variables
+  const [debugLoading, setDebugLoading] = useState(false);
+  
   useEffect(() => {
     if (isSignedIn && userUlid && !calendarIntegration) {
       fetchCalendarIntegration();
@@ -209,21 +212,40 @@ export default function CalWebhookTest({ initialIntegration }: CalWebhookTestPro
         if (data.success && data.eventTypes) {
           // Extract event types from the nested structure
           const eventTypeGroups = data.eventTypes.eventTypeGroups || [];
-          const allEventTypes = eventTypeGroups.reduce((acc: any[], group: any) => {
-            if (group.eventTypes && Array.isArray(group.eventTypes)) {
-              return [...acc, ...group.eventTypes];
-            }
-            return acc;
-          }, []);
+          console.log('[DEBUG] Event type groups:', eventTypeGroups);
           
-          console.log('[DEBUG] Extracted event types:', allEventTypes);
+          // Collect all event types and deduplicate by ID
+          const eventTypeMap = new Map();
+          eventTypeGroups.forEach((group: any) => {
+            if (group.eventTypes && Array.isArray(group.eventTypes)) {
+              group.eventTypes.forEach((et: any) => {
+                // Only add if we don't already have this ID or if this is a more recent version
+                if (!eventTypeMap.has(et.id) || et.updatedAt > eventTypeMap.get(et.id).updatedAt) {
+                  eventTypeMap.set(et.id, et);
+                }
+              });
+            }
+          });
+          
+          // Convert map back to array
+          const allEventTypes = Array.from(eventTypeMap.values());
+          
+          console.log('[DEBUG] Extracted event types:', {
+            total: allEventTypes.length,
+            types: allEventTypes.map(et => ({
+              id: et.id,
+              title: et.title,
+              length: et.length,
+              slug: et.slug
+            }))
+          });
           
           setEventTypes(allEventTypes);
           if (allEventTypes.length > 0) {
             setSelectedEventTypeId(allEventTypes[0].id);
             toast({
               title: "Event types loaded",
-              description: `Loaded ${allEventTypes.length} event types successfully.`,
+              description: `Loaded ${allEventTypes.length} unique event types successfully.`,
               variant: "default"
             });
           } else {
@@ -306,15 +328,28 @@ export default function CalWebhookTest({ initialIntegration }: CalWebhookTestPro
         }
       }
       
+      // Verify the event type exists in our list
+      const selectedEventType = eventTypes.find(et => et.id === selectedEventTypeId);
+      if (!selectedEventType) {
+        throw new Error(`Selected event type (${selectedEventTypeId}) not found in available event types. Please refresh and try again.`);
+      }
+
+      // Log event type details for debugging
+      console.log('[SELECTED_EVENT_TYPE]', {
+        id: selectedEventType.id,
+        title: selectedEventType.title,
+        length: selectedEventType.length
+      });
+      
       const createBookingResponse = await fetch('/api/cal/test/create-booking', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          eventTypeId: selectedEventTypeId,
+          eventTypeId: selectedEventType.id,
           startTime: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
-          endTime: new Date(Date.now() + 7200000).toISOString(),   // 2 hours from now
+          endTime: new Date(Date.now() + (3600000 + selectedEventType.length * 60000)).toISOString(), // 1 hour from now + event length
           attendeeEmail: 'test-attendee@example.com',
           attendeeName: 'Test Attendee'
         })
@@ -322,7 +357,30 @@ export default function CalWebhookTest({ initialIntegration }: CalWebhookTestPro
       
       if (!createBookingResponse.ok) {
         const errorData = await createBookingResponse.json();
-        throw new Error(`Failed to create booking: ${errorData.error || 'Unknown error'}`);
+        console.error('[CREATE_BOOKING_ERROR_DETAILS]', {
+          status: createBookingResponse.status,
+          statusText: createBookingResponse.statusText,
+          errorData
+        });
+        
+        // Extract more detailed error information if available
+        let errorMessage = 'Failed to create booking';
+        if (errorData.details && errorData.details.error) {
+          // Cal.com API provides detailed error messages in this format
+          errorMessage += ': ' + (errorData.details.error.message || 'Unknown error');
+          
+          // Log details for debugging
+          console.error('[CAL_API_ERROR_DETAILS]', errorData.details.error);
+
+          // If it's a 404, suggest refreshing event types
+          if (errorData.details.error.statusCode === 404) {
+            errorMessage += '. The event type may no longer exist. Please refresh event types and try again.';
+          }
+        } else if (errorData.error) {
+          errorMessage += ': ' + errorData.error;
+        }
+        
+        throw new Error(errorMessage);
       }
       
       const bookingData = await createBookingResponse.json();
@@ -623,6 +681,48 @@ export default function CalWebhookTest({ initialIntegration }: CalWebhookTestPro
     }
   };
 
+  // Add this function near the other API call functions
+  const debugCalApi = async () => {
+    try {
+      setDebugLoading(true);
+      
+      if (!selectedEventTypeId) {
+        if (eventTypes.length > 0) {
+          setSelectedEventTypeId(eventTypes[0].id);
+        } else {
+          throw new Error('No event type selected or available');
+        }
+      }
+      
+      const response = await fetch('/api/cal/test/debug-booking', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          eventTypeId: selectedEventTypeId
+        })
+      });
+      
+      const data = await response.json();
+      
+      setActionResult({
+        type: data.success ? 'success' : 'error',
+        message: data.success ? 'Debug API Call Successful' : 'Debug API Call Failed',
+        details: JSON.stringify(data, null, 2)
+      });
+    } catch (error) {
+      console.error('[DEBUG_CAL_API_ERROR]', error);
+      setActionResult({
+        type: 'error',
+        message: 'Error debugging Cal.com API',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setDebugLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -725,6 +825,22 @@ export default function CalWebhookTest({ initialIntegration }: CalWebhookTestPro
                             Reschedule Latest
                           </Button>
                         </div>
+                        
+                        <Button 
+                          onClick={debugCalApi} 
+                          variant="outline" 
+                          disabled={debugLoading || !calendarIntegration || eventTypes.length === 0} 
+                          className="w-full flex items-center justify-center"
+                        >
+                          {debugLoading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> 
+                              Debugging...
+                            </>
+                          ) : (
+                            <>Debug Cal.com API</>
+                          )}
+                        </Button>
                       </div>
                     </CardContent>
                   </Card>
