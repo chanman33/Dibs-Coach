@@ -10,13 +10,16 @@ import {
   CalSchedule, 
   CoachingSchedule, 
   SCHEDULE_SYNC_SOURCE,
-  ScheduleSyncSource
+  ScheduleSyncSource,
+  ScheduleAvailability,
+  ScheduleOverrides
 } from '@/utils/types/schedule'
 import { 
   mapCalScheduleToDbSchedule, 
   mapDbScheduleToCalPayload,
   updateScheduleSyncStatus
 } from '@/utils/mapping/schedule-mapper'
+import { Json } from '@/types/supabase'
 
 // Add custom error codes
 type ExtendedApiErrorCode = ApiErrorCode 
@@ -389,14 +392,10 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
         ulid: schedule.ulid,
         userUlid: schedule.userUlid,
         name: schedule.name,
-        timeZone: (schedule.timeZone as string) || (schedule.timezone as string) || 'UTC',
-        calScheduleId: (schedule.calScheduleId as number | null) || 
-                       (schedule.rules && typeof schedule.rules === 'object' ? 
-                        (schedule.rules as any).scheduleId : null),
-        availability: (schedule.availability as any) || 
-                     (schedule.rules && typeof schedule.rules === 'object' ? 
-                      (schedule.rules as any).availability || [] : []),
-        overrides: (schedule.overrides as any) || [],
+        timeZone: schedule.timeZone || 'UTC',
+        calScheduleId: schedule.calScheduleId,
+        availability: (schedule.availability as unknown as ScheduleAvailability) || [],
+        overrides: (schedule.overrides as unknown as ScheduleOverrides) || [],
         syncSource: (schedule.syncSource as ScheduleSyncSource) || SCHEDULE_SYNC_SOURCE.LOCAL,
         lastSyncedAt: schedule.lastSyncedAt || null,
         isDefault: schedule.isDefault || false,
@@ -463,12 +462,12 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
             userUlid: newSchedule.userUlid,
             name: newSchedule.name,
             timeZone: newSchedule.timeZone,
-            timezone: newSchedule.timeZone, // Add for backward compatibility
+            timezone: newSchedule.timeZone,
             calScheduleId: newSchedule.calScheduleId,
-            availability: newSchedule.availability,
-            overrides: newSchedule.overrides,
+            availability: JSON.parse(JSON.stringify(newSchedule.availability)) as unknown as Json,
+            overrides: JSON.parse(JSON.stringify(newSchedule.overrides)) as unknown as Json,
             syncSource: newSchedule.syncSource,
-            lastSyncedAt: newSchedule.lastSyncedAt,
+            lastSyncedAt: typeof newSchedule.lastSyncedAt === 'string' ? newSchedule.lastSyncedAt : newSchedule.lastSyncedAt?.toISOString() ?? null,
             isDefault: newSchedule.isDefault,
             active: newSchedule.active,
             allowCustomDuration: newSchedule.allowCustomDuration,
@@ -480,7 +479,7 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
             totalSessions: newSchedule.totalSessions,
             zoomEnabled: newSchedule.zoomEnabled,
             calendlyEnabled: newSchedule.calendlyEnabled,
-            updatedAt: newSchedule.updatedAt
+            updatedAt: new Date().toISOString()
           };
           
           const { error: createError } = await supabase
@@ -512,8 +511,8 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
             .update({
               name: calSchedule.name,
               timeZone: calSchedule.timeZone,
-              availability: calSchedule.availability,
-              overrides: calSchedule.overrides || [],
+              availability: JSON.parse(JSON.stringify(calSchedule.availability)) as unknown as Json,
+              overrides: JSON.parse(JSON.stringify(calSchedule.overrides || [])) as unknown as Json,
               isDefault: calSchedule.isDefault,
               syncSource: SCHEDULE_SYNC_SOURCE.CALCOM,
               lastSyncedAt: new Date().toISOString(),

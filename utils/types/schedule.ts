@@ -1,5 +1,14 @@
 import { z } from 'zod';
 
+// Define our own Json type for Supabase compatibility
+export type Json = 
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
+
 // Constants for schedule sync sources
 export const SCHEDULE_SYNC_SOURCE = {
   LOCAL: 'LOCAL',     // Created locally, never synced to Cal.com
@@ -29,6 +38,9 @@ export type ScheduleAvailability = AvailabilitySlot[];
 // Type for the overrides JSON field
 export type ScheduleOverrides = ScheduleOverride[];
 
+// Type for database JSON fields - could be string (when retrieved) or object (when working with it)
+export type JsonField<T> = T | string;
+
 // Complete schedule type including all fields from our database
 export interface CoachingSchedule {
   ulid: string;
@@ -36,10 +48,11 @@ export interface CoachingSchedule {
   name: string;
   timeZone: string;
   calScheduleId?: number | null;
-  availability: ScheduleAvailability;
-  overrides?: ScheduleOverrides | null;
+  // Use JsonField type for JSON database fields
+  availability: JsonField<ScheduleAvailability>;
+  overrides?: JsonField<ScheduleOverrides> | null;
   syncSource: ScheduleSyncSource;
-  lastSyncedAt?: Date | string | null;
+  lastSyncedAt?: string | null; // Always use ISO strings for dates in DB
   isDefault: boolean;
   active: boolean;
   allowCustomDuration: boolean;
@@ -52,8 +65,8 @@ export interface CoachingSchedule {
   totalSessions: number;
   zoomEnabled: boolean;
   calendlyEnabled: boolean;
-  createdAt: Date | string;
-  updatedAt: Date | string;
+  createdAt: string; // ISO string format
+  updatedAt: string; // ISO string format
 }
 
 // Cal.com API Schedule Type (for reference)
@@ -64,6 +77,30 @@ export interface CalSchedule {
   availability: AvailabilitySlot[];
   isDefault: boolean;
   overrides?: ScheduleOverride[];
+}
+
+// Helper functions to serialize/deserialize JSON fields
+export function serializeJsonField<T>(field: T): string {
+  return typeof field === 'string' ? field : JSON.stringify(field);
+}
+
+export function parseJsonField<T>(field: JsonField<T>): T {
+  if (typeof field === 'string') {
+    try {
+      return JSON.parse(field) as T;
+    } catch (e) {
+      console.error('Error parsing JSON field:', e);
+      return {} as T;
+    }
+  }
+  return field as T;
+}
+
+// Convert dates to ISO strings
+export function toIsoString(date: Date | string | null | undefined): string | null {
+  if (date === null || date === undefined) return null;
+  if (typeof date === 'string') return date;
+  return date.toISOString();
 }
 
 // Zod schema for validation

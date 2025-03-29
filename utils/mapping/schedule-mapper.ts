@@ -12,7 +12,10 @@ import {
   CoachingSchedule,
   ScheduleAvailability,
   ScheduleOverrides,
-  SCHEDULE_SYNC_SOURCE
+  SCHEDULE_SYNC_SOURCE,
+  serializeJsonField,
+  parseJsonField,
+  toIsoString
 } from '@/utils/types/schedule';
 
 /**
@@ -24,7 +27,7 @@ export function mapCalScheduleToDbSchedule(
   existingSchedule?: Partial<CoachingSchedule>
 ): CoachingSchedule {
   // Create a new schedule or update existing one
-  const now = new Date();
+  const now = new Date().toISOString();
   
   return {
     // Core identification fields
@@ -38,10 +41,10 @@ export function mapCalScheduleToDbSchedule(
     // Cal.com integration fields
     calScheduleId: calSchedule.id || existingSchedule?.calScheduleId || null,
     syncSource: SCHEDULE_SYNC_SOURCE.CALCOM,
-    lastSyncedAt: now.toISOString(),
+    lastSyncedAt: now,
     
-    // Availability data
-    availability: calSchedule.availability || [],
+    // Availability data - store as serialized JSON
+    availability: calSchedule.availability,
     overrides: calSchedule.overrides || null,
     
     // Default settings
@@ -67,28 +70,29 @@ export function mapCalScheduleToDbSchedule(
     calendlyEnabled: existingSchedule?.calendlyEnabled || false,
     
     // Timestamps
-    createdAt: existingSchedule?.createdAt || now.toISOString(),
-    updatedAt: now.toISOString()
+    createdAt: now,
+    updatedAt: now
   };
 }
 
 /**
- * Extract the database fields needed for inserting or updating a schedule
- * Useful for ensuring we only get valid fields for database operations
+ * Prepares schedule data for database insertion
+ * Handles JSON serialization and date formatting
  */
-export function extractDbFields(schedule: CoachingSchedule) {
-  // Only include fields that match our database schema
+export function prepareScheduleForDb(schedule: CoachingSchedule) {
+  // Make sure all timestamps are strings and never null
+  const now = new Date().toISOString();
+  
   return {
     ulid: schedule.ulid,
     userUlid: schedule.userUlid,
     name: schedule.name,
     timeZone: schedule.timeZone,
-    timezone: schedule.timeZone, // For backward compatibility with existing code
     calScheduleId: schedule.calScheduleId,
-    availability: schedule.availability,
-    overrides: schedule.overrides,
+    availability: serializeJsonField(schedule.availability),
+    overrides: schedule.overrides ? serializeJsonField(schedule.overrides) : null,
     syncSource: schedule.syncSource,
-    lastSyncedAt: schedule.lastSyncedAt,
+    lastSyncedAt: toIsoString(schedule.lastSyncedAt) || now,
     isDefault: schedule.isDefault,
     active: schedule.active,
     allowCustomDuration: schedule.allowCustomDuration,
@@ -101,7 +105,8 @@ export function extractDbFields(schedule: CoachingSchedule) {
     totalSessions: schedule.totalSessions,
     zoomEnabled: schedule.zoomEnabled,
     calendlyEnabled: schedule.calendlyEnabled,
-    updatedAt: new Date().toISOString()
+    createdAt: toIsoString(schedule.createdAt) || now,
+    updatedAt: toIsoString(schedule.updatedAt) || now
   };
 }
 
@@ -112,9 +117,9 @@ export function mapDbScheduleToCalPayload(dbSchedule: CoachingSchedule): Omit<Ca
   return {
     name: dbSchedule.name,
     timeZone: dbSchedule.timeZone,
-    availability: dbSchedule.availability || [],
+    availability: parseJsonField<ScheduleAvailability>(dbSchedule.availability),
     isDefault: dbSchedule.isDefault || false,
-    overrides: dbSchedule.overrides || undefined
+    overrides: dbSchedule.overrides ? parseJsonField<ScheduleOverrides>(dbSchedule.overrides) : undefined
   };
 }
 
@@ -174,14 +179,17 @@ export function hasScheduleChanges(
  * Helper to compare availability slots
  */
 function areAvailabilitySlotsEqual(
-  dbSlots: ScheduleAvailability, 
+  dbSlots: ScheduleAvailability | string, 
   calSlots: ScheduleAvailability
 ): boolean {
-  if (!dbSlots || !calSlots) return false;
-  if (dbSlots.length !== calSlots.length) return false;
+  // Parse dbSlots if it's a string
+  const parsedDbSlots = typeof dbSlots === 'string' ? JSON.parse(dbSlots) : dbSlots;
+  
+  if (!parsedDbSlots || !calSlots) return false;
+  if (parsedDbSlots.length !== calSlots.length) return false;
 
   // Sort both arrays to ensure consistent comparison
-  const sortedDbSlots = [...dbSlots].sort((a, b) => 
+  const sortedDbSlots = [...parsedDbSlots].sort((a, b) => 
     a.startTime.localeCompare(b.startTime));
   const sortedCalSlots = [...calSlots].sort((a, b) => 
     a.startTime.localeCompare(b.startTime));
@@ -214,14 +222,19 @@ function areAvailabilitySlotsEqual(
  * Helper to compare schedule overrides
  */
 function areOverridesEqual(
-  dbOverrides: ScheduleOverrides, 
+  dbOverrides: ScheduleOverrides | string | null, 
   calOverrides: ScheduleOverrides
 ): boolean {
-  if (!dbOverrides || !calOverrides) return false;
-  if (dbOverrides.length !== calOverrides.length) return false;
+  // Handle null case
+  if (!dbOverrides) return calOverrides.length === 0;
+  
+  // Parse dbOverrides if it's a string
+  const parsedDbOverrides = typeof dbOverrides === 'string' ? JSON.parse(dbOverrides) : dbOverrides;
+  
+  if (parsedDbOverrides.length !== calOverrides.length) return false;
 
   // Sort both arrays by date for consistent comparison
-  const sortedDbOverrides = [...dbOverrides].sort((a, b) => 
+  const sortedDbOverrides = [...parsedDbOverrides].sort((a, b) => 
     a.date.localeCompare(b.date));
   const sortedCalOverrides = [...calOverrides].sort((a, b) => 
     a.date.localeCompare(b.date));

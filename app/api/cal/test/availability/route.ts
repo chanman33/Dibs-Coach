@@ -1,3 +1,15 @@
+/**
+ * Cal.com Regular User Schedules API
+ * 
+ * This API route interacts with Cal.com's /v2/schedules endpoints for regular user schedules.
+ * It does NOT use organization endpoints (/v2/organizations/{orgId}/users/{userId}/schedules).
+ * 
+ * Endpoints implemented:
+ * - GET: Fetches all schedules using Cal.com's GET /v2/schedules
+ * - POST: Creates a default schedule using Cal.com's POST /v2/schedules
+ * - DELETE: Deletes a schedule by ID using Cal.com's DELETE /v2/schedules/{id}
+ */
+
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs'
 import { createAuthClient } from '@/utils/auth'
@@ -10,7 +22,9 @@ import {
 } from '@/utils/types/schedule'
 import { 
   mapCalScheduleToDbSchedule,
-  mapDbScheduleToCalPayload
+  mapDbScheduleToCalPayload,
+  prepareScheduleForDb,
+  updateScheduleSyncStatus 
 } from '@/utils/mapping/schedule-mapper'
 
 // Type for Cal.com API responses
@@ -161,7 +175,7 @@ export async function GET(request: Request) {
     console.log('[CAL_AVAILABILITY_GET]', {
       integrationId: integration.ulid,
       timestamp: new Date().toISOString(),
-      step: 'Found integration, fetching schedules from Cal.com'
+      step: 'Found integration, fetching schedules from Cal.com regular user API'
     })
 
     const { ok, status, data: responseData } = await makeCalRequest(
@@ -196,18 +210,58 @@ export async function GET(request: Request) {
     // Extract schedules from the response data structure
     const schedules = responseData?.data || [];
 
+    // Create a mapped database schedule if we don't already have one
+    if (schedules.length > 0) {
+      // First check if this schedule already exists in our DB
+      const { data: existingSchedule, error: scheduleError } = await supabase
+        .from('CoachingAvailabilitySchedule')
+        .select('*')
+        .eq('calScheduleId', schedules[0].id)
+        .maybeSingle()
+
+      if (!existingSchedule && !scheduleError) {
+        // Create a new schedule in our DB
+        const newSchedule = mapCalScheduleToDbSchedule(
+          schedules[0], 
+          user.ulid
+        );
+        
+        // Prepare the schedule for database insertion
+        const scheduleForDb = prepareScheduleForDb(newSchedule);
+        
+        // Insert into database
+        const { error: insertError } = await supabase
+          .from('CoachingAvailabilitySchedule')
+          .insert(scheduleForDb)
+        
+        if (insertError) {
+          console.error('[CAL_AVAILABILITY_GET]', {
+            context: 'SCHEDULE_INSERT_ERROR',
+            error: insertError,
+            timestamp: new Date().toISOString()
+          })
+        } else {
+          console.log('[CAL_AVAILABILITY_GET]', {
+            step: 'Inserted new schedule from Cal.com into local DB',
+            calScheduleId: schedules[0].id,
+            timestamp: new Date().toISOString()
+          })
+        }
+      }
+    }
+
     console.log('[CAL_AVAILABILITY_GET]', {
       status,
       schedulesCount: schedules.length,
-      schedules,
       timestamp: new Date().toISOString(),
       step: 'Successfully fetched schedules'
     })
 
-    return NextResponse.json({ 
+    // Return success response with all schedules
+    return NextResponse.json({
       status: 'success',
       data: schedules
-    })
+    });
 
   } catch (error) {
     console.error('[CAL_AVAILABILITY_GET]', {
@@ -277,37 +331,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Cal.com integration not found' }, { status: 404 })
     }
 
-    console.log('[CAL_AVAILABILITY_POST]', {
-      integrationId: integration.ulid,
-      timestamp: new Date().toISOString(),
-      step: 'Found integration, creating schedule payload'
-    })
-
-    // Default schedule payload for Cal.com
-    const schedulePayload = {
-      name: "Default Schedule",
-      timeZone: integration.timeZone || "America/New_York",
+    // Default schedule data for Cal.com API
+    const defaultScheduleData = {
+      name: 'Default Schedule',
+      timeZone: 'America/Denver',
       availability: [
         {
-          days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-          startTime: "09:00",
-          endTime: "17:00"
+          days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+          startTime: '09:00',
+          endTime: '17:00'
         }
       ],
-      isDefault: true
-    }
+      isDefault: true,
+      overrides: []
+    };
 
     console.log('[CAL_AVAILABILITY_POST]', {
-      payload: schedulePayload,
+      integrationId: integration.ulid,
+      payload: defaultScheduleData,
       timestamp: new Date().toISOString(),
       step: 'Creating schedule in Cal.com'
     })
 
+    // Create a schedule in Cal.com
     const { ok, status, data: responseData } = await makeCalRequest(
       'https://api.cal.com/v2/schedules',
-      {
+      { 
         method: 'POST',
-        body: JSON.stringify(schedulePayload)
+        body: JSON.stringify(defaultScheduleData)
       },
       integration,
       user.ulid
@@ -318,7 +369,7 @@ export async function POST(request: Request) {
         context: 'CAL_API_ERROR',
         status,
         error: responseData,
-        payload: schedulePayload,
+        payload: defaultScheduleData,
         userUlid: user.ulid,
         timestamp: new Date().toISOString()
       })
@@ -328,77 +379,24 @@ export async function POST(request: Request) {
       }, { status })
     }
 
-    // Log the full response for debugging
-    console.log('[CAL_AVAILABILITY_POST]', {
-      status,
-      response: responseData,
-      timestamp: new Date().toISOString(),
-      step: 'Raw response from Cal.com'
-    })
-
-    // Extract schedule from the response data structure
-    const calSchedule: CalSchedule = responseData?.data;
+    // Extract schedule from the response
+    const calSchedule = responseData?.data;
 
     console.log('[CAL_AVAILABILITY_POST]', {
       status,
       scheduleId: calSchedule?.id,
       schedule: calSchedule,
       timestamp: new Date().toISOString(),
-      step: 'Successfully created schedule'
+      step: 'Successfully created schedule in Cal.com'
     })
 
     if (calSchedule?.id) {
-      // Update the integration with the default schedule ID
-      const { error: updateError } = await supabase
-        .from('CalendarIntegration')
-        .update({ defaultScheduleId: calSchedule.id })
-        .eq('ulid', integration.ulid)
-
-      if (updateError) {
-        console.error('[CAL_AVAILABILITY_POST]', {
-          context: 'DB_UPDATE_ERROR',
-          error: updateError,
-          integrationId: integration.ulid,
-          scheduleId: calSchedule.id,
-          timestamp: new Date().toISOString()
-        })
-      } else {
-        console.log('[CAL_AVAILABILITY_POST]', {
-          step: 'Updated integration with default schedule ID',
-          integrationId: integration.ulid,
-          scheduleId: calSchedule.id,
-          timestamp: new Date().toISOString()
-        })
-      }
-      
       // Create a corresponding CoachingAvailabilitySchedule using our mapper
       const scheduleUlid = generateUlid();
-      const newSchedule = mapCalScheduleToDbSchedule(calSchedule, user.ulid, scheduleUlid);
+      const newSchedule = mapCalScheduleToDbSchedule(calSchedule, user.ulid, { ulid: scheduleUlid });
       
-      // Format the schedule for database insertion
-      const scheduleForDb = {
-        ulid: newSchedule.ulid,
-        userUlid: newSchedule.userUlid,
-        name: newSchedule.name,
-        timeZone: newSchedule.timeZone,
-        calScheduleId: newSchedule.calScheduleId,
-        availability: newSchedule.availability,
-        overrides: newSchedule.overrides,
-        syncSource: newSchedule.syncSource,
-        lastSyncedAt: newSchedule.lastSyncedAt,
-        isDefault: newSchedule.isDefault,
-        active: newSchedule.active,
-        allowCustomDuration: newSchedule.allowCustomDuration,
-        defaultDuration: newSchedule.defaultDuration,
-        maximumDuration: newSchedule.maximumDuration,
-        minimumDuration: newSchedule.minimumDuration,
-        bufferAfter: newSchedule.bufferAfter,
-        bufferBefore: newSchedule.bufferBefore,
-        totalSessions: newSchedule.totalSessions,
-        zoomEnabled: newSchedule.zoomEnabled,
-        calendlyEnabled: newSchedule.calendlyEnabled,
-        updatedAt: newSchedule.updatedAt
-      };
+      // Prepare the schedule for database insertion
+      const scheduleForDb = prepareScheduleForDb(newSchedule);
       
       // Create the coaching availability schedule in our database
       const { data: coachingSchedule, error: coachingScheduleError } = await supabase
@@ -415,9 +413,6 @@ export async function POST(request: Request) {
           userUlid: user.ulid,
           timestamp: new Date().toISOString()
         });
-        
-        // We don't want to fail the entire request if just the local DB sync fails
-        // The Cal.com schedule is created successfully
       } else {
         console.log('[CAL_AVAILABILITY_POST]', {
           step: 'Created coaching availability schedule in local DB',
@@ -432,9 +427,125 @@ export async function POST(request: Request) {
       status: 'success',
       data: calSchedule
     })
-
   } catch (error) {
     console.error('[CAL_AVAILABILITY_POST]', {
+      context: 'UNEXPECTED_ERROR',
+      error,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: Request, { params }: { params: { scheduleId: string } }) {
+  try {
+    const { userId } = auth()
+    const scheduleId = params.scheduleId  // Extract scheduleId from params
+    
+    if (!userId) {
+      console.error('[CAL_AVAILABILITY_DELETE]', {
+        error: 'Unauthorized request',
+        timestamp: new Date().toISOString()
+      })
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    console.log('[CAL_AVAILABILITY_DELETE]', {
+      userId,
+      scheduleId,
+      timestamp: new Date().toISOString(),
+      step: 'Starting schedule deletion'
+    })
+
+    const supabase = createAuthClient()
+    const { data: user, error: userError } = await supabase
+      .from('User')
+      .select('ulid')
+      .eq('userId', userId)
+      .single()
+
+    if (userError || !user?.ulid) {
+      console.error('[CAL_AVAILABILITY_DELETE]', {
+        context: 'USER_LOOKUP',
+        error: userError || 'User not found',
+        userId,
+        scheduleId,
+        timestamp: new Date().toISOString()
+      })
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    console.log('[CAL_AVAILABILITY_DELETE]', {
+      userUlid: user.ulid,
+      scheduleId,
+      timestamp: new Date().toISOString(),
+      step: 'Found user, fetching Cal.com integration'
+    })
+
+    const { data: integration, error: integrationError } = await supabase
+      .from('CalendarIntegration')
+      .select('*')
+      .eq('userUlid', user.ulid)
+      .eq('provider', 'CAL')
+      .single()
+
+    if (integrationError || !integration) {
+      console.error('[CAL_AVAILABILITY_DELETE]', {
+        context: 'INTEGRATION_LOOKUP',
+        error: integrationError || 'Integration not found',
+        userUlid: user.ulid,
+        scheduleId,
+        timestamp: new Date().toISOString()
+      })
+      return NextResponse.json({ error: 'Cal.com integration not found' }, { status: 404 })
+    }
+
+    console.log('[CAL_AVAILABILITY_DELETE]', {
+      integrationId: integration.ulid,
+      scheduleId,
+      timestamp: new Date().toISOString(),
+      step: 'Found integration, deleting schedule from Cal.com'
+    })
+
+    // Using regular user schedules endpoint, not organization endpoint
+    const { ok, status, data: responseData } = await makeCalRequest(
+      `https://api.cal.com/v2/schedules/${scheduleId}`,
+      { method: 'DELETE' },
+      integration,
+      user.ulid
+    )
+
+    if (!ok) {
+      console.error('[CAL_AVAILABILITY_DELETE]', {
+        context: 'CAL_API_ERROR',
+        status,
+        error: responseData,
+        scheduleId,
+        userUlid: user.ulid,
+        timestamp: new Date().toISOString()
+      })
+      return NextResponse.json({ 
+        error: 'Failed to delete schedule from Cal.com',
+        details: responseData
+      }, { status })
+    }
+
+    // Log the full response for debugging
+    console.log('[CAL_AVAILABILITY_DELETE]', {
+      status,
+      response: responseData,
+      timestamp: new Date().toISOString(),
+      step: 'Raw response from Cal.com'
+    })
+
+    return NextResponse.json({
+      status: 'success',
+      data: responseData
+    })
+
+  } catch (error) {
+    console.error('[CAL_AVAILABILITY_DELETE]', {
       context: 'UNEXPECTED_ERROR',
       error,
       stack: error instanceof Error ? error.stack : undefined,

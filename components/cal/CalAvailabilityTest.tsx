@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Loader2, CheckCircle, XCircle, CalendarIcon } from 'lucide-react'
+import { Loader2, CalendarIcon } from 'lucide-react'
 import { useAuth } from '@/utils/hooks/useAuth'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AvailabilityManager } from '@/components/coaching/AvailabilityManager'
@@ -15,13 +15,7 @@ import { ApiResponse, ApiErrorCode } from '@/utils/types/api'
 import { toast } from 'sonner'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-
-interface TestResult {
-  success: boolean
-  message: string
-  data?: any
-  error?: any
-}
+import { TestResult, ResultAlert, createBaseSchedule } from './CalTestUtils'
 
 export default function CalAvailabilityTest() {
   const { isSignedIn, userUlid } = useAuth()
@@ -51,35 +45,45 @@ export default function CalAvailabilityTest() {
 
   // Fetch user's availability data
   useEffect(() => {
-    if (isSignedIn && userUlid) {
-      fetchAvailabilityData()
-    }
+    // Always try to fetch availability data even if not signed in (for testing)
+    fetchAvailabilityData()
   }, [isSignedIn, userUlid])
 
   const fetchAvailabilityData = async () => {
     try {
       setLoading(true)
-      const result = await fetchCoachAvailability({})
       
-      console.log('Fetched availability result:', result)
-      
-      if (result.data) {
-        setAvailabilityData(result.data)
-        setResult({
-          success: true,
-          message: 'Successfully fetched availability schedule',
-          data: result.data
-        })
-      } else if (result.error) {
-        setResult({
-          success: false,
-          message: 'Failed to fetch availability schedule',
-          error: result.error
-        })
+      // Only attempt to fetch from API if user is signed in
+      if (isSignedIn && userUlid) {
+        const result = await fetchCoachAvailability({})
+        
+        console.log('Fetched availability result:', result)
+        
+        if (result.data) {
+          setAvailabilityData(result.data)
+          setResult({
+            success: true,
+            message: 'Successfully fetched availability schedule',
+            data: result.data
+          })
+        } else if (result.error) {
+          setResult({
+            success: false,
+            message: 'Failed to fetch availability schedule',
+            error: result.error
+          })
+        } else {
+          setResult({
+            success: true,
+            message: 'No availability schedule found',
+            data: null
+          })
+        }
       } else {
+        // If not signed in, we'll work with default or test data
         setResult({
           success: true,
-          message: 'No availability schedule found',
+          message: 'Using test availability data (not signed in)',
           data: null
         })
       }
@@ -98,6 +102,22 @@ export default function CalAvailabilityTest() {
   const handleSaveAvailability = async (params: SaveAvailabilityParams): Promise<ApiResponse<{ success: true }>> => {
     try {
       setLoading(true)
+      
+      if (!isSignedIn) {
+        // If not signed in, just simulate success for testing
+        setResult({
+          success: true,
+          message: 'Test mode: Simulated successful save (not actually saved)',
+          data: params
+        })
+        toast.success('Test mode: Availability "saved" (simulation)')
+        
+        return {
+          data: { success: true },
+          error: null
+        }
+      }
+      
       const result = await saveCoachAvailability(params)
       
       if (result.data?.success) {
@@ -142,6 +162,16 @@ export default function CalAvailabilityTest() {
   const fetchCalTokens = async () => {
     try {
       setLoading(true)
+      
+      if (!isSignedIn) {
+        setResult({
+          success: false,
+          message: 'Test mode: Cannot fetch Cal.com token when not signed in',
+          error: 'Please sign in first'
+        })
+        return
+      }
+      
       const response = await fetch('/api/cal/test/get-integration')
       if (response.ok) {
         const data = await response.json()
@@ -200,10 +230,19 @@ export default function CalAvailabilityTest() {
 
   return (
     <div className="space-y-6">
+      {!isSignedIn && (
+        <Alert className="mb-4 bg-amber-50">
+          <AlertTitle>Test Mode</AlertTitle>
+          <AlertDescription>
+            You are not signed in. This component is running in test mode and changes will not be saved.
+          </AlertDescription>
+        </Alert>
+      )}
+    
       <div className="flex items-center gap-4">
         <Button
           onClick={fetchAvailabilityData}
-          disabled={loading || !isSignedIn}
+          disabled={loading}
           variant="outline"
           className="gap-2"
         >
@@ -238,81 +277,51 @@ export default function CalAvailabilityTest() {
         </Select>
       </div>
 
-      {result && (
-        <Alert className={`mb-4 ${result.success ? 'bg-green-50' : 'bg-red-50'}`}>
-          <div className="flex items-center gap-2">
-            {result.success ? 
-              <CheckCircle className="h-4 w-4 text-green-600" /> : 
-              <XCircle className="h-4 w-4 text-red-600" />
-            }
-            <AlertTitle>{result.message}</AlertTitle>
-          </div>
-          {result.error && (
-            <AlertDescription className="mt-2">
-              <div className="text-red-600 text-sm">
-                <pre className="overflow-auto p-2 bg-red-100 rounded">
-                  {typeof result.error === 'string' 
-                    ? result.error 
-                    : JSON.stringify(result.error, null, 2)
-                  }
-                </pre>
-              </div>
-            </AlertDescription>
-          )}
-          {result.data && (
-            <AlertDescription className="mt-2">
-              <div className="text-sm">
-                <h4 className="font-semibold mb-1">Data:</h4>
-                <pre className="overflow-auto p-2 bg-gray-100 rounded">
-                  {JSON.stringify(result.data, null, 2)}
-                </pre>
-              </div>
-            </AlertDescription>
-          )}
-        </Alert>
-      )}
+      <ResultAlert result={result} />
 
-      <Card className="border-t-4 border-t-primary">
-        <CardContent className="pt-6">
-          <h3 className="text-lg font-semibold mb-4">Availability Manager</h3>
-          <AvailabilityManager 
-            key={JSON.stringify(availabilityData)} 
-            onSave={handleSaveAvailability} 
-            initialSchedule={availabilityData || undefined}
+      <Tabs defaultValue="manager">
+        <TabsList>
+          <TabsTrigger value="manager">Availability Manager</TabsTrigger>
+          <TabsTrigger value="raw">Raw Data</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="manager" className="pt-4">
+          <AvailabilityManager
+            initialSchedule={availabilityData ? availabilityData : { schedule: createBaseSchedule(), timezone: selectedTimezone }}
+            onSave={handleSaveAvailability}
           />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Cal.com Availability Sync</h3>
-            <p className="text-sm text-muted-foreground">
-              This section will allow syncing the local availability schedule to Cal.com.
-              Currently this feature is not implemented.
-            </p>
-            <div className="flex flex-col gap-4">
-              <div>
-                <Label htmlFor="cal-token" className="mb-2 block">Cal.com Access Token</Label>
-                <Textarea 
-                  id="cal-token"
-                  value={calToken ? `${calToken.substring(0, 10)}...` : 'No token available'}
-                  readOnly
-                  rows={1}
-                  className="font-mono text-sm"
-                />
+        </TabsContent>
+        
+        <TabsContent value="raw" className="pt-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="availability-data">Availability Data</Label>
+                  <Textarea
+                    id="availability-data"
+                    className="font-mono h-96"
+                    value={availabilityData ? JSON.stringify(availabilityData, null, 2) : 'No data available'}
+                    readOnly
+                  />
+                </div>
+                
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    onClick={syncToCalendar}
+                    disabled={loading || !availabilityData}
+                    className="gap-2"
+                  >
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Sync to Cal.com (Coming Soon)
+                  </Button>
+                </div>
               </div>
-              <Button 
-                onClick={syncToCalendar}
-                disabled={true}
-                className="w-fit"
-              >
-                Sync to Cal.com (Coming Soon)
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 } 
