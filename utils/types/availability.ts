@@ -87,6 +87,7 @@ export type AvailabilityResponse = z.infer<typeof AvailabilityResponse>
 
 // Save availability schema
 export const SaveAvailabilityParamsSchema = z.object({
-  schedule: WeeklyScheduleSchema
+  schedule: WeeklyScheduleSchema,
+  timezone: z.string().optional()
 })
 export type SaveAvailabilityParams = z.infer<typeof SaveAvailabilityParamsSchema> 

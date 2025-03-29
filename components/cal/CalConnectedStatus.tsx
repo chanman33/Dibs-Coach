@@ -199,27 +199,31 @@ export function useCalIntegrationStatus() {
   const [isConnected, setIsConnected] = useState(false)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    const checkStatus = async () => {
-      try {
-        console.log('[DIBS_DEBUG] useCalIntegrationStatus hook checking status...')
-        setLoading(true)
-        const result = await fetchCalIntegrationStatus()
-        console.log('[DIBS_DEBUG] Hook received status:', { 
-          isConnected: result.data?.isConnected,
-          hasError: !!result.error
-        })
-        setIsConnected(result.data?.isConnected || false)
-      } catch (err) {
-        console.error('[SCHEDULING_INTEGRATION_STATUS_ERROR]', err)
-        setIsConnected(false)
-      } finally {
-        setLoading(false)
-      }
+  const checkStatus = async () => {
+    try {
+      console.log('[DIBS_DEBUG] useCalIntegrationStatus hook checking status...')
+      setLoading(true)
+      const result = await fetchCalIntegrationStatus()
+      console.log('[DIBS_DEBUG] Hook received status:', { 
+        isConnected: result.data?.isConnected,
+        hasError: !!result.error
+      })
+      setIsConnected(result.data?.isConnected || false)
+    } catch (err) {
+      console.error('[SCHEDULING_INTEGRATION_STATUS_ERROR]', err)
+      setIsConnected(false)
+    } finally {
+      setLoading(false)
     }
-    
+  }
+
+  useEffect(() => {
     checkStatus()
   }, [])
 
-  return { isConnected, loading }
+  return { 
+    isConnected, 
+    loading,
+    refresh: checkStatus 
+  }
 } 

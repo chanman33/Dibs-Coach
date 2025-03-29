@@ -1,6 +1,7 @@
 "use server"
 
 import { createAuthClient } from '@/utils/auth'
+import { getCurrentUserId } from '@/utils/auth'
 import { withServerAction } from '@/utils/middleware/withServerAction'
 import { ApiResponse, ApiError } from '@/utils/types/api'
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
@@ -15,19 +16,17 @@ import {
   TimeSlot,
   WeeklySchedule
 } from '@/utils/types/availability'
+import { nanoid } from 'nanoid'
 
 // Response types
 interface AvailabilitySchedule {
   ulid: string
   userUlid: string
-  name: string
-  timezone: string
-  rules: {
-    weeklySchedule: WeeklySchedule
-    breaks: any[]
-  }
-  isDefault: boolean
-  active: boolean
+  timeZone: string
+  weeklySchedule: Record<string, any>
+  bufferTime: number
+  dateOverrides: Record<string, any>
+  dateRanges: any[]
   createdAt: string
   updatedAt: string
 }
@@ -38,223 +37,249 @@ interface BookedSession {
   endTime: string
   coachUlid: string
   menteeUlid: string
-  status: 'scheduled' | 'completed' | 'canceled'
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW'
   createdAt: string
 }
 
 // Fetch coach availability schedule
-export const fetchCoachAvailability = withServerAction<AvailabilityResponse | null, { coachDbId?: string }>(
-  async (params, { userUlid, roleContext }) => {
+export const fetchCoachAvailability = withServerAction<AvailabilityResponse | null>(
+  async () => {
     try {
-      // If coachDbId is provided, use it to fetch that coach's availability
-      // Otherwise, use the current user's ID (for coaches viewing their own schedule)
-      const targetUserUlid = params.coachDbId || userUlid
-
-      // Only allow coaches to view their own schedule, or anyone to view a coach's schedule
-      if (!params.coachDbId && !roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {
+      // Get the user's ID from auth
+      const userId = await getCurrentUserId()
+      if (!userId) {
+        console.error('[FETCH_AVAILABILITY_ERROR] No user ID found')
         return {
           data: null,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Only coaches can access their own availability schedules'
-          } as ApiError
+          error: { code: 'UNAUTHORIZED', message: 'User not authenticated' }
         }
       }
 
-      const supabase = await createAuthClient()
+      // Get the user's ULID from the database
+      const supabase = createAuthClient()
+      const { data: userData, error: userError } = await supabase
+        .from('User')
+        .select('ulid')
+        .eq('userId', userId)
+        .single()
 
-      // Get availability schedule
-      const { data: scheduleData, error: scheduleError } = await supabase
-        .from('CoachingAvailabilitySchedule')
-        .select('ulid, userUlid, name, timezone, rules, isDefault, active, createdAt, updatedAt')
-        .eq('userUlid', targetUserUlid)
-        .eq('isDefault', true)
-        .maybeSingle()
-
-      if (scheduleError) {
-        console.error('[FETCH_AVAILABILITY_ERROR]', { 
-          userUlid: targetUserUlid, 
-          error: scheduleError,
+      if (userError) {
+        console.error('[FETCH_AVAILABILITY_ERROR]', {
+          error: userError,
+          userId,
           timestamp: new Date().toISOString()
         })
         return {
           data: null,
-          error: {
-            code: 'DATABASE_ERROR',
-            message: 'Failed to fetch availability schedule'
-          } as ApiError
+          error: { code: 'DATABASE_ERROR', message: 'Failed to find user in database' }
         }
       }
 
-      // If no schedule exists, return null
-      if (!scheduleData) {
+      // Get availability schedule for the user
+      const { data: schedule, error: scheduleError } = await supabase
+        .from('CoachingAvailabilitySchedule')
+        .select('*')
+        .eq('userUlid', userData.ulid)
+        .maybeSingle()
+
+      if (scheduleError) {
+        // Log the error but don't expose database details to client
+        console.error('[FETCH_AVAILABILITY_ERROR]', {
+          error: scheduleError,
+          userUlid: userData.ulid,
+          timestamp: new Date().toISOString()
+        })
+        
+        // Return a more user-friendly error
         return {
           data: null,
-          error: null
+          error: { 
+            code: 'DATABASE_ERROR', 
+            message: 'Failed to fetch availability schedule. Please try again later.' 
+          }
         }
       }
 
-      // Transform the data into the expected format
-      const weeklySchedule = scheduleData.rules?.weeklySchedule || {}
-      
-      // Ensure all days have an array, even if empty
-      const transformedSchedule = DAYS_OF_WEEK.reduce((acc, day) => {
-        acc[day] = Array.isArray(weeklySchedule[day]) 
-          ? weeklySchedule[day] 
-          : []
-        return acc
-      }, {} as Record<WeekDay, TimeSlot[]>)
+      // If no schedule exists yet, return NOT_FOUND error
+      if (!schedule) {
+        return {
+          data: null,
+          error: { code: 'NOT_FOUND', message: 'No availability schedule found' }
+        }
+      }
+
+      // Map Cal.com availability format to our WeeklySchedule format
+      const mapCalAvailabilityToWeeklySchedule = (availability: any): WeeklySchedule => {
+        const defaultSchedule: WeeklySchedule = {
+          SUNDAY: [], MONDAY: [], TUESDAY: [], WEDNESDAY: [], 
+          THURSDAY: [], FRIDAY: [], SATURDAY: []
+        }
+        
+        if (!availability?.length) return defaultSchedule
+        
+        return availability.reduce((acc: WeeklySchedule, slot: any) => {
+          const timeSlot = {
+            from: slot.startTime,
+            to: slot.endTime
+          }
+          slot.days.forEach((day: string) => {
+            const upperDay = day.toUpperCase() as WeekDay
+            if (upperDay in acc) {
+              acc[upperDay].push(timeSlot)
+            }
+          })
+          return acc
+        }, defaultSchedule)
+      }
+
+      const response: AvailabilityResponse = {
+        schedule: mapCalAvailabilityToWeeklySchedule(schedule.availability),
+        timezone: schedule.timeZone || 'America/New_York'
+      }
 
       return {
-        data: {
-          schedule: transformedSchedule,
-          timezone: scheduleData.timezone
-        },
+        data: response,
         error: null
       }
     } catch (error) {
       console.error('[FETCH_AVAILABILITY_ERROR]', {
         error,
-        userUlid,
         stack: error instanceof Error ? error.stack : undefined,
         timestamp: new Date().toISOString()
       })
       return {
         data: null,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'An unexpected error occurred',
-          details: error instanceof Error ? { message: error.message } : undefined
-        } as ApiError
+        error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }
       }
     }
   }
 )
 
 // Save coach availability schedule
-export const saveCoachAvailability = withServerAction<{ success: true }, z.infer<typeof SaveAvailabilityParamsSchema>>(
-  async (params, { userUlid, roleContext }) => {
+export const saveCoachAvailability = withServerAction<{ success: true }, SaveAvailabilityParams>(
+  async (params) => {
     try {
-      // Verify coach role
-      if (!roleContext.capabilities.includes(USER_CAPABILITIES.COACH)) {
-        console.error('[SAVE_AVAILABILITY_ERROR]', {
-          error: 'Unauthorized',
-          userUlid,
-          capabilities: roleContext.capabilities,
-          timestamp: new Date().toISOString()
-        })
+      // Get the user's ID from auth
+      const userId = await getCurrentUserId()
+      if (!userId) {
+        console.error('[SAVE_AVAILABILITY_ERROR] No user ID found')
         return {
           data: null,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'Only coaches can update availability schedules'
-          } as ApiError
+          error: { code: 'UNAUTHORIZED', message: 'User not authenticated' }
         }
       }
 
-      // Log incoming params for debugging
-      console.log('[SAVE_AVAILABILITY_PARAMS]', {
-        params,
-        userUlid,
-        timestamp: new Date().toISOString()
-      })
-
-      // Validate parameters
-      const validatedData = SaveAvailabilityParamsSchema.safeParse(params)
-      if (!validatedData.success) {
-        console.error('[SAVE_AVAILABILITY_VALIDATION_ERROR]', {
-          error: validatedData.error,
-          params,
-          userUlid,
-          timestamp: new Date().toISOString()
-        })
-        return {
-          data: null,
-          error: {
-            code: 'VALIDATION_ERROR',
-            message: 'Invalid schedule data',
-            details: validatedData.error.flatten()
-          } as ApiError
-        }
-      }
-
-      const supabase = await createAuthClient()
-
-      // Check for existing schedule
-      const { data: existingSchedule, error: scheduleError } = await supabase
-        .from('CoachingAvailabilitySchedule')
+      // Get the user's ULID from the database
+      const supabase = createAuthClient()
+      const { data: userData, error: userError } = await supabase
+        .from('User')
         .select('ulid')
-        .eq('userUlid', userUlid)
-        .eq('isDefault', true)
+        .eq('userId', userId)
         .single()
 
-      if (scheduleError && scheduleError.code !== 'PGRST116') {
-        console.error('[SAVE_AVAILABILITY_ERROR]', { 
-          userUlid, 
-          error: scheduleError,
+      if (userError) {
+        console.error('[SAVE_AVAILABILITY_ERROR]', {
+          error: userError,
+          userId,
           timestamp: new Date().toISOString()
         })
         return {
           data: null,
-          error: {
-            code: 'DATABASE_ERROR',
-            message: 'Failed to check existing schedule'
-          } as ApiError
+          error: { code: 'DATABASE_ERROR', message: 'Failed to find user in database' }
         }
       }
 
-      const timestamp = new Date().toISOString()
+      // Check if schedule already exists
+      const { data: existingSchedule } = await supabase
+        .from('CoachingAvailabilitySchedule')
+        .select('ulid, timeZone')
+        .eq('userUlid', userData.ulid)
+        .maybeSingle()
 
-      // Prepare schedule data
-      const scheduleData = {
-        ulid: existingSchedule?.ulid || generateUlid(),
-        userUlid,
-        name: 'Default Schedule',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        isDefault: true,
-        active: true,
-        rules: {
-          weeklySchedule: validatedData.data.schedule,
-          breaks: []
-        },
-        updatedAt: timestamp
+      // Convert our weekly schedule format to Cal.com availability format
+      const mapWeeklyScheduleToCalAvailability = (weeklySchedule: WeeklySchedule) => {
+        const availability: { days: string[], startTime: string, endTime: string }[] = []
+        
+        // Process each day
+        Object.entries(weeklySchedule).forEach(([day, slots]) => {
+          // Skip days with no slots
+          if (!slots.length) return
+          
+          // Process each time slot for this day
+          slots.forEach(slot => {
+            // Look for existing slot with same times
+            const existingSlot = availability.find(
+              a => a.startTime === slot.from && a.endTime === slot.to
+            )
+            
+            if (existingSlot) {
+              // Add this day to existing slot with same times
+              existingSlot.days.push(day.charAt(0) + day.slice(1).toLowerCase())
+            } else {
+              // Create new slot
+              availability.push({
+                days: [day.charAt(0) + day.slice(1).toLowerCase()],
+                startTime: slot.from,
+                endTime: slot.to
+              })
+            }
+          })
+        })
+        
+        return availability
       }
 
-      // Log the data being saved
-      console.log('[SAVE_AVAILABILITY_DATA]', {
-        scheduleData,
-        isUpdate: !!existingSchedule,
-        timestamp
-      })
+      // Default to America/New_York if no timezone is provided
+      const timeZone = params.timezone || existingSchedule?.timeZone || "America/New_York"
 
-      // Update or create schedule
-      const operation = existingSchedule
-        ? supabase
-            .from('CoachingAvailabilitySchedule')
-            .update(scheduleData)
-            .eq('ulid', existingSchedule.ulid)
-        : supabase
-            .from('CoachingAvailabilitySchedule')
-            .insert({
-              ...scheduleData,
-              createdAt: timestamp
-            })
+      const scheduleData = {
+        name: "Default Schedule",
+        timeZone,
+        availability: mapWeeklyScheduleToCalAvailability(params.schedule),
+        isDefault: true,
+        updatedAt: new Date().toISOString() // Required by project rules
+      }
 
-      const { error: saveError } = await operation
+      let result;
+      if (existingSchedule) {
+        // Update existing schedule
+        result = await supabase
+          .from('CoachingAvailabilitySchedule')
+          .update({
+            timeZone: scheduleData.timeZone,
+            availability: scheduleData.availability,
+            updatedAt: scheduleData.updatedAt
+          })
+          .eq('ulid', existingSchedule.ulid)
+      } else {
+        // Create new schedule
+        result = await supabase
+          .from('CoachingAvailabilitySchedule')
+          .insert({
+            ulid: generateUlid(), // Use generateUlid instead of nanoid
+            userUlid: userData.ulid,
+            name: scheduleData.name,
+            timeZone: scheduleData.timeZone,
+            availability: scheduleData.availability,
+            isDefault: true,
+            active: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          })
+      }
 
-      if (saveError) {
+      if (result.error) {
         console.error('[SAVE_AVAILABILITY_ERROR]', {
-          userUlid,
-          error: saveError,
-          scheduleData,
+          error: result.error,
+          userUlid: userData.ulid,
           timestamp: new Date().toISOString()
         })
         return {
           data: null,
-          error: {
-            code: 'DATABASE_ERROR',
-            message: `Failed to ${existingSchedule ? 'update' : 'create'} availability schedule: ${saveError.message}`
-          } as ApiError
+          error: { 
+            code: 'DATABASE_ERROR', 
+            message: 'Failed to save availability schedule. Please try again later.' 
+          }
         }
       }
 
@@ -265,17 +290,12 @@ export const saveCoachAvailability = withServerAction<{ success: true }, z.infer
     } catch (error) {
       console.error('[SAVE_AVAILABILITY_ERROR]', {
         error,
-        userUlid,
         stack: error instanceof Error ? error.stack : undefined,
         timestamp: new Date().toISOString()
       })
       return {
         data: null,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: error instanceof Error ? error.message : 'An unexpected error occurred',
-          details: error instanceof Error ? { stack: error.stack } : undefined
-        } as ApiError
+        error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }
       }
     }
   }
@@ -287,7 +307,7 @@ export const fetchBookedSessions = withServerAction<BookedSession[]>(
     try {
       const supabase = await createAuthClient()
       const query = supabase
-        .from('CoachingSession')
+        .from('Session')
         .select(`
           ulid,
           startTime,

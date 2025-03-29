@@ -1921,9 +1921,9 @@ model FeatureWaitlist {
 }
 
 model CalendarIntegration {
-  ulid                    String    @id @db.Char(26)
-  userUlid                String    @unique @db.Char(26)
-  provider                String    @default("CAL")
+  ulid                    String           @id @db.Char(26)
+  userUlid                String           @unique @db.Char(26)
+  provider                String           @default("CAL")
   calManagedUserId        Int
   calUsername             String
   calAccessToken          String
@@ -1935,14 +1935,56 @@ model CalendarIntegration {
   timeFormat              Int?
   locale                  String?
   lastSyncedAt            DateTime?
-  syncEnabled             Boolean   @default(true)
-  createdAt               DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt               DateTime  @updatedAt @db.Timestamptz(6)
-  user                    User      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  syncEnabled             Boolean          @default(true)
+  createdAt               DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt               DateTime         @updatedAt @db.Timestamptz(6)
+  user                    User             @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  eventTypes              CalEventType[]
 
   @@index([userUlid])
   @@index([provider])
   @@map("CalendarIntegration")
+}
+
+model CalEventType {
+  ulid                     String              @id @db.Char(26)
+  calendarIntegrationUlid  String              @db.Char(26)
+  calEventTypeId           Int?                // ID from Cal.com API
+  name                     String
+  description              String?
+  slug                     String?
+  duration                 Int                 // in minutes
+  hidden                   Boolean             @default(false)
+  position                 Int?                // for ordering
+  isDefault                Boolean             @default(false)
+  price                    Decimal?            @db.Decimal(10, 2)
+  currency                 String?             @default("USD")
+  isFree                   Boolean             @default(false)
+  scheduling               CalSchedulingType   @default(MANAGED)
+  bookingLimits            Json?               // Store max bookings per day/week/month
+  minimumBookingNotice     Int?                // in minutes
+  requiresConfirmation     Boolean             @default(false)
+  metadata                 Json?               // For additional data
+  isActive                 Boolean             @default(true)
+  // New fields for Office Hours and Group Sessions
+  maxParticipants          Int?                // Maximum number of participants (for OFFICE_HOURS and GROUP_SESSION)
+  discountPercentage       Int?                // Discount percentage for OFFICE_HOURS (0-100)
+  organizationUlid         String?             @db.Char(26) // Organization that owns the GROUP_SESSION
+  createdAt                DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt                DateTime            @updatedAt @db.Timestamptz(6)
+  calendarIntegration      CalendarIntegration @relation(fields: [calendarIntegrationUlid], references: [ulid], onDelete: Cascade)
+
+  @@unique([calendarIntegrationUlid, calEventTypeId])
+  @@index([calendarIntegrationUlid])
+  @@index([isDefault])
+  @@index([isActive])
+  @@map("CalEventType")
+}
+
+enum CalSchedulingType {
+  MANAGED
+  OFFICE_HOURS
+  GROUP_SESSION
 }
 
 model CalBooking {

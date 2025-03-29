@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useRouter, useSearchParams } from "next/navigation"
 import { fetchUserCapabilities, type UserCapabilitiesResponse } from "@/utils/actions/user-profile-actions"
 import { type ApiResponse } from "@/utils/types/api"
-import { Loader2, Building, Building2, Users2, Network, ArrowRight, Check, CheckCircle, XCircle } from 'lucide-react'
+import { Loader2, Building, Building2, Users2, Network, ArrowRight, Check, CheckCircle, XCircle, CalendarDays } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import Link from 'next/link'
@@ -83,7 +83,7 @@ export default function Settings() {
   const searchParams = useSearchParams();
   const hasSuccessParam = searchParams.get('success') === 'true';
   const hasErrorParam = searchParams.get('error') === 'true';
-  const { isConnected: isCalConnected, loading: isCalStatusLoading } = useCalIntegrationStatus()
+  const { isConnected, loading: isCalStatusLoading, refresh: refreshCalStatus } = useCalIntegrationStatus()
 
   // Set the active tab based on the URL parameter
   useEffect(() => {
@@ -414,7 +414,7 @@ export default function Settings() {
                   </div>
                   
                   <div>
-                    {!isCalConnected && !isCalStatusLoading && (
+                    {!isConnected && !isCalStatusLoading && (
                       <Button 
                         variant="default" 
                         onClick={() => {
@@ -440,6 +440,8 @@ export default function Settings() {
                               if (data.error) {
                                 throw new Error(data.error);
                               }
+                              // Refresh the Cal integration status
+                              refreshCalStatus();
                               // Navigate to the success route
                               router.push('/dashboard/settings?tab=integrations&success=true');
                             })
@@ -466,7 +468,7 @@ export default function Settings() {
                   </div>
                 </div>
                 
-                {hasSuccessParam && !isCalConnected && (
+                {hasSuccessParam && !isConnected && (
                   <Alert className="mt-4 bg-green-50 border-green-200">
                     <CheckCircle className="h-4 w-4 text-green-600" />
                     <AlertTitle>Successfully enabled!</AlertTitle>
@@ -476,7 +478,7 @@ export default function Settings() {
                   </Alert>
                 )}
                 
-                {hasErrorParam && !isCalConnected && (
+                {hasErrorParam && !isConnected && (
                   <Alert className="mt-4 bg-red-50 border-red-200" variant="destructive">
                     <XCircle className="h-4 w-4" />
                     <AlertTitle>Setup failed</AlertTitle>
@@ -487,6 +489,19 @@ export default function Settings() {
                 )}
                 
                 <CalConnectedStatus />
+
+                {isConnected && (
+                  <div className="mt-4 flex justify-end">
+                    <Button 
+                      variant="default" 
+                      className="gap-2"
+                      onClick={() => router.push('/dashboard/coach/availability')}
+                    >
+                      <CalendarDays className="h-4 w-4" />
+                      Manage Availability
+                    </Button>
+                  </div>
+                )}
               </div>
               
               <div className="border rounded-lg p-6 opacity-60">

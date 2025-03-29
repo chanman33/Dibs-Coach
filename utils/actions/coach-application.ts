@@ -681,6 +681,29 @@ export const reviewCoachApplication = withServerAction<ApplicationResponse>(
             },
           };
         }
+        
+        // Try to create default event types for the coach
+        try {
+          // Import the function to create default event types
+          const { createDefaultEventTypes } = await import('@/utils/actions/cal-event-type-actions');
+          
+          // Call the function to create default event types
+          await createDefaultEventTypes(application.applicant.ulid);
+          
+          console.log('[COACH_PROFILE_CREATE_SUCCESS]', {
+            message: 'Created default event types for new coach',
+            userUlid: application.applicant.ulid,
+            timestamp: new Date().toISOString()
+          });
+        } catch (error) {
+          // Log the error but don't fail the whole process
+          console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR]', {
+            error,
+            userUlid: application.applicant.ulid,
+            timestamp: new Date().toISOString()
+          });
+          // Coach profile was still created successfully, so we'll continue
+        }
       }
 
       // Transform the data to match ApplicationResponse type
