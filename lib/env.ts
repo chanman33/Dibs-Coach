@@ -39,7 +39,6 @@ const serverOnlySchema = {
   
   // Cal.com Server
   CAL_CLIENT_SECRET: z.string().optional().default(''),
-  CAL_WEBHOOK_SECRET: z.string().optional().default(''),
   CAL_ORGANIZATION_ID: z.string().optional().default(''),
 
   // Supabase Server
@@ -48,10 +47,6 @@ const serverOnlySchema = {
   DATABASE_URL: isDevelopment ? z.string().optional() : z.string().min(1),
   DIRECT_URL: isDevelopment ? z.string().optional() : z.string().min(1),
   SUPABASE_PROJECT_ID: z.string().optional(),
-
-  // Redis (Optional)
-  UPSTASH_REDIS_REST_URL: z.string().url().nullable().optional(),
-  UPSTASH_REDIS_REST_TOKEN: z.string().nullable().optional(),
 
   // Stripe Server
   STRIPE_SECRET_KEY: isDevelopment ? z.string().optional() : z.string().min(1),
@@ -113,7 +108,6 @@ type EnvSchema = {
   // Cal.com
   NEXT_PUBLIC_CAL_CLIENT_ID?: string;
   CAL_CLIENT_SECRET?: string;
-  CAL_WEBHOOK_SECRET?: string;
   NEXT_PUBLIC_CAL_ORGANIZATION_ID?: string;
   NEXT_PUBLIC_CAL_REDIRECT_URL?: string;
   NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL?: string;
@@ -128,10 +122,6 @@ type EnvSchema = {
   DATABASE_URL?: string;
   DIRECT_URL?: string;
   SUPABASE_PROJECT_ID?: string;
-
-  // Redis
-  UPSTASH_REDIS_REST_URL?: string | null;
-  UPSTASH_REDIS_REST_TOKEN?: string | null;
 
   // Stripe
   STRIPE_SECRET_KEY?: string;
@@ -184,7 +174,6 @@ export const env = (() => {
     NEXT_PUBLIC_CAL_CLIENT_ID: process.env.NEXT_PUBLIC_CAL_CLIENT_ID,
     CAL_CLIENT_SECRET: process.env.CAL_CLIENT_SECRET,
     CAL_ORGANIZATION_ID: process.env.CAL_ORGANIZATION_ID,
-    CAL_WEBHOOK_SECRET: process.env.CAL_WEBHOOK_SECRET,
     NEXT_PUBLIC_CAL_REDIRECT_URL: process.env.NEXT_PUBLIC_CAL_REDIRECT_URL || calUrls.redirectUrl,
     NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL: process.env.NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL || calUrls.bookingSuccessUrl,
     NEXT_PUBLIC_CAL_BOOKING_CANCEL_URL: process.env.NEXT_PUBLIC_CAL_BOOKING_CANCEL_URL || calUrls.bookingCancelUrl,
@@ -198,10 +187,6 @@ export const env = (() => {
     DATABASE_URL: process.env.DATABASE_URL,
     DIRECT_URL: process.env.DIRECT_URL,
     SUPABASE_PROJECT_ID: process.env.SUPABASE_PROJECT_ID,
-
-    // Redis
-    UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL || null,
-    UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
 
     // Stripe
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

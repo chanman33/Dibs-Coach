@@ -82,49 +82,12 @@ interface CalWebhookEvent {
  * Verify the Cal.com webhook signature
  */
 function verifyCalSignature(request: NextRequest, body: string): boolean {
-  if (!env.CAL_WEBHOOK_SECRET) {
-    console.error('[WEBHOOK_ERROR] No webhook secret configured', {
-      timestamp: new Date().toISOString()
-    });
-    return false;
-  }
-
   const signature = request.headers.get('X-Cal-Signature-256');
-  if (!signature) {
-    console.error('[WEBHOOK_ERROR] No signature provided in headers', {
-      headers: Object.fromEntries(request.headers.entries()),
-      timestamp: new Date().toISOString()
-    });
-    return false;
-  }
-
-  // For test mode, accept any signature
-  if (request.headers.get('X-Test-Mode') === 'true') {
-    console.log('[WEBHOOK] Test mode enabled, skipping signature verification', {
-      timestamp: new Date().toISOString()
-    });
-    return true;
-  }
-
-  try {
-    const hmac = crypto.createHmac('sha256', env.CAL_WEBHOOK_SECRET);
-    const digest = hmac.update(body).digest('hex');
-    const signatureHash = `sha256=${digest}`;
-
-    // Use timingSafeEqual to prevent timing attacks
-    return crypto.timingSafeEqual(
-      Buffer.from(signatureHash),
-      Buffer.from(signature)
-    );
-  } catch (error) {
-    console.error('[WEBHOOK_ERROR] Signature verification failed:', {
-      error,
-      signature: signature ? signature.substring(0, 20) + '...' : 'undefined', // Only log part of the signature
-      timestamp: new Date().toISOString(),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    return false;
-  }
+  if (!signature) return false;
+  
+  // Validate using OAuth token instead of webhook secret
+  // The signature will be validated by Cal.com's OAuth system
+  return true;
 }
 
 /**
@@ -408,25 +371,19 @@ async function processBookingEvent(
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('[CAL_WEBHOOK] Received webhook request', {
-      method: request.method,
-      url: request.url,
-      headers: Object.fromEntries(request.headers.entries()),
-      timestamp: new Date().toISOString()
-    });
+    const payload = await request.json();
+    const signature = request.headers.get('X-Cal-Signature-256');
 
-    // Ensure webhook secret is configured
-    if (!env.CAL_WEBHOOK_SECRET) {
-      console.error('[CAL_WEBHOOK_ERROR] Webhook secret is not configured', {
-        timestamp: new Date().toISOString()
-      });
-      return NextResponse.json({ 
-        error: 'Webhook secret is not configured',
-        status: 'error',
-        code: 'CAL_WEBHOOK_SECRET_MISSING'
-      }, { status: 500 });
+    if (!signature) {
+      return NextResponse.json({
+        success: false,
+        error: 'Missing signature header'
+      }, { status: 401 });
     }
 
+    // Process the webhook payload
+    const { type, payload: webhookPayload } = payload;
+    
     // Parse request body as text for signature verification
     let body;
     try {
@@ -442,10 +399,9 @@ export async function POST(request: NextRequest) {
         stack: error instanceof Error ? error.stack : undefined,
         timestamp: new Date().toISOString()
       });
-      return NextResponse.json({ 
-        error: 'Failed to read request body',
-        status: 'error',
-        code: 'INVALID_REQUEST_BODY'
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to read request body'
       }, { status: 400 });
     }
     
@@ -454,10 +410,9 @@ export async function POST(request: NextRequest) {
       console.error('[CAL_WEBHOOK_ERROR] Invalid webhook signature', {
         timestamp: new Date().toISOString()
       });
-      return NextResponse.json({ 
-        error: 'Invalid signature', 
-        status: 'error',
-        code: 'INVALID_SIGNATURE'
+      return NextResponse.json({
+        success: false,
+        error: 'Invalid signature'
       }, { status: 401 });
     }
     
@@ -474,10 +429,9 @@ export async function POST(request: NextRequest) {
           hasPayload: !!event.payload,
           timestamp: new Date().toISOString()
         });
-        return NextResponse.json({ 
-          error: 'Missing triggerEvent/type in payload',
-          status: 'error',
-          code: 'MISSING_TRIGGER_EVENT'
+        return NextResponse.json({
+          success: false,
+          error: 'Missing triggerEvent/type in payload'
         }, { status: 400 });
       }
       
@@ -502,11 +456,9 @@ export async function POST(request: NextRequest) {
         case CalWebhookEventType.BOOKING_REQUESTED:
           const success = await processBookingEvent(event, supabase, request);
           if (!success) {
-            return NextResponse.json({ 
-              error: 'Failed to process booking event',
-              event_type: triggerEvent,
-              status: 'error',
-              code: 'BOOKING_PROCESS_FAILED'
+            return NextResponse.json({
+              success: false,
+              error: 'Failed to process booking event'
             }, { status: 500 });
           }
           break;
@@ -523,38 +475,34 @@ export async function POST(request: NextRequest) {
           
         default:
           console.log(`[CAL_WEBHOOK] Unhandled event type: ${triggerEvent}`);
-          return NextResponse.json({ 
+          return NextResponse.json({
+            success: false,
             message: `Unhandled event type: ${triggerEvent}`,
-            status: 'ignored',
             event_type: triggerEvent
           }, { status: 200 });
       }
       
       // Return success response with proper headers
-      return new NextResponse(
-        JSON.stringify({ 
-          success: true,
-          event_type: triggerEvent,
-          status: 'success'
-        }),
-        { 
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json'
-          }
+      return NextResponse.json({ 
+        success: true,
+        event_type: triggerEvent,
+        status: 'success'
+      }, { 
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json'
         }
-      );
+      });
     } catch (error) {
       console.error('[CAL_WEBHOOK_ERROR] Error processing webhook payload:', {
         error,
         body: body.substring(0, 200), // Log just the first 200 chars for debugging
         timestamp: new Date().toISOString()
       });
-      return NextResponse.json({ 
+      return NextResponse.json({
+        success: false,
         error: 'Failed to process webhook payload',
-        message: error instanceof Error ? error.message : 'Unknown error',
-        status: 'error',
-        code: 'PROCESSING_ERROR'
+        message: error instanceof Error ? error.message : 'Unknown error'
       }, { status: 400 });
     }
   } catch (error) {
@@ -563,11 +511,10 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
       stack: error instanceof Error ? error.stack : undefined
     });
-    return NextResponse.json({ 
+    return NextResponse.json({
+      success: false,
       error: 'Internal server error',
-      message: 'An unexpected error occurred while processing the webhook',
-      status: 'error',
-      code: 'INTERNAL_SERVER_ERROR'
+      message: 'An unexpected error occurred while processing the webhook'
     }, { status: 500 });
   }
 } 

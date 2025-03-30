@@ -147,36 +147,6 @@ export function withServerAction<T, P = any>(
         .eq('status', 'ACTIVE')
         .maybeSingle() 
 
-      // Log organization membership info
-      if (orgError) {
-        console.error('[SERVER_ACTION_ORG_ERROR]', {
-          error: orgError,
-          userUlid: userData.ulid,
-          userId: session.userId,
-          timestamp: new Date().toISOString()
-        });
-      } else if (orgData) {
-        console.log('[SERVER_ACTION_ORG_INFO]', {
-          userUlid: userData.ulid,
-          userId: session.userId,
-          organizationUlid: orgData.organizationUlid,
-          organizationName: orgData.organization.name,
-          role: orgData.role,
-          scope: orgData.scope,
-          orgStatus: orgData.organization.status,
-          orgLevel: orgData.organization.level,
-          orgType: orgData.organization.type,
-          timestamp: new Date().toISOString()
-        });
-      } else {
-        console.log('[SERVER_ACTION_NO_ORG]', {
-          message: 'User has no organization membership',
-          userUlid: userData.ulid,
-          userId: session.userId,
-          timestamp: new Date().toISOString()
-        });
-      }
-
       // Handle organization requirements for organization-specific routes
       if (options.requireOrganization && !orgData) {
         // System owners bypass organization requirements
