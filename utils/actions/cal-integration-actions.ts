@@ -20,6 +20,7 @@ import {
   updateScheduleSyncStatus
 } from '@/utils/mapping/schedule-mapper'
 import { Json } from '@/types/supabase'
+import { makeCalApiRequest, getCalOAuthHeaders, getCalAuthHeaders } from '@/utils/cal/cal-api-utils'
 
 // Add custom error codes
 type ExtendedApiErrorCode = ApiErrorCode 
@@ -117,79 +118,48 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
     
     try {
       if (integration.calManagedUserId) {
-        const calApiUrl = `https://api.cal.com/v2/oauth-clients/${env.NEXT_PUBLIC_CAL_CLIENT_ID}/users/${integration.calManagedUserId}`
-        console.log('[CAL_DEBUG] Verifying with Cal.com API:', calApiUrl)
+        const calApiUrl = `/oauth-clients/${env.NEXT_PUBLIC_CAL_CLIENT_ID}/users/${integration.calManagedUserId}`;
+        console.log('[CAL_DEBUG] Verifying with Cal.com API:', calApiUrl);
         
-        const calResponse = await fetch(
-          calApiUrl,
-          {
-            method: 'GET',
-            headers: {
-              'x-cal-client-id': env.NEXT_PUBLIC_CAL_CLIENT_ID || '',
-              'x-cal-secret-key': env.CAL_CLIENT_SECRET || '',
-              'Content-Type': 'application/json',
-            }
-          }
-        )
-        
-        // Get the response body for debugging
-        const responseText = await calResponse.text()
-        let responseData = null
-        try {
-          responseData = JSON.parse(responseText)
-        } catch (e) {
-          // If not valid JSON, just keep the text
-          responseData = responseText
-        }
+        const responseData = await makeCalApiRequest({
+          endpoint: calApiUrl,
+          headers: getCalOAuthHeaders()
+        });
         
         verificationResponse = {
-          status: calResponse.status,
-          statusText: calResponse.statusText,
+          status: 200,
+          statusText: 'OK',
           data: responseData
-        }
+        };
         
-        console.log('[CAL_DEBUG] Cal.com API response:', verificationResponse)
-        
-        // User exists on Cal.com side
-        if (calResponse.ok) {
-          verifiedWithCal = true
-          console.log('[CAL_DEBUG] Verification successful')
-        } else {
-          console.error('[CAL_INTEGRATION_VERIFICATION_ERROR]', {
-            status: calResponse.status,
-            statusText: calResponse.statusText,
-            response: responseData,
-            calManagedUserId: integration.calManagedUserId,
-            userUlid: userData.ulid,
-            timestamp: new Date().toISOString()
-          })
-          
-          // If 404, the user was deleted or doesn't exist on Cal.com
-          if (calResponse.status === 404) {
-            console.log('[CAL_DEBUG] User exists in DB but not found on Cal.com (404 error)')
-            return {
-              data: { 
-                isConnected: false,
-                verifiedWithCal: false 
-              },
-              error: { 
-                code: 'NOT_FOUND',
-                message: 'User exists in database but was not found on Cal.com' 
-              }
-            }
-          }
-        }
+        console.log('[CAL_DEBUG] Cal.com API response:', verificationResponse);
+        verifiedWithCal = true;
+        console.log('[CAL_DEBUG] Verification successful');
       } else {
         console.log('[CAL_DEBUG] No Cal.com managed user ID - cannot verify')
       }
-    } catch (calError) {
-      console.error('[CAL_API_ERROR]', {
-        error: calError,
+    } catch (error: any) {
+      console.error('[CAL_INTEGRATION_VERIFICATION_ERROR]', {
+        error: error?.message || error,
         calManagedUserId: integration.calManagedUserId,
+        userUlid: userData.ulid,
         timestamp: new Date().toISOString()
-      })
-      // Don't fail the entire request if Cal.com verification fails
-      // Instead, just mark that verification wasn't possible
+      });
+      
+      // If 404, the user was deleted or doesn't exist on Cal.com
+      if (error?.message?.includes('404')) {
+        console.log('[CAL_DEBUG] User exists in DB but not found on Cal.com (404 error)');
+        return {
+          data: { 
+            isConnected: false,
+            verifiedWithCal: false 
+          },
+          error: { 
+            code: 'NOT_FOUND',
+            message: 'User exists in database but was not found on Cal.com' 
+          }
+        };
+      }
     }
 
     // Integration found, return the details

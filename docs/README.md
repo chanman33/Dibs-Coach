@@ -167,4 +167,5 @@ Refer to the documentation of the individual technologies used in this project f
 - [Supabase Documentation](https://supabase.io/docs)
 - [Prisma Documentation](https://www.prisma.io/docs)
 - [Clerk Documentation](https://clerk.dev/docs) (if using auth)
+- [Cal.com Documentation] (https://cal.com/docs/api-reference/v2/introduction) (OAuth, Platform, v2 API)
 - [Stripe Documentation](https://stripe.com/docs) (if using payments)

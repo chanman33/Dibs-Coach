@@ -22,6 +22,11 @@ CAL_CLIENT_ID=your_client_id
 CAL_API_URL=https://api.cal.com/v2
 CAL_CLIENT_SECRET=your_client_secret
 ```
+Don't directly use CAL_CLIENT_SECRET or NEXT_PUBLIC_CAL_CLIENT_ID in your Authorization header.
+
+Always dynamically retrieve the OAuth token (CAL_ACCESS_TOKEN) first, then use it in your API requests.
+
+Ensure you always use the prefix Bearer with your token in the Authorization header.
 
 ## API Endpoint Rules
 

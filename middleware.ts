@@ -1,6 +1,7 @@
 import { authMiddleware } from '@clerk/nextjs/server'
 import { NextResponse } from "next/server"
 import { createAuthClient } from './utils/auth/auth-client'
+import type { NextRequest } from 'next/server'
 
 // Define route matchers
 const publicPaths = [
@@ -73,6 +74,15 @@ function updateMetrics(operation: string, data: { duration: number, error?: Erro
       })
     }
   }
+}
+
+export function middleware(request: NextRequest) {
+  // Block access to test routes in production
+  if (process.env.NODE_ENV === 'production' && request.nextUrl.pathname.startsWith('/api/cal/test')) {
+    return new NextResponse('Test routes are not available in production', { status: 403 })
+  }
+
+  // ... existing code ...
 }
 
 export default authMiddleware({
@@ -152,6 +162,7 @@ export default authMiddleware({
 
 export const config = {
   matcher: [
+    '/api/cal/test/:path*',
     /*
      * Match all request paths except for the ones starting with:
      * - _next/static (static files)
