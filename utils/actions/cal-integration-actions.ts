@@ -12,7 +12,8 @@ import {
   SCHEDULE_SYNC_SOURCE,
   ScheduleSyncSource,
   ScheduleAvailability,
-  ScheduleOverrides
+  ScheduleOverrides,
+  toIsoString
 } from '@/utils/types/schedule'
 import { 
   mapCalScheduleToDbSchedule, 
@@ -437,7 +438,7 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
             availability: JSON.parse(JSON.stringify(newSchedule.availability)) as unknown as Json,
             overrides: JSON.parse(JSON.stringify(newSchedule.overrides)) as unknown as Json,
             syncSource: newSchedule.syncSource,
-            lastSyncedAt: typeof newSchedule.lastSyncedAt === 'string' ? newSchedule.lastSyncedAt : newSchedule.lastSyncedAt?.toISOString() ?? null,
+            lastSyncedAt: toIsoString(newSchedule.lastSyncedAt),
             isDefault: newSchedule.isDefault,
             active: newSchedule.active,
             allowCustomDuration: newSchedule.allowCustomDuration,
