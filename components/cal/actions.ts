@@ -10,7 +10,7 @@ import { revalidatePath } from 'next/cache';
  */
 export async function refreshCalAccessToken(userUlid: string) {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cal/refresh-token`, {
+    const response = await fetch(`${process.env.FRONTEND_URL}/api/cal/refresh-token`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

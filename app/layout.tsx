@@ -11,7 +11,7 @@ import './globals.css'
 import { ClerkProvider } from '@clerk/nextjs'
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://dibs.coach"),
+  metadataBase: new URL(process.env.FRONTEND_URL || "https://dibs.coach"),
   title: {
     default: 'Dibs - Real Estate Coaching Platform',
     template: `%s | Dibs`
@@ -36,7 +36,7 @@ export const metadata: Metadata = {
     title: 'Dibs - Real Estate Coaching Platform',
     description: 'Connect with expert real estate coaches, accelerate your property success, and achieve your real estate goals with personalized coaching sessions.',
     siteName: 'Dibs',
-    url: process.env.NEXT_PUBLIC_APP_URL || "https://dibs.com",
+    url: process.env.FRONTEND_URL || "https://dibs.com",
   },
   twitter: {
     card: 'summary_large_image',

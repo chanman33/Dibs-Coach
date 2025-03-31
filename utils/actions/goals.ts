@@ -29,12 +29,16 @@ import { createAuthClient } from "@/utils/auth";
 export const fetchGoals = withServerAction<GoalWithRelations[], GetGoals>(
   async (params = {}, context): Promise<ApiResponse<GoalWithRelations[]>> => {
     const requestId = generateUlid();
-    console.log("[FETCH_GOALS_START]", { 
-      requestId,
-      params, 
-      userUlid: context.userUlid,
-      timestamp: new Date().toISOString()
-    });
+    
+    // Only log start if we're in development or if it's the first attempt
+    if (process.env.NODE_ENV === 'development') {
+      console.log("[FETCH_GOALS_START]", { 
+        requestId,
+        params, 
+        userUlid: context.userUlid,
+        timestamp: new Date().toISOString()
+      });
+    }
     
     // Retry configuration
     const MAX_RETRIES = 3;
@@ -58,17 +62,19 @@ export const fetchGoals = withServerAction<GoalWithRelations[], GetGoals>(
           .eq("status", "ACTIVE");
         
         if (orgsError) {
-          console.error("[FETCH_USER_ORGS_ERROR]", { 
-            requestId,
-            error: orgsError, 
-            message: orgsError.message, 
-            timestamp: new Date().toISOString(),
-            attempt
-          });
-          // Store error but continue to retry
+          // Only log org errors on final attempt
+          if (attempt === MAX_RETRIES) {
+            console.error("[FETCH_USER_ORGS_ERROR]", { 
+              requestId,
+              error: orgsError, 
+              message: orgsError.message, 
+              timestamp: new Date().toISOString(),
+              attempt
+            });
+          }
           lastError = orgsError;
           if (attempt < MAX_RETRIES) {
-            await delay(RETRY_DELAY * attempt); // Exponential backoff
+            await delay(RETRY_DELAY * attempt);
             continue;
           }
           throw orgsError;
@@ -133,17 +139,19 @@ export const fetchGoals = withServerAction<GoalWithRelations[], GetGoals>(
         const { data: goals, error: goalsError } = await query;
         
         if (goalsError) {
-          console.error("[FETCH_GOALS_ERROR]", { 
-            requestId,
-            error: goalsError, 
-            message: goalsError.message,
-            timestamp: new Date().toISOString(),
-            attempt
-          });
-          // Store error but continue to retry
+          // Only log goal errors on final attempt
+          if (attempt === MAX_RETRIES) {
+            console.error("[FETCH_GOALS_ERROR]", { 
+              requestId,
+              error: goalsError, 
+              message: goalsError.message,
+              timestamp: new Date().toISOString(),
+              attempt
+            });
+          }
           lastError = goalsError;
           if (attempt < MAX_RETRIES) {
-            await delay(RETRY_DELAY * attempt); // Exponential backoff
+            await delay(RETRY_DELAY * attempt);
             continue;
           }
           throw goalsError;
@@ -152,21 +160,23 @@ export const fetchGoals = withServerAction<GoalWithRelations[], GetGoals>(
         // Check for overdue goals and update their status
         const updatedGoals = await updateOverdueGoals(goals || []);
         
-        console.log("[FETCH_GOALS_SUCCESS]", { 
-          requestId,
-          totalGoals: updatedGoals.length,
-          personalGoals: updatedGoals.filter(g => g.userUlid === context.userUlid && !g.organizationUlid).length,
-          orgGoals: updatedGoals.filter(g => g.organizationUlid).length,
-          timestamp: new Date().toISOString(),
-          attempt
-        });
+        // Only log success in development or if it's the final attempt
+        if (process.env.NODE_ENV === 'development' || attempt === MAX_RETRIES) {
+          console.log("[FETCH_GOALS_SUCCESS]", { 
+            requestId,
+            totalGoals: updatedGoals.length,
+            personalGoals: updatedGoals.filter(g => g.userUlid === context.userUlid && !g.organizationUlid).length,
+            orgGoals: updatedGoals.filter(g => g.organizationUlid).length,
+            timestamp: new Date().toISOString(),
+            attempt
+          });
+        }
         
         return { data: updatedGoals, error: null };
       } catch (error) {
-        // Store error
         lastError = error;
         
-        // Log only on final attempt
+        // Only log errors on final attempt
         if (attempt === MAX_RETRIES) {
           console.error("[FETCH_GOALS_ERROR_AFTER_RETRIES]", {
             requestId,
@@ -177,15 +187,10 @@ export const fetchGoals = withServerAction<GoalWithRelations[], GetGoals>(
             timestamp: new Date().toISOString(),
             attempts: attempt
           });
-        } else {
-          console.log("[FETCH_GOALS_RETRYING]", { 
-            requestId,
-            attempt,
-            nextAttempt: attempt + 1,
-            delay: RETRY_DELAY * attempt,
-            timestamp: new Date().toISOString()
-          });
-          await delay(RETRY_DELAY * attempt); // Exponential backoff
+        }
+        
+        if (attempt < MAX_RETRIES) {
+          await delay(RETRY_DELAY * attempt);
         }
       }
     }

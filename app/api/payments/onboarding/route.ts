@@ -36,8 +36,8 @@ export async function POST(request: Request) {
     // Create account link for onboarding
     const accountLink = await stripeService.createAccountLink(
       account.id,
-      `${process.env.NEXT_PUBLIC_APP_URL}/settings/payments?status=success`,
-      `${process.env.NEXT_PUBLIC_APP_URL}/settings/payments?status=error`
+      `${process.env.FRONTEND_URL}/settings/payments?status=success`,
+      `${process.env.FRONTEND_URL}/settings/payments?status=error`
     );
 
     return NextResponse.json({
