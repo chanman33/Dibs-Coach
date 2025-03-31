@@ -4,7 +4,7 @@ import { createAuthClient } from '@/utils/auth';
 import { revalidatePath } from 'next/cache';
 
 // Use consistent naming with proper fallbacks
-const CAL_CLIENT_ID = process.env.CAL_CLIENT_ID || process.env.NEXT_PUBLIC_CAL_CLIENT_ID || '';
+const CAL_CLIENT_ID = process.env.NEXT_PUBLIC_CAL_CLIENT_ID || '';
 const CAL_CLIENT_SECRET = process.env.CAL_CLIENT_SECRET || '';
 
 /**
