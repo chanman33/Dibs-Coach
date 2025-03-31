@@ -21,6 +21,21 @@ export interface EventType {
   maxParticipants?: number
   discountPercentage?: number
   organizationId?: string
+  // Additional Cal.com API fields
+  bookerLayouts?: {
+    defaultLayout: 'month' | 'week' | 'column'
+    enabledLayouts: ('month' | 'week' | 'column')[]
+  }
+  locations?: {
+    type: string
+    displayName?: string
+    address?: string
+    public?: boolean
+  }[]
+  // Buffer settings
+  beforeEventBuffer?: number
+  afterEventBuffer?: number
+  minimumBookingNotice?: number
 }
 
 interface EventTypeCardProps {

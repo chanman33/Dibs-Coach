@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
 # Cal.com Integration Guidelines
 
@@ -12,6 +12,7 @@ We use the **Platform Managed Users** model for our Cal.com integration. This me
 1. We create and manage Cal.com Managed Users on behalf of our coaches
 2. We maintain full control over the booking flow, availability, and calendar management
 3. We don't require coaches to create their own Cal.com accounts
+4. Always confirm Cal.com API success before modifying the local database
 
 ## Environment Setup
 

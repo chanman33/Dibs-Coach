@@ -116,6 +116,7 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
     }
 
     if (!integration.calRefreshToken) {
+      tracker.inProgress = false; // release lock
       console.error('[TOKEN_SERVICE_ERROR]', {
         context: 'NO_REFRESH_TOKEN',
         userUlid,
@@ -132,6 +133,7 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
       
       // Ensure we have required credentials
       if (!CAL_CLIENT_ID) {
+        tracker.inProgress = false; // release lock
         console.error('[TOKEN_SERVICE_ERROR]', {
           context: 'MISSING_CLIENT_ID',
           userUlid,
@@ -141,6 +143,7 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
       }
       
       if (!CAL_CLIENT_SECRET) {
+        tracker.inProgress = false; // release lock
         console.error('[TOKEN_SERVICE_ERROR]', {
           context: 'MISSING_CLIENT_SECRET',
           userUlid,
@@ -205,6 +208,7 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
           timestamp: new Date().toISOString()
         });
         
+        tracker.inProgress = false; // release lock
         return { 
           success: false, 
           error: `Token refresh failed with status ${response.status}${errorDetail ? ': ' + errorDetail : ''}` 
@@ -212,15 +216,20 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
       }
 
       // Parse the token response
-      let parsedTokenData = await response.json();
-      const tokenResult = isCalManagedUser ? parsedTokenData?.data : parsedTokenData;
+      const responseJSON = await response.json();
+      
+      // Standardize token format based on whether we're dealing with managed user or standard OAuth
+      let parsedTokenData;
       
       if (isCalManagedUser) {
         // For managed users, the response structure is different
+        const tokenResult = responseJSON?.data;
+        
         if (!tokenResult?.accessToken) {
+          tracker.inProgress = false; // release lock
           console.error('[TOKEN_SERVICE_ERROR]', {
             context: 'INVALID_MANAGED_USER_TOKEN_RESPONSE',
-            response: parsedTokenData,
+            response: responseJSON,
             userUlid,
             timestamp: new Date().toISOString()
           });
@@ -231,16 +240,28 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
         parsedTokenData = {
           access_token: tokenResult.accessToken,
           refresh_token: tokenResult.refreshToken || integration.calRefreshToken,
-          expires_in: Math.floor((tokenResult.accessTokenExpiresAt - Date.now()) / 1000)
+          expires_in: Math.floor((new Date(tokenResult.accessTokenExpiresAt).getTime() - Date.now()) / 1000)
         };
-      } else if (!parsedTokenData.access_token) {
-        console.error('[TOKEN_SERVICE_ERROR]', {
-          context: 'INVALID_TOKEN_RESPONSE',
-          tokenData: parsedTokenData,
-          userUlid,
-          timestamp: new Date().toISOString()
-        });
-        return { success: false, error: 'Invalid token response' };
+      } else {
+        // Standard OAuth flow response
+        if (!responseJSON.access_token) {
+          tracker.inProgress = false; // release lock
+          console.error('[TOKEN_SERVICE_ERROR]', {
+            context: 'INVALID_TOKEN_RESPONSE',
+            tokenData: responseJSON,
+            userUlid,
+            timestamp: new Date().toISOString()
+          });
+          return { success: false, error: 'Invalid token response' };
+        }
+        
+        parsedTokenData = responseJSON;
+      }
+
+      // Ensure we have a refresh token, falling back to the existing one if needed
+      if (!parsedTokenData.refresh_token) {
+        parsedTokenData.refresh_token = integration.calRefreshToken;
+        console.log('[TOKEN_SERVICE] No new refresh token provided, keeping existing one');
       }
 
       // Update the integration record in the database
@@ -248,7 +269,7 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
         .from('CalendarIntegration')
         .update({
           calAccessToken: parsedTokenData.access_token,
-          calRefreshToken: parsedTokenData.refresh_token || integration.calRefreshToken,
+          calRefreshToken: parsedTokenData.refresh_token,
           calAccessTokenExpiresAt: new Date(Date.now() + (parsedTokenData.expires_in * 1000)).toISOString(),
           updatedAt: new Date().toISOString()
         })
@@ -261,18 +282,22 @@ export async function refreshCalAccessToken(userUlid: string): Promise<TokenRefr
           userUlid,
           timestamp: new Date().toISOString()
         });
+        
+        // We'll still return the tokens even if DB update failed
+        tracker.inProgress = false; // release lock
         return { 
-          success: false, 
-          error: 'Failed to update integration record',
+          success: true, // Consider this a partial success since we have valid tokens
+          error: 'Failed to update integration record in database',
           tokens: parsedTokenData
         };
       }
 
-      console.log('[TOKEN_SERVICE] Successfully refreshed Cal.com token');
+      console.log('[TOKEN_SERVICE] Successfully refreshed Cal.com token for user:', userUlid);
       
       // Revalidate related paths to ensure fresh data
       revalidatePath('/dashboard/settings');
-      revalidatePath('/test/cal-webhook-test');
+      revalidatePath('/dashboard/coach/availability');
+      revalidatePath('/api/cal/event-types');
       
       // Release the lock
       if (tokenRefreshTracker[userUlid]) {

@@ -32,6 +32,17 @@ database:
         key: "process.env.SUPABASE_SERVICE_KEY"
       implementation: "Use createAuthClient from utils/auth.ts"
   
+  cal:
+    required: true
+    usage: "All data operations must use Cal.com client"
+    client_init:
+      import: "import { createCalClient } from '@/utils/cal'"
+      cookies: "await cookies() from next/headers"
+      config:
+
+    Always confirm that the user has a valid Cal.com token before performing any actions.
+    Always confirm Cal.com successfully completed the action before updating the database.
+  
   prisma:
     allowed_for: "schema management and migrations only"
     forbidden: "direct database operations"

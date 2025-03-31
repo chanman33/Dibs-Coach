@@ -121,7 +121,7 @@ model CoachProfile {
   userUlid                 String                    @unique @db.Char(26)
   yearsCoaching            Int?
   coachSkills              String[]                  @default([])
-  hourlyRate               Decimal?                  @db.Decimal(10, 2)
+  hourlyRate               Int?
   isActive                 Boolean                   @default(true)
   defaultDuration          Int                       @default(60)
   allowCustomDuration      Boolean                   @default(false)
@@ -1970,6 +1970,13 @@ model CalEventType {
   maxParticipants          Int?                // Maximum number of participants (for OFFICE_HOURS and GROUP_SESSION)
   discountPercentage       Int?                // Discount percentage for OFFICE_HOURS (0-100)
   organizationUlid         String?             @db.Char(26) // Organization that owns the GROUP_SESSION
+  // New Cal.com v2 API fields
+  locations                Json?               // Store locations array
+  bookerLayouts            Json?               // Store layouts configuration
+  beforeEventBuffer        Int?                // Buffer time before event in minutes
+  afterEventBuffer         Int?                // Buffer time after event in minutes
+  slotInterval             Int?                // Custom slot interval in minutes
+  successRedirectUrl       String?             // URL to redirect after successful booking
   createdAt                DateTime            @default(now()) @db.Timestamptz(6)
   updatedAt                DateTime            @updatedAt @db.Timestamptz(6)
   calendarIntegration      CalendarIntegration @relation(fields: [calendarIntegrationUlid], references: [ulid], onDelete: Cascade)

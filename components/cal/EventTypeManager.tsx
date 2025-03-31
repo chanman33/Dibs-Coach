@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { Plus } from 'lucide-react'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -17,71 +17,138 @@ interface EventTypeManagerProps {
   onEventTypesChange?: (eventTypes: EventType[]) => void;
 }
 
-export function EventTypeManager({ 
-  initialEventTypes,
-  onEventTypesChange
-}: EventTypeManagerProps) {
-  // Default event types
-  const defaultEventTypes: EventType[] = [
-    {
-      id: '1',
-      name: 'Coaching Session',
-      description: 'Regular coaching video call session',
-      duration: 30,
-      free: false,
-      enabled: true,
-      isDefault: true,
-      schedulingType: 'MANAGED'
+// Default event types moved outside component to prevent re-creation
+const defaultEventTypes: EventType[] = [
+  {
+    id: '1',
+    name: 'Coaching Session',
+    description: 'Regular coaching video call session',
+    duration: 30,
+    free: false,
+    enabled: true,
+    isDefault: true,
+    schedulingType: 'MANAGED',
+    // Default Cal.com integration settings
+    bookerLayouts: {
+      defaultLayout: 'month',
+      enabledLayouts: ['month', 'week', 'column']
     },
-    {
-      id: '2',
-      name: 'Extended Coaching Session',
-      description: 'Longer coaching session for complex topics',
-      duration: 45,
-      free: false,
-      enabled: false,
-      isDefault: false,
-      schedulingType: 'MANAGED'
+    locations: [
+      {
+        type: 'integrations:daily',
+        displayName: 'Video Call'
+      }
+    ],
+    minimumBookingNotice: 0,
+    beforeEventBuffer: 0,
+    afterEventBuffer: 0
+  },
+  {
+    id: '2',
+    name: 'Extended Coaching Session',
+    description: 'Longer coaching session for complex topics',
+    duration: 45,
+    free: false,
+    enabled: false,
+    isDefault: false,
+    schedulingType: 'MANAGED',
+    // Default Cal.com integration settings
+    bookerLayouts: {
+      defaultLayout: 'month',
+      enabledLayouts: ['month', 'week', 'column']
     },
-    {
-      id: '3',
-      name: 'Office Hours',
-      description: 'Drop-in coaching at discounted rate',
-      duration: 60,
-      free: false,
-      enabled: false,
-      isDefault: false,
-      schedulingType: 'OFFICE_HOURS',
-      maxParticipants: 5,
-      discountPercentage: 30
+    locations: [
+      {
+        type: 'integrations:daily',
+        displayName: 'Video Call'
+      }
+    ],
+    minimumBookingNotice: 0,
+    beforeEventBuffer: 0,
+    afterEventBuffer: 0
+  },
+  {
+    id: '3',
+    name: 'Office Hours',
+    description: 'Drop-in coaching at discounted rate',
+    duration: 60,
+    free: false,
+    enabled: false,
+    isDefault: false,
+    schedulingType: 'OFFICE_HOURS',
+    maxParticipants: 5,
+    discountPercentage: 30,
+    // Default Cal.com integration settings
+    bookerLayouts: {
+      defaultLayout: 'month',
+      enabledLayouts: ['month', 'week', 'column']
     },
-    {
-      id: '4',
-      name: 'Discovery Call',
-      description: 'Get to know you and goal setting alignment',
-      duration: 15,
-      free: true,
-      enabled: false,
-      isDefault: false,
-      schedulingType: 'MANAGED'
+    locations: [
+      {
+        type: 'integrations:daily',
+        displayName: 'Video Call'
+      }
+    ],
+    minimumBookingNotice: 0,
+    beforeEventBuffer: 0,
+    afterEventBuffer: 0
+  },
+  {
+    id: '4',
+    name: 'Discovery Call',
+    description: 'Get to know you and goal setting alignment',
+    duration: 15,
+    free: true,
+    enabled: false,
+    isDefault: false,
+    schedulingType: 'MANAGED',
+    // Default Cal.com integration settings
+    bookerLayouts: {
+      defaultLayout: 'month',
+      enabledLayouts: ['month', 'week', 'column']
     },
-    {
-      id: '5',
-      name: 'Group Training Session',
-      description: 'Group coaching for organizations',
-      duration: 60,
-      free: false,
-      enabled: false,
-      isDefault: false,
-      schedulingType: 'GROUP_SESSION',
-      maxParticipants: 10
-    }
-  ]
-  
-  const [eventTypes, setEventTypes] = useState<EventType[]>(initialEventTypes || defaultEventTypes)
-  const [isEditing, setIsEditing] = useState(false)
-  const [currentEventType, setCurrentEventType] = useState<EventType | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
+    locations: [
+      {
+        type: 'integrations:daily',
+        displayName: 'Video Call'
+      }
+    ],
+    minimumBookingNotice: 0,
+    beforeEventBuffer: 0,
+    afterEventBuffer: 0
+  },
+  {
+    id: '5',
+    name: 'Group Training Session',
+    description: 'Group coaching for organizations',
+    duration: 60,
+    free: false,
+    enabled: false,
+    isDefault: false,
+    schedulingType: 'GROUP_SESSION',
+    maxParticipants: 10,
+    // Default Cal.com integration settings
+    bookerLayouts: {
+      defaultLayout: 'month',
+      enabledLayouts: ['month', 'week', 'column']
+    },
+    locations: [
+      {
+        type: 'integrations:daily',
+        displayName: 'Video Call'
+      }
+    ],
+    minimumBookingNotice: 0,
+    beforeEventBuffer: 0,
+    afterEventBuffer: 0
+  }
+]
+
+export default function EventTypeManager({ initialEventTypes, onEventTypesChange }: EventTypeManagerProps) {
+  const [eventTypes, setEventTypes] = React.useState<EventType[]>(initialEventTypes || defaultEventTypes)
+  const [isEditing, setIsEditing] = React.useState(false)
+  const [currentEventType, setCurrentEventType] = React.useState<EventType | null>(null)
+  const [dialogOpen, setDialogOpen] = React.useState(false)
 
   // Update event types and notify parent component if callback provided
   const updateEventTypes = (newEventTypes: EventType[]) => {
@@ -152,7 +219,21 @@ export function EventTypeManager({
       free: false,
       enabled: true,
       isDefault: false,
-      schedulingType: 'MANAGED'
+      schedulingType: 'MANAGED',
+      // Default Cal.com integration settings
+      bookerLayouts: {
+        defaultLayout: 'month',
+        enabledLayouts: ['month', 'week', 'column']
+      },
+      locations: [
+        {
+          type: 'integrations:daily',
+          displayName: 'Video Call'
+        }
+      ],
+      minimumBookingNotice: 0,
+      beforeEventBuffer: 0,
+      afterEventBuffer: 0
     }
     setCurrentEventType(newEventType)
     setIsEditing(false)
