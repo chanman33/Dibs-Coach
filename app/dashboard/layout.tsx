@@ -8,6 +8,7 @@ import config from '@/config'
 import { createAuthClient } from "@/utils/auth"
 import { auth } from "@clerk/nextjs/server"
 import { cookies } from "next/headers"
+import { RefreshButton } from "@/components/ui/refresh-button"
 
 // Maximum time to wait for user creation (15 seconds)
 const MAX_WAIT_TIME = 15000
@@ -212,12 +213,7 @@ export default async function DashboardLayout({
                 We're setting up your account. This may take a moment. Please refresh the page in a few seconds.
               </p>
               <div className="flex justify-center">
-                <button 
-                  onClick={() => window.location.reload()} 
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
-                >
-                  Refresh Page
-                </button>
+                <RefreshButton />
               </div>
             </div>
           </div>
@@ -292,12 +288,7 @@ export default async function DashboardLayout({
                   We're setting up your account. This may take a moment. Please refresh the page in a few seconds.
                 </p>
                 <div className="flex justify-center">
-                  <button 
-                    onClick={() => window.location.reload()} 
-                    className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
-                  >
-                    Refresh Page
-                  </button>
+                  <RefreshButton />
                 </div>
               </div>
             </div>
@@ -321,12 +312,7 @@ export default async function DashboardLayout({
             We're having trouble loading your dashboard. Please try refreshing the page.
           </p>
           <div className="flex justify-center">
-            <button 
-              onClick={() => window.location.reload()} 
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
-            >
-              Refresh Page
-            </button>
+            <RefreshButton />
           </div>
         </div>
       </div>
