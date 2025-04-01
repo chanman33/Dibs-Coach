@@ -37,21 +37,7 @@ Ensure you always use the prefix Bearer with your token in the Authorization hea
   ```typescript
   headers: {
     'x-cal-client-id': env.CAL_CLIENT_ID,
-    'x-cal-secret-key': env.CAL_CLIENT_SECRET,
-    'Content-Type': 'application/json',
-    'cal-api-version': '2024-01-01'
-  }
-  ```
-
-### For Regular API Operations (Using Managed User Token)
-- Used for all other operations (bookings, event types, etc.)
-- Base URL: `https://api.cal.com/v2/`
-- Headers:
-  ```typescript
-  headers: {
-    'Authorization': `Bearer ${integration.calAccessToken}`,
-    'Content-Type': 'application/json',
-    'cal-api-version': '2024-01-01'
+    'x-cal-secret-key': env.CAL_CLIENT_SECRET
   }
   ```
 
@@ -131,23 +117,10 @@ Ensure you always use the prefix Bearer with your token in the Authorization hea
   ```typescript
   headers: {
     'x-cal-client-id': env.CAL_CLIENT_ID,
-    'x-cal-secret-key': env.CAL_CLIENT_SECRET,
-    'Content-Type': 'application/json'
+    'x-cal-secret-key': env.CAL_CLIENT_SECRET
   }
-  ```
-- **ALWAYS** use the following API URL pattern:
-  ```
-  https://api.cal.com/v2/oauth-clients/${clientId}/users/${managedUserId}/...
   ```
 
-### For Direct API Access (OAuth)
-- **ALWAYS** use Bearer token authentication:
-  ```typescript
-  headers: {
-    'Authorization': `Bearer ${integration.calAccessToken}`,
-    'Content-Type': 'application/json'
-  }
-  ```
 - **ALWAYS** use the following API URL pattern:
   ```
   https://api.cal.com/v2/...
