@@ -8,6 +8,8 @@ interface GrowthJourneyStatsProps {
     id: string
     status: string
     deadline: string
+    milestones?: { title: string; completed: boolean }[]
+    growthPlan?: string
   }[]
   recentAchievements: {
     date: string

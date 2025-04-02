@@ -86,6 +86,38 @@ const goalSchema = z.object({
   growthPlan: z.string().optional(),
 })
 
+// Add this helper function to mirror the one in GoalCard
+// Safely parse the milestone data from various formats
+const parseMilestones = (milestonesData: any): Milestone[] => {
+  if (!milestonesData) return [];
+  
+  try {
+    // If it's already an array, return it
+    if (Array.isArray(milestonesData)) {
+      return milestonesData;
+    }
+    
+    // If it's a string, try to parse it as JSON
+    if (typeof milestonesData === 'string') {
+      const parsed = JSON.parse(milestonesData);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+    
+    // If it's an object but not an array, wrap it in an array
+    if (typeof milestonesData === 'object') {
+      return [milestonesData];
+    }
+  } catch (e) {
+    console.error('[MILESTONE_PARSE_ERROR]', {
+      error: e,
+      milestonesData,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  return [];
+};
+
 // Database types following .cursorrules conventions
 
 interface GoalsFormProps {
@@ -366,22 +398,31 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
                 }
               }
 
-              // Parse the due date correctly
-              let deadline = typedGoal.dueDate;
-              if (deadline) {
-                try {
-                  // Try to format the date as YYYY-MM-DD for form compatibility
-                  const date = new Date(deadline);
-                  if (!isNaN(date.getTime())) {
-                    deadline = date.toISOString().split('T')[0];
+              // Parse deadline correctly
+              let deadline = typedGoal.dueDate || new Date().toISOString();
+              if (typeof deadline === 'object' && deadline instanceof Date) {
+                deadline = deadline.toISOString();
+              }
+
+              // Parse milestones using our consistent helper function
+              const milestones = parseMilestones(typedGoal.milestones);
+              
+              // Ensure growthPlan is a string
+              let growthPlan = '';
+              if (typedGoal.growthPlan) {
+                if (typeof typedGoal.growthPlan === 'string') {
+                  growthPlan = typedGoal.growthPlan;
+                } else if (typeof typedGoal.growthPlan === 'object') {
+                  try {
+                    growthPlan = JSON.stringify(typedGoal.growthPlan);
+                  } catch (e) {
+                    console.error('[GROWTH_PLAN_PARSE_ERROR]', {
+                      error: e,
+                      growthPlan: typedGoal.growthPlan,
+                      goalId: typedGoal.ulid,
+                      timestamp: new Date().toISOString()
+                    });
                   }
-                } catch (e) {
-                  console.error('[DATE_PARSE_ERROR]', {
-                    error: e,
-                    dueDate: typedGoal.dueDate,
-                    goalId: typedGoal.ulid,
-                    timestamp: new Date().toISOString()
-                  });
                 }
               }
 
@@ -399,7 +440,9 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
                 createdAt: typedGoal.createdAt || new Date().toISOString(),
                 updatedAt: typedGoal.updatedAt || new Date().toISOString(),
                 organization: typedGoal.organization,
-                user: typedGoal.user
+                user: typedGoal.user,
+                milestones: milestones,
+                growthPlan: growthPlan
               };
             });
 
@@ -565,6 +608,7 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
           goalUlid: currentEditingGoal.ulid,
           data: apiData
         });
+        
         if (result.error) {
           console.error('[UPDATE_GOAL_ERROR]', {
             error: result.error,
@@ -573,20 +617,52 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
           throw result.error;
         }
 
+        console.log('[GOAL_UPDATE_SUCCESS]', {
+          goalId: currentEditingGoal.ulid,
+          updatedData: result.data,
+          timestamp: new Date().toISOString()
+        });
+
         // Force an immediate refresh of goals after update
         await loadGoals();
         
         // Call the onGoalUpdated callback if provided
         if (onGoalUpdated) {
-          onGoalUpdated();
+          console.log('[INVOKING_PARENT_GOAL_UPDATED]', { 
+            timestamp: new Date().toISOString() 
+          });
+          await onGoalUpdated();
         }
+
+        // Update UI immediately by finding and updating this goal in the local state
+        setGoals(prevGoals => 
+          prevGoals.map(g => 
+            g.ulid === currentEditingGoal.ulid 
+              ? {
+                  ...g,
+                  title: data.title,
+                  description: data.description || null,
+                  target: Number(data.target),
+                  current: Number(data.current),
+                  deadline: data.deadline,
+                  type: data.type,
+                  status: data.status || GOAL_STATUS.IN_PROGRESS,
+                  milestones: formValues.milestones,
+                  growthPlan: data.growthPlan || ""
+                } 
+              : g
+          )
+        );
       } else {
         // For new goals, use the form values
         await onSubmit(formValues);
         
         // Call the onGoalUpdated callback if provided
         if (onGoalUpdated) {
-          onGoalUpdated();
+          console.log('[INVOKING_PARENT_GOAL_UPDATED_NEW]', { 
+            timestamp: new Date().toISOString() 
+          });
+          await onGoalUpdated();
         }
       }
 
@@ -610,6 +686,9 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
       timestamp: new Date().toISOString()
     });
 
+    // Parse milestones for consistent handling
+    const parsedMilestones = parseMilestones(goal.milestones);
+    
     // Reset form
     form.reset({
       title: goal.title,
@@ -620,7 +699,7 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
       deadline: goal.deadline || new Date().toISOString().split('T')[0],
       type: goal.type,
       status: goal.status,
-      milestones: Array.isArray(goal.milestones) ? goal.milestones : [],
+      milestones: parsedMilestones,
       growthPlan: goal.growthPlan || ''
     });
 
@@ -828,6 +907,7 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
           </Card>
         ) : (
           <div className="flex flex-col gap-8">
+            {/* For personal goals */}
             {personalGoals.length > 0 && (
               <div>
                 <div className="flex justify-between items-center mb-4">
@@ -853,12 +933,22 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
                       onEditGoal={handleEditGoal}
                       onUpdateProgress={() => handleEditGoal(goal)}
                       getGoalTypeIcon={getGoalTypeIcon}
+                      onMilestoneUpdated={() => {
+                        // Force a refresh when milestone is updated
+                        loadGoals();
+                        
+                        // Also notify parent
+                        if (onGoalUpdated) {
+                          onGoalUpdated();
+                        }
+                      }}
                     />
                   ))}
                 </div>
               </div>
             )}
-
+            
+            {/* For organization goals */}
             {organizationGoals.length > 0 && (
               <div>
                 <h4 className="text-md font-semibold mb-4">Organization Goals</h4>
@@ -874,6 +964,15 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
                       onEditGoal={handleEditGoal}
                       onUpdateProgress={() => handleEditGoal(goal)}
                       getGoalTypeIcon={getGoalTypeIcon}
+                      onMilestoneUpdated={() => {
+                        // Force a refresh when milestone is updated
+                        loadGoals();
+                        
+                        // Also notify parent
+                        if (onGoalUpdated) {
+                          onGoalUpdated();
+                        }
+                      }}
                     />
                   ))}
                 </div>

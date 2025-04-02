@@ -18,6 +18,7 @@ interface GoalCardProps {
   getProgressPercentage: (current: number, target: number) => number;
   onEditGoal?: (goal: ClientGoal) => void;
   onUpdateProgress?: () => void;
+  onMilestoneUpdated?: () => void;
   getStatusColor?: (status: string) => string;
   getGoalTypeIcon?: (type: string) => React.ReactNode;
 }
@@ -61,6 +62,7 @@ export function GoalCard({
   getProgressPercentage,
   onEditGoal,
   onUpdateProgress,
+  onMilestoneUpdated,
   getStatusColor = (status) => status === "completed" 
     ? "bg-green-500" 
     : status === "in_progress" 
@@ -121,6 +123,11 @@ export function GoalCard({
       }
       
       toast.success(`Milestone ${checked ? 'completed' : 'reopened'}`);
+      
+      // Trigger the parent callback to refresh goals
+      if (onMilestoneUpdated) {
+        onMilestoneUpdated();
+      }
     } catch (error) {
       console.error('[MILESTONE_UPDATE_ERROR]', {
         error,

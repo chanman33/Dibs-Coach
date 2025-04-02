@@ -5,14 +5,13 @@ import { GoalFormValues } from "@/utils/types/goals";
 import GoalsForm from "@/components/goals/GoalsForm";
 import { fetchGoals, createGoal } from "@/utils/actions/goals";
 import { toast } from "sonner";
-import { useProfileContext, ProfileProvider } from "@/components/profile/context/ProfileContext";
 import { GrowthJourneyStats } from "@/components/goals/GrowthJourneyStats";
 
+// Simple goals context to avoid full profile context loading
 function GoalsPageContent() {
   const [initialGoals, setInitialGoals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const { updateGoalsData } = useProfileContext();
 
   const refreshGoals = useCallback(() => {
     setRefreshTrigger(prev => prev + 1);
@@ -58,7 +57,23 @@ function GoalsPageContent() {
             }
           }
 
-          let growthPlan = goal.growthPlan || '';
+          let growthPlan = '';
+          if (goal.growthPlan) {
+            if (typeof goal.growthPlan === 'string') {
+              growthPlan = goal.growthPlan;
+            } else if (typeof goal.growthPlan === 'object') {
+              try {
+                growthPlan = JSON.stringify(goal.growthPlan);
+              } catch (e) {
+                console.error('[GROWTH_PLAN_PARSE_ERROR]', {
+                  error: e,
+                  growthPlan: goal.growthPlan,
+                  goalId: goal.ulid,
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+          }
           
           let target = 0;
           let current = 0;
@@ -93,7 +108,10 @@ function GoalsPageContent() {
           count: processedGoals.length,
           hasGoalsMilestones: processedGoals.some(g => g.milestones && g.milestones.length > 0),
           hasGrowthPlans: processedGoals.some(g => g.growthPlan && g.growthPlan.length > 0),
-          timestamp: new Date().toISOString()
+          milestonesCount: processedGoals.reduce((total, g) => total + (g.milestones?.length || 0), 0),
+          timestamp: new Date().toISOString(),
+          firstGoalMilestones: processedGoals.length > 0 && processedGoals[0].milestones ? processedGoals[0].milestones : null,
+          firstGoalGrowthPlan: processedGoals.length > 0 ? processedGoals[0].growthPlan : null
         });
         
         setInitialGoals(processedGoals);
@@ -126,10 +144,6 @@ function GoalsPageContent() {
         toast.error(error.message || 'Failed to create goal');
         return;
       }
-
-      if (updateGoalsData) {
-        await updateGoalsData([]);
-      }
       
       refreshGoals();
       toast.success('Goal created successfully!');
@@ -140,12 +154,131 @@ function GoalsPageContent() {
       });
       toast.error('Failed to create goal');
     }
-  }, [updateGoalsData, refreshGoals]);
+  }, [refreshGoals]);
+
+  // Add a dedicated callback for milestone updates to ensure state refreshes properly
+  const handleGoalUpdated = useCallback(async () => {
+    console.log('[GOAL_UPDATED]', {
+      timestamp: new Date().toISOString()
+    });
+    
+    // First, set loading state to show feedback to the user
+    setIsLoading(true);
+    
+    try {
+      // Directly load goals from the server, bypassing any caching
+      const { data, error } = await fetchGoals({});
+      
+      if (error) {
+        console.error("[REFRESH_GOALS_ERROR]", {
+          error,
+          timestamp: new Date().toISOString(),
+        });
+        toast.error("Failed to refresh goals");
+        return;
+      }
+      
+      if (data) {
+        // Process the data the same way as in loadGoals
+        const processedGoals = data.map(goal => {
+          let milestones = [];
+          if (goal.milestones) {
+            try {
+              if (typeof goal.milestones === 'string') {
+                milestones = JSON.parse(goal.milestones);
+              } else if (Array.isArray(goal.milestones)) {
+                milestones = goal.milestones;
+              } else if (typeof goal.milestones === 'object') {
+                milestones = [goal.milestones];
+              }
+            } catch (e) {
+              console.error('[MILESTONE_PARSE_ERROR]', {
+                error: e,
+                milestones: goal.milestones,
+                goalId: goal.ulid,
+                timestamp: new Date().toISOString()
+              });
+            }
+          }
+
+          let growthPlan = '';
+          if (goal.growthPlan) {
+            if (typeof goal.growthPlan === 'string') {
+              growthPlan = goal.growthPlan;
+            } else if (typeof goal.growthPlan === 'object') {
+              try {
+                growthPlan = JSON.stringify(goal.growthPlan);
+              } catch (e) {
+                console.error('[GROWTH_PLAN_PARSE_ERROR]', {
+                  error: e,
+                  growthPlan: goal.growthPlan,
+                  goalId: goal.ulid,
+                  timestamp: new Date().toISOString()
+                });
+              }
+            }
+          }
+          
+          let target = 0;
+          let current = 0;
+          
+          if (goal.target) {
+            if (typeof goal.target === 'string') {
+              try { target = JSON.parse(goal.target).value || 0; } catch (e) {}
+            } else if (typeof goal.target === 'object') {
+              target = goal.target.value || 0;
+            }
+          }
+          
+          if (goal.progress) {
+            if (typeof goal.progress === 'string') {
+              try { current = JSON.parse(goal.progress).value || 0; } catch (e) {}
+            } else if (typeof goal.progress === 'object') {
+              current = goal.progress.value || 0;
+            }
+          }
+
+          return {
+            ...goal,
+            target,
+            current,
+            milestones,
+            growthPlan,
+            deadline: goal.dueDate || new Date().toISOString()
+          };
+        });
+        
+        console.log("[GOALS_REFRESHED]", {
+          count: processedGoals.length,
+          hasGoalsMilestones: processedGoals.some(g => g.milestones && g.milestones.length > 0),
+          hasGrowthPlans: processedGoals.some(g => g.growthPlan && g.growthPlan.length > 0),
+          milestonesCount: processedGoals.reduce((total, g) => total + (g.milestones?.length || 0), 0),
+          timestamp: new Date().toISOString(),
+          firstGoalMilestones: processedGoals.length > 0 && processedGoals[0].milestones ? processedGoals[0].milestones : null,
+          firstGoalGrowthPlan: processedGoals.length > 0 ? processedGoals[0].growthPlan : null
+        });
+        
+        // Update state with the fresh data
+        setInitialGoals(processedGoals);
+      }
+    } catch (error) {
+      console.error("[REFRESH_GOALS_ERROR]", {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString(),
+      });
+      toast.error("Failed to refresh goals");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const formattedGoals = initialGoals.map(goal => ({
     id: goal.id || goal.ulid,
     status: goal.status || "in_progress",
-    deadline: goal.dueDate || goal.deadline || new Date().toISOString()
+    deadline: goal.dueDate || goal.deadline || new Date().toISOString(),
+    milestones: goal.milestones || [],
+    growthPlan: goal.growthPlan || ''
   }));
 
   const recentAchievements = [
@@ -176,7 +309,7 @@ function GoalsPageContent() {
           open={true}
           onClose={() => { }}
           onSubmit={handleGoalsSubmit}
-          onGoalUpdated={refreshGoals}
+          onGoalUpdated={handleGoalUpdated}
         />
       </div>
     </div>
@@ -184,9 +317,5 @@ function GoalsPageContent() {
 }
 
 export default function CoachGoalsPage() {
-  return (
-    <ProfileProvider>
-      <GoalsPageContent />
-    </ProfileProvider>
-  );
+  return <GoalsPageContent />;
 } 
