@@ -1060,6 +1060,8 @@ model Goal {
   startDate        DateTime   @db.Timestamptz(6)
   dueDate          DateTime   @db.Timestamptz(6)
   completedAt      DateTime?  @db.Timestamptz(6)
+  milestones       Json?      @db.JsonB
+  growthPlan       String?
   createdAt        DateTime   @default(now()) @db.Timestamptz(6)
   updatedAt        DateTime   @updatedAt @db.Timestamptz(6)
   user             User       @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)

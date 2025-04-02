@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import { ClientGoal, GoalType, Milestone } from "@/utils/types/goals"
-import React from "react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { toast } from "sonner"
+import { updateGoalMilestone } from "@/utils/actions/goals"
+import React, { useState, useEffect } from "react"
 
 interface GoalCardProps {
   goal: ClientGoal;
@@ -18,6 +21,38 @@ interface GoalCardProps {
   getStatusColor?: (status: string) => string;
   getGoalTypeIcon?: (type: string) => React.ReactNode;
 }
+
+// Add this helper function before the GoalCard component
+// Safely parse the milestone data from various formats
+const parseMilestones = (milestonesData: any): Milestone[] => {
+  if (!milestonesData) return [];
+  
+  try {
+    // If it's already an array, return it
+    if (Array.isArray(milestonesData)) {
+      return milestonesData;
+    }
+    
+    // If it's a string, try to parse it as JSON
+    if (typeof milestonesData === 'string') {
+      const parsed = JSON.parse(milestonesData);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+    
+    // If it's an object but not an array, wrap it in an array
+    if (typeof milestonesData === 'object') {
+      return [milestonesData];
+    }
+  } catch (e) {
+    console.error('[MILESTONE_PARSE_ERROR]', {
+      error: e,
+      milestonesData,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  return [];
+};
 
 export function GoalCard({ 
   goal, 
@@ -33,6 +68,72 @@ export function GoalCard({
       : "bg-yellow-500",
   getGoalTypeIcon
 }: GoalCardProps) {
+  const [updatingMilestone, setUpdatingMilestone] = useState<number | null>(null);
+  // Parse milestones safely
+  const [milestones, setMilestones] = useState<Milestone[]>(() => 
+    parseMilestones(goal.milestones)
+  );
+  
+  // Update milestones when goal changes
+  useEffect(() => {
+    setMilestones(parseMilestones(goal.milestones));
+  }, [goal.milestones]);
+
+  // Handler for milestone checkbox changes
+  const handleMilestoneChange = async (index: number, checked: boolean) => {
+    if (!goal.ulid) return;
+    
+    setUpdatingMilestone(index);
+    
+    try {
+      // Create a copy of milestones and update the one at the current index
+      const updatedMilestones = [...milestones];
+      if (updatedMilestones[index]) {
+        updatedMilestones[index].completed = checked;
+      }
+      
+      // Update UI immediately
+      setMilestones(updatedMilestones);
+      
+      const { data, error } = await updateGoalMilestone({
+        goalUlid: goal.ulid,
+        milestoneIndex: index,
+        completed: checked
+      });
+      
+      if (error) {
+        console.error('[UPDATE_MILESTONE_ERROR]', {
+          error,
+          goalId: goal.ulid,
+          milestoneIndex: index,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Revert the UI update on error
+        const revertedMilestones = [...milestones];
+        if (revertedMilestones[index]) {
+          revertedMilestones[index].completed = !checked;
+        }
+        setMilestones(revertedMilestones);
+        
+        toast.error("Failed to update milestone");
+        return;
+      }
+      
+      toast.success(`Milestone ${checked ? 'completed' : 'reopened'}`);
+    } catch (error) {
+      console.error('[MILESTONE_UPDATE_ERROR]', {
+        error,
+        goalId: goal.ulid,
+        milestoneIndex: index,
+        timestamp: new Date().toISOString()
+      });
+      toast.error("Failed to update milestone");
+    } finally {
+      setUpdatingMilestone(null);
+    }
+  };
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -53,8 +154,14 @@ export function GoalCard({
           </Badge>
         </div>
         <p className="text-sm text-gray-600 mt-2">
-          {goal.growthPlan || goal.description}
+          {goal.description || 'No description provided.'}
         </p>
+        {goal.growthPlan && goal.growthPlan.trim() !== '' && (
+          <div className="mt-3">
+            <h4 className="text-sm font-medium text-gray-700 mb-1">Growth Plan:</h4>
+            <p className="text-sm text-gray-600">{goal.growthPlan}</p>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -73,43 +180,36 @@ export function GoalCard({
             </div>
           </div>
 
-          {goal.milestones && goal.milestones.length > 0 && (
+          {milestones.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-2">Milestones:</h4>
               <div className="space-y-2">
-                {(goal.milestones || []).map((milestone, idx) => (
+                {milestones.map((milestone, idx) => (
                   <div key={idx} className="flex items-center gap-2 text-sm">
-                    <div
-                      className={cn(
-                        "h-4 w-4 rounded-full border-2 flex items-center justify-center",
-                        milestone.completed
-                          ? "border-green-500 bg-green-500"
-                          : "border-muted-foreground"
-                      )}
-                    >
-                      {milestone.completed && (
-                        <svg
-                          className="h-3 w-3 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                      )}
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`milestone-${goal.ulid}-${idx}`}
+                        checked={milestone.completed}
+                        disabled={updatingMilestone === idx}
+                        onCheckedChange={(checked) => handleMilestoneChange(idx, checked === true)}
+                        className={cn(
+                          milestone.completed ? "data-[state=checked]:bg-green-500 data-[state=checked]:border-green-500" : "",
+                          updatingMilestone === idx ? "opacity-50" : ""
+                        )}
+                      />
+                      <label
+                        htmlFor={`milestone-${goal.ulid}-${idx}`}
+                        className={cn(
+                          "text-sm cursor-pointer select-none",
+                          milestone.completed && "text-muted-foreground line-through"
+                        )}
+                      >
+                        {milestone.title}
+                        {updatingMilestone === idx && (
+                          <span className="ml-2 animate-pulse">Updating...</span>
+                        )}
+                      </label>
                     </div>
-                    <span
-                      className={cn(
-                        milestone.completed && "text-muted-foreground line-through"
-                      )}
-                    >
-                      {milestone.title}
-                    </span>
                   </div>
                 ))}
               </div>

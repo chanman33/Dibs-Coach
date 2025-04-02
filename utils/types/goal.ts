@@ -55,6 +55,12 @@ export type GoalProgress = {
   lastUpdated?: string;
 };
 
+// Milestone type
+export interface Milestone {
+  title: string;
+  completed: boolean;
+}
+
 // Basic goal schema
 export const goalSchema = z.object({
   ulid: z.string().optional(),
@@ -76,6 +82,13 @@ export const goalSchema = z.object({
   startDate: z.date(),
   dueDate: z.date(),
   completedAt: z.date().optional().nullable(),
+  milestones: z.array(
+    z.object({
+      title: z.string().min(1, "Milestone title is required"),
+      completed: z.boolean().default(false)
+    })
+  ).optional(),
+  growthPlan: z.string().optional(),
 });
 
 // Create goal schema

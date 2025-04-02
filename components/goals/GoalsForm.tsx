@@ -1,7 +1,6 @@
 "use client"
 
-import React from "react"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import {
@@ -93,6 +92,7 @@ interface GoalsFormProps {
   open: boolean;
   onClose: () => void;
   onSubmit: (data: GoalFormValues) => Promise<void>;
+  onGoalUpdated?: () => void;
 }
 
 // Export getGoalTypeIcon so it can be used by GoalCard
@@ -158,7 +158,79 @@ export const getGoalTypeIcon = (type: string) => {
   }
 }
 
-const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
+// Add this component definition near the top of the file, after imports but before the main component
+type MilestoneItemProps = {
+  index: number;
+  milestone: {
+    title: string;
+    completed: boolean;
+  };
+  form: any;
+  onRemove: (index: number) => void;
+};
+
+// Milestone item component to improve rendering efficiency
+const MilestoneItem = React.memo(({ index, milestone, form, onRemove }: MilestoneItemProps) => {
+  // Add local state to track checkbox status
+  const [isCompleted, setIsCompleted] = useState(milestone.completed);
+  
+  // Update local state when milestone prop changes
+  useEffect(() => {
+    setIsCompleted(milestone.completed);
+  }, [milestone.completed]);
+  
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-grow flex items-center gap-2">
+        <Input
+          value={milestone.title}
+          onChange={(e) => {
+            const milestones = [...form.getValues("milestones") || []];
+            milestones[index].title = e.target.value;
+            form.setValue("milestones", milestones, { 
+              shouldDirty: true, 
+              shouldValidate: true 
+            });
+          }}
+          placeholder="Milestone title"
+        />
+        <div className="flex items-center">
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={isCompleted}
+            onChange={(e) => {
+              // Update local state immediately for visual feedback
+              setIsCompleted(e.target.checked);
+              
+              // Update form state
+              const milestones = [...form.getValues("milestones") || []];
+              milestones[index].completed = e.target.checked;
+              form.setValue("milestones", milestones, { 
+                shouldDirty: true,
+                shouldTouch: true // Mark field as touched
+              });
+            }}
+          />
+          <span className="ml-2 text-sm">Completed</span>
+        </div>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="h-8 w-8 p-0 text-destructive"
+        onClick={() => onRemove(index)}
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+});
+
+MilestoneItem.displayName = 'MilestoneItem';
+
+const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) => {
   const [goals, setGoals] = useState<ClientGoal[]>([])
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -168,6 +240,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
   const [isLoadingGoals, setIsLoadingGoals] = useState(true);
   const [lastFetchTimestamp, setLastFetchTimestamp] = useState<number>(0);
   const FETCH_COOLDOWN = 2000; // 2 seconds cooldown between fetches
+  const [milestoneCount, setMilestoneCount] = useState(0);
 
   const form = useForm<GoalFormValues>({
     resolver: zodResolver(goalSchema),
@@ -388,6 +461,26 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
     setIsLoading(true);
 
     try {
+      // Additional validation for milestones
+      const milestones = data.milestones || [];
+      const hasEmptyMilestones = milestones.some(m => !m.title.trim());
+      
+      if (hasEmptyMilestones) {
+        // Set form errors without submitting
+        form.setError("milestones", {
+          type: "manual",
+          message: "Please fill in all milestone titles or remove empty milestones"
+        });
+        
+        // Filter out empty milestones
+        const filteredMilestones = milestones.filter(m => m.title.trim() !== "");
+        form.setValue("milestones", filteredMilestones, { shouldValidate: true });
+        
+        toast.error('Please fill in all milestone titles or remove empty ones');
+        setIsLoading(false);
+        return;
+      }
+
       // Validate the data against our schema
       const validationResult = goalSchema.safeParse(data);
 
@@ -407,10 +500,21 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
         });
 
         toast.error('Please fill in all required fields correctly');
+        setIsLoading(false);
         return;
       }
 
-      // Prepare the goal data for the onSubmit handler
+      // Log data before submission for debugging
+      console.log('[GOAL_SUBMIT_DATA]', {
+        title: data.title,
+        description: data.description,
+        milestones: data.milestones,
+        growthPlan: data.growthPlan,
+        isEdit: !!currentEditingGoal,
+        timestamp: new Date().toISOString()
+      });
+
+      // Prepare the goal data for the onSubmit handler with properly filtered milestones
       const formValues: GoalFormValues = {
         title: data.title,
         description: data.description,
@@ -419,7 +523,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
         deadline: data.deadline,
         type: data.type,
         status: data.status || GOAL_STATUS.IN_PROGRESS,
-        milestones: Array.isArray(data.milestones) ? data.milestones : [],
+        milestones: Array.isArray(data.milestones) ? data.milestones.filter(m => m.title.trim() !== "") : [],
         growthPlan: data.growthPlan || ""
       };
 
@@ -445,13 +549,15 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
           dueDate: new Date(data.deadline),
           type: data.type,
           status: data.status || GOAL_STATUS.IN_PROGRESS,
-          milestones: Array.isArray(data.milestones) ? data.milestones : [],
+          // Explicitly include milestones as a properly structured array
+          milestones: formValues.milestones,
           growthPlan: data.growthPlan || ""
         };
 
         console.log('[UPDATE_GOAL_DATA]', {
           goalId: currentEditingGoal.ulid,
           data: apiData,
+          milestones: apiData.milestones,
           timestamp: new Date().toISOString()
         });
 
@@ -468,93 +574,20 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
         }
 
         // Force an immediate refresh of goals after update
-        const { data: freshGoals, error } = await fetchGoals({});
-        if (!error && freshGoals) {
-          // Transform the data to match the ClientGoal interface
-          const clientGoals: ClientGoal[] = freshGoals.map(goal => {
-            const typedGoal = goal as any;
-
-            // Parse target value correctly
-            let targetValue = 0;
-            if (typedGoal.target) {
-              try {
-                if (typeof typedGoal.target === 'string') {
-                  const parsedTarget = JSON.parse(typedGoal.target);
-                  targetValue = parsedTarget?.value || 0;
-                } else if (typeof typedGoal.target === 'object') {
-                  targetValue = typedGoal.target?.value || 0;
-                }
-              } catch (e) {
-                console.error('[TARGET_PARSE_ERROR]', {
-                  error: e,
-                  target: typedGoal.target,
-                  goalId: typedGoal.ulid,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            }
-
-            // Parse progress value correctly
-            let progressValue = 0;
-            if (typedGoal.progress) {
-              try {
-                if (typeof typedGoal.progress === 'string') {
-                  const parsedProgress = JSON.parse(typedGoal.progress);
-                  progressValue = parsedProgress?.value || 0;
-                } else if (typeof typedGoal.progress === 'object') {
-                  progressValue = typedGoal.progress?.value || 0;
-                }
-              } catch (e) {
-                console.error('[PROGRESS_PARSE_ERROR]', {
-                  error: e,
-                  progress: typedGoal.progress,
-                  goalId: typedGoal.ulid,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            }
-
-            // Parse the due date correctly
-            let deadline = typedGoal.dueDate;
-            if (deadline) {
-              try {
-                const date = new Date(deadline);
-                if (!isNaN(date.getTime())) {
-                  deadline = date.toISOString().split('T')[0];
-                }
-              } catch (e) {
-                console.error('[DATE_PARSE_ERROR]', {
-                  error: e,
-                  dueDate: typedGoal.dueDate,
-                  goalId: typedGoal.ulid,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            }
-
-            return {
-              ulid: typedGoal.ulid,
-              userUlid: typedGoal.userUlid,
-              organizationUlid: typedGoal.organizationUlid,
-              title: typedGoal.title,
-              description: typedGoal.description || null,
-              target: targetValue,
-              current: progressValue,
-              deadline: deadline,
-              type: typedGoal.type as GoalType,
-              status: typedGoal.status as GoalStatus,
-              createdAt: typedGoal.createdAt || new Date().toISOString(),
-              updatedAt: typedGoal.updatedAt || new Date().toISOString(),
-              organization: typedGoal.organization,
-              user: typedGoal.user
-            };
-          });
-
-          setGoals(clientGoals);
+        await loadGoals();
+        
+        // Call the onGoalUpdated callback if provided
+        if (onGoalUpdated) {
+          onGoalUpdated();
         }
       } else {
         // For new goals, use the form values
         await onSubmit(formValues);
+        
+        // Call the onGoalUpdated callback if provided
+        if (onGoalUpdated) {
+          onGoalUpdated();
+        }
       }
 
       toast.success(`Goal ${currentEditingGoal ? 'updated' : 'created'} successfully!`);
@@ -1092,63 +1125,63 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 <FormLabel>Milestones <span className="text-muted-foreground text-sm">(Optional)</span></FormLabel>
                 <div className="space-y-2 mt-2">
                   {(form.getValues("milestones") || []).map((milestone, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <div className="flex-grow flex items-center gap-2">
-                        <Input
-                          value={milestone.title}
-                          onChange={(e) => {
-                            const milestones = form.getValues("milestones") || [];
-                            const updatedMilestones = [...milestones];
-                            updatedMilestones[index].title = e.target.value;
-                            form.setValue("milestones", updatedMilestones);
-                          }}
-                          placeholder="Milestone title"
-                        />
-                        <div className="flex items-center">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4"
-                            checked={milestone.completed}
-                            onChange={(e) => {
-                              const milestones = form.getValues("milestones") || [];
-                              const updatedMilestones = [...milestones];
-                              updatedMilestones[index].completed = e.target.checked;
-                              form.setValue("milestones", updatedMilestones);
-                            }}
-                          />
-                          <span className="ml-2 text-sm">Completed</span>
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-destructive"
-                        onClick={() => {
-                          const milestones = form.getValues("milestones") || [];
-                          const updatedMilestones = milestones.filter((_, i) => i !== index);
-                          form.setValue("milestones", updatedMilestones);
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <MilestoneItem 
+                      key={`milestone-${index}-${milestoneCount}`}
+                      index={index}
+                      milestone={milestone}
+                      form={form}
+                      onRemove={(idx) => {
+                        const milestones = form.getValues("milestones") || [];
+                        const updatedMilestones = milestones.filter((_, i) => i !== idx);
+                        form.setValue("milestones", updatedMilestones, { 
+                          shouldDirty: true, 
+                          shouldValidate: true 
+                        });
+                      }}
+                    />
                   ))}
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => {
+                      // Get the current milestones from form state
                       const currentMilestones = form.getValues("milestones") || [];
-                      form.setValue("milestones", [
+                      
+                      // Create a new array with the added milestone
+                      const updatedMilestones = [
                         ...currentMilestones,
                         { title: "", completed: false }
-                      ]);
+                      ];
+                      
+                      // Force a form state update with the new milestones
+                      form.setValue("milestones", updatedMilestones, { 
+                        shouldDirty: true,
+                        shouldValidate: false // Prevent validation until user has a chance to enter data
+                      });
+                      
+                      // Update our counter to force a re-render
+                      setMilestoneCount(prev => prev + 1);
+                      
+                      // Timeout to ensure the DOM updates before we try to focus
+                      setTimeout(() => {
+                        // Try to focus the new milestone input
+                        const inputs = document.querySelectorAll('input[placeholder="Milestone title"]');
+                        const lastInput = inputs[inputs.length - 1] as HTMLInputElement;
+                        if (lastInput) {
+                          lastInput.focus();
+                        }
+                      }, 50); // Slightly longer timeout to ensure rendering completes
                     }}
                   >
                     Add Milestone
                   </Button>
                 </div>
+                {form.formState.errors.milestones && (
+                  <p className="text-sm font-medium text-destructive mt-2">
+                    {form.formState.errors.milestones.message}
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-between items-center gap-3">

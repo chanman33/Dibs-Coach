@@ -13,7 +13,8 @@ import {
   UpdateGoal,
   GoalStatus,
   GoalType,
-  GetGoals
+  GetGoals,
+  Milestone
 } from "@/utils/types/goal";
 import { GoalFormValues } from "@/utils/types/goals";
 import { withServerAction, ServerActionContext } from "@/utils/middleware/withServerAction";
@@ -228,7 +229,9 @@ export const createGoal = withServerAction<any, GoalFormValues>(
         type: formData.type,
         target: { value: formData.target }, 
         progress: { value: formData.current },
-        status: formData.status
+        status: formData.status,
+        milestones: formData.milestones || [],
+        growthPlan: formData.growthPlan || ""
       };
       
       // Use the createPersonalGoal function to actually create the goal
@@ -265,6 +268,9 @@ export const createPersonalGoal = withServerAction<any, any>(
       targetType: typeof data?.target,
       targetValue: data?.target?.value,
       targetValueType: typeof data?.target?.value,
+      hasMilestones: !!data?.milestones,
+      milestonesCount: Array.isArray(data?.milestones) ? data.milestones.length : 0,
+      hasGrowthPlan: !!data?.growthPlan,
       timestamp: new Date().toISOString()
     });
     
@@ -315,9 +321,33 @@ export const createPersonalGoal = withServerAction<any, any>(
       } else {
         goalData.progress = { value: 0 };
       }
+      
+      // Handle milestones
+      if (Array.isArray(validatedData.milestones) && validatedData.milestones.length > 0) {
+        goalData.milestones = validatedData.milestones;
+      } else if (validatedData.milestones) {
+        // Ensure milestones is always stored as an array
+        goalData.milestones = Array.isArray(validatedData.milestones) 
+          ? validatedData.milestones 
+          : [validatedData.milestones];
+      }
+      
+      // Handle growth plan
+      if (validatedData.growthPlan) {
+        goalData.growthPlan = validatedData.growthPlan;
+      }
 
       // Set completedAt explicitly to null
       goalData.completedAt = null;
+      
+      // Log the complete goal data before insertion
+      console.log("[GOAL_DATA_BEFORE_INSERT]", {
+        goalData,
+        hasMilestones: !!goalData.milestones,
+        milestonesCount: Array.isArray(goalData.milestones) ? goalData.milestones.length : 0,
+        hasGrowthPlan: !!goalData.growthPlan,
+        timestamp: new Date().toISOString()
+      });
       
       // Insert goal
       const { data: goal, error } = await supabase
@@ -336,6 +366,8 @@ export const createPersonalGoal = withServerAction<any, any>(
       
       console.log("[CREATE_PERSONAL_GOAL_SUCCESS]", { 
         goalId: goal.ulid,
+        milestones: goal.milestones,
+        growthPlan: goal.growthPlan,
         timestamp: new Date().toISOString() 
       });
       return { data: goal, error: null };
@@ -382,6 +414,14 @@ export const updateGoal = withServerAction<any, {goalUlid: string, data: UpdateG
       const validatedData = updateGoalSchema.parse(data);
       const supabase = await createAuthClient();
       
+      console.log("[UPDATE_GOAL_START]", {
+        goalUlid,
+        updateFields: Object.keys(validatedData),
+        hasMilestones: 'milestones' in validatedData,
+        hasGrowthPlan: 'growthPlan' in validatedData,
+        timestamp: new Date().toISOString()
+      });
+      
       // Prepare update data with only changed fields
       const updateData: any = {
         updatedAt: new Date().toISOString()
@@ -425,6 +465,36 @@ export const updateGoal = withServerAction<any, {goalUlid: string, data: UpdateG
       if (validatedData.description !== undefined) {
         updateData.description = validatedData.description;
       }
+      
+      // Handle milestones properly
+      if (validatedData.milestones !== undefined) {
+        // Ensure milestones is always stored as an array
+        if (Array.isArray(validatedData.milestones)) {
+          updateData.milestones = validatedData.milestones;
+        } else if (validatedData.milestones) {
+          updateData.milestones = [validatedData.milestones];
+        } else {
+          updateData.milestones = [];
+        }
+        
+        console.log("[UPDATE_GOAL_MILESTONES]", {
+          milestones: updateData.milestones,
+          count: Array.isArray(updateData.milestones) ? updateData.milestones.length : 0,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Handle growthPlan
+      if (validatedData.growthPlan !== undefined) {
+        updateData.growthPlan = validatedData.growthPlan;
+      }
+      
+      console.log("[UPDATE_GOAL_DATA]", {
+        updateData,
+        hasMilestones: 'milestones' in updateData,
+        hasGrowthPlan: 'growthPlan' in updateData,
+        timestamp: new Date().toISOString()
+      });
       
       // Update goal
       const { data: updatedGoal, error } = await supabase
@@ -520,6 +590,31 @@ export const updateOrganizationGoal = withServerAction<any, {goalUlid: string, d
       if (validatedData.description !== undefined) {
         updateData.description = validatedData.description;
       }
+      
+      // Add support for milestones and growthPlan
+      if (validatedData.milestones !== undefined) {
+        // Log milestone data for debugging
+        console.log('[ORG_GOAL_MILESTONES]', {
+          milestones: validatedData.milestones,
+          type: typeof validatedData.milestones,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Ensure milestones is properly formatted
+        updateData.milestones = validatedData.milestones;
+      }
+      
+      if (validatedData.growthPlan !== undefined) {
+        updateData.growthPlan = validatedData.growthPlan;
+      }
+      
+      // Log the update data before sending to database
+      console.log('[ORG_GOAL_UPDATE_DATA]', {
+        updateData,
+        hasMilestones: 'milestones' in updateData,
+        hasGrowthPlan: 'growthPlan' in updateData,
+        timestamp: new Date().toISOString()
+      });
       
       // Update goal
       const { data: updatedGoal, error } = await supabase
@@ -700,4 +795,98 @@ async function updateOverdueGoals(goals: any[]) {
   }
   
   return goals;
-} 
+}
+
+/**
+ * Update a specific milestone for a goal
+ */
+export const updateGoalMilestone = withServerAction<any, {goalUlid: string, milestoneIndex: number, completed: boolean}>(
+  async (params, context): Promise<ApiResponse<any>> => {
+    try {
+      const { goalUlid, milestoneIndex, completed } = params;
+      const supabase = await createAuthClient();
+      
+      // First get the current goal to access its milestones
+      const { data: goal, error: fetchError } = await supabase
+        .from("Goal")
+        .select("*")
+        .eq("ulid", goalUlid)
+        .single();
+        
+      if (fetchError) {
+        throw new Error(`Failed to fetch goal: ${fetchError.message}`);
+      }
+      
+      // Parse milestones from the database (could be string or object)
+      let milestonesArray: any[] = [];
+      
+      // Use type assertion to avoid type errors
+      const goalData = goal as any;
+      
+      if (goalData.milestones) {
+        try {
+          // If milestones is a string, parse it
+          if (typeof goalData.milestones === 'string') {
+            milestonesArray = JSON.parse(goalData.milestones);
+          } 
+          // If milestones is already an object, use it directly
+          else if (Array.isArray(goalData.milestones)) {
+            milestonesArray = goalData.milestones;
+          }
+          // If it's an object but not an array, wrap it
+          else if (typeof goalData.milestones === 'object') {
+            milestonesArray = [goalData.milestones];
+          }
+        } catch (e) {
+          console.error('[MILESTONE_PARSE_ERROR]', {
+            error: e,
+            milestones: goalData.milestones,
+            goalId: goalUlid,
+            timestamp: new Date().toISOString()
+          });
+          milestonesArray = [];
+        }
+      }
+      
+      // Check if the milestone index is valid
+      if (milestoneIndex < 0 || milestoneIndex >= milestonesArray.length) {
+        throw new Error(`Invalid milestone index: ${milestoneIndex}`);
+      }
+      
+      // Update the milestone completed status
+      milestonesArray[milestoneIndex].completed = completed;
+      
+      // Update the goal with the modified milestones
+      const { data: updatedGoal, error: updateError } = await supabase
+        .from("Goal")
+        .update({
+          milestones: milestonesArray,
+          updatedAt: new Date().toISOString(),
+        })
+        .eq("ulid", goalUlid)
+        .select("*")
+        .single();
+        
+      if (updateError) {
+        throw new Error(`Failed to update milestone: ${updateError.message}`);
+      }
+      
+      return { data: updatedGoal, error: null };
+    } catch (error) {
+      console.error("[UPDATE_MILESTONE_ERROR]", {
+        error,
+        message: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined, 
+        timestamp: new Date().toISOString()
+      });
+      
+      return {
+        data: null,
+        error: {
+          code: "UPDATE_ERROR" as ApiErrorCode,
+          message: error instanceof Error ? error.message : "Failed to update milestone",
+        },
+      };
+    }
+  }
+); 
