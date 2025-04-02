@@ -116,10 +116,7 @@ export function MenteeSidebar() {
             {/* Resource Library */}
             <Separator className="my-3" />
             <NavLink href="/dashboard/mentee/goals" icon={Target}>
-              Goals
-            </NavLink>
-            <NavLink href="/dashboard/mentee/plans" icon={ListChecks}>
-              Plans
+              Goals & Plans
             </NavLink>
             <NavLink href="/dashboard/resource-library" icon={BookOpen}>
               <div className="flex items-center gap-2">

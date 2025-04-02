@@ -42,15 +42,16 @@ import { Badge } from "@/components/ui/badge"
 import { PlusCircle, Pencil, X, Loader2, Target, Clock, TrendingUp, Trophy, Home, DollarSign, Users, Star, Globe, Award, BookOpen, Settings } from "lucide-react"
 import { fetchGoals, deleteGoal as deleteGoalAction, updateOrganizationGoal } from "@/utils/actions/goals"
 import { toast } from "sonner"
-import { 
-  GOAL_STATUS, 
-  GOAL_TYPE, 
-  GOAL_FORMAT, 
-  type GoalStatus, 
-  type GoalType, 
-  type GoalFormat, 
+import {
+  GOAL_STATUS,
+  GOAL_TYPE,
+  GOAL_FORMAT,
+  type GoalStatus,
+  type GoalType,
+  type GoalFormat,
   type GoalFormValues,
-  type ClientGoal
+  type ClientGoal,
+  type Milestone
 } from "@/utils/types/goals"
 import { type ValidationError } from "@/utils/types/errors"
 import {
@@ -60,6 +61,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { GoalCard } from "@/components/goals/GoalCard"
 
 // Validation schema
 const goalSchema = z.object({
@@ -76,6 +78,13 @@ const goalSchema = z.object({
   deadline: z.string().min(1, "Deadline is required"),
   type: z.enum(Object.values(GOAL_TYPE) as [string, ...string[]]),
   status: z.enum(Object.values(GOAL_STATUS) as [string, ...string[]]).default(GOAL_STATUS.IN_PROGRESS),
+  milestones: z.array(
+    z.object({
+      title: z.string().min(1, "Milestone title is required"),
+      completed: z.boolean().default(false)
+    })
+  ).optional().default([]),
+  growthPlan: z.string().optional(),
 })
 
 // Database types following .cursorrules conventions
@@ -86,7 +95,8 @@ interface GoalsFormProps {
   onSubmit: (data: GoalFormValues) => Promise<void>;
 }
 
-const getGoalTypeIcon = (type: string) => {
+// Export getGoalTypeIcon so it can be used by GoalCard
+export const getGoalTypeIcon = (type: string) => {
   switch (type) {
     // Financial Goals
     case 'sales_volume':
@@ -96,7 +106,7 @@ const getGoalTypeIcon = (type: string) => {
       return <DollarSign className="h-4 w-4" />
     case 'avg_sale_price':
       return <TrendingUp className="h-4 w-4" />
-    
+
     // Transaction Goals
     case 'listings':
     case 'buyer_transactions':
@@ -104,7 +114,7 @@ const getGoalTypeIcon = (type: string) => {
       return <Home className="h-4 w-4" />
     case 'days_on_market':
       return <Clock className="h-4 w-4" />
-    
+
     // Client Goals
     case 'new_clients':
     case 'referrals':
@@ -112,7 +122,7 @@ const getGoalTypeIcon = (type: string) => {
       return <Users className="h-4 w-4" />
     case 'reviews':
       return <Star className="h-4 w-4" />
-    
+
     // Market Presence
     case 'market_share':
     case 'territory_expansion':
@@ -120,7 +130,7 @@ const getGoalTypeIcon = (type: string) => {
     case 'social_media':
     case 'website_traffic':
       return <TrendingUp className="h-4 w-4" />
-    
+
     // Professional Development
     case 'certifications':
       return <Award className="h-4 w-4" />
@@ -128,7 +138,7 @@ const getGoalTypeIcon = (type: string) => {
       return <BookOpen className="h-4 w-4" />
     case 'networking_events':
       return <Users className="h-4 w-4" />
-    
+
     // Coaching Goals
     case 'coaching_sessions':
     case 'group_sessions':
@@ -138,11 +148,11 @@ const getGoalTypeIcon = (type: string) => {
     case 'session_completion':
     case 'mentee_milestones':
       return <Trophy className="h-4 w-4" />
-    
+
     // Custom/Other
     case 'custom':
       return <Settings className="h-4 w-4" />
-    
+
     default:
       return <Target className="h-4 w-4" />
   }
@@ -169,6 +179,8 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       status: GOAL_STATUS.IN_PROGRESS,
       type: GOAL_TYPE.CUSTOM,
       deadline: new Date().toISOString().split('T')[0],
+      milestones: [],
+      growthPlan: ""
     },
   })
 
@@ -188,23 +200,23 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       // Retry configuration
       const MAX_RETRIES = 2; // Maximum retries
       const RETRY_DELAY = 500; // Base delay in ms
-      
+
       // Helper function to create a delay
       const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
       setIsLoadingGoals(true);
-      
+
       // Retry loop
       let attempt = 0;
       let lastError = null;
       let success = false;
-      
+
       while (attempt < MAX_RETRIES && !success) {
         attempt++;
-        
+
         try {
           const { data, error } = await fetchGoals({});
-          
+
           if (error) {
             console.error('[LOAD_GOALS_ERROR]', {
               error,
@@ -212,9 +224,9 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
               maxRetries: MAX_RETRIES,
               timestamp: new Date().toISOString()
             });
-            
+
             lastError = error;
-            
+
             if (attempt < MAX_RETRIES) {
               // Wait before retry with exponential backoff
               const backoffTime = RETRY_DELAY * Math.pow(2, attempt - 1);
@@ -231,12 +243,12 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
               break;
             }
           }
-          
+
           if (data) {
             // Transform the data to match the ClientGoal interface
             const clientGoals: ClientGoal[] = data.map(goal => {
               const typedGoal = goal as any;
-              
+
               // Parse target value correctly - handle both string JSON and object formats
               let targetValue = 0;
               if (typedGoal.target) {
@@ -258,7 +270,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                   });
                 }
               }
-              
+
               // Parse progress value correctly - handle both string JSON and object formats
               let progressValue = 0;
               if (typedGoal.progress) {
@@ -280,7 +292,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                   });
                 }
               }
-              
+
               // Parse the due date correctly
               let deadline = typedGoal.dueDate;
               if (deadline) {
@@ -299,7 +311,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                   });
                 }
               }
-              
+
               return {
                 ulid: typedGoal.ulid,
                 userUlid: typedGoal.userUlid,
@@ -317,14 +329,14 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 user: typedGoal.user
               };
             });
-            
+
             setGoals(clientGoals);
             setLastFetchTimestamp(now);
             success = true;
           }
         } catch (error) {
           lastError = error;
-          
+
           console.error("[LOAD_GOALS_ERROR]", {
             error,
             stack: error instanceof Error ? error.stack : undefined,
@@ -332,7 +344,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
             maxRetries: MAX_RETRIES,
             timestamp: new Date().toISOString()
           });
-          
+
           if (attempt < MAX_RETRIES) {
             // Wait before retry with exponential backoff
             const backoffTime = RETRY_DELAY * Math.pow(2, attempt - 1);
@@ -348,7 +360,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
           }
         }
       }
-      
+
       setIsLoadingGoals(false);
       setIsInitialLoading(false);
     };
@@ -367,24 +379,24 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       });
       return;
     }
-    
+
     // Just update timestamp to trigger the useEffect which contains the retry logic
     setLastFetchTimestamp(now);
   };
 
   const handleSubmit: SubmitHandler<GoalFormValues> = async (data) => {
     setIsLoading(true);
-    
+
     try {
       // Validate the data against our schema
       const validationResult = goalSchema.safeParse(data);
-      
+
       if (!validationResult.success) {
         console.error('[GOAL_VALIDATION_ERROR]', {
           errors: validationResult.error.flatten(),
           timestamp: new Date().toISOString()
         });
-        
+
         // Set form errors
         const fieldErrors = validationResult.error.flatten().fieldErrors;
         (Object.keys(fieldErrors) as Array<keyof typeof fieldErrors>).forEach(field => {
@@ -393,7 +405,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
             message: fieldErrors[field]?.[0]
           });
         });
-        
+
         toast.error('Please fill in all required fields correctly');
         return;
       }
@@ -407,6 +419,8 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
         deadline: data.deadline,
         type: data.type,
         status: data.status || GOAL_STATUS.IN_PROGRESS,
+        milestones: Array.isArray(data.milestones) ? data.milestones : [],
+        growthPlan: data.growthPlan || ""
       };
 
       console.log('[GOAL_SUBMIT]', {
@@ -420,28 +434,30 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
         const apiData = {
           title: data.title,
           description: data.description || "",
-          target: { 
-            value: Number(data.target)  // Ensure it's converted to a number
+          target: {
+            value: Number(data.target)
           },
-          progress: { 
-            value: Number(data.current), // Ensure it's converted to a number
+          progress: {
+            value: Number(data.current),
             lastUpdated: new Date().toISOString()
           },
           startDate: new Date(currentEditingGoal.createdAt),
           dueDate: new Date(data.deadline),
           type: data.type,
           status: data.status || GOAL_STATUS.IN_PROGRESS,
+          milestones: Array.isArray(data.milestones) ? data.milestones : [],
+          growthPlan: data.growthPlan || ""
         };
-        
+
         console.log('[UPDATE_GOAL_DATA]', {
           goalId: currentEditingGoal.ulid,
           data: apiData,
           timestamp: new Date().toISOString()
         });
-        
-        const result = await updateOrganizationGoal({ 
+
+        const result = await updateOrganizationGoal({
           goalUlid: currentEditingGoal.ulid,
-          data: apiData 
+          data: apiData
         });
         if (result.error) {
           console.error('[UPDATE_GOAL_ERROR]', {
@@ -457,7 +473,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
           // Transform the data to match the ClientGoal interface
           const clientGoals: ClientGoal[] = freshGoals.map(goal => {
             const typedGoal = goal as any;
-            
+
             // Parse target value correctly
             let targetValue = 0;
             if (typedGoal.target) {
@@ -477,7 +493,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 });
               }
             }
-            
+
             // Parse progress value correctly
             let progressValue = 0;
             if (typedGoal.progress) {
@@ -497,7 +513,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 });
               }
             }
-            
+
             // Parse the due date correctly
             let deadline = typedGoal.dueDate;
             if (deadline) {
@@ -515,7 +531,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 });
               }
             }
-            
+
             return {
               ulid: typedGoal.ulid,
               userUlid: typedGoal.userUlid,
@@ -533,14 +549,14 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
               user: typedGoal.user
             };
           });
-          
+
           setGoals(clientGoals);
         }
       } else {
         // For new goals, use the form values
         await onSubmit(formValues);
       }
-      
+
       toast.success(`Goal ${currentEditingGoal ? 'updated' : 'created'} successfully!`);
       handleCloseForm();
     } catch (error) {
@@ -560,7 +576,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       goal,
       timestamp: new Date().toISOString()
     });
-    
+
     // Reset form
     form.reset({
       title: goal.title,
@@ -570,9 +586,11 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       current: typeof goal.current === 'number' ? goal.current : Number(goal.current) || 0,
       deadline: goal.deadline || new Date().toISOString().split('T')[0],
       type: goal.type,
-      status: goal.status
+      status: goal.status,
+      milestones: Array.isArray(goal.milestones) ? goal.milestones : [],
+      growthPlan: goal.growthPlan || ''
     });
-    
+
     setCurrentEditingGoal(goal);
     setIsFormOpen(true);
   };
@@ -588,6 +606,8 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       status: GOAL_STATUS.IN_PROGRESS,
       type: GOAL_TYPE.CUSTOM,
       deadline: new Date().toISOString().split('T')[0],
+      milestones: [],
+      growthPlan: ""
     })
   }
 
@@ -601,6 +621,8 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       status: GOAL_STATUS.IN_PROGRESS,
       type: GOAL_TYPE.CUSTOM,
       deadline: new Date().toISOString().split('T')[0],
+      milestones: [],
+      growthPlan: ""
     })
     setIsFormOpen(true)
   }
@@ -636,10 +658,10 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
   const getProgressPercentage = (current: number, target: number) => {
     if (!target || target <= 0) return 0;
     if (current >= target) return 100;
-    
+
     // Calculate percentage with safety checks
     const percentage = Math.min(100, Math.max(0, (current / target) * 100));
-    
+
     // If it's not a valid number, return 0
     return isNaN(percentage) || !isFinite(percentage) ? 0 : percentage;
   };
@@ -653,20 +675,20 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
       case "avg_sale_price":
       case "session_revenue":
         return "currency"
-      
+
       // Percentage format
       case "market_share":
       case "client_retention":
       case "mentee_satisfaction":
       case "session_completion":
         return "percentage"
-      
+
       // Time format (hours)
       case "response_time":
       case "training_hours":
       case "days_on_market":
         return "time"
-      
+
       // Number format (default)
       default:
         return "number"
@@ -710,13 +732,13 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
     { value: "commission_income", label: "Commission Income ($)", group: "Financial" },
     { value: "gci", label: "Gross Commission Income ($)", group: "Financial" },
     { value: "avg_sale_price", label: "Average Sale Price ($)", group: "Financial" },
-    
+
     // Transaction Goals
     { value: "listings", label: "Number of Listings", group: "Transactions" },
     { value: "buyer_transactions", label: "Buyer Transactions", group: "Transactions" },
     { value: "closed_deals", label: "Closed Deals", group: "Transactions" },
     { value: "days_on_market", label: "Days on Market", group: "Transactions" },
-    
+
     // Coaching & Mentorship Goals
     { value: "coaching_sessions", label: "1:1 Coaching Sessions", group: "Coaching & Mentorship" },
     { value: "group_sessions", label: "Group Coaching Sessions", group: "Coaching & Mentorship" },
@@ -726,24 +748,24 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
     { value: "response_time", label: "Avg. Response Time (hrs)", group: "Coaching & Mentorship" },
     { value: "session_completion", label: "Session Completion Rate", group: "Coaching & Mentorship" },
     { value: "mentee_milestones", label: "Mentee Milestones Achieved", group: "Coaching & Mentorship" },
-    
+
     // Client Goals
     { value: "new_clients", label: "New Clients", group: "Client Goals" },
     { value: "referrals", label: "Referrals", group: "Client Goals" },
     { value: "client_retention", label: "Client Retention Rate (%)", group: "Client Goals" },
     { value: "reviews", label: "Reviews/Testimonials", group: "Client Goals" },
-    
+
     // Market Presence
     { value: "market_share", label: "Market Share (%)", group: "Market Presence" },
     { value: "territory_expansion", label: "New Territories", group: "Market Presence" },
     { value: "social_media", label: "Social Media Growth", group: "Market Presence" },
     { value: "website_traffic", label: "Website Visitors", group: "Market Presence" },
-    
+
     // Professional Development
     { value: "certifications", label: "Certifications", group: "Professional Development" },
     { value: "training_hours", label: "Training Hours", group: "Professional Development" },
     { value: "networking_events", label: "Networking Events", group: "Professional Development" },
-    
+
     // Other
     { value: "custom", label: "Custom Goal", group: "Other" },
   ]
@@ -756,23 +778,6 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
     <div className="space-y-8">
       {/* Goals List */}
       <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <h3 className="text-lg font-semibold">Your Goals</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              Goals are visible to coaches you have booked sessions with and to your brokerage if connected
-            </p>
-          </div>
-          <Button 
-            onClick={handleAddNewGoal}
-            className="flex items-center gap-2"
-            disabled={isLoading || isInitialLoading}
-          >
-            <PlusCircle className="h-4 w-4" />
-            Add New Goal
-          </Button>
-        </div>
-
         {isInitialLoading ? (
           <Card className="p-8">
             <div className="flex items-center justify-center">
@@ -792,105 +797,51 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
           <div className="flex flex-col gap-8">
             {personalGoals.length > 0 && (
               <div>
-                <h4 className="text-md font-semibold mb-4">Your Personal Goals</h4>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-md font-semibold">Your Personal Goals</h4>
+                  <Button
+                    onClick={handleAddNewGoal}
+                    className="flex items-center gap-2"
+                    disabled={isLoading || isInitialLoading}
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Add New Goal
+                  </Button>
+                </div>
+                <div className="space-y-4">
                   {personalGoals.map((goal) => (
-                    <Card key={goal.ulid} className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h4 className="font-semibold">{goal.title}</h4>
-                          <Badge variant="secondary" className="mt-1 flex items-center gap-1.5">
-                            {getGoalTypeIcon(goal.type)}
-                            {goal.type.split('_').map(word => 
-                              word.charAt(0).toUpperCase() + word.slice(1)
-                            ).join(' ')}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={getStatusColor(goal.status)}>
-                            {goal.status.replace(/_/g, " ").toUpperCase()}
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditGoal(goal)}
-                            className="h-8 w-8 p-0"
-                            disabled={isLoading}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-2">{goal.description}</p>
-                      <div className="mt-4 space-y-2">
-                        <div className="text-sm font-medium text-gray-700">Progress:</div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-gray-200 rounded-full">
-                            <div 
-                              className="h-2 bg-blue-500 rounded-full"
-                              style={{ width: `${getProgressPercentage(goal.current, goal.target)}%` }}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-600">
-                            {formatValue(goal.current, getFormatForGoalType(goal.type))} / {formatValue(goal.target, getFormatForGoalType(goal.type))}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-2 text-sm text-gray-600">
-                        Deadline: {new Date(goal.deadline).toLocaleDateString()}
-                      </div>
-                    </Card>
+                    <GoalCard 
+                      key={goal.ulid}
+                      goal={goal}
+                      formatValue={formatValue}
+                      getFormatForGoalType={getFormatForGoalType}
+                      getProgressPercentage={getProgressPercentage}
+                      getStatusColor={getStatusColor}
+                      onEditGoal={handleEditGoal}
+                      onUpdateProgress={() => handleEditGoal(goal)}
+                      getGoalTypeIcon={getGoalTypeIcon}
+                    />
                   ))}
                 </div>
               </div>
             )}
-            
+
             {organizationGoals.length > 0 && (
               <div>
                 <h4 className="text-md font-semibold mb-4">Organization Goals</h4>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-4">
                   {organizationGoals.map((goal) => (
-                    <Card key={goal.ulid} className="p-4 border-indigo-300">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-semibold">{goal.title}</h4>
-                            {goal.organization && (
-                              <Badge variant="outline" className="bg-indigo-50">
-                                {goal.organization.name}
-                              </Badge>
-                            )}
-                          </div>
-                          <Badge variant="secondary" className="mt-1 flex items-center gap-1.5">
-                            {getGoalTypeIcon(goal.type)}
-                            {goal.type.split('_').map(word => 
-                              word.charAt(0).toUpperCase() + word.slice(1)
-                            ).join(' ')}
-                          </Badge>
-                        </div>
-                        <Badge className={getStatusColor(goal.status)}>
-                          {goal.status.replace(/_/g, " ").toUpperCase()}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-2">{goal.description}</p>
-                      <div className="mt-4 space-y-2">
-                        <div className="text-sm font-medium text-gray-700">Progress:</div>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-2 bg-gray-200 rounded-full">
-                            <div 
-                              className="h-2 bg-indigo-500 rounded-full"
-                              style={{ width: `${getProgressPercentage(goal.current, goal.target)}%` }}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-600">
-                            {formatValue(goal.current, getFormatForGoalType(goal.type))} / {formatValue(goal.target, getFormatForGoalType(goal.type))}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-2 text-sm text-gray-600">
-                        Deadline: {new Date(goal.deadline).toLocaleDateString()}
-                      </div>
-                    </Card>
+                    <GoalCard 
+                      key={goal.ulid}
+                      goal={goal}
+                      formatValue={formatValue}
+                      getFormatForGoalType={getFormatForGoalType}
+                      getProgressPercentage={getProgressPercentage}
+                      getStatusColor={getStatusColor}
+                      onEditGoal={handleEditGoal}
+                      onUpdateProgress={() => handleEditGoal(goal)}
+                      getGoalTypeIcon={getGoalTypeIcon}
+                    />
                   ))}
                 </div>
               </div>
@@ -933,13 +884,13 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Goal Type <span className="text-destructive">*</span></FormLabel>
-                    <Select 
+                    <Select
                       onValueChange={(value: GoalType) => {
                         field.onChange(value)
                         // Reset target and current values when type changes to prevent formatting issues
                         form.setValue("target", 0)
                         form.setValue("current", 0)
-                      }} 
+                      }}
                       defaultValue={field.value}
                     >
                       <FormControl>
@@ -988,14 +939,14 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                           {getFormatForGoalType(form.getValues("type")) === "currency" && (
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                           )}
-                          <Input 
+                          <Input
                             type="number"
                             placeholder="Enter your target value"
                             {...field}
                             value={field.value || ""}
                             className={
-                              getFormatForGoalType(form.getValues("type")) === "currency" 
-                                ? "pl-7" 
+                              getFormatForGoalType(form.getValues("type")) === "currency"
+                                ? "pl-7"
                                 : getFormatForGoalType(form.getValues("type")) === "percentage" || getFormatForGoalType(form.getValues("type")) === "time"
                                   ? "pr-12"
                                   : ""
@@ -1031,14 +982,14 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                           {getFormatForGoalType(form.getValues("type")) === "currency" && (
                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
                           )}
-                          <Input 
+                          <Input
                             type="number"
                             placeholder="Enter current progress"
                             {...field}
                             value={field.value || ""}
                             className={
-                              getFormatForGoalType(form.getValues("type")) === "currency" 
-                                ? "pl-7" 
+                              getFormatForGoalType(form.getValues("type")) === "currency"
+                                ? "pl-7"
                                 : getFormatForGoalType(form.getValues("type")) === "percentage" || getFormatForGoalType(form.getValues("type")) === "time"
                                   ? "pr-12"
                                   : ""
@@ -1085,7 +1036,7 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                   <FormItem>
                     <FormLabel>Description <span className="text-muted-foreground text-sm">(Optional)</span></FormLabel>
                     <FormControl>
-                      <Textarea 
+                      <Textarea
                         {...field}
                         value={field.value ?? ""}
                         placeholder="Add additional details about your goal"
@@ -1119,13 +1070,94 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="growthPlan"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Growth Plan <span className="text-muted-foreground text-sm">(Optional)</span></FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        value={field.value ?? ""}
+                        placeholder="Brief statement about your growth strategy"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div>
+                <FormLabel>Milestones <span className="text-muted-foreground text-sm">(Optional)</span></FormLabel>
+                <div className="space-y-2 mt-2">
+                  {(form.getValues("milestones") || []).map((milestone, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div className="flex-grow flex items-center gap-2">
+                        <Input
+                          value={milestone.title}
+                          onChange={(e) => {
+                            const milestones = form.getValues("milestones") || [];
+                            const updatedMilestones = [...milestones];
+                            updatedMilestones[index].title = e.target.value;
+                            form.setValue("milestones", updatedMilestones);
+                          }}
+                          placeholder="Milestone title"
+                        />
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={milestone.completed}
+                            onChange={(e) => {
+                              const milestones = form.getValues("milestones") || [];
+                              const updatedMilestones = [...milestones];
+                              updatedMilestones[index].completed = e.target.checked;
+                              form.setValue("milestones", updatedMilestones);
+                            }}
+                          />
+                          <span className="ml-2 text-sm">Completed</span>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-destructive"
+                        onClick={() => {
+                          const milestones = form.getValues("milestones") || [];
+                          const updatedMilestones = milestones.filter((_, i) => i !== index);
+                          form.setValue("milestones", updatedMilestones);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const currentMilestones = form.getValues("milestones") || [];
+                      form.setValue("milestones", [
+                        ...currentMilestones,
+                        { title: "", completed: false }
+                      ]);
+                    }}
+                  >
+                    Add Milestone
+                  </Button>
+                </div>
+              </div>
+
               <div className="flex justify-between items-center gap-3">
                 {currentEditingGoal && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
+                      <Button
+                        type="button"
+                        variant="ghost"
                         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                         disabled={isLoading}
                       >
@@ -1152,9 +1184,9 @@ const GoalsForm = ({ open, onClose, onSubmit }: GoalsFormProps) => {
                   </AlertDialog>
                 )}
                 <div className="flex gap-3 ml-auto">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={handleCloseForm}
                     disabled={isLoading}
                   >

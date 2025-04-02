@@ -62,6 +62,13 @@ export const GoalSchema = z.object({
   deadline: z.string().min(1, "Deadline is required"),
   type: z.enum(Object.values(GOAL_TYPE) as [string, ...string[]]),
   status: z.enum(Object.values(GOAL_STATUS) as [string, ...string[]]).default(GOAL_STATUS.IN_PROGRESS),
+  milestones: z.array(
+    z.object({
+      title: z.string().min(1, "Milestone title is required"),
+      completed: z.boolean().default(false)
+    })
+  ).optional().default([]),
+  growthPlan: z.string().optional(),
 });
 
 // Update Goal Schema for validation
@@ -76,20 +83,32 @@ export const UpdateGoalSchema = z.object({
   deadline: z.string().min(1, "Deadline is required").optional(),
   type: z.enum(Object.values(GOAL_TYPE) as [string, ...string[]]).optional(),
   status: z.enum(Object.values(GOAL_STATUS) as [string, ...string[]]).optional(),
+  milestones: z.array(
+    z.object({
+      title: z.string().min(1, "Milestone title is required"),
+      completed: z.boolean().default(false)
+    })
+  ).optional(),
+  growthPlan: z.string().optional(),
 });
+
+// Add to this file the additional properties needed for milestones and growth plan
+export interface Milestone {
+  title: string;
+  completed: boolean;
+}
 
 // Form types
 export interface GoalFormValues {
   title: string;
   description?: string;
-  // Maps to target JSON in database
   target: number;
-  // Maps to progress JSON in database
   current: number;
-  // Maps to dueDate in database
   deadline: string;
   type: GoalType;
-  status: GoalStatus;
+  status?: GoalStatus;
+  milestones?: Milestone[];
+  growthPlan?: string;
 }
 
 // Database types
@@ -135,6 +154,8 @@ export interface ClientGoal {
     email?: string;
     profileImageUrl?: string;
   };
+  milestones?: Milestone[];
+  growthPlan?: string;
 }
 
 // Input types

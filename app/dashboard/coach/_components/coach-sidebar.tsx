@@ -117,10 +117,7 @@ export function CoachSidebar() {
             {/* Resource Library */}
             <Separator className="my-3" />
             <NavLink href="/dashboard/coach/goals" icon={Target}>
-              Goals
-            </NavLink>
-            <NavLink href="/dashboard/coach/plans" icon={ListChecks}>
-              Plans
+              Goals & Plans
             </NavLink>
             <NavLink href="/dashboard/coach/library" icon={BookOpen}>
               <div className="flex items-center gap-2">
