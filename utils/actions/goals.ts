@@ -547,6 +547,46 @@ export const updateOrganizationGoal = withServerAction<any, {goalUlid: string, d
       const validatedData = updateGoalSchema.parse(data);
       const supabase = await createAuthClient();
       
+      // Handle automatic goal status changes based on progress vs target
+      if (validatedData.progress && 
+          validatedData.target && 
+          'value' in validatedData.progress &&
+          'value' in validatedData.target &&
+          typeof validatedData.progress.value === 'number' && 
+          typeof validatedData.target.value === 'number') {
+          
+        // Scenario 1: Auto-complete when progress >= target
+        if (validatedData.progress.value >= validatedData.target.value &&
+            validatedData.status !== GOAL_STATUS.COMPLETED) {
+          
+          console.log('[SERVER_AUTO_COMPLETING_GOAL]', {
+            goalId: goalUlid,
+            progress: validatedData.progress.value,
+            target: validatedData.target.value,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Set to COMPLETED
+          validatedData.status = GOAL_STATUS.COMPLETED;
+          validatedData.completedAt = new Date();
+        } 
+        // Scenario 2: Revert to in-progress when progress < target for completed goals
+        else if (validatedData.progress.value < validatedData.target.value &&
+                validatedData.status === GOAL_STATUS.COMPLETED) {
+          
+          console.log('[REVERTING_GOAL_TO_IN_PROGRESS]', {
+            goalId: goalUlid,
+            progress: validatedData.progress.value,
+            target: validatedData.target.value,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Revert to IN_PROGRESS
+          validatedData.status = GOAL_STATUS.IN_PROGRESS;
+          validatedData.completedAt = null;
+        }
+      }
+      
       // Prepare update data with only changed fields
       const updateData: any = {
         updatedAt: new Date().toISOString()
@@ -613,6 +653,9 @@ export const updateOrganizationGoal = withServerAction<any, {goalUlid: string, d
         updateData,
         hasMilestones: 'milestones' in updateData,
         hasGrowthPlan: 'growthPlan' in updateData,
+        statusChanged: validatedData.status !== data.status,
+        autoCompleted: validatedData.status === GOAL_STATUS.COMPLETED && data.status !== GOAL_STATUS.COMPLETED,
+        autoReverted: validatedData.status === GOAL_STATUS.IN_PROGRESS && data.status === GOAL_STATUS.COMPLETED,
         timestamp: new Date().toISOString()
       });
       

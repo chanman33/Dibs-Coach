@@ -217,6 +217,7 @@ function GoalsPageContent() {
           <GrowthJourneyStats
             currentGoals={formattedGoals}
             completedGoals={completedGoals}
+            key={`growth-stats-${refreshKey}`}
           />
         </div>
       )}

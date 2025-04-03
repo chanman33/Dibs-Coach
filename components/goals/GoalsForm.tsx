@@ -273,6 +273,7 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
   const [lastFetchTimestamp, setLastFetchTimestamp] = useState<number>(0);
   const FETCH_COOLDOWN = 2000; // 2 seconds cooldown between fetches
   const [milestoneCount, setMilestoneCount] = useState(0);
+  const [showCompletedGoals, setShowCompletedGoals] = useState(false);
 
   const form = useForm<GoalFormValues>({
     resolver: zodResolver(goalSchema),
@@ -581,6 +582,21 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
       });
 
       if (currentEditingGoal) {
+        // Check if goal should be automatically marked as completed
+        // When current value meets or exceeds target value
+        const shouldAutoComplete = 
+          Number(data.current) >= Number(data.target) && 
+          data.status !== GOAL_STATUS.COMPLETED;
+
+        if (shouldAutoComplete) {
+          console.log('[AUTO_COMPLETING_GOAL]', {
+            goalId: currentEditingGoal.ulid,
+            current: Number(data.current),
+            target: Number(data.target),
+            timestamp: new Date().toISOString()
+          });
+        }
+        
         // For editing, format data for the updateOrganizationGoal API
         const apiData = {
           title: data.title,
@@ -595,7 +611,10 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
           startDate: new Date(currentEditingGoal.createdAt),
           dueDate: new Date(data.deadline),
           type: data.type,
-          status: data.status || GOAL_STATUS.IN_PROGRESS,
+          // Auto mark as completed if current >= target
+          status: shouldAutoComplete ? GOAL_STATUS.COMPLETED : (data.status || GOAL_STATUS.IN_PROGRESS),
+          // Set completedAt date if auto-completing
+          completedAt: shouldAutoComplete ? new Date() : null,
           // Explicitly include milestones as a properly structured array
           milestones: formValues.milestones,
           growthPlan: data.growthPlan || ""
@@ -604,6 +623,7 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
         console.log('[UPDATE_GOAL_DATA]', {
           goalId: currentEditingGoal.ulid,
           data: apiData,
+          autoCompleted: shouldAutoComplete,
           milestones: apiData.milestones,
           timestamp: new Date().toISOString()
         });
@@ -696,6 +716,23 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
     // Parse milestones for consistent handling
     const parsedMilestones = parseMilestones(goal.milestones);
     
+    // Check if goal should be marked as completed based on current/target values
+    const shouldAutoComplete = 
+      typeof goal.current === 'number' && 
+      typeof goal.target === 'number' && 
+      goal.current >= goal.target && 
+      goal.status !== GOAL_STATUS.COMPLETED;
+    
+    if (shouldAutoComplete) {
+      console.log('[AUTO_COMPLETE_DETECTED]', {
+        goalId: goal.ulid,
+        current: goal.current,
+        target: goal.target,
+        status: goal.status,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
     // Reset form
     form.reset({
       title: goal.title,
@@ -705,7 +742,8 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
       current: typeof goal.current === 'number' ? goal.current : Number(goal.current) || 0,
       deadline: goal.deadline || new Date().toISOString().split('T')[0],
       type: goal.type,
-      status: goal.status,
+      // Auto-set status to completed if current >= target
+      status: shouldAutoComplete ? GOAL_STATUS.COMPLETED : goal.status,
       milestones: parsedMilestones,
       growthPlan: goal.growthPlan || ''
     });
@@ -890,8 +928,20 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
   ]
 
   // Group goals by personal and organization
-  const personalGoals = goals.filter(goal => !goal.organizationUlid || goal.userUlid === goal.organizationUlid);
-  const organizationGoals = goals.filter(goal => goal.organizationUlid && goal.userUlid !== goal.organizationUlid);
+  const personalGoals = goals.filter(goal => 
+    (!goal.organizationUlid || goal.userUlid === goal.organizationUlid) && 
+    goal.status !== GOAL_STATUS.COMPLETED
+  );
+  
+  const organizationGoals = goals.filter(goal => 
+    goal.organizationUlid && 
+    goal.userUlid !== goal.organizationUlid && 
+    goal.status !== GOAL_STATUS.COMPLETED
+  );
+  
+  const completedGoals = goals.filter(goal => 
+    goal.status === GOAL_STATUS.COMPLETED
+  );
 
   return (
     <div className="space-y-8">
@@ -912,13 +962,29 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
               </Button>
             </div>
           </Card>
+        ) : personalGoals.length === 0 && organizationGoals.length === 0 && completedGoals.length > 0 ? (
+          <Card className="p-8 mb-8">
+            <div className="text-center text-gray-500">
+              <p className="mb-4">All your goals are completed! 🎉</p>
+              <Button onClick={handleAddNewGoal} variant="outline" disabled={isLoading}>
+                Create New Goal
+              </Button>
+            </div>
+          </Card>
         ) : (
           <div className="flex flex-col gap-8">
             {/* For personal goals */}
             {personalGoals.length > 0 && (
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-md font-semibold">Your Personal Goals</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-md font-semibold">Your Personal Goals</h4>
+                    {personalGoals.length > 0 && (
+                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                        {personalGoals.length}
+                      </Badge>
+                    )}
+                  </div>
                   <Button
                     onClick={handleAddNewGoal}
                     className="flex items-center gap-2"
@@ -958,7 +1024,14 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
             {/* For organization goals */}
             {organizationGoals.length > 0 && (
               <div>
-                <h4 className="text-md font-semibold mb-4">Organization Goals</h4>
+                <h4 className="text-md font-semibold mb-4">
+                  Organization Goals
+                  {organizationGoals.length > 0 && (
+                    <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-700 border-blue-200">
+                      {organizationGoals.length}
+                    </Badge>
+                  )}
+                </h4>
                 <div className="space-y-4">
                   {organizationGoals.map((goal) => (
                     <GoalCard 
@@ -985,6 +1058,61 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
                 </div>
               </div>
             )}
+            
+            {/* For completed goals */}
+            {(() => {
+              return completedGoals.length > 0 ? (
+                <div className={organizationGoals.length > 0 || personalGoals.length > 0 ? "mt-8" : ""}>
+                  <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-md font-semibold">Completed Goals</h4>
+                      <Badge className="bg-green-100 text-green-700 border-green-200">
+                        {completedGoals.length}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowCompletedGoals(!showCompletedGoals)}
+                      className="flex items-center gap-1 text-xs"
+                    >
+                      {showCompletedGoals ? (
+                        <>Hide</>
+                      ) : (
+                        <>Show</>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {showCompletedGoals && (
+                    <div className="space-y-4">
+                      {completedGoals.map((goal) => (
+                        <GoalCard 
+                          key={goal.ulid}
+                          goal={goal}
+                          formatValue={formatValue}
+                          getFormatForGoalType={getFormatForGoalType}
+                          getProgressPercentage={getProgressPercentage}
+                          getStatusColor={getStatusColor}
+                          onEditGoal={handleEditGoal}
+                          onUpdateProgress={() => handleEditGoal(goal)}
+                          getGoalTypeIcon={getGoalTypeIcon}
+                          onMilestoneUpdated={() => {
+                            // Force a refresh when milestone is updated
+                            loadGoals();
+                            
+                            // Also notify parent
+                            if (onGoalUpdated) {
+                              onGoalUpdated();
+                            }
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null;
+            })()}
           </div>
         )}
       </div>

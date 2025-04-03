@@ -1,14 +1,14 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Target } from "lucide-react"
+import { Target, CheckCircle2, Award, Trophy, Info } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
-import { ClientGoal, GoalType, Milestone } from "@/utils/types/goals"
+import { ClientGoal, GoalType, Milestone, GOAL_STATUS } from "@/utils/types/goals"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
-import { updateGoalMilestone } from "@/utils/actions/goals"
+import { updateGoalMilestone, updateOrganizationGoal } from "@/utils/actions/goals"
 import React, { useState, useEffect } from "react"
 
 interface GoalCardProps {
@@ -71,6 +71,8 @@ export function GoalCard({
   getGoalTypeIcon
 }: GoalCardProps) {
   const [updatingMilestone, setUpdatingMilestone] = useState<number | null>(null);
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false);
+  
   // Parse milestones safely
   const [milestones, setMilestones] = useState<Milestone[]>(() => 
     parseMilestones(goal.milestones)
@@ -141,8 +143,60 @@ export function GoalCard({
     }
   };
 
+  // Handler for quick goal completion
+  const handleMarkAsCompleted = async () => {
+    if (!goal.ulid) return;
+    
+    setIsMarkingComplete(true);
+    
+    try {
+      const { data, error } = await updateOrganizationGoal({
+        goalUlid: goal.ulid,
+        data: {
+          status: GOAL_STATUS.COMPLETED,
+          completedAt: new Date(),
+        }
+      });
+      
+      if (error) {
+        console.error('[MARK_GOAL_COMPLETE_ERROR]', {
+          error,
+          goalId: goal.ulid,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Failed to complete goal");
+        return;
+      }
+      
+      toast.success("Goal completed! 🎉");
+      
+      // Trigger parent callback to refresh goals
+      if (onMilestoneUpdated) {
+        onMilestoneUpdated();
+      }
+    } catch (error) {
+      console.error('[MARK_GOAL_COMPLETE_ERROR]', {
+        error,
+        goalId: goal.ulid,
+        timestamp: new Date().toISOString()
+      });
+      toast.error("Failed to complete goal");
+    } finally {
+      setIsMarkingComplete(false);
+    }
+  };
+
   return (
-    <Card className="w-full">
+    <Card className={cn(
+      "w-full relative", 
+      goal.status === GOAL_STATUS.COMPLETED && "border-green-200 bg-green-50"
+    )}>
+      {goal.status === GOAL_STATUS.COMPLETED && (
+        <div className="absolute top-2 right-2 bg-green-100 text-green-700 px-2 py-1 rounded-sm text-xs font-medium flex items-center">
+          <Trophy className="h-3 w-3 mr-1" />
+          Completed
+        </div>
+      )}
       <CardHeader>
         <div className="flex justify-between items-start mb-2">
           <div>
@@ -150,15 +204,19 @@ export function GoalCard({
               {getGoalTypeIcon ? getGoalTypeIcon(goal.type) : <Target className="h-5 w-5 text-primary" />}
               {goal.title}
             </CardTitle>
-            <Badge variant="secondary" className="mt-1 flex items-center gap-1.5">
-              {goal.type.split('_').map(word =>
-                word.charAt(0).toUpperCase() + word.slice(1)
-              ).join(' ')}
-            </Badge>
+            <div className="mt-1">
+              <Badge variant="secondary" className="inline-flex items-center justify-center whitespace-nowrap gap-1.5 px-2 py-0.5 text-xs font-medium">
+                {goal.type.split('_').map(word =>
+                  word.charAt(0).toUpperCase() + word.slice(1)
+                ).join(' ')}
+              </Badge>
+            </div>
           </div>
-          <Badge className={getStatusColor(goal.status)}>
-            {goal.status.replace(/_/g, " ").toUpperCase()}
-          </Badge>
+          {goal.status !== GOAL_STATUS.COMPLETED && (
+            <Badge className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 text-xs font-medium ${getStatusColor(goal.status)}`}>
+              {goal.status.replace(/_/g, " ").toUpperCase()}
+            </Badge>
+          )}
         </div>
         <p className="text-sm text-gray-600 mt-2">
           {goal.description || 'No description provided.'}
@@ -181,7 +239,10 @@ export function GoalCard({
             </div>
             <div className="flex-1 h-2 bg-gray-200 rounded-full">
               <div
-                className="h-2 bg-blue-500 rounded-full"
+                className={cn(
+                  "h-2 rounded-full",
+                  goal.current >= goal.target ? "bg-green-500" : "bg-blue-500"
+                )}
                 style={{ width: `${getProgressPercentage(goal.current, goal.target)}%` }}
               />
             </div>
