@@ -16,8 +16,11 @@ export async function makeCalApiRequest({
   const baseUrl = 'https://api.cal.com/v2'
   const url = `${baseUrl}${endpoint}`
 
+  // Always include client credentials for managed users
   const defaultHeaders = {
     'Content-Type': 'application/json',
+    'x-cal-client-id': env.NEXT_PUBLIC_CAL_CLIENT_ID || '',
+    'x-cal-secret-key': env.CAL_CLIENT_SECRET || '',
     ...headers
   }
 
