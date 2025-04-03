@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { fetchCalIntegrationStatus, type CalIntegrationDetails } from '@/utils/actions/cal-integration-actions'
-import { CheckCircle, RefreshCw, CalendarDays, AlertTriangle, Unlink } from 'lucide-react'
+import { CheckCircle, RefreshCw, CalendarDays, AlertTriangle, Unlink, RotateCw } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { format } from 'date-fns'
@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { toast } from 'react-hot-toast'
+import { refreshUserCalTokens } from '@/utils/actions/cal-tokens'
 
 interface CalConnectedStatusProps {
   className?: string
@@ -25,6 +26,7 @@ export function CalConnectedStatus({ className, onStatusChange }: CalConnectedSt
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reconnecting, setReconnecting] = useState(false)
+  const [refreshingToken, setRefreshingToken] = useState(false)
 
   const fetchIntegrationStatus = async () => {
     setLoading(true)
@@ -42,10 +44,17 @@ export function CalConnectedStatus({ className, onStatusChange }: CalConnectedSt
           isConnected: result.data?.isConnected,
           calManagedUserId: result.data?.calManagedUserId,
           verifiedWithCal: result.data?.verifiedWithCal,
+          tokenStatus: result.data?.tokenStatus,
           verificationResponse: result.data?.['verificationResponse'] || 'Not available',
           timeZone: result.data?.timeZone,
           createdAt: result.data?.createdAt
         })
+        
+        // Token was auto-refreshed during fetch - show success toast
+        if (result.data?.tokenStatus === 'refreshed' && integration?.tokenStatus !== 'refreshed') {
+          toast.success('Calendar token was automatically refreshed');
+        }
+        
         setIntegration(result.data)
         setError(null)
         onStatusChange?.(result.data?.isConnected || false)
@@ -57,6 +66,41 @@ export function CalConnectedStatus({ className, onStatusChange }: CalConnectedSt
       onStatusChange?.(false)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTokenRefresh = async () => {
+    if (!user) {
+      toast.error("User authentication required");
+      return;
+    }
+    
+    try {
+      setRefreshingToken(true)
+      // Get the user ULID first
+      const ulIdResponse = await fetch('/api/user/ulid', {
+        method: 'GET'
+      });
+      
+      const ulIdData = await ulIdResponse.json();
+      if (ulIdData.error || !ulIdData.ulid) {
+        throw new Error(ulIdData.error || 'Failed to get user ID');
+      }
+      
+      // Refresh the tokens using the server action
+      const refreshResult = await refreshUserCalTokens(ulIdData.ulid, true); // Force refresh
+      
+      if (!refreshResult.success) {
+        throw new Error(refreshResult.error || 'Token refresh failed');
+      }
+      
+      toast.success('Calendar tokens refreshed successfully!');
+      fetchIntegrationStatus(); // Refresh the status
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      toast.error('Failed to refresh calendar tokens');
+    } finally {
+      setRefreshingToken(false);
     }
   }
 
@@ -151,6 +195,12 @@ export function CalConnectedStatus({ className, onStatusChange }: CalConnectedSt
                     <span>Timezone: {integration.timeZone}</span>
                   </>
                 )}
+                {integration.tokenStatus && (
+                  <>
+                    <span className="text-gray-300">•</span>
+                    <span>Token: {integration.tokenStatus}</span>
+                  </>
+                )}
               </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {integration.createdAt && (
@@ -163,20 +213,45 @@ export function CalConnectedStatus({ className, onStatusChange }: CalConnectedSt
                     Verification needed
                   </Badge>
                 )}
+                {integration.tokenStatus === 'expired' && (
+                  <Badge variant="outline" className="text-xs bg-red-50 text-red-800">
+                    Token expired
+                  </Badge>
+                )}
+                {integration.tokenStatus === 'refreshed' && (
+                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-800">
+                    Token refreshed
+                  </Badge>
+                )}
               </div>
               
-              {integration.verifiedWithCal === false && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="mt-3 gap-1 text-amber-600 border-amber-200 hover:bg-amber-50"
-                  onClick={handleReconnect}
-                  disabled={reconnecting}
-                >
-                  <Unlink className="h-3.5 w-3.5" />
-                  {reconnecting ? 'Reconnecting...' : 'Refresh Connection'}
-                </Button>
-              )}
+              <div className="flex gap-2 mt-3">
+                {integration.verifiedWithCal === false && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-1 text-amber-600 border-amber-200 hover:bg-amber-50"
+                    onClick={handleReconnect}
+                    disabled={reconnecting}
+                  >
+                    <Unlink className="h-3.5 w-3.5" />
+                    {reconnecting ? 'Reconnecting...' : 'Refresh Connection'}
+                  </Button>
+                )}
+                
+                {integration.tokenStatus === 'expired' && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                    onClick={handleTokenRefresh}
+                    disabled={refreshingToken}
+                  >
+                    <RotateCw className="h-3.5 w-3.5" />
+                    {refreshingToken ? 'Refreshing...' : 'Refresh Token'}
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
           

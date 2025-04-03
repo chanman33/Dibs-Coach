@@ -37,7 +37,11 @@ export interface CalIntegrationDetails {
   createdAt?: string
   verifiedWithCal?: boolean
   verificationResponse?: any
+  tokenStatus?: 'valid' | 'refreshed' | 'expired'
 }
+
+// Define token related error codes
+type CalTokenErrorCode = 'TOKEN_EXPIRED' | 'TOKEN_REFRESH_FAILED' | 'TOKEN_INVALID';
 
 /**
  * Fetch the current user's Cal.com integration status
@@ -78,10 +82,10 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
 
     console.log('[CAL_DEBUG] Found user ULID in database:', userData.ulid)
 
-    // Get the Cal.com integration for this user
+    // Get the Cal.com integration for this user with all needed token fields
     const { data: integration, error: integrationError } = await supabase
       .from('CalendarIntegration')
-      .select('calManagedUserId, calUsername, timeZone, createdAt')
+      .select('calManagedUserId, calUsername, timeZone, createdAt, calAccessToken, calRefreshToken, calAccessTokenExpiresAt')
       .eq('userUlid', userData.ulid)
       .maybeSingle()
 
@@ -110,32 +114,104 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
       calManagedUserId: integration.calManagedUserId,
       calUsername: integration.calUsername,
       timeZone: integration.timeZone,
-      createdAt: integration.createdAt
+      createdAt: integration.createdAt,
+      hasAccessToken: !!integration.calAccessToken,
+      hasRefreshToken: !!integration.calRefreshToken,
+      expiresAt: integration.calAccessTokenExpiresAt
     })
 
-    // Now verify with Cal.com API that the managed user still exists
-    let verifiedWithCal = false
-    let verificationResponse = null
+    // Token validity check - Step 1: Check if token is expired or expiring soon (using 5 minute buffer)
+    let tokenStatus: 'valid' | 'refreshed' | 'expired' = 'valid';
+    let accessToken = integration.calAccessToken;
+    let isTokenExpired = false;
+    
+    try {
+      // Use the utility function to check expiration with buffer
+      const { isCalTokenExpired } = await import('@/utils/auth/cal-token-service');
+      isTokenExpired = await isCalTokenExpired(integration.calAccessTokenExpiresAt, 5);
+      
+      console.log('[CAL_DEBUG] Token expiration check:', {
+        isExpired: isTokenExpired,
+        expiresAt: integration.calAccessTokenExpiresAt,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Step 2: If token is expired or expiring soon, try to refresh it
+      if (isTokenExpired) {
+        console.log('[CAL_DEBUG] Token expired or expiring soon, attempting refresh');
+        tokenStatus = 'expired';
+        
+        // Use the refreshUserCalTokens utility to refresh the token
+        const { refreshUserCalTokens } = await import('@/utils/actions/cal-tokens');
+        const refreshResult = await refreshUserCalTokens(userData.ulid);
+        
+        if (!refreshResult.success) {
+          console.error('[CAL_DEBUG] Token refresh failed:', refreshResult.error);
+          
+          // Check if managed user still exists before returning failure
+          const managedUserExists = await verifyManagedUser(integration.calManagedUserId);
+          
+          if (!managedUserExists) {
+            console.error('[CAL_DEBUG] Managed user no longer exists on Cal.com');
+            return {
+              data: { 
+                isConnected: false,
+                verifiedWithCal: false,
+                tokenStatus: 'expired'
+              },
+              error: { 
+                code: 'INTERNAL_ERROR' as ApiErrorCode,
+                message: 'Failed to refresh token and managed user may not exist'
+              }
+            };
+          }
+          
+          // Return partial success if user exists but token refresh failed
+          return {
+            data: {
+              isConnected: false,
+              calManagedUserId: integration.calManagedUserId,
+              calUsername: integration.calUsername,
+              timeZone: integration.timeZone,
+              createdAt: integration.createdAt,
+              verifiedWithCal: true, // User exists, just token issues
+              tokenStatus: 'expired'
+            },
+            error: {
+              code: 'INTERNAL_ERROR' as ApiErrorCode,
+              message: 'Calendar connection needs to be refreshed'
+            }
+          }
+        }
+        
+        // Token refreshed successfully
+        console.log('[CAL_DEBUG] Token refreshed successfully');
+        tokenStatus = 'refreshed';
+        
+        // Fetch updated integration data to get the new token
+        const { data: updatedIntegration, error: updatedError } = await supabase
+          .from('CalendarIntegration')
+          .select('calAccessToken')
+          .eq('userUlid', userData.ulid)
+          .single();
+        
+        if (!updatedError && updatedIntegration?.calAccessToken) {
+          accessToken = updatedIntegration.calAccessToken;
+        }
+      }
+    } catch (error) {
+      console.error('[CAL_DEBUG] Error during token expiry check or refresh:', error);
+      // Continue with the existing token even if expiry check fails
+    }
+    
+    // Step 3: Verify that the managed user still exists via Cal.com API
+    let verifiedWithCal = false;
+    let verificationResponse = null;
     
     try {
       if (integration.calManagedUserId) {
-        const calApiUrl = `/oauth-clients/${env.NEXT_PUBLIC_CAL_CLIENT_ID}/users/${integration.calManagedUserId}`;
-        console.log('[CAL_DEBUG] Verifying with Cal.com API:', calApiUrl);
-        
-        const responseData = await makeCalApiRequest({
-          endpoint: calApiUrl,
-          headers: getCalOAuthHeaders()
-        });
-        
-        verificationResponse = {
-          status: 200,
-          statusText: 'OK',
-          data: responseData
-        };
-        
-        console.log('[CAL_DEBUG] Cal.com API response:', verificationResponse);
-        verifiedWithCal = true;
-        console.log('[CAL_DEBUG] Verification successful');
+        verifiedWithCal = await verifyManagedUser(integration.calManagedUserId);
+        console.log('[CAL_DEBUG] Cal.com managed user verification result:', verifiedWithCal);
       } else {
         console.log('[CAL_DEBUG] No Cal.com managed user ID - cannot verify')
       }
@@ -146,45 +222,84 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
         userUlid: userData.ulid,
         timestamp: new Date().toISOString()
       });
-      
-      // If 404, the user was deleted or doesn't exist on Cal.com
-      if (error?.message?.includes('404')) {
-        console.log('[CAL_DEBUG] User exists in DB but not found on Cal.com (404 error)');
-        return {
-          data: { 
-            isConnected: false,
-            verifiedWithCal: false 
-          },
-          error: { 
-            code: 'NOT_FOUND',
-            message: 'User exists in database but was not found on Cal.com' 
+    }
+    
+    // Step 4: Optional but recommended - Verify token activeness with a call to /me endpoint
+    let tokenVerified = false;
+    
+    if (accessToken && !isTokenExpired) {
+      try {
+        console.log('[CAL_DEBUG] Verifying token activeness with /me endpoint');
+        
+        const meResponse = await fetch('https://api.cal.com/v2/me', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
           }
-        };
+        });
+        
+        if (meResponse.ok) {
+          tokenVerified = true;
+          console.log('[CAL_DEBUG] Token verification successful - /me endpoint accessible');
+        } else {
+          console.error('[CAL_DEBUG] Token verification failed - /me endpoint returned:', meResponse.status);
+          
+          if (meResponse.status === 401 || meResponse.status === 498) {
+            // Only try to refresh if we didn't already do it above
+            if (tokenStatus !== 'refreshed') {
+              console.log('[CAL_DEBUG] Unauthorized response from /me, attempting token refresh');
+              
+              const { refreshUserCalTokens } = await import('@/utils/actions/cal-tokens');
+              const refreshResult = await refreshUserCalTokens(userData.ulid);
+              
+              if (refreshResult.success) {
+                tokenStatus = 'refreshed';
+                tokenVerified = true;
+                console.log('[CAL_DEBUG] Token refreshed successfully after /me verification failure');
+              } else {
+                tokenStatus = 'expired';
+                console.error('[CAL_DEBUG] Token refresh failed after /me verification failure:', refreshResult.error);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[CAL_DEBUG] Error verifying token with /me endpoint:', error);
+        // Continue even if token verification fails
       }
     }
+    
+    // Only consider connected if we have valid tokens or managed user is verified
+    const isConnected = verifiedWithCal && (tokenStatus !== 'expired' || tokenVerified);
 
     // Integration found, return the details
     const result = {
       data: {
-        isConnected: true,
+        isConnected,
         calManagedUserId: integration.calManagedUserId,
         calUsername: integration.calUsername,
         timeZone: integration.timeZone,
         createdAt: integration.createdAt,
         verifiedWithCal,
-        verificationResponse
+        verificationResponse,
+        tokenStatus
       },
-      error: null
+      error: !isConnected && tokenStatus === 'expired' ? {
+        code: 'INTERNAL_ERROR' as ApiErrorCode,
+        message: 'Calendar connection needs to be refreshed'
+      } : null
     }
     
     console.log('[CAL_DEBUG] Returning integration status:', {
-      isConnected: true,
+      isConnected,
       verifiedWithCal,
+      tokenStatus,
       calManagedUserId: integration.calManagedUserId
     })
     
     return result
-  } catch (error) {
+  } catch (error: any) {
     console.error('[FETCH_CAL_STATUS_ERROR]', {
       error,
       timestamp: new Date().toISOString()
@@ -193,6 +308,79 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
       data: { isConnected: false },
       error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }
     }
+  }
+}
+
+/**
+ * Helper function to verify if a managed user exists in Cal.com
+ */
+async function verifyManagedUser(calManagedUserId: number): Promise<boolean> {
+  if (!calManagedUserId) return false;
+  
+  try {
+    const calApiUrl = `/oauth-clients/${env.NEXT_PUBLIC_CAL_CLIENT_ID}/users/${calManagedUserId}`;
+    console.log('[CAL_DEBUG] Verifying managed user with Cal.com API:', calApiUrl);
+    
+    // Use the utility function that handles token authentication properly
+    const responseData = await makeCalApiRequest({
+      endpoint: calApiUrl,
+      headers: getCalOAuthHeaders()
+    });
+    
+    console.log('[CAL_DEBUG] Cal.com API response:', responseData);
+    return true;
+  } catch (error: any) {
+    console.error('[CAL_MANAGED_USER_VERIFICATION_ERROR]', {
+      error: error?.message || error,
+      calManagedUserId,
+      timestamp: new Date().toISOString()
+    });
+    
+    // If 404, the user was deleted or doesn't exist on Cal.com
+    if (error?.message?.includes('404')) {
+      console.log('[CAL_DEBUG] User not found on Cal.com (404 error)');
+      return false;
+    }
+    
+    // For auth errors (401, 403), try using client secret directly
+    if (error?.message?.includes('401') || error?.message?.includes('403')) {
+      try {
+        console.log('[CAL_DEBUG] Auth error, attempting direct verification with client secret');
+        // Direct API call using client secret
+        const clientId = env.NEXT_PUBLIC_CAL_CLIENT_ID;
+        const clientSecret = env.CAL_CLIENT_SECRET;
+        
+        if (!clientId || !clientSecret) {
+          console.error('[CAL_DEBUG] Missing client credentials');
+          return false;
+        }
+        
+        const directResponse = await fetch(
+          `https://api.cal.com/v2/oauth-clients/${clientId}/users/${calManagedUserId}`, 
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-cal-secret-key': clientSecret
+            }
+          }
+        );
+        
+        if (directResponse.ok) {
+          console.log('[CAL_DEBUG] Direct verification successful');
+          return true;
+        }
+        
+        console.error('[CAL_DEBUG] Direct verification failed:', directResponse.status);
+        return false;
+      } catch (directError) {
+        console.error('[CAL_DEBUG] Direct verification error:', directError);
+        return false;
+      }
+    }
+    
+    // For other errors, we can't be sure, so assume false
+    return false;
   }
 }
 

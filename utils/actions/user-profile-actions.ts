@@ -393,9 +393,40 @@ export interface UserCapabilitiesResponse {
   primaryRealEstateDomain: string | null;
 }
 
+// Cache for user capabilities to prevent frequent fetches
+type CapabilitiesCache = {
+  [userUlid: string]: {
+    data: UserCapabilitiesResponse;
+    timestamp: number;
+  }
+};
+
+const capabilitiesCache: CapabilitiesCache = {};
+const CAPABILITIES_CACHE_TTL = 10000; // 10 seconds
+
 export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, void>(
   async (_, { userUlid }): Promise<ApiResponse<UserCapabilitiesResponse>> => {
     try {
+      const now = Date.now();
+      
+      // Check cache first
+      if (capabilitiesCache[userUlid] && 
+          now - capabilitiesCache[userUlid].timestamp < CAPABILITIES_CACHE_TTL) {
+        // Log cache hit in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log("[FETCH_USER_CAPABILITIES_CACHED]", {
+            userUlid,
+            cacheAge: now - capabilitiesCache[userUlid].timestamp,
+            cacheTTL: CAPABILITIES_CACHE_TTL,
+            timestamp: new Date().toISOString()
+          });
+        }
+        return {
+          data: capabilitiesCache[userUlid].data,
+          error: null
+        };
+      }
+      
       // Start logging only in development
       if (process.env.NODE_ENV === 'development') {
         console.log("[FETCH_USER_CAPABILITIES_START]", {
@@ -423,12 +454,20 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
         : null;
 
       // Return a plain object with primitives
+      const response: UserCapabilitiesResponse = {
+        capabilities,
+        realEstateDomains,
+        primaryRealEstateDomain
+      };
+
+      // Cache the result
+      capabilitiesCache[userUlid] = {
+        data: response,
+        timestamp: now
+      };
+
       return {
-        data: {
-          capabilities,
-          realEstateDomains,
-          primaryRealEstateDomain
-        },
+        data: response,
         error: null
       };
     } catch (error) {
