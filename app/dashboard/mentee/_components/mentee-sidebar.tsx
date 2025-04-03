@@ -21,7 +21,8 @@ import {
   BookOpen,
   Briefcase,
   CreditCard,
-  ListChecks
+  ListChecks,
+  PhoneCall
 } from "lucide-react"
 import { useCentralizedAuth } from '@/app/provider'
 import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
@@ -117,6 +118,9 @@ export function MenteeSidebar() {
             <Separator className="my-3" />
             <NavLink href="/dashboard/mentee/goals" icon={Target}>
               Goals & Plans
+            </NavLink>
+            <NavLink href="/dashboard/mentee/sessions" icon={PhoneCall}>
+              Sessions
             </NavLink>
             <NavLink href="/dashboard/resource-library" icon={BookOpen}>
               <div className="flex items-center gap-2">
