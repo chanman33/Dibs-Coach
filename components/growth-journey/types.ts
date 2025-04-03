@@ -15,14 +15,13 @@ export interface Goal {
   milestones: Milestone[]
 }
 
-export interface Achievement {
+export interface CompletedGoal {
   id: string
   title: string
-  date: string
-  type: string
+  completedAt: string | null
 }
 
 export interface GrowthJourneyData {
   currentGoals: Goal[]
-  recentAchievements: Achievement[]
+  completedGoals: CompletedGoal[]
 } 

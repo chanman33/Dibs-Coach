@@ -11,10 +11,78 @@ import { GrowthJourneyStats } from "@/components/goals/GrowthJourneyStats";
 function GoalsPageContent() {
   const [initialGoals, setInitialGoals] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const refreshGoals = useCallback(() => {
-    setRefreshTrigger(prev => prev + 1);
+    setRefreshKey(prev => prev + 1);
+  }, []);
+
+  const processGoalData = useCallback((goal: any) => {
+    let milestones = [];
+    if (goal.milestones) {
+      try {
+        if (typeof goal.milestones === 'string') {
+          milestones = JSON.parse(goal.milestones);
+        } else if (Array.isArray(goal.milestones)) {
+          milestones = goal.milestones;
+        } else if (typeof goal.milestones === 'object') {
+          milestones = [goal.milestones];
+        }
+      } catch (e) {
+        console.error('[MILESTONE_PARSE_ERROR]', {
+          error: e,
+          milestones: goal.milestones,
+          goalId: goal.ulid,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+
+    let growthPlan = '';
+    if (goal.growthPlan) {
+      if (typeof goal.growthPlan === 'string') {
+        growthPlan = goal.growthPlan;
+      } else if (typeof goal.growthPlan === 'object') {
+        try {
+          growthPlan = JSON.stringify(goal.growthPlan);
+        } catch (e) {
+          console.error('[GROWTH_PLAN_PARSE_ERROR]', {
+            error: e,
+            growthPlan: goal.growthPlan,
+            goalId: goal.ulid,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    }
+    
+    let target = 0;
+    let current = 0;
+    
+    if (goal.target) {
+      if (typeof goal.target === 'string') {
+        try { target = JSON.parse(goal.target).value || 0; } catch (e) {}
+      } else if (typeof goal.target === 'object') {
+        target = goal.target.value || 0;
+      }
+    }
+    
+    if (goal.progress) {
+      if (typeof goal.progress === 'string') {
+        try { current = JSON.parse(goal.progress).value || 0; } catch (e) {}
+      } else if (typeof goal.progress === 'object') {
+        current = goal.progress.value || 0;
+      }
+    }
+
+    return {
+      ...goal,
+      target,
+      current,
+      milestones,
+      growthPlan,
+      deadline: goal.dueDate || new Date().toISOString()
+    };
   }, []);
 
   const loadGoals = useCallback(async () => {
@@ -22,7 +90,7 @@ function GoalsPageContent() {
     try {
       console.log("[LOADING_GOALS]", {
         timestamp: new Date().toISOString(),
-        refreshCount: refreshTrigger
+        refreshKey
       });
       
       const { data, error } = await fetchGoals({});
@@ -36,73 +104,7 @@ function GoalsPageContent() {
       }
 
       if (data) {
-        const processedGoals = data.map(goal => {
-          let milestones = [];
-          if (goal.milestones) {
-            try {
-              if (typeof goal.milestones === 'string') {
-                milestones = JSON.parse(goal.milestones);
-              } else if (Array.isArray(goal.milestones)) {
-                milestones = goal.milestones;
-              } else if (typeof goal.milestones === 'object') {
-                milestones = [goal.milestones];
-              }
-            } catch (e) {
-              console.error('[MILESTONE_PARSE_ERROR]', {
-                error: e,
-                milestones: goal.milestones,
-                goalId: goal.ulid,
-                timestamp: new Date().toISOString()
-              });
-            }
-          }
-
-          let growthPlan = '';
-          if (goal.growthPlan) {
-            if (typeof goal.growthPlan === 'string') {
-              growthPlan = goal.growthPlan;
-            } else if (typeof goal.growthPlan === 'object') {
-              try {
-                growthPlan = JSON.stringify(goal.growthPlan);
-              } catch (e) {
-                console.error('[GROWTH_PLAN_PARSE_ERROR]', {
-                  error: e,
-                  growthPlan: goal.growthPlan,
-                  goalId: goal.ulid,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            }
-          }
-          
-          let target = 0;
-          let current = 0;
-          
-          if (goal.target) {
-            if (typeof goal.target === 'string') {
-              try { target = JSON.parse(goal.target).value || 0; } catch (e) {}
-            } else if (typeof goal.target === 'object') {
-              target = goal.target.value || 0;
-            }
-          }
-          
-          if (goal.progress) {
-            if (typeof goal.progress === 'string') {
-              try { current = JSON.parse(goal.progress).value || 0; } catch (e) {}
-            } else if (typeof goal.progress === 'object') {
-              current = goal.progress.value || 0;
-            }
-          }
-
-          return {
-            ...goal,
-            target,
-            current,
-            milestones,
-            growthPlan,
-            deadline: goal.dueDate || new Date().toISOString()
-          };
-        });
+        const processedGoals = data.map(processGoalData);
 
         console.log("[GOALS_LOADED]", {
           count: processedGoals.length,
@@ -126,11 +128,11 @@ function GoalsPageContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [refreshTrigger]);
+  }, [refreshKey, processGoalData]);
 
   useEffect(() => {
     loadGoals();
-  }, [loadGoals, refreshTrigger]);
+  }, [loadGoals]);
 
   const handleGoalsSubmit = useCallback(async (formData: GoalFormValues) => {
     try {
@@ -145,8 +147,21 @@ function GoalsPageContent() {
         return;
       }
       
-      refreshGoals();
+      // Force immediate reload of goals after creation
+      console.log('[GOAL_CREATED_SUCCESSFULLY]', {
+        goalData: data,
+        timestamp: new Date().toISOString()
+      });
+      
       toast.success('Goal created successfully!');
+      
+      // Reset refreshKey to trigger a full reload
+      refreshGoals();
+      
+      // Small delay to ensure server has time to process before we fetch
+      setTimeout(() => {
+        loadGoals();
+      }, 100);
     } catch (error) {
       console.error('[CREATE_GOAL_ERROR]', {
         error,
@@ -154,136 +169,38 @@ function GoalsPageContent() {
       });
       toast.error('Failed to create goal');
     }
-  }, [refreshGoals]);
+  }, [refreshGoals, loadGoals]);
 
-  // Add a dedicated callback for milestone updates to ensure state refreshes properly
-  const handleGoalUpdated = useCallback(async () => {
+  const handleGoalUpdated = useCallback(() => {
     console.log('[GOAL_UPDATED]', {
       timestamp: new Date().toISOString()
     });
-    
-    // First, set loading state to show feedback to the user
-    setIsLoading(true);
-    
-    try {
-      // Directly load goals from the server, bypassing any caching
-      const { data, error } = await fetchGoals({});
-      
-      if (error) {
-        console.error("[REFRESH_GOALS_ERROR]", {
-          error,
-          timestamp: new Date().toISOString(),
-        });
-        toast.error("Failed to refresh goals");
-        return;
-      }
-      
-      if (data) {
-        // Process the data the same way as in loadGoals
-        const processedGoals = data.map(goal => {
-          let milestones = [];
-          if (goal.milestones) {
-            try {
-              if (typeof goal.milestones === 'string') {
-                milestones = JSON.parse(goal.milestones);
-              } else if (Array.isArray(goal.milestones)) {
-                milestones = goal.milestones;
-              } else if (typeof goal.milestones === 'object') {
-                milestones = [goal.milestones];
-              }
-            } catch (e) {
-              console.error('[MILESTONE_PARSE_ERROR]', {
-                error: e,
-                milestones: goal.milestones,
-                goalId: goal.ulid,
-                timestamp: new Date().toISOString()
-              });
-            }
-          }
-
-          let growthPlan = '';
-          if (goal.growthPlan) {
-            if (typeof goal.growthPlan === 'string') {
-              growthPlan = goal.growthPlan;
-            } else if (typeof goal.growthPlan === 'object') {
-              try {
-                growthPlan = JSON.stringify(goal.growthPlan);
-              } catch (e) {
-                console.error('[GROWTH_PLAN_PARSE_ERROR]', {
-                  error: e,
-                  growthPlan: goal.growthPlan,
-                  goalId: goal.ulid,
-                  timestamp: new Date().toISOString()
-                });
-              }
-            }
-          }
-          
-          let target = 0;
-          let current = 0;
-          
-          if (goal.target) {
-            if (typeof goal.target === 'string') {
-              try { target = JSON.parse(goal.target).value || 0; } catch (e) {}
-            } else if (typeof goal.target === 'object') {
-              target = goal.target.value || 0;
-            }
-          }
-          
-          if (goal.progress) {
-            if (typeof goal.progress === 'string') {
-              try { current = JSON.parse(goal.progress).value || 0; } catch (e) {}
-            } else if (typeof goal.progress === 'object') {
-              current = goal.progress.value || 0;
-            }
-          }
-
-          return {
-            ...goal,
-            target,
-            current,
-            milestones,
-            growthPlan,
-            deadline: goal.dueDate || new Date().toISOString()
-          };
-        });
-        
-        console.log("[GOALS_REFRESHED]", {
-          count: processedGoals.length,
-          hasGoalsMilestones: processedGoals.some(g => g.milestones && g.milestones.length > 0),
-          hasGrowthPlans: processedGoals.some(g => g.growthPlan && g.growthPlan.length > 0),
-          milestonesCount: processedGoals.reduce((total, g) => total + (g.milestones?.length || 0), 0),
-          timestamp: new Date().toISOString(),
-          firstGoalMilestones: processedGoals.length > 0 && processedGoals[0].milestones ? processedGoals[0].milestones : null,
-          firstGoalGrowthPlan: processedGoals.length > 0 ? processedGoals[0].growthPlan : null
-        });
-        
-        // Update state with the fresh data
-        setInitialGoals(processedGoals);
-      }
-    } catch (error) {
-      console.error("[REFRESH_GOALS_ERROR]", {
-        error,
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString(),
-      });
-      toast.error("Failed to refresh goals");
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+    refreshGoals();
+  }, [refreshGoals]);
 
   const formattedGoals = initialGoals.map(goal => ({
     id: goal.id || goal.ulid,
-    status: goal.status || "in_progress",
+    status: goal.status || "IN_PROGRESS",
     deadline: goal.dueDate || goal.deadline || new Date().toISOString(),
+    title: goal.title || "Untitled Goal",
     milestones: goal.milestones || [],
-    growthPlan: goal.growthPlan || ''
+    growthPlan: goal.growthPlan || '',
+    target: goal.target || 0,
+    current: goal.current || 0
   }));
 
-  const recentAchievements = [
-    { date: new Date().toISOString() }
-  ];
+  // Replace recentAchievements with completedGoals
+  const completedGoals = initialGoals
+    .filter(goal => 
+      goal.status === "COMPLETED" || 
+      goal.status === "completed" ||
+      goal.status?.toLowerCase() === "completed"
+    )
+    .map(goal => ({
+      id: goal.id || goal.ulid,
+      title: goal.title || "Completed Goal",
+      completedAt: goal.completedAt || new Date().toISOString()
+    }));
 
   return (
     <div className="container mx-auto py-6">
@@ -299,7 +216,7 @@ function GoalsPageContent() {
         <div className="mb-8">
           <GrowthJourneyStats
             currentGoals={formattedGoals}
-            recentAchievements={recentAchievements}
+            completedGoals={completedGoals}
           />
         </div>
       )}

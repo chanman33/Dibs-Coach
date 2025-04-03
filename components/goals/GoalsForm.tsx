@@ -496,8 +496,12 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
       return;
     }
 
-    // Just update timestamp to trigger the useEffect which contains the retry logic
-    setLastFetchTimestamp(now);
+    // Force reset the timestamp to ensure fresh data
+    setLastFetchTimestamp(0);
+    // Then update timestamp to trigger the useEffect which contains the retry logic
+    setTimeout(() => {
+      setLastFetchTimestamp(now);
+    }, 10);
   };
 
   const handleSubmit: SubmitHandler<GoalFormValues> = async (data) => {
@@ -655,7 +659,10 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
         );
       } else {
         // For new goals, use the form values
-        await onSubmit(formValues);
+        const result = await onSubmit(formValues);
+        
+        // Force refresh to get actual server data
+        await loadGoals();
         
         // Call the onGoalUpdated callback if provided
         if (onGoalUpdated) {

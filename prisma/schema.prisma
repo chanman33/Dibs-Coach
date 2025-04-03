@@ -33,7 +33,6 @@ model User {
   languages                Language[]                     @default([en])
   primaryMarket            String?
   aiThreads                AIThread[]
-  achievements             Achievement[]
   adminAuditLogs           AdminAuditLog[]                @relation("AdminAuditLogs")
   applications             CoachApplication[]             @relation("Applicant")
   reviewedApplications     CoachApplication[]             @relation("Reviewer")
@@ -1072,22 +1071,6 @@ model Goal {
   @@map("Goal")
 }
 
-model Achievement {
-  ulid        String          @id @db.Char(26)
-  userUlid    String          @db.Char(26)
-  type        AchievementType
-  title       String
-  description String?
-  metadata    Json?
-  awardedAt   DateTime        @db.Timestamptz(6)
-  createdAt   DateTime        @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime        @updatedAt @db.Timestamptz(6)
-  user        User            @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("Achievement")
-}
-
 model ProfessionalRecognition {
   ulid            String          @id @db.Char(26)
   userUlid        String          @db.Char(26)
@@ -1546,12 +1529,6 @@ enum GoalType {
   training_hours
   networking_events
   custom
-}
-
-enum AchievementType {
-  MILESTONE
-  PERFORMANCE
-  LEARNING
 }
 
 enum RecognitionType {

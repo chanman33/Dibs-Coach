@@ -166,7 +166,21 @@ export default function GoalFormDialog({
         description: "The goal has been successfully created",
       });
 
-      await onSuccess();
+      // Close the dialog immediately to improve UX
+      handleClose();
+      
+      // Add a small delay before triggering the onSuccess callback
+      // This ensures the dialog is closed before any potential UI refresh
+      setTimeout(async () => {
+        try {
+          await onSuccess();
+          console.log("[GOAL_REFRESH_SUCCESS]", {
+            timestamp: new Date().toISOString()
+          });
+        } catch (refreshError) {
+          console.error("[GOAL_REFRESH_ERROR]", refreshError);
+        }
+      }, 100);
     } catch (error: any) {
       console.error("[GOAL_CREATE_EXCEPTION]", error);
       toast({
@@ -175,7 +189,7 @@ export default function GoalFormDialog({
         variant: "destructive",
       });
     }
-  }, [organizationUlid, toast, onSuccess]);
+  }, [organizationUlid, toast, onSuccess, handleClose]);
   
   // Use Dialog.Root to completely isolate this component 
   return (
