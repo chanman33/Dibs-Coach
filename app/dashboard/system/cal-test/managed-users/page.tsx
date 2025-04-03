@@ -9,8 +9,8 @@
  * - GET /api/cal/users/get-all - Get all managed users (internal API)
  * - GET /api/cal/users/get-user - Get a specific managed user (internal API)
  * - DELETE /api/cal/users/delete-user - Delete a managed user (internal API)
- * - POST /v2/oauth-clients/{clientId}/users - Create a managed user
- * - PUT /v2/oauth-clients/{clientId}/users/{userId} - Update a managed user
+ * - POST /api/cal/users/create-managed-user - Create a managed user (internal API)
+ * - PUT /api/cal/users/update-user - Update a managed user (internal API)
  * - POST /v2/oauth-clients/{clientId}/users/{userId}/refresh - Refresh a user's token
  * - POST /v2/oauth-clients/{clientId}/users/{userId}/force-refresh - Force refresh a user's token
  * 
@@ -67,7 +67,6 @@ export default function CalManagedUsersTest() {
   const [timeFormat, setTimeFormat] = useState<string>('12')
   const [weekStart, setWeekStart] = useState('Monday')
   const [locale, setLocale] = useState('en')
-  const [defaultScheduleId, setDefaultScheduleId] = useState('')
   
   // State for response data
   const [response, setResponse] = useState<ResponseData | null>(null)
@@ -122,11 +121,6 @@ export default function CalManagedUsersTest() {
   }
   
   const createManagedUser = async () => {
-    if (!clientId) {
-      setError('CAL_CLIENT_ID environment variable is not set')
-      return
-    }
-    
     if (!email || !name) {
       setError('Email and name are required')
       return
@@ -145,16 +139,21 @@ export default function CalManagedUsersTest() {
         locale
       }
       
-      if (defaultScheduleId) {
-        payload.defaultScheduleId = parseInt(defaultScheduleId)
-      }
-      
-      const result = await makeCalApiRequest({
-        endpoint: `/oauth-clients/${clientId}/users`,
+      // Use the internal API endpoint instead of calling Cal.com directly
+      const response = await fetch('/api/cal/users/create-managed-user', {
         method: 'POST',
-        body: payload
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
       })
       
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Request failed with status ${response.status}`)
+      }
+      
+      const result = await response.json()
       setResponse(result)
     } catch (err: any) {
       setError(err.message || 'Error creating managed user')
@@ -191,11 +190,6 @@ export default function CalManagedUsersTest() {
   }
   
   const updateManagedUser = async () => {
-    if (!clientId) {
-      setError('CAL_CLIENT_ID environment variable is not set')
-      return
-    }
-    
     if (!userId) {
       setError('User ID is required')
       return
@@ -213,14 +207,22 @@ export default function CalManagedUsersTest() {
       if (timeFormat) payload.timeFormat = parseInt(timeFormat)
       if (weekStart) payload.weekStart = weekStart
       if (locale) payload.locale = locale
-      if (defaultScheduleId) payload.defaultScheduleId = parseInt(defaultScheduleId)
       
-      const result = await makeCalApiRequest({
-        endpoint: `/oauth-clients/${clientId}/users/${userId}`,
-        method: 'PUT',
-        body: payload
+      // Use the internal API endpoint instead of calling Cal.com directly
+      const response = await fetch(`/api/cal/users/update-user?userId=${userId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
       })
       
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Request failed with status ${response.status}`)
+      }
+      
+      const result = await response.json()
       setResponse(result)
     } catch (err: any) {
       setError(err.message || 'Error updating managed user')
@@ -492,16 +494,6 @@ export default function CalManagedUsersTest() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="defaultScheduleId">Default Schedule ID (optional)</Label>
-                      <Input 
-                        id="defaultScheduleId"
-                        type="number"
-                        placeholder="Schedule ID"
-                        value={defaultScheduleId}
-                        onChange={(e) => setDefaultScheduleId(e.target.value)}
-                      />
-                    </div>
                     <Button 
                       onClick={createManagedUser}
                       disabled={loading}
@@ -519,7 +511,7 @@ export default function CalManagedUsersTest() {
                 <CardHeader>
                   <CardTitle>Update Managed User</CardTitle>
                   <CardDescription>
-                    Update an existing managed user's details
+                    Update an existing managed user's details using internal API endpoint
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

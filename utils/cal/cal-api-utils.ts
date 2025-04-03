@@ -2,7 +2,7 @@ import { env } from '@/lib/env'
 
 type CalApiRequestOptions = {
   endpoint: string
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
   headers?: Record<string, string>
   body?: any
 }

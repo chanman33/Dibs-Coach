@@ -1,108 +1,75 @@
-import { NextResponse } from 'next/server';
-import { env } from '@/lib/env';
-import { auth } from '@clerk/nextjs';
-import { createAuthClient } from '@/utils/auth';
-import { calService } from '@/lib/cal/cal-service';
+/**
+ * Cal.com Managed Users API - Create Managed User
+ * 
+ * This API route creates a new managed user in Cal.com's API v2.
+ * It uses the client ID and secret from environment variables.
+ */
+
+import { NextResponse } from 'next/server'
+import { makeCalApiRequest } from '@/utils/cal/cal-api-utils'
+import { env } from '@/lib/env'
 
 export async function POST(request: Request) {
   try {
-    // Get the user from Clerk
-    const { userId } = auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Get the request body
+    const body = await request.json()
+    const clientId = env.NEXT_PUBLIC_CAL_CLIENT_ID
+
+    // Validate required fields
+    if (!body.email || !body.name) {
+      return NextResponse.json(
+        { error: 'Email and name are required fields' },
+        { status: 400 }
+      )
     }
 
-    // Get user data from request body
-    const { email, name, timeZone } = await request.json();
+    if (!clientId) {
+      return NextResponse.json(
+        { error: 'CAL_CLIENT_ID is not configured' },
+        { status: 400 }
+      )
+    }
+
+    // Create the payload with proper defaults
+    const payload = {
+      email: body.email,
+      name: body.name,
+      timeFormat: body.timeFormat || 12,
+      weekStart: body.weekStart || 'Monday',
+      timeZone: body.timeZone || 'America/Denver',
+      locale: body.locale || 'en',
+      ...(body.avatarUrl && { avatarUrl: body.avatarUrl })
+    }
 
     console.log('[CAL_CREATE_MANAGED_USER]', {
-      clientId: env.NEXT_PUBLIC_CAL_CLIENT_ID,
-      email,
-      name,
-      timeZone,
+      clientId,
+      ...payload,
       timestamp: new Date().toISOString()
-    });
+    })
 
-    // Get user ULID from database
-    const supabase = createAuthClient();
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single();
+    // Make the API request to Cal.com
+    const result = await makeCalApiRequest({
+      endpoint: `/oauth-clients/${clientId}/users`,
+      method: 'POST',
+      body: payload
+    })
 
-    if (userError) {
-      console.error('[CAL_CREATE_MANAGED_USER_ERROR] User not found', {
-        userId,
-        error: userError,
-        timestamp: new Date().toISOString()
-      });
-      return NextResponse.json(
-        { error: 'User not found in database' },
-        { status: 404 }
-      );
-    }
-
-    // Create managed user in Cal.com
-    const response = await fetch(
-      `https://api.cal.com/v2/oauth-clients/${env.NEXT_PUBLIC_CAL_CLIENT_ID}/users`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-cal-secret-key': env.CAL_CLIENT_SECRET || '',
-        },
-        body: JSON.stringify({
-          email,
-          name,
-          timeZone: timeZone || 'America/New_York',
-          timeFormat: 12,
-          weekStart: 'Sunday',
-          locale: 'en'
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('[CAL_CREATE_MANAGED_USER_ERROR]', {
-        status: response.status,
-        error,
-        timestamp: new Date().toISOString()
-      });
-      return NextResponse.json(
-        { error: 'Failed to create Cal.com managed user' },
-        { status: response.status }
-      );
-    }
-
-    const calResponse = await response.json();
-    
-    // Save the integration to the database
-    const integrationData = await calService.saveCalendarIntegration(userData.ulid, calResponse);
-    
     console.log('[CAL_CREATE_MANAGED_USER_SUCCESS]', {
-      userId: calResponse.data.user.id,
-      email: calResponse.data.user.email,
-      integrationUlid: integrationData.ulid,
+      userId: result.data.user.id,
+      email: result.data.user.email,
       timestamp: new Date().toISOString()
-    });
+    })
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        user: calResponse.data.user,
-        integration: integrationData
-      }
-    });
-  } catch (error) {
+    return NextResponse.json(result)
+  } catch (error: any) {
     console.error('[CAL_CREATE_MANAGED_USER_ERROR]', {
-      error,
+      error: error?.message || error,
       timestamp: new Date().toISOString()
-    });
+    })
+
     return NextResponse.json(
-      { error: 'Failed to create managed user' },
-      { status: 500 }
-    );
+      { error: error?.message || 'Failed to create managed user' },
+      { status: error?.status || 500 }
+    )
   }
 } 
