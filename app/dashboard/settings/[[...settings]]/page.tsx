@@ -522,55 +522,6 @@ export default function Settings() {
     }
   };
 
-  // Function to manually refresh Cal.com integration
-  const handleManualTokenRefresh = async () => {
-    if (!isConnected) {
-      toast.error("No active Cal.com integration to refresh");
-      return;
-    }
-    
-    try {
-      // Show loading state
-      setLoading(true);
-      
-      // Call the token refresh endpoint with force refresh flag
-      const refreshToast = toast.loading("Refreshing Cal.com integration...");
-      
-      const response = await fetch('/api/cal/refresh-managed-user-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ 
-          forceRefresh: true,
-          isManagedUser: true // Explicitly indicate this is a managed user refresh
-        })
-      });
-      
-      // Dismiss loading toast
-      toast.dismiss(refreshToast);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Unknown error occurred');
-      }
-      
-      // Refresh the integration status
-      await refreshCalStatus();
-      
-      // Show success message
-      toast.success("Cal.com integration refreshed successfully");
-      
-      // Navigate to the success route to ensure UI updates
-      router.push('/dashboard/settings?tab=integrations&success=true');
-    } catch (error) {
-      console.error('[CAL_CONNECT_DEBUG] Token refresh error:', error);
-      toast.error(`Failed to refresh Cal.com integration: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="container mx-auto py-6 space-y-8">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
@@ -796,14 +747,6 @@ export default function Settings() {
                         Refresh your Cal.com integration if you experience connection issues
                       </p>
                     </div>
-                    <Button
-                      variant="outline"
-                      onClick={handleManualTokenRefresh}
-                      disabled={loading}
-                      className="ml-4"
-                    >
-                      {loading ? <LoadingSpinner size="sm" /> : 'Refresh Cal Integration'}
-                    </Button>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

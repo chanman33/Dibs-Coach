@@ -1,64 +1,9 @@
-// This file contains utility functions that can be imported in both server and client components
-// Remove the 'use server' directive since we have both async and sync functions
-// Individual async server actions will be marked separately
+// This file contains server actions for Cal.com token management
+'use server';
 
 import { createAuthClient } from '@/utils/auth';
 import { refreshUserCalTokens } from '@/utils/actions/cal-tokens';
-
-export interface CalTokenInfo {
-  isExpired: boolean;
-  isExpiringImminent: boolean;
-  expiresAt: string | null;
-  accessToken: string | null;
-  refreshToken: string | null;
-  managedUserId: number | null;
-}
-
-export interface TokenRefreshResult {
-  success: boolean;
-  tokenInfo: CalTokenInfo | null;
-  error?: string;
-}
-
-/**
- * Check if a Cal.com token is expired or will expire soon
- * 
- * @param expiresAt The token expiration time
- * @param bufferMinutes Buffer time in minutes to consider a token as "expiring soon"
- * @returns Boolean indicating if the token is expired or will expire soon
- */
-export function isTokenExpiredOrExpiringSoon(
-  expiresAt: string | null | undefined,
-  bufferMinutes = 5
-): { isExpired: boolean; isExpiringImminent: boolean } {
-  if (!expiresAt) {
-    return { isExpired: true, isExpiringImminent: true };
-  }
-
-  try {
-    const expiryDate = new Date(expiresAt);
-    const now = new Date();
-    
-    // Check if expiry date is valid
-    if (isNaN(expiryDate.getTime())) {
-      return { isExpired: true, isExpiringImminent: true };
-    }
-    
-    // Check if token is already expired
-    const isExpired = expiryDate <= now;
-    
-    // Check if token will expire soon
-    const bufferTime = bufferMinutes * 60 * 1000; // Convert minutes to milliseconds
-    const isExpiringImminent = !isExpired && 
-                             (expiryDate.getTime() - now.getTime() < bufferTime);
-    
-    return { isExpired, isExpiringImminent };
-  } catch (error) {
-    console.error('[CAL_TOKEN_UTIL] Error checking token expiration:', error);
-    // Default to considering it expired if we can't parse the date
-    return { isExpired: true, isExpiringImminent: true };
-  }
-}
+import { isTokenExpiredOrExpiringSoon, type CalTokenInfo, type TokenRefreshResult } from '@/utils/cal';
 
 /**
  * Get the Cal.com token information for a user
@@ -71,8 +16,6 @@ export async function getCalTokenInfo(
   userUlid: string,
   bufferMinutes = 5
 ): Promise<CalTokenInfo | null> {
-  'use server'; // Mark this specific function as a server action
-  
   try {
     if (!userUlid) {
       console.error('[CAL_TOKEN_UTIL] Missing user ULID');
@@ -130,9 +73,7 @@ export async function getCalTokenInfo(
 export async function ensureValidCalToken(
   userUlid: string,
   forceRefresh = false
-): Promise<TokenRefreshResult> {
-  'use server'; // Mark this specific function as a server action
-  
+): Promise<TokenRefreshResult> {  
   try {
     console.log('[CAL_TOKEN_UTIL] Ensuring valid token for user:', {
       userUlid,
@@ -218,8 +159,6 @@ export async function handleCalApiResponse(
   retryFn: (token: string) => Promise<Response>,
   userUlid: string
 ): Promise<Response> {
-  'use server'; // Mark this specific function as a server action
-  
   // If response is OK, return it immediately
   if (apiResponse.ok) {
     return apiResponse;
@@ -250,27 +189,25 @@ export async function handleCalApiResponse(
       // Not a token error, return the original response
       return apiResponse;
     }
+
+    // This is a token expiration error, refresh the token and retry
+    console.log('[CAL_TOKEN_UTIL] Detected token expiration in API response, refreshing token');
     
-    console.log('[CAL_TOKEN_UTIL] Detected token error in API response:', {
-      status,
-      userUlid,
-      timestamp: new Date().toISOString()
-    });
-    
-    // Refresh the token
+    // Refresh token
     const refreshResult = await ensureValidCalToken(userUlid, true);
     
     if (!refreshResult.success || !refreshResult.tokenInfo?.accessToken) {
-      console.error('[CAL_TOKEN_UTIL] Failed to refresh token for retry:', refreshResult.error);
+      console.error('[CAL_TOKEN_UTIL] Failed to refresh token for API retry:', refreshResult.error);
+      // Return the original error response if token refresh fails
       return apiResponse;
     }
     
-    // Retry the API call with the new token
-    console.log('[CAL_TOKEN_UTIL] Retrying API call with refreshed token');
+    // Retry the original API call with the new token
+    console.log('[CAL_TOKEN_UTIL] Retrying API call with new token');
     return await retryFn(refreshResult.tokenInfo.accessToken);
-    
   } catch (error) {
-    console.error('[CAL_TOKEN_UTIL] Error handling API response:', error);
+    console.error('[CAL_TOKEN_UTIL] Error handling Cal API response:', error);
+    // Return the original response in case of errors during our handling
     return apiResponse;
   }
 } 
