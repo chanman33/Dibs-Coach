@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useRouter, useSearchParams } from "next/navigation"
 import { fetchUserCapabilities, type UserCapabilitiesResponse } from "@/utils/actions/user-profile-actions"
 import { type ApiResponse } from "@/utils/types/api"
-import { Loader2, Building, Building2, Users2, Network, ArrowRight, Check, CheckCircle, XCircle, CalendarDays } from 'lucide-react'
+import { Loader2, Building, Building2, Users2, Network, ArrowRight, Check, CheckCircle, XCircle, CalendarDays, AlertTriangle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import Link from 'next/link'
@@ -24,6 +24,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { CalConnectedStatus, useCalIntegrationStatus } from '@/components/cal/CalConnectedStatus'
 import { SiGooglecalendar } from 'react-icons/si'
 import { BsCalendar2Week } from 'react-icons/bs'
+import { createAuthClient } from '@/utils/auth'
 
 // Map organization types to icons and colors
 const orgTypeConfig: Record<string, { icon: any, color: string }> = {
@@ -73,12 +74,51 @@ const formatDate = (dateString: string) => {
   }
 };
 
+// Function to check if user has connected a third-party calendar
+function useCalendarsConnected() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasConnectedCalendar, setHasConnectedCalendar] = useState(false);
+  const [connectedCalendars, setConnectedCalendars] = useState<any[]>([]);
+
+  async function checkCalendarConnections() {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/cal/calendars/get-all-user-calendars');
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        setHasConnectedCalendar(data.data.hasConnectedCalendars || false);
+        // If there's calendar details info, store it
+        if (data.data.calendars) {
+          setConnectedCalendars(data.data.calendars || []);
+        }
+      } else {
+        setHasConnectedCalendar(false);
+        setConnectedCalendars([]);
+      }
+    } catch (error) {
+      console.error('[CALENDAR_CONNECTION_CHECK_ERROR]', error);
+      setHasConnectedCalendar(false);
+      setConnectedCalendars([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    checkCalendarConnections();
+  }, []);
+
+  return { hasConnectedCalendar, connectedCalendars, isLoading, refresh: checkCalendarConnections };
+}
+
 export default function Settings() {
   const router = useRouter()
   const { user } = useUser()
   const [loading, setLoading] = useState(false)
   const [userCapabilities, setUserCapabilities] = useState<string[]>([])
   const [loadingCapabilities, setLoadingCapabilities] = useState(true)
+  const [oauthDebugUrl, setOauthDebugUrl] = useState<string | null>(null)
   const isCoach = userCapabilities.includes('COACH')
   const [activeTab, setActiveTab] = useState("account")
   const { organizations, organizationUlid, setOrganizationUlid, isLoading: isLoadingOrgs } = useOrganization();
@@ -86,6 +126,10 @@ export default function Settings() {
   const hasSuccessParam = searchParams.get('success') === 'true';
   const hasErrorParam = searchParams.get('error') === 'true';
   const { isConnected, loading: isCalStatusLoading, refresh: refreshCalStatus } = useCalIntegrationStatus()
+  const { hasConnectedCalendar, connectedCalendars, isLoading: isCalendarCheckLoading, refresh: refreshCalendarStatus } = useCalendarsConnected();
+
+  // Check if user has met all requirements to manage availability
+  const canManageAvailability = isConnected && hasConnectedCalendar;
 
   // Set the active tab based on the URL parameter
   useEffect(() => {
@@ -99,7 +143,7 @@ export default function Settings() {
       timestamp: new Date().toISOString()
     })
 
-    if (tab && ['account', 'organizations', 'notifications', 'subscription'].includes(tab)) {
+    if (tab && ['account', 'organizations', 'integrations', 'notifications', 'subscription'].includes(tab)) {
       setActiveTab(tab);
     }
     
@@ -114,7 +158,7 @@ export default function Settings() {
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete('success');
       
-      // Update the URL without the success parameter
+      // Update the URL without the success parameter but preserve the tab
       router.replace(`/dashboard/settings?${newParams.toString()}`, { scroll: false });
     } else if (error) {
       console.error('[SETTINGS_PAGE_DEBUG] Processing error:', {
@@ -127,10 +171,10 @@ export default function Settings() {
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete('error');
       
-      // Update the URL without the error parameter
+      // Update the URL without the error parameter but preserve the tab
       router.replace(`/dashboard/settings?${newParams.toString()}`, { scroll: false });
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, activeTab]);
 
   // When a tab is clicked, update the URL
   const handleTabChange = (value: string) => {
@@ -314,6 +358,210 @@ export default function Settings() {
         )}
       </div>
     );
+  };
+
+  // Function to handle calendar connection
+  const handleCalendarConnect = async (calendarType: 'google' | 'office365') => {
+    if (!isConnected) {
+      toast.error("Please enable Dibs Scheduling first");
+      return;
+    }
+    
+    try {
+      // Show loading toast
+      const loadingToast = toast.loading(`Preparing ${calendarType === 'google' ? 'Google' : 'Office 365'} Calendar connection...`);
+      setOauthDebugUrl(null);
+      
+      // First check if Cal.com tokens need refreshing
+      // Only refresh tokens if there's an issue with the current token or if explicitly needed
+      let needsTokenRefresh = false;
+      
+      try {
+        // Get current status to check token expiration
+        const statusCheck = await fetch('/api/cal/check-token-status');
+        const statusData = await statusCheck.json();
+        
+        // Only refresh if tokens are expired or will expire soon
+        needsTokenRefresh = statusData.expired || statusData.expiringImminent;
+        
+        console.log('[CAL_CONNECT_DEBUG] Token status check:', {
+          needsTokenRefresh,
+          expired: statusData.expired,
+          expiringImminent: statusData.expiringImminent,
+          timestamp: new Date().toISOString()
+        });
+      } catch (e) {
+        // If we can't check status, assume we need a refresh as fallback
+        console.warn('[CAL_CONNECT_DEBUG] Failed to check token status, will refresh as precaution');
+        needsTokenRefresh = true;
+      }
+      
+      // Only refresh tokens if needed
+      if (needsTokenRefresh) {
+        console.log('[CAL_CONNECT_DEBUG] Refreshing tokens before OAuth flow');
+        await fetch('/api/cal/refresh-managed-user-token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            forceRefresh: true,
+            isManagedUser: true
+          })
+        });
+      }
+      
+      // Now fetch the OAuth URL with either refreshed tokens or existing valid tokens
+      const response = await fetch(`/api/cal/calendars/oauth-connect-url?type=${calendarType}`);
+      
+      // Dismiss loading toast
+      toast.dismiss(loadingToast);
+      
+      if (!response.ok) {
+        // Try to parse error information
+        let errorMessage = "Failed to get authorization URL";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (_) {
+          // Failed to parse JSON, use default message
+        }
+        
+        toast.error(errorMessage);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      // Get the URL from the response (handle both API formats)
+      const redirectUrl = data.url || (data.data && data.data.authUrl);
+      
+      if (!redirectUrl) {
+        toast.error("No valid authorization URL received");
+        return;
+      }
+      
+      // Store the URL for debugging purposes
+      setOauthDebugUrl(redirectUrl);
+      
+      // Try opening the URL in a new window
+      const newWindow = window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+      
+      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+        // Popup was blocked
+        toast.error(
+          "Popup blocked! Please use the 'Copy URL' button below to continue with authorization.",
+          { duration: 8000 }
+        );
+      } else {
+        toast.success(
+          "Redirecting to authorization page. After authorizing, you'll be redirected back.",
+          { duration: 5000 }
+        );
+        
+        // Add a timer to check for window closure
+        const checkWindowClosure = setInterval(() => {
+          if (newWindow.closed) {
+            clearInterval(checkWindowClosure);
+            toast.success("Authorization window closed. Refreshing calendar status...");
+            
+            // Refresh the cal status after a short delay to allow time for the redirect to complete
+            setTimeout(() => {
+              refreshCalStatus();
+              refreshCalendarStatus();
+            }, 2000);
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      console.error("[CAL_CONNECT_DEBUG] Error:", error);
+      toast.error(`Failed to connect to ${calendarType} calendar. Please try again later.`);
+    }
+  };
+
+  // Function to manually sync calendar credentials
+  const handleSyncCalendarCredentials = async (calendarType: 'google' | 'office365') => {
+    try {
+      setLoading(true);
+      const syncToast = toast.loading(`Syncing ${calendarType === 'google' ? 'Google' : 'Office 365'} Calendar credentials...`);
+      
+      const response = await fetch('/api/cal/calendars/sync-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ calendarType })
+      });
+      
+      toast.dismiss(syncToast);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to sync calendar credentials');
+      }
+      
+      toast.success('Calendar credentials synced successfully');
+      
+      // Refresh the calendar status
+      setTimeout(() => {
+        refreshCalendarStatus();
+      }, 1000);
+      
+    } catch (error) {
+      console.error('[CAL_SYNC_ERROR]', error);
+      toast.error(`Failed to sync ${calendarType} calendar credentials: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Function to manually refresh Cal.com integration
+  const handleManualTokenRefresh = async () => {
+    if (!isConnected) {
+      toast.error("No active Cal.com integration to refresh");
+      return;
+    }
+    
+    try {
+      // Show loading state
+      setLoading(true);
+      
+      // Call the token refresh endpoint with force refresh flag
+      const refreshToast = toast.loading("Refreshing Cal.com integration...");
+      
+      const response = await fetch('/api/cal/refresh-managed-user-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          forceRefresh: true,
+          isManagedUser: true // Explicitly indicate this is a managed user refresh
+        })
+      });
+      
+      // Dismiss loading toast
+      toast.dismiss(refreshToast);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Unknown error occurred');
+      }
+      
+      // Refresh the integration status
+      await refreshCalStatus();
+      
+      // Show success message
+      toast.success("Cal.com integration refreshed successfully");
+      
+      // Navigate to the success route to ensure UI updates
+      router.push('/dashboard/settings?tab=integrations&success=true');
+    } catch (error) {
+      console.error('[CAL_CONNECT_DEBUG] Token refresh error:', error);
+      toast.error(`Failed to refresh Cal.com integration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -534,6 +782,23 @@ export default function Settings() {
                     Connect your primary calendar to sync events and manage availability. This helps prevent double-bookings.
                   </p>
                   
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h4 className="font-medium">Cal.com Integration</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Refresh your Cal.com integration if you experience connection issues
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={handleManualTokenRefresh}
+                      disabled={loading}
+                      className="ml-4"
+                    >
+                      {loading ? <LoadingSpinner size="sm" /> : 'Refresh Cal Integration'}
+                    </Button>
+                  </div>
+                  
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="border rounded-lg p-4 hover:border-primary transition-colors">
                       <div className="flex items-center space-x-3 mb-4">
@@ -542,34 +807,39 @@ export default function Settings() {
                         </div>
                         <div>
                           <h4 className="font-medium">Google Calendar</h4>
+                          {isCalendarCheckLoading ? (
+                            <div className="text-xs text-muted-foreground mt-1 flex items-center">
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Checking status...
+                            </div>
+                          ) : connectedCalendars.some(cal => cal.type === 'google') ? (
+                            <div className="text-xs text-green-600 mt-1 flex items-center">
+                              <CheckCircle className="h-3 w-3 mr-1" /> Connected
+                            </div>
+                          ) : null}
                         </div>
                       </div>
-                      <Button 
-                        variant="outline" 
-                        className="w-full"
-                        onClick={() => {
-                          if (!isConnected) {
-                            toast.error("Please enable Dibs Scheduling first");
-                            return;
-                          }
-                          
-                          fetch('/api/cal/calendars/oauth-connect-url?type=google')
-                            .then(response => response.json())
-                            .then(data => {
-                              if (data.url) {
-                                window.location.href = data.url;
-                              } else {
-                                toast.error("Failed to get authorization URL");
-                              }
-                            })
-                            .catch(error => {
-                              console.error("Failed to connect to Google Calendar:", error);
-                              toast.error("Failed to connect to Google Calendar");
-                            });
-                        }}
-                      >
-                        Connect Google Calendar
-                      </Button>
+                      
+                      {connectedCalendars.some(cal => cal.type === 'google') ? (
+                        <div className="space-y-2">
+                          <Button 
+                            variant="outline" 
+                            className="w-full"
+                            onClick={() => handleSyncCalendarCredentials('google')}
+                            disabled={loading}
+                          >
+                            {loading ? <LoadingSpinner size="sm" /> : 'Sync Google Calendar'}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => handleCalendarConnect('google')}
+                          disabled={loading}
+                        >
+                          {loading ? <LoadingSpinner size="sm" /> : 'Connect Google Calendar'}
+                        </Button>
+                      )}
                     </div>
                     
                     <div className="border rounded-lg p-4 hover:border-primary transition-colors">
@@ -579,51 +849,128 @@ export default function Settings() {
                         </div>
                         <div>
                           <h4 className="font-medium">Office 365 Calendar</h4>
+                          {isCalendarCheckLoading ? (
+                            <div className="text-xs text-muted-foreground mt-1 flex items-center">
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Checking status...
+                            </div>
+                          ) : connectedCalendars.some(cal => cal.type === 'office365') ? (
+                            <div className="text-xs text-green-600 mt-1 flex items-center">
+                              <CheckCircle className="h-3 w-3 mr-1" /> Connected
+                            </div>
+                          ) : null}
                         </div>
                       </div>
-                      <Button 
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => {
-                          if (!isConnected) {
-                            toast.error("Please enable Dibs Scheduling first");
-                            return;
-                          }
-                          
-                          fetch('/api/cal/calendars/oauth-connect-url?type=office365')
-                            .then(response => response.json())
-                            .then(data => {
-                              if (data.url) {
-                                window.location.href = data.url;
-                              } else {
-                                toast.error("Failed to get authorization URL");
-                              }
-                            })
-                            .catch(error => {
-                              console.error("Failed to connect to Office 365 Calendar:", error);
-                              toast.error("Failed to connect to Office 365 Calendar");
-                            });
-                        }}
-                      >
-                        Connect Office 365
-                      </Button>
+                      
+                      {connectedCalendars.some(cal => cal.type === 'office365') ? (
+                        <div className="space-y-2">
+                          <Button 
+                            variant="outline" 
+                            className="w-full"
+                            onClick={() => handleSyncCalendarCredentials('office365')}
+                            disabled={loading}
+                          >
+                            {loading ? <LoadingSpinner size="sm" /> : 'Sync Office 365 Calendar'}
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button 
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => handleCalendarConnect('office365')}
+                          disabled={loading}
+                        >
+                          {loading ? <LoadingSpinner size="sm" /> : 'Connect Office 365'}
+                        </Button>
+                      )}
                     </div>
                   </div>
+                  
+                  {/* Debug OAuth URL Display */}
+                  {oauthDebugUrl && (
+                    <div className="mt-4 p-4 border border-blue-200 bg-blue-50 rounded-md">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="font-medium text-blue-800">Authorization URL</p>
+                        <Button 
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0" 
+                          onClick={() => setOauthDebugUrl(null)}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M11.7816 4.03157C12.0062 3.80702 12.0062 3.44295 11.7816 3.2184C11.5571 2.99385 11.193 2.99385 10.9685 3.2184L7.50005 6.68682L4.03164 3.2184C3.80708 2.99385 3.44301 2.99385 3.21846 3.2184C2.99391 3.44295 2.99391 3.80702 3.21846 4.03157L6.68688 7.49999L3.21846 10.9684C2.99391 11.193 2.99391 11.557 3.21846 11.7816C3.44301 12.0061 3.80708 12.0061 4.03164 11.7816L7.50005 8.31316L10.9685 11.7816C11.193 12.0061 11.5571 12.0061 11.7816 11.7816C12.0062 11.557 12.0062 11.193 11.7816 10.9684L8.31322 7.49999L11.7816 4.03157Z" fill="currentColor" fillRule="evenodd" clipRule="evenodd"></path>
+                          </svg>
+                        </Button>
+                      </div>
+                      <p className="text-sm text-blue-700 mb-2">
+                        Your browser blocked the popup. Please use the URL below to authorize:
+                      </p>
+                      <div className="border border-blue-300 bg-white rounded-md p-2 overflow-x-auto mb-2">
+                        <pre className="text-xs text-blue-800 whitespace-pre-wrap break-all">{oauthDebugUrl}</pre>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          size="sm" 
+                          onClick={() => {
+                            navigator.clipboard.writeText(oauthDebugUrl);
+                            toast.success("URL copied to clipboard");
+                          }}
+                        >
+                          Copy URL
+                        </Button>
+                        <Button 
+                          size="sm"
+                          variant="outline" 
+                          onClick={() => {
+                            window.open(oauthDebugUrl, '_blank', 'noopener,noreferrer');
+                          }}
+                        >
+                          Try Again
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
           </Card>
           
           {isConnected && (
-            <div className="flex justify-end mt-4">
-              <Button 
-                variant="default" 
-                className="gap-2"
-                onClick={() => router.push('/dashboard/coach/availability')}
-              >
-                <CalendarDays className="h-4 w-4" />
-                Manage Availability
-              </Button>
+            <div className="flex flex-col space-y-4">
+              {!canManageAvailability && !isCalendarCheckLoading && (
+                <Alert className="bg-amber-50 border-amber-200">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertTitle>Calendar Connection Required</AlertTitle>
+                  <AlertDescription>
+                    You need to connect a third-party calendar (like Google Calendar or Office 365) before you can manage your availability.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {canManageAvailability && !isCalendarCheckLoading && (
+                <Alert className="bg-green-50 border-green-200">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertTitle>Ready to Manage Availability</AlertTitle>
+                  <AlertDescription>
+                    Your scheduling is enabled and calendar is connected. You can now manage your availability.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              <div className="flex justify-end">
+                <Button 
+                  variant="default" 
+                  className="gap-2"
+                  onClick={() => router.push('/dashboard/coach/availability')}
+                  disabled={!canManageAvailability || isCalendarCheckLoading}
+                >
+                  {isCalendarCheckLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CalendarDays className="h-4 w-4" />
+                  )}
+                  Manage Availability
+                </Button>
+              </div>
             </div>
           )}
         </TabsContent>

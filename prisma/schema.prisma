@@ -1915,6 +1915,8 @@ model CalendarIntegration {
   locale                  String?
   lastSyncedAt            DateTime?
   syncEnabled             Boolean          @default(true)
+  googleCalendarConnected Boolean?         @default(false)
+  office365CalendarConnected Boolean?      @default(false)
   createdAt               DateTime         @default(now()) @db.Timestamptz(6)
   updatedAt               DateTime         @updatedAt @db.Timestamptz(6)
   user                    User             @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)

@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
     // Get request body
     const body = await request.json();
     const forceRefresh = !!body.forceRefresh;
-    const userUlid = body.userUlid;
+    const isManagedUser = !!body.isManagedUser;
+    let userUlid = body.userUlid;
     const isServerAction = body.isServerAction === true;
     
     // If this is not a server action, validate authentication
@@ -35,11 +36,37 @@ export async function POST(request: NextRequest) {
           error: 'Unauthorized' 
         }, { status: 401 });
       }
+      
+      // If this is a direct user request (not a server action), get the userUlid from auth
+      if (!userUlid) {
+        const supabase = createAuthClient();
+        const { data: userData, error: userError } = await supabase
+          .from('User')
+          .select('ulid')
+          .eq('userId', userId)
+          .single();
+          
+        if (userError || !userData?.ulid) {
+          console.error('[CAL_REFRESH_TOKEN_ERROR]', {
+            context: 'USER_LOOKUP',
+            error: userError || 'User not found',
+            userId,
+            timestamp: new Date().toISOString()
+          });
+          return NextResponse.json({
+            success: false,
+            error: 'Failed to find user in database'
+          }, { status: 404 });
+        }
+        
+        userUlid = userData.ulid;
+      }
     } else {
       console.log('[CAL_REFRESH_TOKEN]', {
         context: 'SERVER_ACTION',
         userUlid,
         forceRefresh,
+        isManagedUser,
         timestamp: new Date().toISOString()
       });
       
@@ -122,12 +149,22 @@ export async function POST(request: NextRequest) {
       userUlid,
       calManagedUserId,
       forceRefresh,
+      isManagedUser,
       timestamp: new Date().toISOString()
     });
 
-    // If force refresh is requested and we have a managed user ID, go directly to force refresh
-    if (forceRefresh && calManagedUserId) {
-      console.log('[CAL_REFRESH_TOKEN] Using force refresh as requested by client');
+    // Decide which approach to use:
+    // 1. If explicitly requested as a managed user refresh OR we have a managed user ID and force refresh
+    // is requested, use the managed user force refresh endpoint
+    const shouldUseForceRefresh = (isManagedUser || forceRefresh) && calManagedUserId;
+    
+    // If we should use force refresh for managed users
+    if (shouldUseForceRefresh) {
+      console.log('[CAL_REFRESH_TOKEN] Using managed user force refresh', {
+        isManagedUser,
+        forceRefresh,
+        calManagedUserId
+      });
       
       // Call force-refresh endpoint
       const forceRefreshResponse = await fetch(
@@ -136,6 +173,7 @@ export async function POST(request: NextRequest) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-cal-client-id': clientId,
             'x-cal-secret-key': clientSecret
           }
         }

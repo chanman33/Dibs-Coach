@@ -136,6 +136,56 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
         timestamp: new Date().toISOString()
       });
       
+      // If the token is not expired according to our records, but is close to expiration
+      // (within 30 minutes), perform a verification check against Cal.com API
+      if (!isTokenExpired && integration.calAccessTokenExpiresAt) {
+        const expiryTime = new Date(integration.calAccessTokenExpiresAt).getTime();
+        const currentTime = Date.now();
+        const thirtyMinutesMs = 30 * 60 * 1000;
+        
+        if (expiryTime - currentTime < thirtyMinutesMs) {
+          console.log('[CAL_DEBUG] Token is close to expiration, performing verification check');
+          
+          // Make a lightweight call to Cal.com API to verify token is still valid
+          try {
+            const verificationResponse = await fetch('https://api.cal.com/v2/me', {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${integration.calAccessToken}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            // If the response indicates an expired token, override our check
+            if (!verificationResponse.ok) {
+              const errorData = await verificationResponse.text();
+              
+              try {
+                const parsedError = JSON.parse(errorData);
+                if (
+                  verificationResponse.status === 498 || 
+                  parsedError?.error?.code === 'TokenExpiredException' ||
+                  parsedError?.error?.message === 'ACCESS_TOKEN_IS_EXPIRED'
+                ) {
+                  console.log('[CAL_DEBUG] Token verification failed - token is actually expired');
+                  isTokenExpired = true;
+                }
+              } catch (e) {
+                // If we can't parse the error, assume token might be expired
+                console.error('[CAL_DEBUG] Could not parse verification error, assuming token needs refresh:', e);
+                isTokenExpired = true;
+              }
+            } else {
+              console.log('[CAL_DEBUG] Token verification succeeded - token is still valid');
+            }
+          } catch (verificationError) {
+            console.error('[CAL_DEBUG] Error during token verification:', verificationError);
+            // On error, assume we might need to refresh to be safe
+            isTokenExpired = true;
+          }
+        }
+      }
+      
       // Step 2: If token is expired or expiring soon, try to refresh it
       if (isTokenExpired) {
         console.log('[CAL_DEBUG] Token expired or expiring soon, attempting refresh');
@@ -143,7 +193,15 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
         
         // Use the refreshUserCalTokens utility to refresh the token
         const { refreshUserCalTokens } = await import('@/utils/actions/cal-tokens');
-        const refreshResult = await refreshUserCalTokens(userData.ulid);
+        
+        // Always use force refresh for managed users to ensure we use the correct endpoint
+        const isManagedUser = !!integration.calManagedUserId;
+        console.log('[CAL_DEBUG] Using force refresh for managed user:', {
+          isManagedUser,
+          calManagedUserId: integration.calManagedUserId
+        });
+        
+        const refreshResult = await refreshUserCalTokens(userData.ulid, isManagedUser);
         
         if (!refreshResult.success) {
           console.error('[CAL_DEBUG] Token refresh failed:', refreshResult.error);
@@ -406,21 +464,65 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
     // Check if token is expired and refresh if needed
     let accessToken = integration.calAccessToken;
     
-    // Simple check if token is expired based on stored expiry time
-    if (new Date(integration.calAccessTokenExpiresAt) < new Date()) {
+    // Use proper token expiration check instead of simple date comparison
+    try {
+      const { isCalTokenExpired } = await import('@/utils/auth/cal-token-service');
+      const isTokenExpired = await isCalTokenExpired(integration.calAccessTokenExpiresAt, 5);
+      
+      if (isTokenExpired) {
+        console.log('[SYNC_CAL_SCHEDULES]', {
+          step: 'Token expired, attempting refresh',
+          userUlid: userData.ulid,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Use the refreshUserCalTokens utility with force refresh for managed users
+        const { refreshUserCalTokens } = await import('@/utils/actions/cal-tokens');
+        const isManagedUser = !!integration.calManagedUserId;
+        const refreshResult = await refreshUserCalTokens(userData.ulid, isManagedUser);
+        
+        if (!refreshResult.success) {
+          console.error('[SYNC_CAL_SCHEDULES]', {
+            error: 'Token refresh failed',
+            refreshError: refreshResult.error,
+            userUlid: userData.ulid,
+            timestamp: new Date().toISOString()
+          });
+          
+          return {
+            data: null,
+            error: { 
+              code: 'UNAUTHORIZED', 
+              message: 'Cal.com access token expired and refresh failed. Please reconnect your integration.' 
+            }
+          };
+        }
+        
+        // Get updated token after refresh
+        const { data: refreshedIntegration } = await supabase
+          .from('CalendarIntegration')
+          .select('calAccessToken')
+          .eq('userUlid', userData.ulid)
+          .single();
+        
+        if (refreshedIntegration?.calAccessToken) {
+          accessToken = refreshedIntegration.calAccessToken;
+          console.log('[SYNC_CAL_SCHEDULES]', {
+            step: 'Token refreshed successfully',
+            userUlid: userData.ulid,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    } catch (error) {
       console.error('[SYNC_CAL_SCHEDULES]', {
-        error: 'Token expired',
+        step: 'Error checking token expiration',
+        error,
         userUlid: userData.ulid,
         timestamp: new Date().toISOString()
       });
       
-      return {
-        data: null,
-        error: { 
-          code: 'UNAUTHORIZED', 
-          message: 'Cal.com access token expired. Please reconnect your integration.' 
-        }
-      };
+      // Continue with current token as fallback
     }
 
     // Fetch schedules from Cal.com
