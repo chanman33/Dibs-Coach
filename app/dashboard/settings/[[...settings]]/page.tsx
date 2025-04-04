@@ -125,6 +125,7 @@ export default function Settings() {
   const searchParams = useSearchParams();
   const hasSuccessParam = searchParams.get('success') === 'true';
   const hasErrorParam = searchParams.get('error') === 'true';
+  const calendarConnected = searchParams.get('success') === 'calendar_connected';
   const { isConnected, loading: isCalStatusLoading, refresh: refreshCalStatus } = useCalIntegrationStatus()
   const { hasConnectedCalendar, connectedCalendars, isLoading: isCalendarCheckLoading, refresh: refreshCalendarStatus } = useCalendarsConnected();
 
@@ -152,7 +153,13 @@ export default function Settings() {
     const error = searchParams.get('error');
 
     if (success) {
-      toast.success('Operation completed successfully!');
+      if (success === 'calendar_connected') {
+        toast.success('Calendar connected successfully!');
+        // Refresh the calendar status to ensure UI is updated
+        refreshCalendarStatus();
+      } else {
+        toast.success('Operation completed successfully!');
+      }
       
       // Create a new URLSearchParams without the success parameter
       const newParams = new URLSearchParams(searchParams.toString());
@@ -174,7 +181,7 @@ export default function Settings() {
       // Update the URL without the error parameter but preserve the tab
       router.replace(`/dashboard/settings?${newParams.toString()}`, { scroll: false });
     }
-  }, [searchParams, router, activeTab]);
+  }, [searchParams, router, activeTab, refreshCalendarStatus]);
 
   // When a tab is clicked, update the URL
   const handleTabChange = (value: string) => {
@@ -800,10 +807,10 @@ export default function Settings() {
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="border rounded-lg p-4 hover:border-primary transition-colors">
+                    <div className={`border rounded-lg p-4 hover:border-primary transition-colors ${calendarConnected || connectedCalendars.some(cal => cal.type === 'google') ? 'bg-green-50 border-green-200' : ''}`}>
                       <div className="flex items-center space-x-3 mb-4">
-                        <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center">
-                          <SiGooglecalendar className="h-5 w-5 text-[#4285F4]" />
+                        <div className={`h-10 w-10 rounded-full ${calendarConnected || connectedCalendars.some(cal => cal.type === 'google') ? 'bg-green-100' : 'bg-blue-50'} flex items-center justify-center`}>
+                          <SiGooglecalendar className={`h-5 w-5 ${calendarConnected || connectedCalendars.some(cal => cal.type === 'google') ? 'text-green-600' : 'text-[#4285F4]'}`} />
                         </div>
                         <div>
                           <h4 className="font-medium">Google Calendar</h4>
@@ -817,10 +824,22 @@ export default function Settings() {
                             </div>
                           ) : null}
                         </div>
+                        {calendarConnected && (
+                          <Badge variant="outline" className="ml-auto bg-green-100 text-green-800 border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" /> Recently Connected
+                          </Badge>
+                        )}
                       </div>
                       
                       {connectedCalendars.some(cal => cal.type === 'google') ? (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
+                          {calendarConnected && (
+                            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-2 mb-2">
+                              <p className="flex items-center">
+                                <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" /> Google Calendar connected successfully! Your calendar events will now sync automatically.
+                              </p>
+                            </div>
+                          )}
                           <Button 
                             variant="outline" 
                             className="w-full"
@@ -842,10 +861,10 @@ export default function Settings() {
                       )}
                     </div>
                     
-                    <div className="border rounded-lg p-4 hover:border-primary transition-colors">
+                    <div className={`border rounded-lg p-4 hover:border-primary transition-colors ${connectedCalendars.some(cal => cal.type === 'office365') ? 'bg-green-50 border-green-200' : ''}`}>
                       <div className="flex items-center space-x-3 mb-4">
-                        <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center">
-                          <BsCalendar2Week className="h-5 w-5 text-[#00A4EF]" />
+                        <div className={`h-10 w-10 rounded-full ${connectedCalendars.some(cal => cal.type === 'office365') ? 'bg-green-100' : 'bg-blue-50'} flex items-center justify-center`}>
+                          <BsCalendar2Week className={`h-5 w-5 ${connectedCalendars.some(cal => cal.type === 'office365') ? 'text-green-600' : 'text-[#00A4EF]'}`} />
                         </div>
                         <div>
                           <h4 className="font-medium">Office 365 Calendar</h4>
@@ -862,7 +881,14 @@ export default function Settings() {
                       </div>
                       
                       {connectedCalendars.some(cal => cal.type === 'office365') ? (
-                        <div className="space-y-2">
+                        <div className="space-y-3">
+                          {searchParams.get('success') === 'office365_connected' && (
+                            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-2 mb-2">
+                              <p className="flex items-center">
+                                <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" /> Office 365 Calendar connected successfully! Your calendar events will now sync automatically.
+                              </p>
+                            </div>
+                          )}
                           <Button 
                             variant="outline" 
                             className="w-full"
