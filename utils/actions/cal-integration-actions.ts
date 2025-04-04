@@ -224,57 +224,17 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
       });
     }
     
-    // Step 4: Optional but recommended - Verify token activeness with a call to /me endpoint
-    let tokenVerified = false;
+    // Only consider connected if managed user is verified and token is not expired
+    const isConnected = verifiedWithCal && tokenStatus !== 'expired';
     
-    if (accessToken && !isTokenExpired) {
-      try {
-        console.log('[CAL_DEBUG] Verifying token activeness with /me endpoint');
-        
-        const meResponse = await fetch('https://api.cal.com/v2/me', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (meResponse.ok) {
-          tokenVerified = true;
-          console.log('[CAL_DEBUG] Token verification successful - /me endpoint accessible');
-        } else {
-          console.error('[CAL_DEBUG] Token verification failed - /me endpoint returned:', meResponse.status);
-          
-          if (meResponse.status === 401 || meResponse.status === 498) {
-            // Only try to refresh if we didn't already do it above
-            if (tokenStatus !== 'refreshed') {
-              console.log('[CAL_DEBUG] Unauthorized response from /me, attempting token refresh');
-              
-              const { refreshUserCalTokens } = await import('@/utils/actions/cal-tokens');
-              const refreshResult = await refreshUserCalTokens(userData.ulid);
-              
-              if (refreshResult.success) {
-                tokenStatus = 'refreshed';
-                tokenVerified = true;
-                console.log('[CAL_DEBUG] Token refreshed successfully after /me verification failure');
-              } else {
-                tokenStatus = 'expired';
-                console.error('[CAL_DEBUG] Token refresh failed after /me verification failure:', refreshResult.error);
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error('[CAL_DEBUG] Error verifying token with /me endpoint:', error);
-        // Continue even if token verification fails
-      }
-    }
+    console.log('[CAL_DEBUG] Returning integration status:', {
+      isConnected,
+      verifiedWithCal,
+      tokenStatus,
+      calManagedUserId: integration.calManagedUserId
+    });
     
-    // Only consider connected if we have valid tokens or managed user is verified
-    const isConnected = verifiedWithCal && (tokenStatus !== 'expired' || tokenVerified);
-
-    // Integration found, return the details
-    const result = {
+    return {
       data: {
         isConnected,
         calManagedUserId: integration.calManagedUserId,
@@ -282,23 +242,10 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
         timeZone: integration.timeZone,
         createdAt: integration.createdAt,
         verifiedWithCal,
-        verificationResponse,
         tokenStatus
       },
-      error: !isConnected && tokenStatus === 'expired' ? {
-        code: 'INTERNAL_ERROR' as ApiErrorCode,
-        message: 'Calendar connection needs to be refreshed'
-      } : null
-    }
-    
-    console.log('[CAL_DEBUG] Returning integration status:', {
-      isConnected,
-      verifiedWithCal,
-      tokenStatus,
-      calManagedUserId: integration.calManagedUserId
-    })
-    
-    return result
+      error: null
+    };
   } catch (error: any) {
     console.error('[FETCH_CAL_STATUS_ERROR]', {
       error,
