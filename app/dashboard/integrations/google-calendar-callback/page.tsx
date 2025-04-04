@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ensureValidCalToken } from '@/utils/cal/token-util'
-import { createAuthClient } from '@/utils/auth';
+import { createAuthClient } from '@/utils/auth'
+import { useAuth } from '@clerk/nextjs'
 
 // Define possible statuses
 type CallbackStatus = 'loading' | 'finalizing' | 'refreshing' | 'success' | 'error';
@@ -17,38 +18,73 @@ export default function GoogleCalendarCallback() {
   const [message, setMessage] = useState<string>('Processing calendar connection...')
   const [errorDetails, setErrorDetails] = useState<string | null>(null)
   const [userUlid, setUserUlid] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const { isLoaded, userId } = useAuth()
 
   // Get the user's ULID
   useEffect(() => {
     const fetchUserUlid = async () => {
-      try {
-        const supabase = createAuthClient();
-        const { data } = await supabase.auth.getSession();
-        
-        if (!data.session?.user) {
-          throw new Error('User not authenticated');
+      // Wait for Clerk auth to be loaded
+      if (!isLoaded) {
+        console.log('[GOOGLE_CALLBACK_UI] Auth not loaded yet, waiting...');
+        return;
+      }
+
+      // Check if we have userId from Clerk
+      if (!userId) {
+        console.error('[GOOGLE_CALLBACK_UI] No userId from Clerk auth');
+        if (retryCount < 3) {
+          console.log(`[GOOGLE_CALLBACK_UI] Retrying (${retryCount + 1}/3)...`);
+          setRetryCount(prev => prev + 1);
+          return;
         }
+        setStatus('error');
+        setMessage('Authentication error');
+        setErrorDetails('Failed to authenticate user. Please try again.');
+        return;
+      }
+
+      try {
+        console.log('[GOOGLE_CALLBACK_UI] Fetching user ULID for userId:', userId);
+        const supabase = createAuthClient();
         
+        // Skip the Supabase auth session check and directly query by Clerk userId
         const { data: userData, error } = await supabase
           .from('User')
           .select('ulid')
+          .eq('userId', userId)
           .single();
           
         if (error || !userData) {
+          console.error('[GOOGLE_CALLBACK_UI] User data fetch error:', error);
           throw new Error('Failed to get user ULID');
         }
         
+        console.log('[GOOGLE_CALLBACK_UI] User ULID found:', userData.ulid);
         setUserUlid(userData.ulid);
       } catch (error) {
         console.error('[GOOGLE_CALLBACK_UI] Error getting user ULID:', error);
+        
+        // Retry logic for transient errors
+        if (retryCount < 3) {
+          console.log(`[GOOGLE_CALLBACK_UI] Retrying (${retryCount + 1}/3)...`);
+          setRetryCount(prev => prev + 1);
+          return;
+        }
+        
         setStatus('error');
         setMessage('Authentication error');
         setErrorDetails('Failed to authenticate user. Please try again.');
       }
     };
     
-    fetchUserUlid();
-  }, []);
+    // Don't run if we already have the ULID
+    if (!userUlid) {
+      const delay = retryCount > 0 ? 1000 : 0; // Add delay for retries
+      const timer = setTimeout(fetchUserUlid, delay);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoaded, userId, userUlid, retryCount]);
 
   useEffect(() => {
     console.log('[GOOGLE_CALLBACK_UI] Page loaded');
@@ -105,43 +141,8 @@ export default function GoogleCalendarCallback() {
         throw new Error(result.error || 'Backend finalization failed.');
       }
 
-      // Success! Now refresh the Cal.com token using our centralized utility
-      console.log('[GOOGLE_CALLBACK_UI] Finalize API call successful, refreshing token...');
-      setStatus('refreshing');
-      setMessage('Refreshing Cal.com integration...');
-      await refreshCalToken();
-      
-    } catch (error: any) {
-      console.error('[GOOGLE_CALLBACK_UI] Error during finalization call:', error);
-      setStatus('error');
-      setMessage('Failed to finalize Google Calendar connection.');
-      setErrorDetails(error.message || 'An unexpected error occurred during finalization.');
-    }
-  };
-  
-  // Function to refresh the Cal.com token using our centralized utility
-  const refreshCalToken = async () => {
-    if (!userUlid) {
-      console.error('[GOOGLE_CALLBACK_UI] Missing user ULID for token refresh');
-      setStatus('error');
-      setMessage('Authentication error');
-      setErrorDetails('Failed to authenticate user. Please try again.');
-      return;
-    }
-    
-    try {
-      // Use our new centralized token utility with force refresh
-      // Since ensureValidCalToken is a server action, it can be called directly
-      const refreshResult = await ensureValidCalToken(userUlid, true);
-      
-      if (!refreshResult.success) {
-        console.error('[GOOGLE_CALLBACK_UI] Token refresh failed:', refreshResult.error);
-        throw new Error(refreshResult.error || 'Failed to refresh Cal.com token');
-      }
-      
-      console.log('[GOOGLE_CALLBACK_UI] Token refresh successful');
-      
-      // Everything successful!
+      // Success! The token was already validated in the finalize API
+      console.log('[GOOGLE_CALLBACK_UI] Google Calendar connected successfully');
       setStatus('success');
       setMessage('Google Calendar connected successfully! Redirecting back to settings...');
       setErrorDetails(null);
@@ -152,10 +153,10 @@ export default function GoogleCalendarCallback() {
       }, 2500);
       
     } catch (error: any) {
-      console.error('[GOOGLE_CALLBACK_UI] Error during token refresh:', error);
+      console.error('[GOOGLE_CALLBACK_UI] Error during finalization call:', error);
       setStatus('error');
-      setMessage('Connected to Google Calendar but failed to refresh Cal.com integration.');
-      setErrorDetails('Your calendar connection was saved, but there was an error refreshing the Cal.com token. Please try refreshing your integration from the settings page.');
+      setMessage('Failed to finalize Google Calendar connection.');
+      setErrorDetails(error.message || 'An unexpected error occurred during finalization.');
     }
   };
 

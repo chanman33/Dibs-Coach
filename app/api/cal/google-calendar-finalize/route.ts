@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/utils/auth'
 import { auth } from '@clerk/nextjs'
+import { ensureValidCalToken } from '@/utils/cal/token-util'
 
 /**
  * API Route to finalize Google Calendar connection after the user
@@ -34,7 +35,15 @@ export async function POST(request: Request) {
       throw new Error(errorMessage);
     }
 
-    // Get Cal details (access token needed for sync)
+    // Ensure we have a valid Cal token - use the token management utility
+    const tokenResult = await ensureValidCalToken(userData.ulid);
+    if (!tokenResult.success) {
+      console.error('[GCAL_FINALIZE] Failed to ensure valid Cal token:', tokenResult.error);
+      errorMessage = 'cal_token_refresh_failed';
+      throw new Error(errorMessage);
+    }
+
+    // Check if we have an integration record
     const { data: calData, error: calError } = await supabase
       .from('CalendarIntegration')
       .select('calAccessToken, calManagedUserId') // Select necessary fields
@@ -69,46 +78,8 @@ export async function POST(request: Request) {
 
     console.log('[GCAL_FINALIZE] Database updated successfully. Proceeding with Cal.com credential sync.');
 
-    // --- Sync Credentials with Cal.com ---
-    // This step calls Cal.com to verify the connection.
-    // FIXME: This call is currently failing with a 400 error from Cal.com
-    //        Error: "Invalid calendar type, available calendars are: " (detail: "apple")
-    //        Temporarily commenting out until the root cause is identified.
-    /* 
-    if (!calData.calAccessToken) {
-        console.warn('[GCAL_FINALIZE] Skipping Cal.com credential sync: Missing access token in DB.');
-        // Consider this a success as the DB was updated, but maybe flag it?
-        success = true; 
-    } else {
-        try {
-            const syncResponse = await fetch(`https://api.cal.com/v2/calendars/google/credentials`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${calData.calAccessToken}`,
-                'x-cal-client-id': process.env.NEXT_PUBLIC_CAL_CLIENT_ID || '',
-                'x-cal-secret-key': process.env.CAL_CLIENT_SECRET || ''
-              }
-            });
-
-            const syncText = await syncResponse.text();
-            if (!syncResponse.ok) {
-              console.warn('[GCAL_FINALIZE] Cal.com credential sync failed:', { status: syncResponse.status, text: syncText });
-              // Treat as success for now, but could be an error depending on requirements.
-              success = true; 
-            } else {
-              console.log('[GCAL_FINALIZE] Cal.com credential sync successful.');
-              success = true; // Mark as fully successful
-            }
-        } catch (syncError) {
-            console.error('[GCAL_FINALIZE] Error during Cal.com credential sync:', syncError);
-            errorMessage = 'cal_sync_exception';
-            // Treat as success for now, log the error.
-            success = true; 
-        }
-    }
-    */
-   // Since sync is commented out, mark success if DB update worked.
+    
+   // Since sync is removed for 400 errors, mark success if DB update worked.
    success = true;
 
   } catch (error: any) {
