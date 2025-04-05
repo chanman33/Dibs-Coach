@@ -74,9 +74,9 @@ export async function GET() {
       timestamp: new Date().toISOString()
     });
     
-    // Always force refresh token for this endpoint to ensure we have a valid token
-    // This helps solve 401 issues when the token is technically not expired but invalid
-    const tokenResult = await ensureValidCalToken(userData.ulid, true);
+    // Use the standard token refresh flow - only refresh if token is expired or expiring soon
+    // This lets ensureValidCalToken check expiration status and determine if refresh is needed
+    const tokenResult = await ensureValidCalToken(userData.ulid);
     
     if (!tokenResult.success || !tokenResult.tokenInfo?.accessToken) {
       console.error('[CAL_GET_CALENDARS_ERROR]', {
@@ -117,7 +117,7 @@ export async function GET() {
     if (response.status === 401) {
       console.log('[CAL_GET_CALENDARS] First attempt failed with 401, forcing token refresh');
       
-      // Force refresh token
+      // Force refresh token only when needed (after a 401 response)
       const forcedTokenResult = await ensureValidCalToken(userData.ulid, true);
       
       if (forcedTokenResult.success && forcedTokenResult.tokenInfo?.accessToken) {
