@@ -27,6 +27,7 @@ export function CalConnectedStatus({ className, onStatusChange }: CalConnectedSt
   const [error, setError] = useState<string | null>(null)
   const [reconnecting, setReconnecting] = useState(false)
   const [refreshingToken, setRefreshingToken] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
 
   const fetchIntegrationStatus = async () => {
     setLoading(true)
@@ -36,7 +37,14 @@ export function CalConnectedStatus({ className, onStatusChange }: CalConnectedSt
       
       if (result.error) {
         console.error('[DIBS_DEBUG] Integration status error:', result.error)
-        setError(result.error.message)
+        // Check specifically for organization errors to help the retry mechanism
+        if ((result.error.code && result.error.code.toString().includes('ORGANIZATION')) || 
+            result.error.message?.includes('organization') || 
+            result.error.message?.includes('Organization')) {
+          setError('Organization context not ready: ' + result.error.message)
+        } else {
+          setError(result.error.message)
+        }
         setIntegration(null)
         onStatusChange?.(false)
       } else {
@@ -144,6 +152,20 @@ export function CalConnectedStatus({ className, onStatusChange }: CalConnectedSt
     console.log('[DIBS_DEBUG] CalConnectedStatus component mounted or onStatusChange changed')
     fetchIntegrationStatus()
   }, [onStatusChange])
+
+  // Add retry mechanism if loading fails
+  useEffect(() => {
+    // If there's an error due to missing organization context, retry after a delay
+    if (error && error.includes('organization') && retryCount < 3) {
+      console.log(`[DIBS_DEBUG] Retrying integration status fetch due to organization context error (${retryCount + 1}/3)`)
+      const timer = setTimeout(() => {
+        setRetryCount(prev => prev + 1)
+        fetchIntegrationStatus()
+      }, 2000) // 2 second delay between retries
+      
+      return () => clearTimeout(timer)
+    }
+  }, [error, retryCount])
 
   if (loading) {
     return (

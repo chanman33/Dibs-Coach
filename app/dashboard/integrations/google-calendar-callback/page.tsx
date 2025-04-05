@@ -147,10 +147,28 @@ export default function GoogleCalendarCallback() {
       setMessage('Google Calendar connected successfully! Redirecting back to settings...');
       setErrorDetails(null);
       
-      // Redirect after a short delay
+      // Redirect to the settings page with tab and success parameters
       setTimeout(() => {
-        router.push('/dashboard/settings?tab=integrations&success=calendar_connected');
-      }, 2500);
+        // Add prefetch to ensure organization context is loaded before redirect
+        // Adding timestamp to prevent caching issues
+        try {
+          // First try to prefetch the organization data to warm cache
+          fetch('/api/user/organizations').then(() => {
+            console.log('[GOOGLE_CALLBACK_UI] Prefetched organization data before redirect');
+            
+            // Add specific settings tab and a timestamp to prevent caching
+            router.replace(`/dashboard/settings?tab=integrations&success=true&t=${Date.now()}`);
+          }).catch((err) => {
+            // If prefetch fails, still redirect but log the error
+            console.error('[GOOGLE_CALLBACK_UI] Error prefetching organization data:', err);
+            router.replace(`/dashboard/settings?tab=integrations&success=true&t=${Date.now()}`);
+          });
+        } catch (err) {
+          // Fallback in case of any errors
+          console.error('[GOOGLE_CALLBACK_UI] Error during redirect preparation:', err);
+          router.replace(`/dashboard/settings?tab=integrations&success=true&t=${Date.now()}`);
+        }
+      }, 5000);
       
     } catch (error: any) {
       console.error('[GOOGLE_CALLBACK_UI] Error during finalization call:', error);
@@ -162,7 +180,7 @@ export default function GoogleCalendarCallback() {
 
   // Function to manually go back to settings
   const handleBackToSettings = () => {
-    router.push('/dashboard/settings?tab=integrations');
+    router.replace('/dashboard/settings');
   };
   
   return (

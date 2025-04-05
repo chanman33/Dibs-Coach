@@ -153,7 +153,9 @@ export default function Settings() {
     const error = searchParams.get('error');
 
     if (success) {
-      if (success === 'calendar_connected') {
+      if (success === 'calendar_connected' || success === 'true') {
+        // Set the active tab to integrations when there's a calendar success
+        setActiveTab('integrations');
         toast.success('Calendar connected successfully!');
         // Refresh the calendar status to ensure UI is updated
         refreshCalendarStatus();
@@ -165,7 +167,13 @@ export default function Settings() {
       const newParams = new URLSearchParams(searchParams.toString());
       newParams.delete('success');
       
+      // If tab wasn't explicitly set but we're showing integrations, add it to the URL
+      if (!tab && activeTab === 'integrations') {
+        newParams.set('tab', 'integrations');
+      }
+      
       // Update the URL without the success parameter but preserve the tab
+      // Use replace to avoid adding to navigation history
       router.replace(`/dashboard/settings?${newParams.toString()}`, { scroll: false });
     } else if (error) {
       console.error('[SETTINGS_PAGE_DEBUG] Processing error:', {
@@ -179,6 +187,7 @@ export default function Settings() {
       newParams.delete('error');
       
       // Update the URL without the error parameter but preserve the tab
+      // Use replace to avoid adding to navigation history
       router.replace(`/dashboard/settings?${newParams.toString()}`, { scroll: false });
     }
   }, [searchParams, router, activeTab, refreshCalendarStatus]);
@@ -202,6 +211,30 @@ export default function Settings() {
     router.replace(`/dashboard/settings?${newParams.toString()}`, { scroll: false });
   };
 
+  // Handle integration tab interactions with better delay handling
+  useEffect(() => {
+    // Only run this effect when the active tab is 'integrations'
+    if (activeTab !== 'integrations') return;
+    
+    // If we're on the integrations tab and it has a success parameter, we need to
+    // ensure that integration statuses are properly refreshed with delay
+    const hasSuccessInURL = searchParams.get('success') === 'true';
+    const hasTimestamp = searchParams.has('t');
+    
+    if (hasSuccessInURL && hasTimestamp) {
+      console.log('[SETTINGS_PAGE_DEBUG] Integration tab with success parameter detected, scheduling status refresh');
+      
+      // Add delay before checking integration status to allow organization context to load
+      const timer = setTimeout(() => {
+        console.log('[SETTINGS_PAGE_DEBUG] Refreshing integration statuses after delay');
+        refreshCalStatus();
+        refreshCalendarStatus();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab, searchParams, refreshCalStatus, refreshCalendarStatus]);
+
   useEffect(() => {
     async function loadUserCapabilities() {
       if (user?.id) {
@@ -210,10 +243,18 @@ export default function Settings() {
           timestamp: new Date().toISOString()
         })
         try {
-          const result: ApiResponse<UserCapabilitiesResponse> = await fetchUserCapabilities()
+          // Add timeout protection to prevent infinite waiting
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Capabilities fetch timeout')), 5000)
+          );
+          
+          const fetchPromise = fetchUserCapabilities();
+          
+          // Race between the fetch and the timeout
+          const result = await Promise.race([fetchPromise, timeoutPromise]) as ApiResponse<UserCapabilitiesResponse>;
           
           if (result.error) {
-            throw result.error
+            throw result.error;
           }
 
           if (result.data) {
@@ -221,33 +262,49 @@ export default function Settings() {
               capabilities: result.data.capabilities,
               timestamp: new Date().toISOString()
             })
-            setUserCapabilities(result.data.capabilities)
+            setUserCapabilities(result.data.capabilities);
           }
         } catch (error) {
           console.error("[SETTINGS_PAGE_DEBUG] Capabilities fetch error:", {
             error,
             timestamp: new Date().toISOString()
-          })
-          setUserCapabilities([])
+          });
+          // Set default capabilities to prevent UI from being stuck in loading
+          setUserCapabilities([]);
+        } finally {
+          // Always mark loading as complete, even on error
+          setLoadingCapabilities(false);
         }
-        setLoadingCapabilities(false)
+      } else if (loadingCapabilities) {
+        // If we don't have a user ID but we're still loading, stop the loading state
+        console.log('[SETTINGS_PAGE_DEBUG] No user ID available, stopping capabilities loading');
+        setLoadingCapabilities(false);
       }
     }
 
-    loadUserCapabilities()
-  }, [user?.id])
+    loadUserCapabilities();
+  }, [user?.id]);
 
-  // Debug render
+  // Debug render with more details
   console.log('[SETTINGS_PAGE_DEBUG] Rendering:', {
     isCoach,
     activeTab,
     loadingCapabilities,
+    userCapabilitiesCount: userCapabilities.length,
     timestamp: new Date().toISOString()
-  })
+  });
 
   if (loadingCapabilities) {
-    console.log('[SETTINGS_PAGE_DEBUG] Loading capabilities')
-    return <div>Loading...</div>
+    console.log('[SETTINGS_PAGE_DEBUG] Loading capabilities');
+    // Return a more informative loading state
+    return (
+      <div className="container mx-auto py-6 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p>Loading settings...</p>
+        </div>
+      </div>
+    );
   }
 
   const renderOrganizationsContent = () => {
