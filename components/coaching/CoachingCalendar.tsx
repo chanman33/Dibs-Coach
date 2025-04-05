@@ -289,9 +289,9 @@ export function CoachingCalendar({
     ...(busyTimes || []).map((busyTime: any, index: number) => ({
       id: `busy-${index}`,
       title: 'Busy',
-      start: new Date(busyTime.start_time || busyTime.startTime),
-      end: new Date(busyTime.end_time || busyTime.endTime),
-      resource: { type: 'busy' }
+      start: new Date(busyTime.start || busyTime.startTime),
+      end: new Date(busyTime.end || busyTime.endTime),
+      resource: { type: 'busy', source: busyTime.source || 'External Calendar' }
     }))
   ]
 
@@ -303,6 +303,7 @@ export function CoachingCalendar({
         className: '!bg-gray-400 !text-white',
         style: {
           borderRadius: '4px',
+          opacity: 0.8
         }
       }
     }

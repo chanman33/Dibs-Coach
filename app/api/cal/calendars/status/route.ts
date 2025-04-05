@@ -5,7 +5,7 @@ import { ensureValidCalToken, handleCalApiResponse } from '@/utils/cal/token-uti
 
 /**
  * API endpoint to check if the user has connected any calendar credentials
- * Returns { success: true/false, data: { hasConnectedCalendars: true/false, calendars: [] } }
+ * Returns { success: true/false, data: { hasConnectedCalendars: true/false, calendars: [], accessToken: string } }
  */
 export async function GET() {
   try {
@@ -53,7 +53,8 @@ export async function GET() {
         data: { 
           hasConnectedCalendars: false, 
           calendars: [],
-          tokenError: true  
+          tokenError: true,
+          accessToken: null  
         } 
       });
     }
@@ -89,7 +90,11 @@ export async function GET() {
       
       return NextResponse.json({ 
         success: true, 
-        data: { hasConnectedCalendars: false, calendars: [] } 
+        data: { 
+          hasConnectedCalendars: false, 
+          calendars: [],
+          accessToken
+        } 
       });
     }
 
@@ -111,7 +116,8 @@ export async function GET() {
       success: true, 
       data: { 
         hasConnectedCalendars,
-        calendars: processCalendars(connectedCalendars)
+        calendars: processCalendars(connectedCalendars),
+        accessToken
       } 
     });
   } catch (error) {
