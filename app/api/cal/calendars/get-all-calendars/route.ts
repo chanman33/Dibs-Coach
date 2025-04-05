@@ -17,6 +17,8 @@ import { ensureValidCalToken, handleCalApiResponse } from '@/utils/cal/token-uti
  */
 export async function GET() {
   try {
+    console.log('[CAL_GET_CALENDARS] Starting fetch of user calendars');
+    
     // Get the user's ID from auth
     const { userId } = auth()
     if (!userId) {
@@ -46,8 +48,35 @@ export async function GET() {
       }, { status: 500 })
     }
 
-    // Ensure we have a valid Cal.com token using our centralized utility
-    const tokenResult = await ensureValidCalToken(userData.ulid);
+    // First, get the CalendarIntegration record to check if calendar is connected
+    const { data: calIntegration, error: calIntegrationError } = await supabase
+      .from('CalendarIntegration')
+      .select('googleCalendarConnected, office365CalendarConnected')
+      .eq('userUlid', userData.ulid)
+      .single();
+      
+    if (calIntegrationError) {
+      console.error('[CAL_GET_CALENDARS_ERROR]', {
+        error: calIntegrationError,
+        userUlid: userData.ulid,
+        stage: 'checking calendar flags',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    const hasGoogleCalendar = calIntegration?.googleCalendarConnected || false;
+    const hasOffice365Calendar = calIntegration?.office365CalendarConnected || false;
+    
+    console.log('[CAL_GET_CALENDARS] Calendar integration flags:', {
+      userUlid: userData.ulid,
+      googleCalendarConnected: hasGoogleCalendar,
+      office365CalendarConnected: hasOffice365Calendar,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Always force refresh token for this endpoint to ensure we have a valid token
+    // This helps solve 401 issues when the token is technically not expired but invalid
+    const tokenResult = await ensureValidCalToken(userData.ulid, true);
     
     if (!tokenResult.success || !tokenResult.tokenInfo?.accessToken) {
       console.error('[CAL_GET_CALENDARS_ERROR]', {
@@ -59,7 +88,7 @@ export async function GET() {
       return NextResponse.json({ 
         success: true, 
         data: { 
-          hasConnectedCalendars: false, 
+          hasConnectedCalendars: hasGoogleCalendar || hasOffice365Calendar, 
           calendars: [],
           tokenError: true  
         } 
@@ -67,6 +96,7 @@ export async function GET() {
     }
     
     const accessToken = tokenResult.tokenInfo.accessToken;
+    console.log('[CAL_GET_CALENDARS] Retrieved access token, fetching calendars from Cal.com');
 
     // Call Cal.com API to get calendar credentials
     // Important: Only use the managed user access token in the Authorization header
@@ -83,12 +113,25 @@ export async function GET() {
     // Initial request with current token
     let response = await makeCalRequest(accessToken);
     
-    // Handle potential token expiration and retry with our utility
-    response = await handleCalApiResponse(
-      response,
-      makeCalRequest,
-      userData.ulid
-    );
+    // If initial request fails with 401, force refresh token and try again
+    if (response.status === 401) {
+      console.log('[CAL_GET_CALENDARS] First attempt failed with 401, forcing token refresh');
+      
+      // Force refresh token
+      const forcedTokenResult = await ensureValidCalToken(userData.ulid, true);
+      
+      if (forcedTokenResult.success && forcedTokenResult.tokenInfo?.accessToken) {
+        console.log('[CAL_GET_CALENDARS] Token refreshed successfully, retrying request');
+        response = await makeCalRequest(forcedTokenResult.tokenInfo.accessToken);
+      }
+    } else {
+      // Handle other potential token issues with our utility
+      response = await handleCalApiResponse(
+        response,
+        makeCalRequest,
+        userData.ulid
+      );
+    }
 
     if (!response.ok) {
       console.error('[CAL_GET_CALENDARS_ERROR]', {
@@ -99,7 +142,12 @@ export async function GET() {
       
       return NextResponse.json({ 
         success: true, 
-        data: { hasConnectedCalendars: false, calendars: [] } 
+        data: { 
+          // Return true if we know a calendar is connected based on DB flags
+          hasConnectedCalendars: hasGoogleCalendar || hasOffice365Calendar,
+          calendars: [],
+          apiError: true
+        } 
       });
     }
 

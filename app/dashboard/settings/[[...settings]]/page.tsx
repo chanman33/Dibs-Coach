@@ -79,27 +79,85 @@ function useCalendarsConnected() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasConnectedCalendar, setHasConnectedCalendar] = useState(false);
   const [connectedCalendars, setConnectedCalendars] = useState<any[]>([]);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   async function checkCalendarConnections() {
+    let integrationData: { data?: { googleCalendarConnected?: boolean, office365CalendarConnected?: boolean } } = {};
+    
     try {
       setIsLoading(true);
-      const response = await fetch('/api/cal/calendars/get-all-user-calendars');
-      const data = await response.json();
+      setApiError(null);
+      console.log('[CALENDAR_CHECK_DEBUG] Starting calendar connection check');
+
+      // First check the CalendarIntegration table for connection flags
+      const integrationResponse = await fetch('/api/cal/integration/status');
+      integrationData = await integrationResponse.json();
       
-      if (data.success && data.data) {
-        setHasConnectedCalendar(data.data.hasConnectedCalendars || false);
-        // If there's calendar details info, store it
-        if (data.data.calendars) {
-          setConnectedCalendars(data.data.calendars || []);
+      console.log('[CALENDAR_CHECK_DEBUG] Calendar integration status:', {
+        googleCalendarConnected: integrationData.data?.googleCalendarConnected,
+        office365CalendarConnected: integrationData.data?.office365CalendarConnected,
+        timestamp: new Date().toISOString()
+      });
+
+      // If either calendar is connected, validate with Cal.com
+      if (integrationData.data?.googleCalendarConnected || integrationData.data?.office365CalendarConnected) {
+        console.log('[CALENDAR_CHECK_DEBUG] Calendar flag detected, validating with Cal.com');
+        
+        // Call the get-all-calendars endpoint to validate
+        console.log('[CALENDAR_CHECK_DEBUG] Calling API: /api/cal/calendars/get-all-calendars');
+        const response = await fetch('/api/cal/calendars/get-all-calendars');
+        const data = await response.json();
+        
+        console.log('[CALENDAR_CHECK_DEBUG] Cal.com calendars response:', {
+          success: data.success,
+          hasConnectedCalendars: data.data?.hasConnectedCalendars,
+          calendarCount: data.data?.calendars?.length,
+          apiError: data.data?.apiError,
+          tokenError: data.data?.tokenError,
+          timestamp: new Date().toISOString()
+        });
+        
+        if (data.success && data.data) {
+          if (data.data.apiError) {
+            console.error('[CALENDAR_CHECK_DEBUG] API error when fetching calendars, but DB flags indicate calendar is connected');
+            setApiError('Could not verify calendars with Cal.com API, but database indicates calendars are connected.');
+            setHasConnectedCalendar(true); // Trust the database flag
+            setConnectedCalendars([]);
+          } else if (data.data.tokenError) {
+            console.error('[CALENDAR_CHECK_DEBUG] Token error when fetching calendars');
+            setApiError('Authentication error with Cal.com. Please disconnect and reconnect your calendar.');
+            setHasConnectedCalendar(true); // Trust the database flag
+            setConnectedCalendars([]);
+          } else {
+            setHasConnectedCalendar(data.data.hasConnectedCalendars || false);
+            // If there's calendar details info, store it
+            if (data.data.calendars) {
+              setConnectedCalendars(data.data.calendars || []);
+            }
+          }
+        } else {
+          console.error('[CALENDAR_CHECK_DEBUG] Failed to validate calendars with Cal.com:', data.error);
+          // If Cal.com validation fails but we have the flag set, we should still show as connected
+          // This prevents UI flicker if Cal.com is temporarily unavailable
+          setHasConnectedCalendar(true);
+          setConnectedCalendars([]);
+          setApiError(data.error || 'Failed to validate calendars with Cal.com');
         }
       } else {
+        console.log('[CALENDAR_CHECK_DEBUG] No calendar connections found in database');
         setHasConnectedCalendar(false);
         setConnectedCalendars([]);
       }
     } catch (error) {
       console.error('[CALENDAR_CONNECTION_CHECK_ERROR]', error);
-      setHasConnectedCalendar(false);
+      // If the check fails but we know a calendar is connected, maintain the connected state
+      // This prevents UI flicker if there are temporary API issues
+      const isConnected = integrationData?.data?.googleCalendarConnected || 
+                         integrationData?.data?.office365CalendarConnected || 
+                         false;
+      setHasConnectedCalendar(isConnected);
       setConnectedCalendars([]);
+      setApiError('Error checking calendar connection');
     } finally {
       setIsLoading(false);
     }
@@ -109,7 +167,13 @@ function useCalendarsConnected() {
     checkCalendarConnections();
   }, []);
 
-  return { hasConnectedCalendar, connectedCalendars, isLoading, refresh: checkCalendarConnections };
+  return { 
+    hasConnectedCalendar, 
+    connectedCalendars, 
+    isLoading, 
+    apiError,
+    refresh: checkCalendarConnections 
+  };
 }
 
 export default function Settings() {
@@ -127,7 +191,7 @@ export default function Settings() {
   const hasErrorParam = searchParams.get('error') === 'true';
   const calendarConnected = searchParams.get('success') === 'calendar_connected';
   const { isConnected, loading: isCalStatusLoading, refresh: refreshCalStatus } = useCalIntegrationStatus()
-  const { hasConnectedCalendar, connectedCalendars, isLoading: isCalendarCheckLoading, refresh: refreshCalendarStatus } = useCalendarsConnected();
+  const { hasConnectedCalendar, connectedCalendars, isLoading: isCalendarCheckLoading, apiError, refresh: refreshCalendarStatus } = useCalendarsConnected();
 
   // Check if user has met all requirements to manage availability
   const canManageAvailability = isConnected && hasConnectedCalendar;
@@ -156,9 +220,34 @@ export default function Settings() {
       if (success === 'calendar_connected' || success === 'true') {
         // Set the active tab to integrations when there's a calendar success
         setActiveTab('integrations');
-        toast.success('Calendar connected successfully!');
-        // Refresh the calendar status to ensure UI is updated
-        refreshCalendarStatus();
+        
+        // First validate the calendar connection with Cal.com
+        const validateCalendarConnection = async () => {
+          try {
+            // Show loading toast
+            const loadingToast = toast.loading('Validating calendar connection...');
+            
+            // Wait a moment to ensure Cal.com has processed the connection
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Refresh both integration and calendar status
+            await Promise.all([
+              refreshCalStatus(),
+              refreshCalendarStatus()
+            ]);
+            
+            // Dismiss loading toast
+            toast.dismiss(loadingToast);
+            
+            // Show success message
+            toast.success('Calendar connected successfully!');
+          } catch (error) {
+            console.error('[CALENDAR_VALIDATION_ERROR]', error);
+            toast.error('Failed to validate calendar connection. Please try again.');
+          }
+        };
+        
+        validateCalendarConnection();
       } else {
         toast.success('Operation completed successfully!');
       }
@@ -190,7 +279,7 @@ export default function Settings() {
       // Use replace to avoid adding to navigation history
       router.replace(`/dashboard/settings?${newParams.toString()}`, { scroll: false });
     }
-  }, [searchParams, router, activeTab, refreshCalendarStatus]);
+  }, [searchParams, router, activeTab, refreshCalendarStatus, refreshCalStatus]);
 
   // When a tab is clicked, update the URL
   const handleTabChange = (value: string) => {
@@ -760,6 +849,26 @@ export default function Settings() {
                   <p className="text-sm text-muted-foreground mb-6">
                     Connect your primary calendar to sync events and manage availability. This helps prevent double-bookings.
                   </p>
+                  
+                  {apiError && (
+                    <Alert className="mb-4 bg-amber-50 border-amber-200">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      <AlertTitle>Calendar Verification Issue</AlertTitle>
+                      <AlertDescription className="text-amber-700">
+                        {apiError}
+                        <div className="mt-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-xs mt-1"
+                            onClick={() => refreshCalendarStatus()}
+                          >
+                            Retry Verification
+                          </Button>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   
                   <div className="flex justify-between items-center mb-4">
                     <div>
