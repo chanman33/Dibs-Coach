@@ -2,200 +2,235 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Loader2, AlertTriangle } from 'lucide-react'
-import { toast } from 'react-hot-toast'
+import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ensureValidCalToken } from '@/utils/cal/token-util'
+import { createAuthClient } from '@/utils/auth'
+import { useAuth } from '@clerk/nextjs'
+
+// Define possible statuses
+type CallbackStatus = 'loading' | 'finalizing' | 'refreshing' | 'success' | 'error';
 
 export default function Office365CalendarCallback() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
-  const [message, setMessage] = useState<string>('Processing Office 365 Calendar authorization...')
-  const [debugInfo, setDebugInfo] = useState<any>(null)
-  const [allParams, setAllParams] = useState<Record<string, string>>({})
+  const [status, setStatus] = useState<CallbackStatus>('loading')
+  const [message, setMessage] = useState<string>('Processing calendar connection...')
+  const [errorDetails, setErrorDetails] = useState<string | null>(null)
+  const [userUlid, setUserUlid] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const { isLoaded, userId } = useAuth()
+
+  // Get the user's ULID
+  useEffect(() => {
+    const fetchUserUlid = async () => {
+      // Wait for Clerk auth to be loaded
+      if (!isLoaded) {
+        console.log('[OFFICE365_CALLBACK_UI] Auth not loaded yet, waiting...');
+        return;
+      }
+
+      // Check if we have userId from Clerk
+      if (!userId) {
+        console.error('[OFFICE365_CALLBACK_UI] No userId from Clerk auth');
+        if (retryCount < 3) {
+          console.log(`[OFFICE365_CALLBACK_UI] Retrying (${retryCount + 1}/3)...`);
+          setRetryCount(prev => prev + 1);
+          return;
+        }
+        setStatus('error');
+        setMessage('Authentication error');
+        setErrorDetails('Failed to authenticate user. Please try again.');
+        return;
+      }
+
+      try {
+        console.log('[OFFICE365_CALLBACK_UI] Fetching user ULID for userId:', userId);
+        const supabase = createAuthClient();
+        
+        // Skip the Supabase auth session check and directly query by Clerk userId
+        const { data: userData, error } = await supabase
+          .from('User')
+          .select('ulid')
+          .eq('userId', userId)
+          .single();
+          
+        if (error || !userData) {
+          console.error('[OFFICE365_CALLBACK_UI] User data fetch error:', error);
+          throw new Error('Failed to get user ULID');
+        }
+        
+        console.log('[OFFICE365_CALLBACK_UI] User ULID found:', userData.ulid);
+        setUserUlid(userData.ulid);
+      } catch (error) {
+        console.error('[OFFICE365_CALLBACK_UI] Error getting user ULID:', error);
+        
+        // Retry logic for transient errors
+        if (retryCount < 3) {
+          console.log(`[OFFICE365_CALLBACK_UI] Retrying (${retryCount + 1}/3)...`);
+          setRetryCount(prev => prev + 1);
+          return;
+        }
+        
+        setStatus('error');
+        setMessage('Authentication error');
+        setErrorDetails('Failed to authenticate user. Please try again.');
+      }
+    };
+    
+    // Don't run if we already have the ULID
+    if (!userUlid) {
+      const delay = retryCount > 0 ? 1000 : 0; // Add delay for retries
+      const timer = setTimeout(fetchUserUlid, delay);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoaded, userId, userUlid, retryCount]);
 
   useEffect(() => {
-    // Extract all parameters for debugging
-    const params: Record<string, string> = {};
-    searchParams.forEach((value, key) => {
-      params[key] = value;
-    });
-    setAllParams(params);
+    console.log('[OFFICE365_CALLBACK_UI] Page loaded');
     
-    // Log all available parameters for debugging
-    console.log('[OFFICE365_CALLBACK] Search params:', params);
-    
-    const saveOffice365CalendarCredentials = async () => {
-      try {
-        // Get the state and code from the URL
-        const state = searchParams.get('state')
-        const code = searchParams.get('code')
-        const error = searchParams.get('error')
-        const errorDescription = searchParams.get('error_description')
+    // Check for explicit errors passed in URL from Cal.com
+    const errorParam = searchParams.get('error'); 
+    const errorDescriptionParam = searchParams.get('error_description');
 
-        // Check if Office365 returned an error
-        if (error) {
-          console.error('[OFFICE365_CALLBACK] Office 365 OAuth error:', { 
-            error,
-            errorDescription,
-            timestamp: new Date().toISOString()
-          })
-          setStatus('error')
-          setMessage(`Authentication error: ${errorDescription || error}. Please try again.`)
-          setDebugInfo({
-            error,
-            errorDescription,
-            timestamp: new Date().toISOString()
-          })
-          return // Don't redirect automatically on error
-        }
-        
-        if (!state || !code) {
-          console.error('[OFFICE365_CALLBACK] Missing required parameters:', { 
-            hasState: !!state, 
-            hasCode: !!code,
-            allParams: params,
-            url: window.location.href,
-            timestamp: new Date().toISOString()
-          })
-          setStatus('error')
-          setMessage('Missing required authorization parameters (state and code). This can happen if Cal.com did not properly redirect back to our application.')
-          setDebugInfo({
-            hasState: !!state,
-            hasCode: !!code,
-            allParams: params,
-            url: window.location.href,
-            timestamp: new Date().toISOString()
-          })
-          return // Don't redirect automatically on missing parameters
-        }
-        
-        console.log('[OFFICE365_CALLBACK] Received parameters, calling save endpoint', {
-          hasState: !!state,
-          hasCode: !!code,
-          stateLength: state?.length,
-          timestamp: new Date().toISOString()
-        })
-        
-        // Create a URL with the parameters to pass to our API
-        const saveEndpoint = `/api/cal/calendars/save-oauth-cal-creds?state=${encodeURIComponent(state)}&code=${encodeURIComponent(code)}&type=office365`
-        console.log('[OFFICE365_CALLBACK] Calling save endpoint:', saveEndpoint)
-        
-        const response = await fetch(saveEndpoint)
-        
-        // Save the response status for debugging
-        const responseStatus = response.status
-        let responseText = ''
-        
-        try {
-          responseText = await response.text()
-        } catch (e) {
-          console.error('[OFFICE365_CALLBACK] Could not read response text:', e)
-        }
-        
-        console.log('[OFFICE365_CALLBACK] Save endpoint response:', {
-          status: responseStatus,
-          text: responseText,
-          timestamp: new Date().toISOString()
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Failed to save credentials: ${responseText || 'Unknown error'}`)
-        }
-        
-        // Call the success handler
-        handleSuccess()
-      } catch (error) {
-        console.error('[OFFICE365_CALLBACK] Error saving credentials:', error)
-        setStatus('error')
-        setMessage('Failed to connect Office 365 Calendar. Please try again.')
-        setDebugInfo({
-          error: error instanceof Error ? error.message : String(error),
-          timestamp: new Date().toISOString()
-        })
-      }
+    if (errorParam) {
+      console.error('[OFFICE365_CALLBACK_UI] Error param detected in URL:', { error: errorParam, description: errorDescriptionParam });
+      setStatus('error');
+      setMessage('Failed to connect Office 365 Calendar.');
+      setErrorDetails(`Error details: ${errorDescriptionParam || errorParam}. Please try connecting again.`);
+      return; // Stop processing
     }
     
-    saveOffice365CalendarCredentials()
-  }, [router, searchParams])
-  
-  // Function to go back to settings
-  const handleBackToSettings = () => {
-    router.push('/dashboard/settings?tab=integrations')
-  }
-  
-  // Function to handle successful connection
-  const handleSuccess = () => {
-    // Success! Redirect to settings with the correct tab and success parameter
-    setStatus('success')
-    setMessage('Office 365 Calendar connected successfully! Redirecting...')
+    // If no explicit error from Cal.com redirect, assume Cal.com part was okay.
+    // Now, trigger our backend to finalize the connection (DB update, sync).
+    setStatus('finalizing');
+    setMessage('Finalizing Office 365 Calendar connection...');
     
-    // Redirect after a short delay to allow user to see success message
-    setTimeout(() => {
-      router.push('/dashboard/settings?tab=integrations&success=true')
-    }, 2000)
-  }
+    // Wait for userUlid to be set before proceeding
+    if (userUlid) {
+      finalizeConnection();
+    }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, userUlid]); // Depend on searchParams and userUlid
+  
+  // Function to call our backend API to complete the setup
+  const finalizeConnection = async () => {
+    if (!userUlid) {
+      console.error('[OFFICE365_CALLBACK_UI] Missing user ULID');
+      setStatus('error');
+      setMessage('Authentication error');
+      setErrorDetails('Failed to authenticate user. Please try again.');
+      return;
+    }
+    
+    console.log('[OFFICE365_CALLBACK_UI] Calling backend to finalize connection...');
+    try {
+      const response = await fetch('/api/cal/office365-calendar-finalize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // No body needed unless we pass specific params from URL (like code/state if Cal included them)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        console.error('[OFFICE365_CALLBACK_UI] Finalize API call failed:', result);
+        throw new Error(result.error || 'Backend finalization failed.');
+      }
+
+      // Success! The token was already validated in the finalize API
+      console.log('[OFFICE365_CALLBACK_UI] Office 365 Calendar connected successfully');
+      setStatus('success');
+      setMessage('Office 365 Calendar connected successfully! Redirecting back to settings...');
+      setErrorDetails(null);
+      
+      // Redirect to the settings page with tab and success parameters
+      setTimeout(() => {
+        // Add prefetch to ensure organization context is loaded before redirect
+        // Adding timestamp to prevent caching issues
+        try {
+          // First try to prefetch the organization data to warm cache
+          fetch('/api/user/organizations').then(() => {
+            console.log('[OFFICE365_CALLBACK_UI] Prefetched organization data before redirect');
+            
+            // Add specific settings tab and a timestamp to prevent caching
+            router.replace(`/dashboard/settings?tab=integrations&success=office365_connected&t=${Date.now()}`);
+          }).catch((err) => {
+            // If prefetch fails, still redirect but log the error
+            console.error('[OFFICE365_CALLBACK_UI] Error prefetching organization data:', err);
+            router.replace(`/dashboard/settings?tab=integrations&success=office365_connected&t=${Date.now()}`);
+          });
+        } catch (err) {
+          // Fallback in case of any errors
+          console.error('[OFFICE365_CALLBACK_UI] Error during redirect preparation:', err);
+          router.replace(`/dashboard/settings?tab=integrations&success=office365_connected&t=${Date.now()}`);
+        }
+      }, 5000);
+      
+    } catch (error: any) {
+      console.error('[OFFICE365_CALLBACK_UI] Error during finalization call:', error);
+      setStatus('error');
+      setMessage('Failed to finalize Office 365 Calendar connection.');
+      setErrorDetails(error.message || 'An unexpected error occurred during finalization.');
+    }
+  };
+
+  // Function to manually go back to settings
+  const handleBackToSettings = () => {
+    router.replace('/dashboard/settings');
+  };
   
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="mx-auto max-w-md rounded-lg border p-8 shadow-sm">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="mx-auto w-full max-w-md rounded-lg border bg-white p-8 shadow-md">
         <div className="flex flex-col items-center justify-center space-y-4 text-center">
-          {status === 'loading' && (
+          {(status === 'loading' || status === 'finalizing' || status === 'refreshing') && (
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
           )}
           
           {status === 'success' && (
             <div className="rounded-full bg-green-100 p-3">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6 text-green-600"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+              <CheckCircle className="h-8 w-8 text-green-600" />
             </div>
           )}
           
           {status === 'error' && (
             <div className="rounded-full bg-red-100 p-3">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
+              <AlertTriangle className="h-8 w-8 text-red-600" />
             </div>
           )}
           
           <h2 className="text-xl font-semibold">
-            {status === 'loading' ? 'Connecting Office 365 Calendar' : 
+            {status === 'loading' ? 'Processing...' : 
+             status === 'finalizing' ? 'Finalizing Connection...' : 
+             status === 'refreshing' ? 'Refreshing Integration...' :
              status === 'success' ? 'Connection Successful' : 'Connection Failed'}
           </h2>
           
-          <p className="text-muted-foreground">{message}</p>
+          <p className="text-sm text-muted-foreground">{message}</p>
           
           {status === 'error' && (
-            <div className="mt-2">
+            <>
+              {errorDetails && (
+                <div className="mt-4 w-full rounded border border-red-200 bg-red-50 p-3 text-left text-xs text-red-700">
+                  <p className="font-medium">Error Details:</p>
+                  <p>{errorDetails}</p>
+                </div>
+              )}
               <Button 
                 onClick={handleBackToSettings}
                 variant="outline"
-                className="mt-2"
+                className="mt-4 w-full"
               >
                 Back to Settings
               </Button>
-            </div>
-          )}
-          
-          {(debugInfo || Object.keys(allParams).length > 0) && status === 'error' && (
-            <div className="mt-4 p-4 text-xs text-left bg-gray-50 rounded border w-full overflow-auto max-h-60">
-              <p className="font-semibold mb-1">Debug Information:</p>
-              <pre className="whitespace-pre-wrap break-words">{JSON.stringify(debugInfo || allParams, null, 2)}</pre>
-            </div>
+            </>
           )}
         </div>
       </div>
     </div>
-  )
+  );
 } 

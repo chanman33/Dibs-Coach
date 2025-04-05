@@ -543,42 +543,6 @@ export default function Settings() {
     }
   };
 
-  // Function to manually sync calendar credentials
-  const handleSyncCalendarCredentials = async (calendarType: 'google' | 'office365') => {
-    try {
-      setLoading(true);
-      const syncToast = toast.loading(`Syncing ${calendarType === 'google' ? 'Google' : 'Office 365'} Calendar credentials...`);
-      
-      const response = await fetch('/api/cal/calendars/sync-credentials', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ calendarType })
-      });
-      
-      toast.dismiss(syncToast);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to sync calendar credentials');
-      }
-      
-      toast.success('Calendar credentials synced successfully');
-      
-      // Refresh the calendar status
-      setTimeout(() => {
-        refreshCalendarStatus();
-      }, 1000);
-      
-    } catch (error) {
-      console.error('[CAL_SYNC_ERROR]', error);
-      toast.error(`Failed to sync ${calendarType} calendar credentials: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="container mx-auto py-6 space-y-8">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
@@ -840,14 +804,6 @@ export default function Settings() {
                               </p>
                             </div>
                           )}
-                          <Button 
-                            variant="outline" 
-                            className="w-full"
-                            onClick={() => handleSyncCalendarCredentials('google')}
-                            disabled={loading}
-                          >
-                            {loading ? <LoadingSpinner size="sm" /> : 'Sync Google Calendar'}
-                          </Button>
                         </div>
                       ) : (
                         <Button 
@@ -882,21 +838,11 @@ export default function Settings() {
                       
                       {connectedCalendars.some(cal => cal.type === 'office365') ? (
                         <div className="space-y-3">
-                          {searchParams.get('success') === 'office365_connected' && (
-                            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-2 mb-2">
-                              <p className="flex items-center">
-                                <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" /> Office 365 Calendar connected successfully! Your calendar events will now sync automatically.
-                              </p>
-                            </div>
-                          )}
-                          <Button 
-                            variant="outline" 
-                            className="w-full"
-                            onClick={() => handleSyncCalendarCredentials('office365')}
-                            disabled={loading}
-                          >
-                            {loading ? <LoadingSpinner size="sm" /> : 'Sync Office 365 Calendar'}
-                          </Button>
+                          <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md p-2 mb-2">
+                            <p className="flex items-center">
+                              <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" /> Office 365 Calendar connected successfully! Your calendar events will now sync automatically.
+                            </p>
+                          </div>
                         </div>
                       ) : (
                         <Button 
