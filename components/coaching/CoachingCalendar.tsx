@@ -5,7 +5,7 @@ import { Calendar, momentLocalizer, View, ToolbarProps } from 'react-big-calenda
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import '@/styles/calendar.css'
-import { Loader2, ChevronLeft, ChevronRight } from "lucide-react"
+import { Loader2, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react"
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from "@/components/ui/button"
@@ -47,6 +47,8 @@ interface CoachingCalendarProps {
   isCalendlyConnected?: boolean
   isCalendlyLoading?: boolean
   showCalendlyButton?: boolean
+  calendarActionText?: string
+  calendarConnectionState?: 'loading' | 'connected' | 'not_connected' | 'error'
 }
 
 // Helper to get badge color based on session status
@@ -248,7 +250,9 @@ export function CoachingCalendar({
   onRefreshCalendly,
   isCalendlyConnected = false,
   isCalendlyLoading = false,
-  showCalendlyButton = false
+  showCalendlyButton = false,
+  calendarActionText = 'Refresh Calendar',
+  calendarConnectionState = 'connected'
 }: CoachingCalendarProps) {
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState(new Date())
@@ -256,11 +260,28 @@ export function CoachingCalendar({
   if (isLoading) {
     return (
       <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
-        <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
+          
+          {showCalendlyButton && (
+            <Button
+              onClick={onRefreshCalendly}
+              disabled={true}
+              variant={calendarConnectionState === 'not_connected' || calendarConnectionState === 'error' ? 'default' : 'outline'}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading...
+            </Button>
+          )}
+        </div>
+        
         <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4">
           <Card className="p-2 sm:p-4">
-            <div className="h-[500px] sm:h-[600px] flex items-center justify-center">
-              <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin" />
+            <div className="h-[500px] sm:h-[600px] flex flex-col items-center justify-center">
+              <Loader2 className="h-8 w-8 sm:h-10 sm:w-10 animate-spin mb-4" />
+              <p className="text-muted-foreground text-sm">Loading calendar and busy times...</p>
             </div>
           </Card>
           <Card className="p-2 sm:p-4">
@@ -334,26 +355,26 @@ export function CoachingCalendar({
 
   return (
     <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
-      <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
 
-      {showCalendlyButton && (
-        <div className="flex justify-end">
+        {showCalendlyButton && (
           <Button
             onClick={onRefreshCalendly}
             disabled={isCalendlyLoading}
-            variant="outline"
+            variant={calendarConnectionState === 'not_connected' || calendarConnectionState === 'error' ? 'default' : 'outline'}
             size="sm"
             className="flex items-center gap-2"
           >
             {isCalendlyLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <ChevronRight className="h-4 w-4" />
+              <RefreshCw className="h-4 w-4" />
             )}
-            {isCalendlyConnected ? 'Refresh Calendar' : 'Connect Calendar'}
+            {calendarActionText}
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4">
         <Card className="p-2 sm:p-4 overflow-hidden">

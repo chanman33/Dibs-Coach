@@ -112,6 +112,8 @@ export default function CoachCalendarPage() {
   const [isLoadingBusyTimes, setIsLoadingBusyTimes] = useState(false)
   const [calendarToken, setCalendarToken] = useState<string | null>(null)
   const [selectedCalendars, setSelectedCalendars] = useState<Calendar[]>([])
+  const [calendarConnectionState, setCalendarConnectionState] = useState<'loading' | 'connected' | 'not_connected' | 'error'>('loading')
+  const [initialCalendarLoad, setInitialCalendarLoad] = useState(true)
 
   // Fetch coach's database ID using server action
   const { data: dbId, isLoading: isLoadingDbId } = useQuery({
@@ -146,7 +148,7 @@ export default function CoachCalendarPage() {
   })
 
   // Fetch coach's calendars
-  const { data: calendarData, isLoading: isLoadingCalendars } = useQuery({
+  const { data: calendarData, isLoading: isLoadingCalendars, error: calendarError } = useQuery({
     queryKey: ['coach-calendars', coachDbId],
     queryFn: async () => {
       if (!coachDbId) return null
@@ -158,18 +160,35 @@ export default function CoachCalendarPage() {
       const data = await response.json()
       return data.success ? data.data : null
     },
-    enabled: !!coachDbId
+    enabled: !!coachDbId,
+    retry: 2
   })
+
+  // Handle query errors
+  useEffect(() => {
+    if (calendarError) {
+      setCalendarConnectionState('error')
+      setInitialCalendarLoad(false)
+    }
+  }, [calendarError])
 
   // Update selectedCalendars when calendarData changes
   useEffect(() => {
     if (calendarData?.calendars?.length > 0) {
       setSelectedCalendars(calendarData.calendars)
+      setCalendarConnectionState('connected')
       
       // Also fetch the token for API calls
       fetchToken()
+    } else if (calendarData && (!calendarData.calendars || calendarData.calendars.length === 0)) {
+      // We have data but no calendars
+      setCalendarConnectionState('not_connected')
+      setInitialCalendarLoad(false)
+    } else if (!isLoadingCalendars && calendarError) {
+      setCalendarConnectionState('error')
+      setInitialCalendarLoad(false)
     }
-  }, [calendarData])
+  }, [calendarData, isLoadingCalendars, calendarError])
 
   // Fetch Cal.com access token
   const fetchToken = async () => {
@@ -184,9 +203,14 @@ export default function CoachCalendarPage() {
       
       if (data.success && data.data?.accessToken) {
         setCalendarToken(data.data.accessToken)
+      } else {
+        setCalendarConnectionState('not_connected')
+        setInitialCalendarLoad(false)
       }
     } catch (error) {
       console.error('[FETCH_CAL_TOKEN_ERROR]', error)
+      setCalendarConnectionState('error')
+      setInitialCalendarLoad(false)
     }
   }
 
@@ -200,6 +224,7 @@ export default function CoachCalendarPage() {
   // Function to fetch busy times
   const fetchBusyTimes = async () => {
     if (selectedCalendars.length === 0 || !calendarToken) {
+      setInitialCalendarLoad(false)
       return
     }
     
@@ -211,6 +236,8 @@ export default function CoachCalendarPage() {
       
       if (!calendar.credentialId || !calendar.externalId) {
         console.error('[FETCH_BUSY_TIMES_ERROR] Missing calendar data', calendar)
+        setCalendarConnectionState('error')
+        setInitialCalendarLoad(false)
         return
       }
       
@@ -239,22 +266,46 @@ export default function CoachCalendarPage() {
       if (data.status === 'success' && Array.isArray(data.data)) {
         console.log('[FETCH_BUSY_TIMES] Got busy times:', data.data)
         setBusyTimes(data.data)
+        setCalendarConnectionState('connected')
       }
     } catch (error) {
       console.error('[FETCH_BUSY_TIMES_ERROR]', error)
       toast.error('Failed to fetch calendar busy times')
+      setCalendarConnectionState('error')
     } finally {
       setIsLoadingBusyTimes(false)
+      setInitialCalendarLoad(false)
     }
   }
 
-  // Handle manual refresh of busy times
-  const handleRefreshBusyTimes = () => {
-    fetchBusyTimes()
+  // Handle manual refresh of busy times or connect calendar
+  const handleCalendarAction = () => {
+    if (calendarConnectionState === 'connected' || (selectedCalendars.length > 0 && calendarToken)) {
+      setInitialCalendarLoad(true)
+      fetchBusyTimes()
+    } else {
+      // Redirect to calendar connection page or open modal
+      window.location.href = '/settings/calendar'
+    }
   }
 
-  // Include all loading states in the overall loading state
-  const isPageLoading = isLoadingSessions || isLoadingDbId || isLoadingCalendars || isLoadingBusyTimes
+  // Include sessions loading in the overall loading state, but handle busyTimes separately
+  const isSessionsLoading = isLoadingSessions || isLoadingDbId
+  
+  // Include busy times loading in the overall loading state
+  const isCalendarLoading = isSessionsLoading || isLoadingBusyTimes || initialCalendarLoad
+
+  // Get the button text based on calendar connection state
+  const getCalendarActionText = () => {
+    if (isLoadingBusyTimes) return 'Loading...'
+    
+    switch (calendarConnectionState) {
+      case 'connected': return 'Refresh Calendar'
+      case 'not_connected': return 'Connect Calendar'
+      case 'error': return 'Retry Connection'
+      default: return 'Calendar'
+    }
+  }
 
   // Define Session interface to fix TypeScript error
   interface SessionData {
@@ -290,35 +341,37 @@ export default function CoachCalendarPage() {
     }
   }))
 
+  // Determine if we need to show calendar connection notice
+  const showCalendarConnectionNotice = 
+    !isLoadingCalendars && !initialCalendarLoad && (calendarConnectionState === 'not_connected' || calendarConnectionState === 'error')
+
   return (
     <div className="container mx-auto py-6 px-4 h-full min-h-screen">
       <style jsx global>{calendarStyles}</style>
       
-      {/* Optional refresh button */}
-      <div className="flex justify-end mb-4">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex items-center gap-1"
-          onClick={handleRefreshBusyTimes}
-          disabled={isLoadingBusyTimes || !calendarToken || selectedCalendars.length === 0}
-        >
-          {isLoadingBusyTimes ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+      {showCalendarConnectionNotice && (
+        <div className="mb-4 p-3 border rounded-md bg-amber-50 border-amber-200 text-amber-800">
+          {calendarConnectionState === 'not_connected' ? (
+            <p>No calendar connected. Connect your calendar to see your busy times.</p>
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <p>There was an issue connecting to your calendar. Please try refreshing or check your settings.</p>
           )}
-          Refresh Calendar
-        </Button>
-      </div>
+        </div>
+      )}
       
       <CoachingCalendar
         sessions={transformedSessions}
-        isLoading={isPageLoading}
+        isLoading={isCalendarLoading}
         title="My Coaching Calendar"
         busyTimes={busyTimes}
         userRole="coach"
         coachDbId={coachDbId || undefined}
+        isCalendlyLoading={isLoadingBusyTimes || isLoadingCalendars}
+        isCalendlyConnected={calendarConnectionState === 'connected'}
+        showCalendlyButton={true}
+        onRefreshCalendly={handleCalendarAction}
+        calendarActionText={getCalendarActionText()}
+        calendarConnectionState={calendarConnectionState}
       />
     </div>
   )
