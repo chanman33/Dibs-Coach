@@ -1,11 +1,12 @@
 'use client'
 
-import { Clock, Video, Trash2, Edit2 } from 'lucide-react'
+import { Clock, Video, Trash2, Edit2, AlertTriangle } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 // Define event type interface
 export interface EventType {
@@ -16,6 +17,9 @@ export interface EventType {
   free: boolean
   enabled: boolean
   isDefault: boolean
+  // New fields for required event types
+  isRequired?: boolean
+  canDisable?: boolean
   // New fields for Office Hours and Group Sessions
   schedulingType: 'MANAGED' | 'OFFICE_HOURS' | 'GROUP_SESSION'
   maxParticipants?: number
@@ -44,6 +48,7 @@ interface EventTypeCardProps {
   onDelete: (id: string) => void
   onToggle: (id: string, enabled: boolean) => void
   isRequired: boolean
+  canDisable?: boolean
 }
 
 export function EventTypeCard({ 
@@ -51,7 +56,8 @@ export function EventTypeCard({
   onEdit, 
   onDelete, 
   onToggle,
-  isRequired 
+  isRequired,
+  canDisable = false
 }: EventTypeCardProps) {
   // Get appropriate icon and label based on scheduling type
   const getEventTypeInfo = () => {
@@ -80,89 +86,96 @@ export function EventTypeCard({
   const eventTypeInfo = getEventTypeInfo();
 
   return (
-    <Card className={`relative overflow-hidden transition-all ${eventType.enabled ? 'border-primary/30' : 'opacity-70'}`}>
-      {eventType.isDefault && (
-        <div className="absolute top-0 right-0">
-          <Badge variant="outline" className="border-primary text-primary m-3">
-            Default
-          </Badge>
-        </div>
-      )}
-      
-      <CardHeader className="pb-2">
+    <Card className="relative overflow-hidden transition-all flex flex-col h-[250px] w-[350px]">
+      {/* Changed from absolute positioning to integrated within CardHeader */}
+      <CardHeader className="pb-0 space-y-1.5">
         <div className="flex justify-between items-start">
-          <div>
-            <CardTitle className="text-lg flex items-center gap-2">
-              {eventTypeInfo.icon} {eventType.name}
-            </CardTitle>
-            <CardDescription className="mt-1">
-              {eventType.description}
-            </CardDescription>
+          <CardTitle className="text-lg flex items-center gap-2">
+            {eventTypeInfo.icon} {eventType.name}
+          </CardTitle>
+          <div className="flex flex-wrap justify-end gap-1.5 max-w-[160px]">
+            {eventType.free && (
+              <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                Free session
+              </Badge>
+            )}
+            
+            {eventType.isDefault && !isRequired && (
+              <Badge variant="outline" className="border-primary text-primary">
+                Default
+              </Badge>
+            )}
+
+            {eventType.schedulingType === 'OFFICE_HOURS' && (
+              <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">
+                Office Hours{eventType.discountPercentage ? ` (${eventType.discountPercentage}% off)` : ''}
+              </Badge>
+            )}
+
+            {eventType.schedulingType === 'GROUP_SESSION' && (
+              <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">
+                Group Session{eventType.maxParticipants ? ` (Max ${eventType.maxParticipants})` : ''}
+              </Badge>
+            )}
           </div>
         </div>
+        <CardDescription className="line-clamp-2 min-h-[40px]">
+          {eventType.description.length > 95 ? `${eventType.description.slice(0, 95)}...` : eventType.description}
+        </CardDescription>
       </CardHeader>
       
-      <CardContent className="pb-2">
-        <div className="flex items-center text-sm text-muted-foreground">
-          <Clock className="h-4 w-4 mr-1 text-primary" /> {eventType.duration} minutes
+      <CardContent className="pt-3 pb-1">
+        <div className="space-y-1">
+          <div className="flex items-center text-sm text-muted-foreground">
+            <Clock className="h-4 w-4 mr-1.5 text-primary" /> {eventType.duration} minutes
+          </div>
+          <div className="flex items-center text-sm text-muted-foreground">
+            <Video className="h-4 w-4 mr-1.5 text-primary" /> Video call
+          </div>
         </div>
-        <div className="flex items-center text-sm text-muted-foreground mt-1">
-          <Video className="h-4 w-4 mr-1 text-primary" /> Video call
-        </div>
-        
-        {/* Display badge based on scheduling type */}
-        <Badge variant="secondary" className={`mt-2 ${
-          eventType.schedulingType === 'OFFICE_HOURS' 
-            ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300' 
-            : eventType.schedulingType === 'GROUP_SESSION'
-              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300'
-              : eventType.free 
-                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
-                : 'hidden'
-        }`}>
-          {eventType.schedulingType === 'OFFICE_HOURS' 
-            ? `Office Hours${eventType.discountPercentage ? ` (${eventType.discountPercentage}% off)` : ''}` 
-            : eventType.schedulingType === 'GROUP_SESSION'
-              ? `Group Session${eventType.maxParticipants ? ` (Max ${eventType.maxParticipants})` : ''}`
-              : 'Free session'}
-        </Badge>
       </CardContent>
       
-      <CardFooter className="flex justify-between pt-2">
-        <div className="flex items-center">
-          <Label htmlFor={`enable-${eventType.id}`} className="mr-2 text-sm">
-            {eventType.enabled ? 'Active' : 'Inactive'}
-          </Label>
-          <Switch 
-            id={`enable-${eventType.id}`} 
-            checked={eventType.enabled}
-            onCheckedChange={(checked) => onToggle(eventType.id, checked)}
-            disabled={isRequired && eventType.isDefault}
-          />
-        </div>
-        
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-8 px-2 text-blue-600" 
-            onClick={() => onEdit(eventType.id)}
-          >
-            <Edit2 className="h-3.5 w-3.5" />
-            <span className="sr-only">Edit</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="h-8 px-2 text-destructive" 
-            onClick={() => onDelete(eventType.id)}
-            disabled={isRequired && eventType.isDefault}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span className="sr-only">Delete</span>
-          </Button>
-        </div>
-      </CardFooter>
+      <div className="mt-auto">
+        <CardFooter className="flex justify-between border-t pt-3">
+          <div className="flex items-center space-x-2">
+            <Switch 
+              id={`enable-${eventType.id}`} 
+              checked={eventType.enabled}
+              onCheckedChange={(checked) => onToggle(eventType.id, checked)}
+              disabled={isRequired && !canDisable}
+            />
+            <Label htmlFor={`enable-${eventType.id}`} className="text-sm">
+              {eventType.enabled ? 'Active' : 'Inactive'}
+            </Label>
+          </div>
+          
+          {!isRequired ? (
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-8 w-8 p-0" 
+                onClick={() => onEdit(eventType.id)}
+              >
+                <Edit2 className="h-3.5 w-3.5" />
+                <span className="sr-only">Edit</span>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-8 w-8 p-0 text-destructive" 
+                onClick={() => onDelete(eventType.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="sr-only">Delete</span>
+              </Button>
+            </div>
+          ) : (
+            <div className="h-8 w-[72px]"></div>
+          )}
+        </CardFooter>
+      </div>
     </Card>
   )
 } 

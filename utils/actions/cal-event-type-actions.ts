@@ -1517,8 +1517,8 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
     const defaultEventTypes: DefaultEventType[] = [
       {
         name: 'Coaching Session',
-        description: '1:1 Coaching Session - Scale Your Brokerage',
-        duration: 60,
+        description: '30-minute 1:1 coaching video call',
+        duration: 30,
         isFree: false,
         isActive: true,
         isDefault: true,
@@ -1535,17 +1535,17 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
           defaultLayout: "month",
           enabledLayouts: ["month", "week", "column"]
         },
-        beforeEventBuffer: 0,
-        afterEventBuffer: 0,
+        beforeEventBuffer: 5,
+        afterEventBuffer: 5,
         minimumBookingNotice: 0
       },
       {
-        name: 'Free Intro Call',
-        description: '15 minute free get to know you and goal setting session',
+        name: 'Get to Know You',
+        description: '15-minute goal setting and introduction session',
         duration: 15,
         isFree: true,
-        isActive: false,
-        isDefault: false,
+        isActive: true,
+        isDefault: true,
         scheduling: 'MANAGED',
         position: 1,
         // Add new fields required by Cal.com API
@@ -1922,12 +1922,12 @@ export async function createFreeIntroCallEventType(userUlid: string): Promise<Ap
 
     // Define the free intro call event type
     const eventType: DefaultEventType = {
-      name: 'Free Intro Call',
-      description: '15 minute free get to know you and goal setting session',
+      name: 'Get to Know You',
+      description: '15-minute goal setting and introduction session',
       duration: 15,
       isFree: true,
       isActive: true,
-      isDefault: false,
+      isDefault: true,
       scheduling: 'MANAGED',
       position: 1,
       // Add new fields required by Cal.com API
