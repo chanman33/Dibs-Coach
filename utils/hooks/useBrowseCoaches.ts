@@ -140,9 +140,7 @@ export function useBrowseCoaches({ role }: UseBrowseCoachesProps): UseBrowseCoac
         // For recommended coaches, filter to only show PUBLISHED profiles when viewing as someone else
         const publishedCoaches = role !== 'COACH' 
           ? validCoaches.filter(coach => 
-              coach.profileStatus === 'PUBLISHED' && 
-              (coach.completionPercentage || 0) >= 80 &&
-              (coach.coachSkills && coach.coachSkills.length > 0)
+              coach.profileStatus === 'PUBLISHED'
             )
           : validCoaches;
         

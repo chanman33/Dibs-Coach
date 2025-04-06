@@ -135,7 +135,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
   );
 
   // Helper function to get top recommended coaches
-  const getTopRecommendedCoaches = (coaches: BrowseCoachData[], count: number = 3): BrowseCoachData[] => {
+  const getTopRecommendedCoaches = (coaches: BrowseCoachData[], count: number = 10): BrowseCoachData[] => {
     // Filter out coaches that are already booked
     const availableCoaches = coaches.filter(coach => 
       !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid) &&
@@ -237,7 +237,6 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
                     .filter(coach => 
                       !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid)
                     )
-                    .slice(0, 3) // Limit to exactly 3 coaches in "All Coaches" section
                     .map(coach => ({
                       ...coach,
                       specialty: coach.coachSkills?.[0] || 'General Coach'
@@ -270,7 +269,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : filteredRecommendedCoaches.length > 0 ? (
-            renderCoaches(getTopRecommendedCoaches(filteredRecommendedCoaches, 3))
+            renderCoaches(getTopRecommendedCoaches(filteredRecommendedCoaches))
           ) : (
             <p className="text-center text-muted-foreground py-12">
               No recommended coaches available at the moment.

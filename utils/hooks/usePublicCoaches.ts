@@ -208,13 +208,8 @@ export function usePublicCoaches() {
           timestamp: new Date().toISOString()
         });
         
-        // First filter for coaches with complete profiles
-        const qualifiedProfiles = allCoachProfiles.filter(profile => 
-          profile.completionPercentage >= 80 && 
-          profile.coachSkills && 
-          Array.isArray(profile.coachSkills) && 
-          profile.coachSkills.length > 0
-        );
+        // Remove filtering for completion percentage and skills - we only care about published status
+        const qualifiedProfiles = allCoachProfiles;
         
         console.log('[PUBLIC_COACHES_QUALIFIED_PROFILES]', {
           totalProfiles: allCoachProfiles.length,

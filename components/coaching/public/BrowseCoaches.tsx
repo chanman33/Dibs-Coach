@@ -13,7 +13,7 @@ import { CoachFilters } from '@/components/coaching/shared/SearchAndFilter/types
 import { RealEstateDomain } from '@/utils/types/coach'
 import Link from 'next/link'
 
-const COACHES_PER_PAGE = 6
+const COACHES_PER_PAGE = 12
 
 export interface BrowseCoachesProps {
   showFeatured?: boolean;
@@ -137,7 +137,6 @@ export function BrowseCoaches({ showFeatured = true }: BrowseCoachesProps) {
             ) : featuredCoaches.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {featuredCoaches
-                  .slice(0, 3) // Limit to exactly 3 coaches
                   .map((coach) => (
                     <PublicCoachCard
                       key={coach.ulid}
