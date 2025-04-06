@@ -633,17 +633,57 @@ export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse,
 
       // Validate publication requirements
       if (data.status === PROFILE_STATUS.PUBLISHED) {
+        // Add detailed logging for debugging
+        console.log('[PUBLISH_PROFILE_DEBUG]', {
+          profileData: {
+            completionPercentage: profile.completionPercentage,
+            coachRealEstateDomains: profile.coachRealEstateDomains,
+            hourlyRate: profile.hourlyRate
+          },
+          minimumRequirements: {
+            MINIMUM_COMPLETION: PROFILE_REQUIREMENTS.MINIMUM_COMPLETION,
+            MINIMUM_DOMAINS: PROFILE_REQUIREMENTS.MINIMUM_DOMAINS,
+            REQUIRES_HOURLY_RATE: PROFILE_REQUIREMENTS.REQUIRES_HOURLY_RATE
+          },
+          timestamp: new Date().toISOString()
+        });
+
         const requirements = {
           completionMet: profile.completionPercentage >= PROFILE_REQUIREMENTS.MINIMUM_COMPLETION,
           domainsMet: (profile.coachRealEstateDomains?.length || 0) >= PROFILE_REQUIREMENTS.MINIMUM_DOMAINS,
           rateMet: PROFILE_REQUIREMENTS.REQUIRES_HOURLY_RATE ? (profile.hourlyRate || 0) > 0 : true
         }
 
+        // Log the results of each requirement check
+        console.log('[PUBLISH_REQUIREMENT_CHECKS]', {
+          completionMet: {
+            result: requirements.completionMet,
+            value: profile.completionPercentage,
+            required: PROFILE_REQUIREMENTS.MINIMUM_COMPLETION
+          },
+          domainsMet: {
+            result: requirements.domainsMet,
+            value: profile.coachRealEstateDomains?.length || 0,
+            required: PROFILE_REQUIREMENTS.MINIMUM_DOMAINS
+          },
+          rateMet: {
+            result: requirements.rateMet,
+            value: profile.hourlyRate || 0,
+            required: PROFILE_REQUIREMENTS.REQUIRES_HOURLY_RATE ? 'Must be > 0' : 'Not required'
+          },
+          timestamp: new Date().toISOString()
+        });
+
         const missingRequirements = Object.entries(requirements)
           .filter(([_, met]) => !met)
           .map(([req]) => req.replace(/Met$/, ''))
 
         if (missingRequirements.length > 0) {
+          console.log('[PUBLISH_FAILED_REQUIREMENTS]', {
+            missingRequirements,
+            timestamp: new Date().toISOString()
+          });
+          
           return {
             data: null,
             error: {

@@ -889,6 +889,23 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
       timestamp: new Date().toISOString()
     });
 
+    // After successfully syncing schedules, update the coach profile completion percentage
+    try {
+      // Only proceed if we have schedules
+      if ((dbSchedules.length > 0 || result.created > 0) && userData.ulid) {
+        // Use the centralized function to update profile completion
+        const { updateProfileCompletion } = await import('@/utils/actions/update-profile-completion')
+        await updateProfileCompletion(userData.ulid, true) // Force refresh since schedules were just synced
+      }
+    } catch (updateError) {
+      // Only log the error, don't fail the calendar sync
+      console.error('[UPDATE_PROFILE_COMPLETION_ERROR_AFTER_CAL_SYNC]', {
+        error: updateError,
+        userUlid: userData.ulid,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     return {
       data: result,
       error: null

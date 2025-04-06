@@ -283,6 +283,20 @@ export const saveCoachAvailability = withServerAction<{ success: true }, SaveAva
         }
       }
 
+      // After successfully saving the availability schedule, update the coach profile completion
+      try {
+        // Use the centralized function to update profile completion
+        const { updateProfileCompletion } = await import('@/utils/actions/update-profile-completion')
+        await updateProfileCompletion(userData.ulid, true) // Force refresh since we just added availability
+      } catch (updateError) {
+        // Only log the error, don't fail the availability save
+        console.error('[UPDATE_PROFILE_COMPLETION_ERROR]', {
+          error: updateError,
+          userUlid: userData.ulid,
+          timestamp: new Date().toISOString()
+        })
+      }
+
       return {
         data: { success: true },
         error: null

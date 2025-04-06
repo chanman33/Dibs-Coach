@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import { Button } from '@/components/ui/button'
-import { CheckCircle, AlertCircle, EyeOff, ChevronRight } from 'lucide-react'
+import { CheckCircle, AlertCircle, EyeOff, ChevronRight, RefreshCw } from 'lucide-react'
 import { PROFILE_STATUS, ProfileStatus } from '@/utils/types/coach'
 import { toast } from 'sonner'
 import Link from 'next/link'
@@ -81,6 +81,7 @@ export function ProfileCompletion({
   validationMessages,
 }: ProfileCompletionProps) {
   const [isUpdating, setIsUpdating] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const renderStatusBadge = () => {
     switch (profileStatus) {
@@ -460,6 +461,35 @@ export function ProfileCompletion({
     }
   };
 
+  // Add a function to manually update the profile completion
+  const handleRefreshCompletion = async () => {
+    try {
+      setIsRefreshing(true)
+      
+      // Call the API to update completion
+      const response = await fetch('/api/profile/update-completion?force=true')
+      
+      if (!response.ok) {
+        throw new Error('Failed to update profile completion')
+      }
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        toast.success(`Profile completion updated: ${result.completionPercentage}%`)
+        // Reload the page to reflect changes
+        window.location.reload()
+      } else {
+        toast.error('Failed to update profile completion')
+      }
+    } catch (error) {
+      console.error('[REFRESH_PROFILE_COMPLETION_ERROR]', error)
+      toast.error('Failed to update profile completion')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
   return (
     <Card className="w-full bg-white border-gray-200">
       <div className="p-6">
@@ -472,7 +502,22 @@ export function ProfileCompletion({
                 : 'Complete these steps to publish your profile'}
             </p>
           </div>
-          {renderStatusBadge()}
+          <div className="flex items-center gap-2">
+            {profileStatus !== PROFILE_STATUS.PUBLISHED && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                disabled={isRefreshing}
+                onClick={handleRefreshCompletion}
+                title="Refresh profile completion"
+                className="px-2 py-1 h-auto"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="sr-only">Refresh</span>
+              </Button>
+            )}
+            {renderStatusBadge()}
+          </div>
         </div>
 
         <div className="space-y-6">
