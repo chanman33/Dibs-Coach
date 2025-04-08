@@ -1251,6 +1251,15 @@
     "@floating-ui/utils" "^0.2.8"
     tabbable "^6.0.0"
 
+"@floating-ui/react@^0.27.3":
+  version "0.27.6"
+  resolved "https://registry.yarnpkg.com/@floating-ui/react/-/react-0.27.6.tgz#f1636698dfd5e8c3d22d3323cf4e8e1405fbeb90"
+  integrity sha512-9GLOPbW8jTeboR2ar9uMMUDUZjpTLscUvOjNvRw2EgppgoLHLUh/P/OW9evULosnvDjhYf2Gwk/gMOP9KvXD2A==
+  dependencies:
+    "@floating-ui/react-dom" "^2.1.2"
+    "@floating-ui/utils" "^0.2.9"
+    tabbable "^6.0.0"
+
 "@floating-ui/utils@^0.2.8":
   version "0.2.8"
   resolved "https://registry.yarnpkg.com/@floating-ui/utils/-/utils-0.2.8.tgz#21a907684723bbbaa5f0974cf7730bd797eb8e62"
@@ -3849,6 +3858,13 @@
     "@types/date-arithmetic" "*"
     "@types/prop-types" "*"
     "@types/react" "*"
+
+"@types/react-datepicker@^7.0.0":
+  version "7.0.0"
+  resolved "https://registry.yarnpkg.com/@types/react-datepicker/-/react-datepicker-7.0.0.tgz#1d36553a92546246f1e10d862b3cfa7d295dff01"
+  integrity sha512-4tWwOUq589tozyQPBVEqGNng5DaZkomx5IVNuur868yYdgjH6RaL373/HKiVt1IDoNNXYiTGspm1F7kjrarM8Q==
+  dependencies:
+    react-datepicker "*"
 
 "@types/react-dom@latest":
   version "19.0.2"
@@ -10123,6 +10139,15 @@ react-big-calendar@^1.17.1:
     prop-types "^15.8.1"
     react-overlays "^5.2.1"
     uncontrollable "^7.2.1"
+
+react-datepicker@*, react-datepicker@^8.2.1:
+  version "8.2.1"
+  resolved "https://registry.yarnpkg.com/react-datepicker/-/react-datepicker-8.2.1.tgz#f710453f62689db9f7fdbbbcc30ec95ab28750f8"
+  integrity sha512-1pyALWM9mTZ7DG7tfcApwBy2kkld9Kz/EI++LhPnoXJAASbvuq6fdsDfkoB3q1JrxF7vhghVmQ759H/rOwUNNw==
+  dependencies:
+    "@floating-ui/react" "^0.27.3"
+    clsx "^2.1.1"
+    date-fns "^4.1.0"
 
 react-day-picker@^8.10.1:
   version "8.10.1"

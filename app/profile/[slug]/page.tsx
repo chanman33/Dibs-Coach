@@ -616,6 +616,7 @@ export default function CoachProfilePage() {
           maximumDuration: coach.sessionConfig?.maximumDuration || 90,
           isActive: true
         }}
+        coachId={coach.userUlid}
       />
     </div>
   )
