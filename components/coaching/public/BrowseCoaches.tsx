@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { FilterSidebar, SearchBar } from '@/components/coaching/shared/SearchAndFilter'
-import { PublicCoachCard } from '../shared/CoachCard/PublicCard'
+import { CoachCard } from '../shared/CoachCard'
 import { Categories } from '../shared/Categories'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
@@ -138,7 +138,7 @@ export function BrowseCoaches({ showFeatured = true }: BrowseCoachesProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {featuredCoaches
                   .map((coach) => (
-                    <PublicCoachCard
+                    <CoachCard
                       key={coach.ulid}
                       id={coach.ulid}
                       name={`${coach.firstName || ''} ${coach.lastName || ''}`}
@@ -152,6 +152,8 @@ export function BrowseCoaches({ showFeatured = true }: BrowseCoachesProps) {
                       reviewCount={coach.totalSessions}
                       hourlyRate={coach.hourlyRate}
                       profileSlug={coach.profileSlug}
+                      isPublic={true}
+                      showBookButton={false}
                     />
                   ))}
               </div>
@@ -230,7 +232,7 @@ export function BrowseCoaches({ showFeatured = true }: BrowseCoachesProps) {
                 <div className="flex flex-col flex-1">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 flex-1">
                     {paginatedCoaches.map(coach => (
-                      <PublicCoachCard
+                      <CoachCard
                         key={coach.ulid}
                         id={coach.ulid}
                         name={`${coach.firstName || ''} ${coach.lastName || ''}`}
@@ -244,6 +246,8 @@ export function BrowseCoaches({ showFeatured = true }: BrowseCoachesProps) {
                         reviewCount={coach.totalSessions}
                         hourlyRate={coach.hourlyRate}
                         profileSlug={coach.profileSlug}
+                        isPublic={true}
+                        showBookButton={false}
                       />
                     ))}
                   </div>

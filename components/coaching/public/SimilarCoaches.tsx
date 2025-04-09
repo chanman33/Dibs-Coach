@@ -3,11 +3,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
-import Image from 'next/image'
-import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PublicCoach, RealEstateDomain } from '@/utils/types/coach'
+import { CoachCard } from '../shared/CoachCard'
 
 interface SimilarCoachesProps {
   currentCoachId: string;
@@ -213,63 +212,24 @@ export function SimilarCoaches({ currentCoachId, skills, domains }: SimilarCoach
           `}</style>
           
           {similarCoaches.map(coach => (
-            <Card key={coach.ulid} className="flex-shrink-0 w-[320px] hover:shadow-md hover:-translate-y-1 transition-all duration-300 flex flex-col">
-              <CardHeader className="pb-1">
-                <div className="flex items-center gap-3">
-                  <div className="relative w-14 h-14 rounded-full overflow-hidden border-2 border-primary/10">
-                    {coach.profileImageUrl ? (
-                      <Image 
-                        src={coach.profileImageUrl} 
-                        alt={coach.displayName || `${coach.firstName} ${coach.lastName}`} 
-                        fill
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-muted flex items-center justify-center text-lg font-semibold text-muted-foreground">
-                        {coach.firstName?.[0]}{coach.lastName?.[0]}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">{coach.displayName || `${coach.firstName} ${coach.lastName}`}</CardTitle>
-                    <CardDescription className="text-xs truncate">
-                      {coach.coachSkills?.[0] || 'Coach'}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-grow pb-4 pt-1">
-                <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{coach.bio || 'No bio available'}</p>
-                
-                {coach.coachSkills && coach.coachSkills.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    {coach.coachSkills.slice(0, 2).map(skill => (
-                      <span
-                        key={skill}
-                        className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                    {coach.coachSkills.length > 2 && (
-                      <span className="text-xs text-muted-foreground">
-                        +{coach.coachSkills.length - 2} more
-                      </span>
-                    )}
-                  </div>
-                )}
-                
-                <Link href={`/profile/${coach.profileSlug || coach.ulid}`} className="block w-full">
-                  <Button 
-                    className="w-full mt-2" 
-                    variant="outline"
-                    size="sm"
-                  >
-                    View Profile
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+            <div key={coach.ulid} className="flex-shrink-0 w-[320px]">
+              <CoachCard 
+                id={coach.ulid}
+                name={coach.displayName || `${coach.firstName} ${coach.lastName}`}
+                imageUrl={coach.profileImageUrl || ''}
+                specialty={coach.coachSkills?.[0] || 'Coach'}
+                bio={coach.bio || 'No bio available'}
+                coachSkills={coach.coachSkills || []}
+                coachRealEstateDomains={coach.coachRealEstateDomains || []}
+                coachPrimaryDomain={coach.coachPrimaryDomain}
+                rating={coach.averageRating ?? undefined}
+                reviewCount={coach.totalSessions}
+                hourlyRate={coach.hourlyRate}
+                profileSlug={coach.profileSlug}
+                isPublic={true}
+                showBookButton={false}
+              />
+            </div>
           ))}
         </div>
       </div>

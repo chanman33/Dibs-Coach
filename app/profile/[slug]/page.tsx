@@ -30,6 +30,17 @@ export default function CoachProfilePage() {
   const supabase = createClient()
   const { user, isLoaded } = useUser()
 
+  // Determine if the user is authenticated and their role
+  const isAuthenticated = isLoaded && !!user
+  const userCapabilities = isAuthenticated ? (user.publicMetadata?.capabilities as string[] || []) : []
+  const isMentee = userCapabilities.includes(USER_CAPABILITIES.MENTEE)
+  const isCoach = userCapabilities.includes(USER_CAPABILITIES.COACH)
+
+  // Determine what content to show based on authentication status
+  const shouldShowFullProfile = isAuthenticated
+  const shouldShowContactInfo = isAuthenticated && (isMentee || isCoach)
+  const shouldShowBookingButton = isAuthenticated
+
   // Determine the correct back link based on user role
   useEffect(() => {
     try {
@@ -273,6 +284,28 @@ export default function CoachProfilePage() {
   const skills = coach.coachSkills || []
   const domains = coach.coachRealEstateDomains || []
 
+  // Authentication message for unauthenticated users
+  const AuthPrompt = () => (
+    !isAuthenticated ? (
+      <Card className="bg-muted/30 border-dashed mt-6">
+        <CardContent className="pt-6 text-center">
+          <p className="text-sm text-muted-foreground mb-3">
+            Sign in to see full coach details and book a session
+          </p>
+          <Button 
+            size="sm" 
+            onClick={() => {
+              const returnUrl = encodeURIComponent(window.location.pathname);
+              router.push(`/sign-in?return_url=${returnUrl}`);
+            }}
+          >
+            Sign In
+          </Button>
+        </CardContent>
+      </Card>
+    ) : null
+  );
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
       {/* Back to Browsing Coaches Button */}
@@ -337,28 +370,49 @@ export default function CoachProfilePage() {
                   </div>
                 )}
                 
+                {/* Authentication prompt for unauthenticated users */}
+                {!isAuthenticated && <AuthPrompt />}
+                
+                {/* Action buttons */}
                 <div className="mt-6 w-full">
-                  <Button 
-                    className="w-full" 
-                    size="lg"
-                    onClick={() => {
-                      const queryParam = coach.profileSlug 
-                        ? `slug=${coach.profileSlug}` 
-                        : `coachId=${coach.userUlid}`
-                      router.push(`/booking/availability?${queryParam}`)
-                    }}
-                  >
-                    Book a Session
-                  </Button>
+                  {shouldShowBookingButton && (
+                    <Button 
+                      className="w-full" 
+                      size="lg"
+                      onClick={() => {
+                        const queryParam = coach.profileSlug 
+                          ? `slug=${coach.profileSlug}` 
+                          : `coachId=${coach.userUlid}`
+                        router.push(`/booking/availability?${queryParam}`)
+                      }}
+                    >
+                      Book a Session
+                    </Button>
+                  )}
                   
-                  <Button 
-                    className="w-full mt-3" 
-                    variant="outline"
-                    size="lg"
-                  >
-                    <Mail className="mr-2 h-4 w-4" />
-                    Contact
-                  </Button>
+                  {shouldShowContactInfo && (
+                    <Button 
+                      className="w-full mt-3" 
+                      variant="outline"
+                      size="lg"
+                    >
+                      <Mail className="mr-2 h-4 w-4" />
+                      Contact
+                    </Button>
+                  )}
+                  
+                  {!shouldShowBookingButton && (
+                    <Button 
+                      className="w-full" 
+                      size="lg"
+                      onClick={() => {
+                        const returnUrl = encodeURIComponent(window.location.pathname);
+                        router.push(`/sign-in?return_url=${returnUrl}`);
+                      }}
+                    >
+                      Sign in to Book
+                    </Button>
+                  )}
                 </div>
                 
                 <Separator className="my-6" />
@@ -460,6 +514,20 @@ export default function CoachProfilePage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Additional content only visible to authenticated users */}
+              {shouldShowFullProfile && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Experience & Background</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      Premium coach profile content - visible only to logged-in users.
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
             
             <TabsContent value="expertise" className="space-y-6">
@@ -529,17 +597,29 @@ export default function CoachProfilePage() {
                     <Separator />
                     
                     <div className="pt-2">
-                      <Button 
-                        className="w-full" 
-                        onClick={() => {
-                          const queryParam = coach.profileSlug 
-                            ? `slug=${coach.profileSlug}` 
-                            : `coachId=${coach.userUlid}`
-                          router.push(`/booking/availability?${queryParam}`)
-                        }}
-                      >
-                        Check Availability & Book
-                      </Button>
+                      {shouldShowBookingButton ? (
+                        <Button 
+                          className="w-full" 
+                          onClick={() => {
+                            const queryParam = coach.profileSlug 
+                              ? `slug=${coach.profileSlug}` 
+                              : `coachId=${coach.userUlid}`
+                            router.push(`/booking/availability?${queryParam}`)
+                          }}
+                        >
+                          Check Availability & Book
+                        </Button>
+                      ) : (
+                        <Button 
+                          className="w-full" 
+                          onClick={() => {
+                            const returnUrl = encodeURIComponent(window.location.pathname);
+                            router.push(`/sign-in?return_url=${returnUrl}`);
+                          }}
+                        >
+                          Sign in to Book
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -577,9 +657,26 @@ export default function CoachProfilePage() {
                       
                       <Separator />
                       
-                      <p className="text-center text-muted-foreground py-8">
-                        Detailed reviews coming soon!
-                      </p>
+                      {shouldShowFullProfile ? (
+                        <p className="text-center text-muted-foreground py-8">
+                          Detailed reviews coming soon!
+                        </p>
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground mb-4">
+                            Sign in to view detailed reviews from other mentees.
+                          </p>
+                          <Button 
+                            size="sm" 
+                            onClick={() => {
+                              const returnUrl = encodeURIComponent(window.location.pathname);
+                              router.push(`/sign-in?return_url=${returnUrl}`);
+                            }}
+                          >
+                            Sign In
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div className="text-center py-8">

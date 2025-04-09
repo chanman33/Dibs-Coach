@@ -61,10 +61,12 @@ export function BaseCoachCard({
       </CardContent>
 
       {renderFooter && (
-        <CardFooter className="pt-0 border-t">{renderFooter()}</CardFooter>
+        <CardFooter className="pt-0">{renderFooter()}</CardFooter>
       )}
     </Card>
   )
 }
 
-export * from './types' 
+export type { CoachCardProps, BaseCoachCardProps, PublicCoachCardProps, PrivateCoachCardProps } from './types'
+export * from './types'
+export * from './CoachCard' 

@@ -44,4 +44,31 @@ export interface PublicCoachCardProps extends BaseCoachCardProps {
   hourlyRate?: number | null;
   sessionConfig?: SessionConfig;
   profileSlug?: string | null;
+}
+
+export interface CoachCardProps extends BaseCoachCardProps {
+  // Common props from both card types
+  coachSkills: string[];
+  coachRealEstateDomains?: RealEstateDomain[];
+  coachPrimaryDomain?: RealEstateDomain | null;
+  profileSlug?: string | null;
+  sessionConfig?: SessionConfig;
+  
+  // Public card specific props
+  rating?: number;
+  reviewCount?: number;
+  hourlyRate?: number | null;
+  
+  // Private card specific props
+  userId?: string;
+  experience?: string | null;
+  certifications?: string[];
+  availability?: string;
+  sessionLength?: string;
+  isBooked?: boolean;
+  onProfileClick?: () => void;
+  
+  // Visibility control
+  showBookButton?: boolean;
+  isPublic?: boolean;
 } 

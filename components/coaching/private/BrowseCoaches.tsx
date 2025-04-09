@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { FilterSidebar, SearchBar } from '@/components/coaching/shared/SearchAndFilter'
-import { PrivateCoachCard } from '../shared/CoachCard/PrivateCard'
+import { CoachCard } from '../shared/CoachCard'
 import { Categories } from '../shared/Categories'
 import { useState } from 'react'
 import { Loader2, AlertCircle } from 'lucide-react'
@@ -91,7 +91,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
   const renderCoaches = (coaches: BrowseCoachData[], isBooked: boolean = false) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
       {coaches.map(coach => (
-        <PrivateCoachCard
+        <CoachCard
           key={coach.ulid}
           id={coach.ulid}
           userId={coach.userId}
@@ -102,7 +102,6 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
           experience={coach.yearsCoaching 
             ? `${coach.yearsCoaching} years of coaching experience` 
             : null}
-          certifications={[]}
           availability={coach.isActive ? "Available" : "Unavailable"}
           sessionLength={`${coach.defaultDuration} minutes`}
           coachSkills={coach.coachSkills || []}
@@ -129,6 +128,8 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
             isActive: coach.isActive
           }}
           profileSlug={coach.profileSlug}
+          isPublic={false}
+          showBookButton={!isBooked}
         />
       ))}
     </div>
