@@ -111,32 +111,6 @@ export default async function DashboardLayout({
   children: ReactNode,
   searchParams?: { [key: string]: string | string[] | undefined }
 }) {
-  // Convert searchParams to URLSearchParams for easier handling
-  const params = new URLSearchParams();
-  if (searchParams) {
-    Object.entries(searchParams).forEach(([key, value]) => {
-      if (typeof value === 'string') {
-        params.append(key, value);
-      } else if (Array.isArray(value)) {
-        value.forEach(v => params.append(key, v));
-      }
-    });
-  }
-  
-  // Check if we're coming from the coach application form
-  const fromCoachApplication = await isComingFromCoachApplication(params);
-  
-  // If we're coming from the coach application form, we need to be more careful
-  // about race conditions with the auth context
-  if (fromCoachApplication) {
-    console.log('[DASHBOARD_LAYOUT] Coming from coach application form, adding extra delay', {
-      timestamp: new Date().toISOString()
-    });
-    
-    // Add a small delay to ensure database updates are fully propagated
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  }
-  
   try {
     const authContext = await getAuthContext();
     
@@ -150,7 +124,6 @@ export default async function DashboardLayout({
       userUlid: authContext.userUlid || 'missing',
       systemRole: authContext.systemRole,
       capabilities: authContext.capabilities,
-      fromCoachApplication,
       timestamp: new Date().toISOString()
     });
     
