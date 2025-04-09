@@ -62,25 +62,9 @@ export async function GET(request: Request) {
     // This ensures we're validating the token for the correct coach
     console.log('[CAL_GET_BUSY_TIMES] Using provided coach ULID:', coachUlid);
     
-    // Ensure token is valid for the COACH, not the current user
-    // This is the key part - we're validating the token belongs to the coach
-    const tokenResult = await ensureValidCalToken(coachUlid);
-    
-    if (!tokenResult.success || !tokenResult.tokenInfo?.accessToken) {
-      console.error('[CAL_GET_BUSY_TIMES_ERROR]', {
-        error: tokenResult.error || 'No valid token available',
-        coachUlid,
-        timestamp: new Date().toISOString()
-      });
-      
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Failed to validate authentication token' 
-      }, { status: 401 });
-    }
-    
-    // Use the validated token, which might be refreshed at this point
-    const validatedToken = tokenResult.tokenInfo.accessToken;
+    // Use the token from the Authorization header directly
+    // This is crucial for Cal.com's API when accessing another user's calendar data
+    const validatedToken = accessToken;
     
     // Construct the query string for Cal.com API
     const dateFrom = new Date().toISOString();
@@ -115,14 +99,9 @@ export async function GET(request: Request) {
     console.log('[CAL_GET_BUSY_TIMES] Making API request with validated token');
     let response = await makeCalRequest(validatedToken);
     
-    // Use handleCalApiResponse to handle potential token expiration issues
-    response = await handleCalApiResponse(
-      response,
-      makeCalRequest,
-      coachUlid
-    );
-    
-    console.log('[CAL_GET_BUSY_TIMES] API response status after token handling', {
+    // For requests with user-provided tokens, we don't attempt token refresh
+    // This API should return the error directly to the client
+    console.log('[CAL_GET_BUSY_TIMES] API response status', {
       status: response.status,
       ok: response.ok
     });
