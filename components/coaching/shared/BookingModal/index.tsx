@@ -10,13 +10,21 @@ interface BookingModalProps {
   coachName: string
   sessionConfig: SessionConfig
   coachId?: string
+  profileSlug?: string
 }
 
-export function BookingModal({ isOpen, onClose, coachName, sessionConfig, coachId }: BookingModalProps) {
+export function BookingModal({ 
+  isOpen, 
+  onClose, 
+  coachName, 
+  sessionConfig, 
+  coachId,
+  profileSlug
+}: BookingModalProps) {
   const router = useRouter()
 
   const handleBookSession = () => {
-    if (!coachId) {
+    if (!coachId && !profileSlug) {
       return
     }
     
@@ -24,7 +32,12 @@ export function BookingModal({ isOpen, onClose, coachName, sessionConfig, coachI
     onClose()
     
     // Navigate to the availability page
-    router.push(`/booking/availability?coachId=${coachId}`)
+    // Prefer using the slug when available for better SEO and security
+    const queryParam = profileSlug 
+      ? `slug=${profileSlug}` 
+      : `coachId=${coachId}`
+    
+    router.push(`/booking/availability?${queryParam}`)
   }
 
   if (!sessionConfig?.isActive) {

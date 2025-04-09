@@ -11,7 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { RatingDisplay } from '@/components/coaching/shared/RatingDisplay'
-import { BookingModal } from '@/components/coaching/shared/BookingModal'
 import { SimilarCoaches } from '@/components/coaching/public/SimilarCoaches'
 import { PublicCoach, RealEstateDomain } from '@/utils/types/coach'
 import Link from 'next/link'
@@ -27,7 +26,6 @@ export default function CoachProfilePage() {
   const [coach, setCoach] = useState<PublicCoach | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
   const [referrer, setReferrer] = useState<string>('/coaches')
   const supabase = createClient()
   const { user, isLoaded } = useUser()
@@ -287,6 +285,7 @@ export default function CoachProfilePage() {
         </Link>
       </div>
       
+      {/* Coach Profile Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Profile Info */}
         <div className="lg:col-span-1">
@@ -342,7 +341,12 @@ export default function CoachProfilePage() {
                   <Button 
                     className="w-full" 
                     size="lg"
-                    onClick={() => setIsBookingModalOpen(true)}
+                    onClick={() => {
+                      const queryParam = coach.profileSlug 
+                        ? `slug=${coach.profileSlug}` 
+                        : `coachId=${coach.userUlid}`
+                      router.push(`/booking/availability?${queryParam}`)
+                    }}
                   >
                     Book a Session
                   </Button>
@@ -527,7 +531,12 @@ export default function CoachProfilePage() {
                     <div className="pt-2">
                       <Button 
                         className="w-full" 
-                        onClick={() => setIsBookingModalOpen(true)}
+                        onClick={() => {
+                          const queryParam = coach.profileSlug 
+                            ? `slug=${coach.profileSlug}` 
+                            : `coachId=${coach.userUlid}`
+                          router.push(`/booking/availability?${queryParam}`)
+                        }}
                       >
                         Check Availability & Book
                       </Button>
@@ -593,31 +602,12 @@ export default function CoachProfilePage() {
       
       {/* Similar Coaches Section */}
       <div className="mt-12">
-        <h2 className="text-2xl font-bold mb-6">Similar Coaches</h2>
         <SimilarCoaches 
           currentCoachId={coach.ulid} 
           skills={coach.coachSkills} 
           domains={coach.coachRealEstateDomains} 
         />
       </div>
-      
-      {/* Booking Modal */}
-      <BookingModal
-        isOpen={isBookingModalOpen}
-        onClose={() => setIsBookingModalOpen(false)}
-        coachName={fullName}
-        sessionConfig={{
-          durations: [coach.sessionConfig?.defaultDuration || 60],
-          rates: { [coach.sessionConfig?.defaultDuration || 60]: coach.hourlyRate ?? 0 },
-          currency: 'USD',
-          defaultDuration: coach.sessionConfig?.defaultDuration || 60,
-          allowCustomDuration: coach.sessionConfig?.allowCustomDuration || false,
-          minimumDuration: coach.sessionConfig?.minimumDuration || 30,
-          maximumDuration: coach.sessionConfig?.maximumDuration || 90,
-          isActive: true
-        }}
-        coachId={coach.userUlid}
-      />
     </div>
   )
 }

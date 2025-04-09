@@ -96,6 +96,8 @@ export function PublicCoachCard(props: PublicCoachCardProps) {
           maximumDuration: 60,
           isActive: true
         }}
+        coachId={props.id}
+        profileSlug={props.profileSlug || undefined}
       />
     </>
   )

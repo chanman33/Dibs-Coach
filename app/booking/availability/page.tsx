@@ -58,6 +58,7 @@ const dayMapping: Record<string, number> = {
 export default function BookingAvailabilityPage() {
   const searchParams = useSearchParams();
   const coachId = searchParams.get("coachId");
+  const coachSlug = searchParams.get("slug");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
@@ -68,18 +69,20 @@ export default function BookingAvailabilityPage() {
   const [coachName, setCoachName] = useState("");
   const [isBooking, setIsBooking] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
+  const [actualCoachId, setActualCoachId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  // Redirect if no coachId provided
+  // Redirect if no coach identifier provided
   useEffect(() => {
-    if (!coachId) {
+    if (!coachId && !coachSlug) {
       redirect("/");
     }
-  }, [coachId]);
+  }, [coachId, coachSlug]);
 
   // Fetch coach schedule and coach information
   useEffect(() => {
-    if (!coachId) return;
+    if (!coachId && !coachSlug) return;
 
     const fetchCoachData = async () => {
       setLoading(true);
@@ -87,11 +90,47 @@ export default function BookingAvailabilityPage() {
         // Fetch coach profile and availability schedule
         const supabase = createAuthClient();
         
-        // First get coach info
+        // First determine the coach's actual ULID
+        let coachUlid: string;
+        
+        if (coachSlug) {
+          // If a slug is provided, look up coach by profile slug
+          const { data: coachProfile, error: profileError } = await supabase
+            .from("CoachProfile")
+            .select("userUlid")
+            .eq("profileSlug", coachSlug)
+            .single();
+            
+          if (profileError || !coachProfile) {
+            console.error("[FETCH_COACH_ERROR] Coach profile not found by slug", {
+              slug: coachSlug,
+              error: profileError
+            });
+            
+            // If not found by slug, try using the coachId as backup
+            if (coachId) {
+              coachUlid = coachId;
+            } else {
+              setError("Coach not found");
+              setLoading(false);
+              return;
+            }
+          } else {
+            coachUlid = coachProfile.userUlid;
+          }
+        } else {
+          // If only coachId provided, use it directly
+          coachUlid = coachId!;
+        }
+        
+        // Store the actual coachId for later use
+        setActualCoachId(coachUlid);
+        
+        // Get coach info
         const { data: coachData, error: coachError } = await supabase
           .from("User")
           .select("firstName, lastName, ulid")
-          .eq("ulid", coachId)
+          .eq("ulid", coachUlid)
           .single();
         
         if (coachError || !coachData) {
@@ -105,7 +144,7 @@ export default function BookingAvailabilityPage() {
         const { data: scheduleData, error: scheduleError } = await supabase
           .from("CoachingAvailabilitySchedule")
           .select("*")
-          .eq("userUlid", coachId)
+          .eq("userUlid", coachUlid)
           .eq("isDefault", true)
           .eq("active", true)
           .single();
@@ -128,7 +167,7 @@ export default function BookingAvailabilityPage() {
           const { data: calData, error: calError } = await supabase
             .from("CalendarIntegration")
             .select("calAccessToken")
-            .eq("userUlid", coachId)
+            .eq("userUlid", coachUlid)
             .single();
             
           if (!calError && calData) {
@@ -143,7 +182,7 @@ export default function BookingAvailabilityPage() {
     };
 
     fetchCoachData();
-  }, [coachId]);
+  }, [coachId, coachSlug]);
 
   // Calculate available dates based on coach schedule
   useEffect(() => {
@@ -185,7 +224,7 @@ export default function BookingAvailabilityPage() {
 
   // Fetch busy times when calendar token is available and date is selected
   useEffect(() => {
-    if (!calToken || !selectedDate || !coachSchedule || !coachId) return;
+    if (!calToken || !selectedDate || !coachSchedule || !actualCoachId) return;
 
     const fetchBusyTimes = async () => {
       try {
@@ -194,7 +233,7 @@ export default function BookingAvailabilityPage() {
         const { data: calendarData, error: calendarError } = await supabase
           .from("CalendarIntegration")
           .select("*")
-          .eq("userUlid", coachId)
+          .eq("userUlid", actualCoachId)
           .single();
           
         if (calendarError || !calendarData) {
@@ -229,7 +268,7 @@ export default function BookingAvailabilityPage() {
     };
 
     fetchBusyTimes();
-  }, [calToken, selectedDate, coachId, coachSchedule]);
+  }, [calToken, selectedDate, actualCoachId, coachSchedule]);
 
   // Calculate available time slots based on schedule and busy times
   useEffect(() => {
@@ -342,7 +381,7 @@ export default function BookingAvailabilityPage() {
   
   // Handle booking flow
   const handleConfirmBooking = async () => {
-    if (!selectedTimeSlot) return;
+    if (!selectedTimeSlot || !actualCoachId) return;
     
     try {
       setIsBooking(true);
@@ -352,14 +391,14 @@ export default function BookingAvailabilityPage() {
       const { data: eventTypes, error: eventTypeError } = await supabase
         .from("CalEventType")
         .select("calEventTypeId")
-        .eq("calendarIntegrationUlid", `${coachId}`) // Use the coach's ID to find their integration
+        .eq("calendarIntegrationUlid", actualCoachId) // Use the actual coach ID
         .eq("isDefault", true)
         .single();
 
       if (eventTypeError || !eventTypes?.calEventTypeId) {
         console.error("[BOOKING_ERROR] No event type found for coach", {
           error: eventTypeError,
-          coachId
+          coachId: actualCoachId
         });
         
         toast({
@@ -404,7 +443,9 @@ export default function BookingAvailabilityPage() {
       }
 
       // Redirect to booking success page with all necessary data
-      router.push(`/booking/booking-success?coachId=${coachId}&startTime=${encodeURIComponent(result.data.startTime)}&endTime=${encodeURIComponent(result.data.endTime)}&bookingUid=${encodeURIComponent(result.data.calBookingUid)}`);
+      // Prefer the slug if available, otherwise use the coachId
+      const coachIdentifier = coachSlug ? `slug=${coachSlug}` : `coachId=${actualCoachId}`;
+      router.push(`/booking/booking-success?${coachIdentifier}&startTime=${encodeURIComponent(result.data.startTime)}&endTime=${encodeURIComponent(result.data.endTime)}&bookingUid=${encodeURIComponent(result.data.calBookingUid)}`);
     } catch (error) {
       console.error("[BOOKING_ERROR]", error);
       toast({

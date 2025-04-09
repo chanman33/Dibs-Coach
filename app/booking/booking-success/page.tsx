@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 export default function BookingSuccessPage() {
   const searchParams = useSearchParams();
   const coachId = searchParams.get("coachId");
+  const coachSlug = searchParams.get("slug");
   const startTime = searchParams.get("startTime");
   const endTime = searchParams.get("endTime");
   const bookingUid = searchParams.get("bookingUid");
@@ -22,19 +23,47 @@ export default function BookingSuccessPage() {
   const [loadingLinks, setLoadingLinks] = useState(false);
   
   useEffect(() => {
-    if (!coachId) return;
+    if (!coachId && !coachSlug) return;
     
     const fetchCoachInfo = async () => {
       try {
         const supabase = createAuthClient();
-        const { data, error } = await supabase
-          .from("User")
-          .select("firstName, lastName")
-          .eq("ulid", coachId)
-          .single();
+        
+        // Determine how to find the coach
+        if (coachSlug) {
+          // If we have a slug, first get the coach profile
+          const { data: profileData, error: profileError } = await supabase
+            .from("CoachProfile")
+            .select("userUlid")
+            .eq("profileSlug", coachSlug)
+            .single();
+            
+          if (profileError || !profileData) {
+            console.error("[FETCH_COACH_PROFILE_ERROR]", profileError);
+            return;
+          }
           
-        if (!error && data) {
-          setCoachName(`${data.firstName || ""} ${data.lastName || ""}`);
+          // Then get the user data
+          const { data: userData, error: userError } = await supabase
+            .from("User")
+            .select("firstName, lastName")
+            .eq("ulid", profileData.userUlid)
+            .single();
+            
+          if (!userError && userData) {
+            setCoachName(`${userData.firstName || ""} ${userData.lastName || ""}`);
+          }
+        } else if (coachId) {
+          // Direct lookup by coach ID
+          const { data, error } = await supabase
+            .from("User")
+            .select("firstName, lastName")
+            .eq("ulid", coachId)
+            .single();
+            
+          if (!error && data) {
+            setCoachName(`${data.firstName || ""} ${data.lastName || ""}`);
+          }
         }
       } catch (error) {
         console.error("[FETCH_COACH_ERROR]", error);
@@ -42,7 +71,7 @@ export default function BookingSuccessPage() {
     };
     
     fetchCoachInfo();
-  }, [coachId]);
+  }, [coachId, coachSlug]);
   
   // Fetch calendar links if we have a booking ID
   useEffect(() => {
