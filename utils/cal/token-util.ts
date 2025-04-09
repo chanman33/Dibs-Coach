@@ -168,6 +168,26 @@ export async function handleCalApiResponse(
     // Check if this is a token expiration error
     const status = apiResponse.status;
     
+    // Cal.com uses status 498 specifically for token expired errors
+    // Immediately handle this without trying to parse the body
+    if (status === 498) {
+      console.log('[CAL_TOKEN_UTIL] Detected token expiration (status 498), refreshing token');
+      
+      // Force refresh the token when we know it's expired
+      const refreshResult = await ensureValidCalToken(userUlid, true);
+      
+      if (!refreshResult.success || !refreshResult.tokenInfo?.accessToken) {
+        console.error('[CAL_TOKEN_UTIL] Failed to refresh token after 498 status:', refreshResult.error);
+        // Return the original error response if token refresh fails
+        return apiResponse;
+      }
+      
+      // Retry the original API call with the new token
+      console.log('[CAL_TOKEN_UTIL] Retrying API call with new token after 498 response');
+      return await retryFn(refreshResult.tokenInfo.accessToken);
+    }
+    
+    // For other status codes, try to examine the response body for token errors
     // Clone the response before reading it
     const clonedResponse = apiResponse.clone();
     
@@ -177,12 +197,11 @@ export async function handleCalApiResponse(
     
     try {
       errorBody = await clonedResponse.json();
-      isTokenError = status === 498 || 
-                    (typeof errorBody === 'object' && 
-                     errorBody?.error?.code === 'TokenExpiredException');
+      isTokenError = (typeof errorBody === 'object' && 
+                      errorBody?.error?.code === 'TokenExpiredException');
     } catch (e) {
-      // If we can't parse as JSON, check only the status code
-      isTokenError = status === 498;
+      // If we can't parse as JSON, not a token error we can detect
+      isTokenError = false;
     }
     
     if (!isTokenError) {
@@ -191,7 +210,7 @@ export async function handleCalApiResponse(
     }
 
     // This is a token expiration error, refresh the token and retry
-    console.log('[CAL_TOKEN_UTIL] Detected token expiration in API response, refreshing token');
+    console.log('[CAL_TOKEN_UTIL] Detected token expiration in API response body, refreshing token');
     
     // Refresh token
     const refreshResult = await ensureValidCalToken(userUlid, true);

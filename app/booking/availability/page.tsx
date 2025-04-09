@@ -14,6 +14,12 @@ import { toast } from "@/components/ui/use-toast";
 import { createBooking } from "@/utils/actions/booking-actions";
 import { CalendarIcon, Clock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { useBookingAvailability } from "@/hooks/useBookingAvailability";
+import { DatePickerSection } from "@/components/booking/DatePickerSection";
+import { TimeSlotsSection } from "@/components/booking/TimeSlotsSection";
+import { BookingSummary } from "@/components/booking/BookingSummary";
 
 // Types for component
 interface TimeSlot {
@@ -56,413 +62,56 @@ const dayMapping: Record<string, number> = {
 };
 
 export default function BookingAvailabilityPage() {
-  const searchParams = useSearchParams();
-  const coachId = searchParams.get("coachId");
-  const coachSlug = searchParams.get("slug");
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [availableDates, setAvailableDates] = useState<Date[]>([]);
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [coachSchedule, setCoachSchedule] = useState<CoachSchedule | null>(null);
-  const [busyTimes, setBusyTimes] = useState<BusyTime[]>([]);
-  const [calToken, setCalToken] = useState<string | null>(null);
-  const [coachName, setCoachName] = useState("");
-  const [isBooking, setIsBooking] = useState(false);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
-  const [actualCoachId, setActualCoachId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-
-  // Redirect if no coach identifier provided
-  useEffect(() => {
-    if (!coachId && !coachSlug) {
-      redirect("/");
-    }
-  }, [coachId, coachSlug]);
-
-  // Fetch coach schedule and coach information
-  useEffect(() => {
-    if (!coachId && !coachSlug) return;
-
-    const fetchCoachData = async () => {
-      setLoading(true);
-      try {
-        // Fetch coach profile and availability schedule
-        const supabase = createAuthClient();
-        
-        // First determine the coach's actual ULID
-        let coachUlid: string;
-        
-        if (coachSlug) {
-          // If a slug is provided, look up coach by profile slug
-          const { data: coachProfile, error: profileError } = await supabase
-            .from("CoachProfile")
-            .select("userUlid")
-            .eq("profileSlug", coachSlug)
-            .single();
-            
-          if (profileError || !coachProfile) {
-            console.error("[FETCH_COACH_ERROR] Coach profile not found by slug", {
-              slug: coachSlug,
-              error: profileError
-            });
-            
-            // If not found by slug, try using the coachId as backup
-            if (coachId) {
-              coachUlid = coachId;
-            } else {
-              setError("Coach not found");
-              setLoading(false);
-              return;
-            }
-          } else {
-            coachUlid = coachProfile.userUlid;
-          }
-        } else {
-          // If only coachId provided, use it directly
-          coachUlid = coachId!;
-        }
-        
-        // Store the actual coachId for later use
-        setActualCoachId(coachUlid);
-        
-        // Get coach info
-        const { data: coachData, error: coachError } = await supabase
-          .from("User")
-          .select("firstName, lastName, ulid")
-          .eq("ulid", coachUlid)
-          .single();
-        
-        if (coachError || !coachData) {
-          console.error("[FETCH_COACH_ERROR]", coachError);
-          return;
-        }
-        
-        setCoachName(`${coachData.firstName || ""} ${coachData.lastName || ""}`);
-        
-        // Then get coach's availability schedule
-        const { data: scheduleData, error: scheduleError } = await supabase
-          .from("CoachingAvailabilitySchedule")
-          .select("*")
-          .eq("userUlid", coachUlid)
-          .eq("isDefault", true)
-          .eq("active", true)
-          .single();
-          
-        if (scheduleError) {
-          console.error("[FETCH_SCHEDULE_ERROR]", scheduleError);
-          return;
-        }
-        
-        if (scheduleData) {
-          setCoachSchedule({
-            ...scheduleData,
-            // If availability is stored as string, parse it
-            availability: typeof scheduleData.availability === 'string' 
-              ? JSON.parse(scheduleData.availability) 
-              : scheduleData.availability
-          });
-          
-          // Get the cal.com token for this coach to fetch busy times
-          const { data: calData, error: calError } = await supabase
-            .from("CalendarIntegration")
-            .select("calAccessToken")
-            .eq("userUlid", coachUlid)
-            .single();
-            
-          if (!calError && calData) {
-            setCalToken(calData.calAccessToken);
-          }
-        }
-      } catch (error) {
-        console.error("[FETCH_COACH_DATA_ERROR]", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCoachData();
-  }, [coachId, coachSlug]);
-
-  // Calculate available dates based on coach schedule
-  useEffect(() => {
-    if (!coachSchedule) return;
-    
-    const availableDays = new Set<number>();
-    
-    // Collect all days the coach is available
-    coachSchedule.availability.forEach(slot => {
-      slot.days.forEach(day => {
-        // Convert from string day name to number (0-6, where 0 is Sunday)
-        const dayNumber = dayMapping[day];
-        if (dayNumber !== undefined) {
-          availableDays.add(dayNumber);
-        }
-      });
-    });
-    
-    // Generate dates for the next 20 days that match available days
-    const dates: Date[] = [];
-    const today = new Date();
-    
-    for (let i = 0; i < 20; i++) {
-      const date = addDays(today, i);
-      const dayOfWeek = date.getDay(); // 0-6, Sunday is 0
-      
-      if (availableDays.has(dayOfWeek)) {
-        dates.push(date);
-      }
-    }
-    
-    setAvailableDates(dates);
-    
-    // If we have dates and no selected date yet, select the first available date
-    if (dates.length > 0 && !selectedDate) {
-      setSelectedDate(dates[0]);
-    }
-  }, [coachSchedule, selectedDate]);
-
-  // Fetch busy times when calendar token is available and date is selected
-  useEffect(() => {
-    if (!calToken || !selectedDate || !coachSchedule || !actualCoachId) return;
-
-    const fetchBusyTimes = async () => {
-      try {
-        // Get calendar credential ID from the coach
-        const supabase = createAuthClient();
-        const { data: calendarData, error: calendarError } = await supabase
-          .from("CalendarIntegration")
-          .select("*")
-          .eq("userUlid", actualCoachId)
-          .single();
-          
-        if (calendarError || !calendarData) {
-          console.error("[FETCH_CALENDAR_ERROR]", calendarError);
-          return;
-        }
-        
-        // Prepare parameters for the busy times API
-        const startDateStr = format(selectedDate, "yyyy-MM-dd");
-        const endDateStr = format(addDays(selectedDate, 1), "yyyy-MM-dd");
-
-        // We need to query busyTimes for all the calendars the coach has connected
-        // Assuming we have the calendar credentials available
-        const response = await fetch(`/api/cal/calendars/get-busy-times?loggedInUsersTz=${encodeURIComponent(coachSchedule.timeZone)}&calendarsToLoad[0][credentialId]=${calendarData.calManagedUserId}&calendarsToLoad[0][externalId]=primary`, {
-          headers: {
-            Authorization: `Bearer ${calToken}`
-          }
-        });
-
-        if (!response.ok) {
-          console.error("[FETCH_BUSY_TIMES_ERROR]", await response.text());
-          return;
-        }
-
-        const busyTimesData = await response.json();
-        if (busyTimesData.status === "success" && Array.isArray(busyTimesData.data)) {
-          setBusyTimes(busyTimesData.data);
-        }
-      } catch (error) {
-        console.error("[FETCH_BUSY_TIMES_ERROR]", error);
-      }
-    };
-
-    fetchBusyTimes();
-  }, [calToken, selectedDate, actualCoachId, coachSchedule]);
-
-  // Calculate available time slots based on schedule and busy times
-  useEffect(() => {
-    if (!selectedDate || !coachSchedule) return;
-    
-    // Get the day of week for the selected date (0-6, Sunday is 0)
-    const dayOfWeek = selectedDate.getDay();
-    
-    // Convert day number to day name for matching with availability
-    const dayNames = Object.keys(dayMapping);
-    const selectedDayName = dayNames.find(day => dayMapping[day] === dayOfWeek);
-    
-    if (!selectedDayName) return;
-    
-    // Find availability slots for the selected day
-    const daySlots = coachSchedule.availability.filter(slot => 
-      slot.days.includes(selectedDayName)
-    );
-    
-    if (daySlots.length === 0) return;
-    
-    // Generate time slots for the selected day
-    const slots: TimeSlot[] = [];
-    const slotDuration = coachSchedule.defaultDuration; // minutes
-    
-    daySlots.forEach(slot => {
-      const [startHour, startMinute] = slot.startTime.split(":").map(Number);
-      const [endHour, endMinute] = slot.endTime.split(":").map(Number);
-      
-      let currentTime = new Date(selectedDate);
-      currentTime.setHours(startHour, startMinute, 0, 0);
-      
-      const endTime = new Date(selectedDate);
-      endTime.setHours(endHour, endMinute, 0, 0);
-      
-      // Generate slots until reaching end time
-      while (currentTime < endTime) {
-        const slotEndTime = new Date(currentTime);
-        slotEndTime.setMinutes(currentTime.getMinutes() + slotDuration);
-        
-        // Check if this slot ends before or at the availability end time
-        if (slotEndTime <= endTime) {
-          slots.push({
-            startTime: new Date(currentTime),
-            endTime: slotEndTime
-          });
-        }
-        
-        // Move to next slot
-        currentTime = new Date(slotEndTime);
-      }
-    });
-    
-    // Filter out slots that conflict with busy times
-    const availableSlots = slots.filter(slot => {
-      // Check for conflicts with busy times
-      return !busyTimes.some(busyTime => {
-        const busyStart = parseISO(busyTime.start);
-        const busyEnd = parseISO(busyTime.end);
-        
-        // Check if slot overlaps with busy time
-        return (
-          isWithinInterval(slot.startTime, { start: busyStart, end: busyEnd }) ||
-          isWithinInterval(slot.endTime, { start: busyStart, end: busyEnd }) ||
-          (slot.startTime <= busyStart && slot.endTime >= busyEnd)
-        );
-      });
-    });
-    
-    setTimeSlots(availableSlots);
-    setSelectedTimeSlot(null); // Reset selected time slot when date changes
-  }, [selectedDate, coachSchedule, busyTimes]);
-
-  // Format time for display
-  const formatTime = (date: Date) => {
-    return format(date, "h:mm a");
-  };
-
-  // Prepare times for rendering
-  const timeSlotGroups = useMemo(() => {
-    if (!timeSlots.length) return [];
-    
-    // Group into morning, afternoon, evening
-    const morning: TimeSlot[] = [];
-    const afternoon: TimeSlot[] = [];
-    const evening: TimeSlot[] = [];
-    
-    timeSlots.forEach(slot => {
-      const hour = slot.startTime.getHours();
-      if (hour < 12) {
-        morning.push(slot);
-      } else if (hour < 17) {
-        afternoon.push(slot);
-      } else {
-        evening.push(slot);
-      }
-    });
-    
-    return [
-      { title: "Morning", slots: morning },
-      { title: "Afternoon", slots: afternoon },
-      { title: "Evening", slots: evening }
-    ].filter(group => group.slots.length > 0);
-  }, [timeSlots]);
+  const {
+    loading,
+    loadingState,
+    error,
+    coachName,
+    selectedDate,
+    setSelectedDate,
+    timeSlotGroups,
+    selectedTimeSlot,
+    setSelectedTimeSlot,
+    isBooking,
+    coachSchedule,
+    handleConfirmBooking,
+    isDateDisabled
+  } = useBookingAvailability();
   
-  // Handle time slot selection
-  const handleSelectTimeSlot = (slot: TimeSlot) => {
-    setSelectedTimeSlot(slot);
-  };
-  
-  // Handle booking flow
-  const handleConfirmBooking = async () => {
-    if (!selectedTimeSlot || !actualCoachId) return;
-    
-    try {
-      setIsBooking(true);
-      
-      // Get the event type for this coach
-      const supabase = createAuthClient();
-      const { data: eventTypes, error: eventTypeError } = await supabase
-        .from("CalEventType")
-        .select("calEventTypeId")
-        .eq("calendarIntegrationUlid", actualCoachId) // Use the actual coach ID
-        .eq("isDefault", true)
-        .single();
+  // Debug logging for loading state changes
+  useEffect(() => {
+    console.log('[DEBUG][BOOKING_PAGE] Loading state changed', loadingState);
+  }, [loadingState]);
 
-      if (eventTypeError || !eventTypes?.calEventTypeId) {
-        console.error("[BOOKING_ERROR] No event type found for coach", {
-          error: eventTypeError,
-          coachId: actualCoachId
-        });
-        
-        toast({
-          title: "Booking Error",
-          description: "Could not find booking configuration for this coach. Please try again later.",
-          variant: "destructive"
-        });
-        
-        setIsBooking(false);
-        return;
-      }
+  // Prepare coach information for the summary
+  const coach = coachName ? {
+    name: coachName,
+    sessionType: "1:1 Coaching Session",
+    sessionDuration: coachSchedule?.defaultDuration,
+  } : null;
 
-      // Call the booking action with the event type ID and time slot
-      const result = await createBooking({
-        eventTypeId: eventTypes.calEventTypeId,
-        startTime: selectedTimeSlot.startTime.toISOString(),
-        endTime: selectedTimeSlot.endTime.toISOString(),
-        attendeeName: "Your Name", // In a real app, you would get this from the user profile
-        attendeeEmail: "your.email@example.com", // In a real app, you would get this from the user profile
-        timeZone: coachSchedule?.timeZone || "UTC"
+  // Display warning if there are calendar sync issues
+  const hasCalendarWarning = loadingState.status === 'warning' && 
+                            loadingState.context === 'BUSY_TIMES';
+                            
+  // Debug logging for key state changes
+  useEffect(() => {
+    if (selectedTimeSlot) {
+      console.log('[DEBUG][BOOKING_PAGE] Time slot selected', {
+        startTime: format(selectedTimeSlot.startTime, 'yyyy-MM-dd HH:mm'),
+        endTime: format(selectedTimeSlot.endTime, 'yyyy-MM-dd HH:mm'),
       });
-
-      if (result.error) {
-        console.error("[BOOKING_ERROR]", result.error);
-        toast({
-          title: "Booking Failed",
-          description: result.error.message || "Could not complete booking. Please try again later.",
-          variant: "destructive"
-        });
-        setIsBooking(false);
-        return;
-      }
-
-      if (!result.data) {
-        toast({
-          title: "Booking Error",
-          description: "No booking data received. Please try again later.",
-          variant: "destructive"
-        });
-        setIsBooking(false);
-        return;
-      }
-
-      // Redirect to booking success page with all necessary data
-      // Prefer the slug if available, otherwise use the coachId
-      const coachIdentifier = coachSlug ? `slug=${coachSlug}` : `coachId=${actualCoachId}`;
-      router.push(`/booking/booking-success?${coachIdentifier}&startTime=${encodeURIComponent(result.data.startTime)}&endTime=${encodeURIComponent(result.data.endTime)}&bookingUid=${encodeURIComponent(result.data.calBookingUid)}`);
-    } catch (error) {
-      console.error("[BOOKING_ERROR]", error);
-      toast({
-        title: "Booking Error",
-        description: "An unexpected error occurred. Please try again later.",
-        variant: "destructive"
-      });
-      setIsBooking(false);
     }
-  };
-
-  // Helper function to check if a date should be disabled
-  const isDateDisabled = (date: Date) => {
-    return !availableDates.some(availableDate => 
-      isSameDay(availableDate, date)
-    );
-  };
+  }, [selectedTimeSlot]);
+  
+  useEffect(() => {
+    if (selectedDate) {
+      console.log('[DEBUG][BOOKING_PAGE] Date selected', {
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        timeSlotCount: timeSlotGroups.reduce((acc, group) => acc + group.slots.length, 0)
+      });
+    }
+  }, [selectedDate, timeSlotGroups]);
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-5xl">
@@ -512,154 +161,54 @@ export default function BookingAvailabilityPage() {
         </div>
       </div>
 
+      {/* Calendar connection warning */}
+      {hasCalendarWarning && (
+        <Alert variant="default" className="mb-6">
+          <ExclamationTriangleIcon className="h-4 w-4" />
+          <AlertTitle>Calendar Sync Warning</AlertTitle>
+          <AlertDescription>
+            We couldn't sync with the coach's calendar. Some displayed times might not reflect their actual availability.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Error state */}
+      {error && (
+        <Alert variant="destructive" className="mb-6">
+          <ExclamationTriangleIcon className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left side - Calendar */}
-        <Card className="lg:col-span-5">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <CalendarIcon className="mr-2 h-5 w-5" />
-              Select a Date
-            </CardTitle>
-            <CardDescription>Available dates are highlighted</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <Skeleton className="h-80 w-full" />
-            ) : (
-              <div className="flex justify-center">
-                <InlineDatePicker
-                  date={selectedDate}
-                  onSelect={setSelectedDate}
-                  disabledDates={isDateDisabled}
-                  className="w-full"
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <DatePickerSection
+          loading={loading}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          isDateDisabled={isDateDisabled}
+        />
 
-        {/* Right side - Time slots or confirmation */}
-        <div className="lg:col-span-7">
-          {selectedTimeSlot ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Clock className="mr-2 h-5 w-5" />
-                  Confirm Your Booking
-                </CardTitle>
-                <CardDescription>Review your selected time and confirm</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="bg-muted p-4 rounded-lg space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Date</span>
-                    <span>{format(selectedTimeSlot.startTime, "EEEE, MMMM d, yyyy")}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Time</span>
-                    <span>
-                      {formatTime(selectedTimeSlot.startTime)} - {formatTime(selectedTimeSlot.endTime)}
-                    </span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Coach</span>
-                    <span>{coachName}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Duration</span>
-                    <span>{coachSchedule?.defaultDuration} minutes</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col space-y-3">
-                  <Button 
-                    onClick={handleConfirmBooking} 
-                    disabled={isBooking} 
-                    className="w-full" 
-                    size="lg"
-                  >
-                    {isBooking ? "Booking..." : "Confirm Booking"}
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setSelectedTimeSlot(null)} 
-                    className="w-full"
-                  >
-                    Back to Time Selection
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Clock className="mr-2 h-5 w-5" />
-                  Available Times
-                </CardTitle>
-                <CardDescription>
-                  {selectedDate
-                    ? `Select a time on ${format(selectedDate, "EEEE, MMMM d, yyyy")}`
-                    : "Please select a date first"}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loading ? (
-                  <div className="space-y-4">
-                    <Skeleton className="h-24 w-full" />
-                    <Skeleton className="h-24 w-full" />
-                  </div>
-                ) : timeSlotGroups.length > 0 ? (
-                  <div className="space-y-6">
-                    {timeSlotGroups.map((group, index) => (
-                      <div key={index} className="space-y-3">
-                        <div className="flex items-center">
-                          <h3 className="font-medium text-lg">{group.title}</h3>
-                          <Badge variant="outline" className="ml-2">
-                            {group.slots.length} {group.slots.length === 1 ? "slot" : "slots"}
-                          </Badge>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                          {group.slots.map((slot, slotIndex) => (
-                            <Button
-                              key={slotIndex}
-                              variant="outline"
-                              className={`justify-center py-6 h-auto hover:border-primary ${
-                                isBooking ? "opacity-50 cursor-not-allowed" : ""
-                              }`}
-                              onClick={() => handleSelectTimeSlot(slot)}
-                              disabled={isBooking}
-                            >
-                              {formatTime(slot.startTime)}
-                            </Button>
-                          ))}
-                        </div>
-                        {index < timeSlotGroups.length - 1 && <Separator className="my-4" />}
-                      </div>
-                    ))}
-                  </div>
-                ) : selectedDate ? (
-                  <div className="py-12 text-center">
-                    <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-lg font-medium">No available times on this date</p>
-                    <p className="text-muted-foreground mt-2">Please select another date from the calendar</p>
-                  </div>
-                ) : (
-                  <div className="py-12 text-center">
-                    <CalendarIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-lg font-medium">Please select a date</p>
-                    <p className="text-muted-foreground mt-2">
-                      Choose a date from the calendar to view available times
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
+        {/* Right side - Time slots */}
+        {selectedTimeSlot ? (
+          <BookingSummary
+            loading={loading}
+            coach={coach}
+            selectedDate={selectedDate}
+            selectedTimeSlot={selectedTimeSlot}
+            handleBookSession={handleConfirmBooking}
+            isBooking={isBooking}
+          />
+        ) : (
+          <TimeSlotsSection
+            loading={loading}
+            selectedDate={selectedDate}
+            timeSlotGroups={timeSlotGroups}
+            handleSelectTimeSlot={setSelectedTimeSlot}
+            isBooking={isBooking}
+          />
+        )}
       </div>
     </div>
   );
