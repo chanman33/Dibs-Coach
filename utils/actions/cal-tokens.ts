@@ -161,22 +161,83 @@ export async function refreshUserCalTokens(userUlid: string, forceRefresh = fals
       return { success: false, error: 'User ULID is required' };
     }
 
-    // Call our API endpoint that handles token refresh
-    const response = await fetch(`${process.env.FRONTEND_URL}/api/cal/refresh-managed-user-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
+    // Get the user's Cal.com integration data
+    const supabase = createAuthClient();
+    const { data: integration, error: integrationError } = await supabase
+      .from('CalendarIntegration')
+      .select('calRefreshToken, calManagedUserId')
+      .eq('userUlid', userUlid)
+      .single();
+
+    if (integrationError || !integration) {
+      console.error('[CAL_TOKENS_REFRESH_ERROR]', {
+        context: 'DB_INTEGRATION',
+        error: integrationError || 'Integration not found',
         userUlid,
-        forceRefresh,
-        isServerAction: true // Flag to indicate this is a server-to-server call
-      })
-    });
+        timestamp: new Date().toISOString()
+      });
+      return { success: false, error: 'Calendar integration not found' };
+    }
+
+    if (!integration.calRefreshToken) {
+      console.error('[CAL_TOKENS_REFRESH_ERROR]', {
+        context: 'NO_REFRESH_TOKEN',
+        userUlid,
+        timestamp: new Date().toISOString()
+      });
+      return { success: false, error: 'No refresh token available' };
+    }
+
+    // Get client credentials
+    const clientId = process.env.NEXT_PUBLIC_CAL_CLIENT_ID;
+    const clientSecret = process.env.CAL_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      console.error('[CAL_TOKENS_REFRESH_ERROR]', {
+        context: 'ENV',
+        clientIdPresent: !!clientId,
+        clientSecretPresent: !!clientSecret,
+        timestamp: new Date().toISOString()
+      });
+      return { success: false, error: 'Missing required environment variables' };
+    }
+
+    // Determine if we should use managed user refresh
+    const isManagedUser = !!integration.calManagedUserId;
+    const shouldUseForceRefresh = (isManagedUser || forceRefresh) && integration.calManagedUserId;
+
+    let response;
+    if (shouldUseForceRefresh) {
+      // Use force-refresh endpoint for managed users
+      response = await fetch(
+        `https://api.cal.com/v2/oauth-clients/${clientId}/users/${integration.calManagedUserId}/force-refresh`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-cal-client-id': clientId,
+            'x-cal-secret-key': clientSecret
+          }
+        }
+      );
+    } else {
+      // Use standard OAuth refresh flow
+      response = await fetch('https://api.cal.com/v2/oauth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: 'refresh_token',
+          refresh_token: integration.calRefreshToken
+        })
+      });
+    }
 
     if (!response.ok) {
       let errorMessage = 'Failed to refresh token';
-      
       try {
         const errorData = await response.json();
         errorMessage = errorData.error || errorMessage;
@@ -198,7 +259,7 @@ export async function refreshUserCalTokens(userUlid: string, forceRefresh = fals
     // Parse the response
     const result = await response.json();
     
-    if (!result.success) {
+    if (!result.success && !result.data) {
       console.error('[CAL_TOKENS_REFRESH_ERROR]', {
         context: 'API_RESULT',
         error: result.error,
@@ -209,16 +270,15 @@ export async function refreshUserCalTokens(userUlid: string, forceRefresh = fals
       return { success: false, error: result.error || 'Unknown error occurred' };
     }
 
-    // If tokens were refreshed, update them in the database
-    if (result.data) {
-      return await updateCalTokens(userUlid, {
-        accessToken: result.data.accessToken,
-        refreshToken: result.data.refreshToken,
-        accessTokenExpiresAt: result.data.accessTokenExpiresAt
-      });
-    }
-
-    return { success: true };
+    // Extract token data based on response format
+    const tokenData = result.data || result;
+    
+    // Update tokens in database
+    return await updateCalTokens(userUlid, {
+      accessToken: tokenData.accessToken || tokenData.access_token,
+      refreshToken: tokenData.refreshToken || tokenData.refresh_token,
+      accessTokenExpiresAt: tokenData.accessTokenExpiresAt || new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString()
+    });
   } catch (error) {
     console.error('[CAL_TOKENS_REFRESH_ERROR]', {
       context: 'GENERAL',

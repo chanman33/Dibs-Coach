@@ -1,5 +1,5 @@
 ---
-description: 
+description: Cal.com API related tasks
 globs: 
 alwaysApply: false
 ---
@@ -13,6 +13,58 @@ We use the **Platform Managed Users** model for our Cal.com integration. This me
 2. We maintain full control over the booking flow, availability, and calendar management
 3. We don't require coaches to create their own Cal.com accounts
 4. Always confirm Cal.com API success before modifying the local database
+
+## Server/Client Architecture
+
+### Server Components and Actions
+1. **ALWAYS** use the `'use server'` directive for:
+   - Token management
+   - API calls with sensitive credentials
+   - Database operations
+   - Webhook handling
+   ```typescript
+   // Example server action
+   'use server';
+   export async function refreshCalToken(userUlid: string) {
+     // Secure implementation
+   }
+   ```
+
+2. **ALWAYS** place server-only code in:
+   - `/app/api/` routes
+   - `/utils/actions/` for server actions
+   - Files marked with `'use server'`
+
+3. **NEVER** import server actions directly in client components:
+   ```typescript
+   // ❌ WRONG - Direct import in client component
+   import { refreshCalToken } from '@/utils/actions/cal-tokens';
+   
+   // ✅ CORRECT - Use through props or context
+   function ClientComponent({ onRefreshToken }: { onRefreshToken: () => Promise<void> })
+   ```
+
+### Client Components
+1. **NEVER** include sensitive credentials in client components:
+   ```typescript
+   // ❌ WRONG
+   const clientSecret = process.env.CAL_CLIENT_SECRET;
+   
+   // ✅ CORRECT
+   const publicClientId = process.env.NEXT_PUBLIC_CAL_CLIENT_ID;
+   ```
+
+2. **ALWAYS** use type-safe server actions for API calls:
+   ```typescript
+   // server-action.ts
+   'use server';
+   export async function getCalendarData(userUlid: string) {
+     // Secure implementation
+   }
+   
+   // client-component.tsx
+   import { getCalendarData } from './server-action';
+   ```
 
 ## Environment Setup
 
@@ -28,6 +80,35 @@ Always dynamically retrieve the OAuth token (CAL_ACCESS_TOKEN) first, then use i
 
 Ensure you always use the prefix Bearer with your token in the Authorization header.
 
+## API Security
+
+### Authentication Headers
+1. **NEVER** include `CAL_CLIENT_SECRET` in client-side requests
+2. **ALWAYS** use server actions or API routes for authenticated requests:
+   ```typescript
+   // api/cal/managed-users/route.ts
+   export async function GET() {
+     const headers = {
+       'x-cal-client-id': env.NEXT_PUBLIC_CAL_CLIENT_ID,
+       'x-cal-secret-key': env.CAL_CLIENT_SECRET
+     };
+     // Make secure request
+   }
+   ```
+
+### Token Management
+1. **ALWAYS** use the centralized token service:
+   ```typescript
+   // utils/auth/cal-token-service.ts
+   'use server';
+   export async function refreshCalAccessToken(userUlid: string) {
+     // Secure implementation
+   }
+   ```
+
+2. **NEVER** store tokens in client-side state or localStorage
+3. **ALWAYS** use server-side token storage (Supabase)
+
 ## API Endpoint Rules
 
 ### For User Management Operations (Platform API)
@@ -40,6 +121,34 @@ Ensure you always use the prefix Bearer with your token in the Authorization hea
     'x-cal-secret-key': env.CAL_CLIENT_SECRET
   }
   ```
+
+## Data Flow Architecture
+
+### Server-Side Operations
+1. **ALWAYS** implement these operations as server actions or API routes:
+   - Token refresh
+   - Calendar operations
+   - User management
+   - Booking operations
+   ```typescript
+   // utils/actions/cal-booking.ts
+   'use server';
+   export async function createBooking(params: BookingParams) {
+     // Secure implementation
+   }
+   ```
+
+### Client-Side Operations
+1. **ONLY** allow these operations in client components:
+   - UI state management
+   - Form handling
+   - User interactions
+   - Data display
+   ```typescript
+   // components/BookingForm.tsx
+   'use client';
+   export function BookingForm({ onSubmit }: { onSubmit: (data: FormData) => Promise<void> })
+   ```
 
 ## Common Operations
 
@@ -65,6 +174,36 @@ Ensure you always use the prefix Bearer with your token in the Authorization hea
 - Cancel booking: `DELETE /v2/bookings/${bookingId}`
 - Reschedule booking: `POST /v2/bookings/${bookingId}/reschedule`
 
+## API Utilities
+
+### Server-Side Utilities
+1. **ALWAYS** implement secure API utilities:
+   ```typescript
+   // utils/cal/server-api.ts
+   'use server';
+   export async function makeSecureCalApiRequest(endpoint: string, options: RequestOptions) {
+     const headers = {
+       'x-cal-client-id': env.NEXT_PUBLIC_CAL_CLIENT_ID,
+       'x-cal-secret-key': env.CAL_CLIENT_SECRET
+     };
+     // Make secure request
+   }
+   ```
+
+### Client-Side Utilities
+1. **ALWAYS** use safe client utilities:
+   ```typescript
+   // utils/cal/client-api.ts
+   export async function makeClientCalApiRequest(endpoint: string, accessToken: string) {
+     const response = await fetch('/api/cal/proxy', {
+       headers: {
+         'Authorization': `Bearer ${accessToken}`
+       }
+     });
+     return response.json();
+   }
+   ```
+
 ## Project Structure
 
 ### Library Structure
@@ -72,6 +211,17 @@ Ensure you always use the prefix Bearer with your token in the Authorization hea
 - `lib/cal/cal-service.ts`: Primary service for Cal.com operations
 - `lib/cal/cal-api.ts`: Client for direct API calls using OAuth tokens
 - `lib/cal/cal-webhook.ts`: Webhook registration and management
+
+### Server-Side Code Location
+- `/app/api/` - API routes
+- `/utils/actions/` - Server actions
+- `/utils/auth/` - Authentication utilities
+- `/lib/cal/server/` - Server-side Cal.com utilities
+
+### Client-Side Code Location
+- `/components/` - React components
+- `/lib/cal/client/` - Client-safe Cal.com utilities
+- `/hooks/` - React hooks
 
 ### API Endpoints
 - `app/api/cal/webhooks/`: Webhook registration and event handling
@@ -109,6 +259,30 @@ Ensure you always use the prefix Bearer with your token in the Authorization hea
   ```
 - `app/api/cal/bookings/`: Booking management endpoints
 - `app/api/cal/test/`: Testing endpoints
+
+## Error Handling
+
+### Server-Side Errors
+1. **NEVER** expose sensitive error details to clients
+2. **ALWAYS** log detailed errors server-side:
+   ```typescript
+   // server-action.ts
+   'use server';
+   try {
+     // Operation
+   } catch (error) {
+     console.error('[CAL_ERROR]', {
+       context: 'OPERATION_NAME',
+       error,
+       timestamp: new Date().toISOString()
+     });
+     throw new Error('Operation failed'); // Safe error for client
+   }
+   ```
+
+### Client-Side Errors
+1. **ALWAYS** handle errors gracefully in UI
+2. **NEVER** display raw error messages from server
 
 ## Authentication Rules
 
@@ -169,47 +343,40 @@ Ensure you always use the prefix Bearer with your token in the Authorization hea
 2. **ALWAYS** verify webhook signatures for security
 3. **NEVER** expose the webhook secret in client-side code
 
-## Common Mistakes to Avoid
-
-1. **NEVER** mix authentication methods (don't use OAuth tokens for platform endpoints)
-2. **NEVER** use the v1 API endpoints - always use v2
-3. **NEVER** store credentials in local state
-4. **AVOID** direct API calls in components - use service functions instead
-5. **NEVER** expose API secrets in client-side code
-6. **NEVER** ignore timezone settings
-7. **NEVER** skip token refresh implementation
-
-## Error Handling
-
-1. **ALWAYS** implement comprehensive error handling for API calls
-2. **ALWAYS** log errors with context and timestamp
-3. **ALWAYS** handle token expiration appropriately
-4. **NEVER** expose sensitive error details to the client
-
 ## Testing
 
-1. Use the test endpoints for validating integration functionality
-2. Test both the webhook and API integration paths
-3. Validate actual bookings appear in both the database and Cal.com
-4. Test timezone handling across different regions
+### Server Component Tests
+1. **ALWAYS** test server actions in isolation
+2. **ALWAYS** mock sensitive credentials in tests
+
+### Client Component Tests
+1. **ALWAYS** mock server actions in client tests
+2. **NEVER** include real credentials in client tests
+
+## Migration Guide
+
+1. Move all API calls to server actions
+2. Remove client-side credential usage
+3. Update components to use server actions
+4. Implement proper error boundaries
+5. Add type safety between client/server boundaries
+
+## Common Mistakes to Avoid
+
+1. **NEVER** mix server and client code
+2. **NEVER** expose sensitive credentials to client
+3. **NEVER** make direct API calls from client components
+4. **ALWAYS** use proper server/client boundaries
+5. **ALWAYS** implement proper error handling
+6. **NEVER** mix authentication methods (don't use OAuth tokens for platform endpoints)
+7. **NEVER** use the v1 API endpoints - always use v2
+8. **NEVER** store credentials in local state
+9. **AVOID** direct API calls in components - use service functions instead
+10. **NEVER** ignore timezone settings
+11. **NEVER** skip token refresh implementation
 
 ## Booking Integration Flow
 
 1. Coach calendars are created and managed via managed users
 2. Event types are retrieved and displayed to clients
 3. Bookings are created in Cal.com using the managed user's credentials
-4. Webhook events capture booking changes and sync to our database
-5. We validate booking consistency using the validation endpoint
-
-## Core API Integration Rules
-
-1. **ALWAYS** use the v2 API endpoints
-2. **ALWAYS** include the API version header with every request
-3. **ALWAYS** use the correct authentication method for each endpoint type
-4. **ALWAYS** handle token refresh properly
-5. **ALWAYS** store user credentials securely in Supabase
-6. **ALWAYS** validate input data before sending to Cal.com API
-7. **ALWAYS** implement comprehensive error handling
-8. **ALWAYS** respect and manage timezone settings properly
-
-This document serves as the source of truth for our Cal.com integration approach. 
