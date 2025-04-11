@@ -4,14 +4,21 @@ import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getTomorrowDate, getMaxBookingDate } from "@/utils/date-utils";
 import { useEffect } from "react";
+import { getUserTimezone } from "@/utils/timezone-utils";
 
 interface DebugPanelProps {
-  selectedDate?: Date;
+  selectedDate: Date | null;
   availableDates: Date[];
-  isDateDisabled?: (date: Date) => boolean;
+  isDateDisabled: (date: Date) => boolean;
+  coachTimezone?: string;
 }
 
-export function DebugPanel({ selectedDate, availableDates, isDateDisabled }: DebugPanelProps) {
+export function DebugPanel({ 
+  selectedDate, 
+  availableDates, 
+  isDateDisabled,
+  coachTimezone 
+}: DebugPanelProps) {
   // Only show in development
   if (process.env.NODE_ENV !== "development") {
     return null;
@@ -19,6 +26,7 @@ export function DebugPanel({ selectedDate, availableDates, isDateDisabled }: Deb
 
   const tomorrow = getTomorrowDate();
   const maxDate = getMaxBookingDate();
+  const userTimezone = getUserTimezone();
   
   // Test the isDateDisabled function with specific dates
   useEffect(() => {
@@ -70,6 +78,14 @@ export function DebugPanel({ selectedDate, availableDates, isDateDisabled }: Deb
         <div>
           <strong>Available Dates Count:</strong> {availableDates.length}
         </div>
+        <div>
+          <strong>User Timezone:</strong> {userTimezone}
+        </div>
+        {coachTimezone && (
+          <div>
+            <strong>Coach Timezone:</strong> {coachTimezone}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

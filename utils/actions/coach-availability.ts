@@ -153,6 +153,22 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
         ? JSON.parse(scheduleData.availability) 
         : scheduleData.availability;
       
+      // Enhanced logging for debugging timezone and availability issues
+      console.log('[DEBUG][COACH_AVAILABILITY] Coach schedule details', {
+        coachUlid,
+        coachName: `${coachData.firstName || ''} ${coachData.lastName || ''}`,
+        timeZone: scheduleData.timeZone,
+        availabilityCount: availabilityData.length,
+        availabilityDetails: availabilityData.map((slot: { days: string[], startTime: string, endTime: string }) => ({
+          days: slot.days,
+          startTime: slot.startTime,
+          endTime: slot.endTime
+        })),
+        rawAvailability: availabilityData,
+        defaultDuration: scheduleData.defaultDuration || 60,
+        timestamp: new Date().toISOString()
+      });
+      
       // Return coach data and schedule
       return {
         data: {

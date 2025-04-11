@@ -13,12 +13,18 @@ import { createBooking } from "@/utils/actions/booking-actions";
 import { TimeSlot, TimeSlotGroup, LoadingState } from "@/utils/types/booking";
 import {
   dayMapping,
-  formatTime,
   getTomorrowDate,
   getMaxBookingDate,
   getDayNameFromNumber,
   doesTimeSlotOverlapWithBusyTime
 } from "@/utils/date-utils";
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import {
+  getUserTimezone,
+  createUtcDate,
+  getHourInTimezone,
+  formatUtcDateInTimezone
+} from '@/utils/timezone-utils';
 
 export interface BusyTime {
   start: string;
@@ -29,13 +35,14 @@ export interface BusyTime {
 export function useBookingUI() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const supabase = createClientComponentClient();
   
   // Get coach identifiers from URL
   const coachId = searchParams.get("coachId") || undefined;
   const coachSlug = searchParams.get("slug") || undefined;
   
   // State variables
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,11 +53,12 @@ export function useBookingUI() {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [actualCoachId, setActualCoachId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [coachTimezone, setCoachTimezone] = useState<string | undefined>(undefined);
   
   // Enhanced loading state
   const [loadingState, setLoadingState] = useState<LoadingState>({
-    status: 'idle',
-    context: ''
+    status: 'loading',
+    context: 'initial'
   });
 
   // Helper function to check if a date should be disabled
@@ -60,21 +68,6 @@ export function useBookingUI() {
     // Get the booking window boundaries
     const tomorrow = getTomorrowDate();
     const maxDate = getMaxBookingDate();
-    
-    // Debug info to find date comparison issues
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
-    const maxDateStr = format(maxDate, 'yyyy-MM-dd');
-    
-    console.log('[DEBUG][DATE_CHECK]', {
-      checking: dateStr,
-      tomorrow: tomorrowStr,
-      maxDate: maxDateStr,
-      beforeTomorrow: date < tomorrow,
-      afterMaxDate: date > maxDate,
-      withinWindow: date >= tomorrow && date <= maxDate,
-      shouldDisable: date < tomorrow || date > maxDate
-    });
     
     // CRITICAL FIX: The date should be DISABLED if it's OUTSIDE the booking window
     // This was previously reversed - we were disabling dates we should enable!
@@ -88,43 +81,10 @@ export function useBookingUI() {
   }, []);
 
   // Wrapped setSelectedDate to add logging and validation
-  const handleDateChange = useCallback((date: Date | undefined) => {
-    console.log('[DEBUG][BOOKING] Date selection changed', {
-      from: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : 'undefined',
-      to: date ? format(date, 'yyyy-MM-dd') : 'undefined',
-      timestamp: new Date().toISOString()
-    });
-    
-    // If date is undefined, allow clearing the selection
-    if (!date) {
-      setSelectedDate(undefined);
-      return;
-    }
-    
-    // Validate that the selected date is within the booking window
-    const tomorrow = getTomorrowDate();
-    const maxDate = getMaxBookingDate();
-    
-    if (date < tomorrow || date > maxDate) {
-      console.error('[DEBUG][BOOKING] Attempted to select date outside booking window', {
-        date: format(date, 'yyyy-MM-dd'),
-        tomorrow: format(tomorrow, 'yyyy-MM-dd'),
-        maxDate: format(maxDate, 'yyyy-MM-dd')
-      });
-      
-      // Don't update the state for invalid dates
-      toast({
-        title: "Invalid Date Selection",
-        description: "Please select a date within the available booking window.",
-        variant: "destructive"
-      });
-      
-      return;
-    }
-    
-    // Date is valid, update the state
+  const handleDateChange = (date: Date | null) => {
+    console.log('[DEBUG][BOOKING_UI] Date changed:', date);
     setSelectedDate(date);
-  }, [selectedDate]);
+  };
 
   // Fetch coach data and schedule from server action
   useEffect(() => {
@@ -177,6 +137,7 @@ export function useBookingUI() {
         const { coach, schedule } = result.data;
         setActualCoachId(coach.ulid);
         setCoachName(`${coach.firstName || ""} ${coach.lastName || ""}`);
+        setCoachTimezone(schedule?.timeZone);
         
         console.log('[DEBUG][BOOKING] Coach data loaded', { 
           coachId: coach.ulid,
@@ -189,6 +150,11 @@ export function useBookingUI() {
           console.log('[DEBUG][BOOKING] Schedule data loaded', {
             timeZone: schedule.timeZone,
             availabilityCount: schedule.availability.length,
+            availabilityDetails: schedule.availability.map(slot => ({
+              days: slot.days,
+              startTime: slot.startTime,
+              endTime: slot.endTime
+            })),
             defaultDuration: schedule.defaultDuration
           });
           
@@ -203,6 +169,7 @@ export function useBookingUI() {
             context: 'SCHEDULE_DATA',
             message: 'No availability schedule found for this coach'
           });
+          setCoachTimezone(undefined);
         }
       } catch (error) {
         console.error("[FETCH_COACH_DATA_ERROR]", {
@@ -365,7 +332,7 @@ export function useBookingUI() {
 
   // Calculate available time slots based on schedule and busy times
   useEffect(() => {
-    if (!selectedDate || !coachSchedule) return;
+    if (!selectedDate || !coachSchedule || !coachTimezone) return;
     
     // Validate selected date is within booking window
     const tomorrow = getTomorrowDate();
@@ -386,8 +353,10 @@ export function useBookingUI() {
       return;
     }
     
-    console.log('[DEBUG][BOOKING] Calculating time slots for selected date', {
-      date: format(selectedDate, 'yyyy-MM-dd')
+    console.log('[DEBUG][BOOKING] Calculating UTC time slots for selected date', {
+      date: format(selectedDate, 'yyyy-MM-dd'),
+      coachTimezone,
+      userTimezone: getUserTimezone()
     });
     
     setLoadingState({
@@ -425,7 +394,7 @@ export function useBookingUI() {
     console.log('[DEBUG][BOOKING] Availability slots for selected day', {
       dayName: selectedDayName,
       slotsCount: daySlots.length,
-      slots: daySlots
+      slots: daySlots // Log the raw string times from schedule
     });
     
     if (daySlots.length === 0) {
@@ -439,249 +408,155 @@ export function useBookingUI() {
       return;
     }
     
-    // Generate time slots for the selected day
-    const slots: TimeSlot[] = [];
-    const slotDuration = coachSchedule.defaultDuration || 60; // minutes
-    
-    console.log('[DEBUG][BOOKING] Generating time slots with duration', {
-      slotDuration
+    // Array to hold TimeSlot objects with correct UTC Date instances
+    const utcSlots: TimeSlot[] = [];
+    const slotDuration = 30; // minutes
+
+    console.log('[DEBUG][BOOKING] Generating UTC time slots with duration', {
+      slotDuration,
+      originalDefaultDuration: coachSchedule.defaultDuration || 60
     });
-    
+
     daySlots.forEach(slot => {
-      const [startHour, startMinute] = slot.startTime.split(":").map(Number);
-      const [endHour, endMinute] = slot.endTime.split(":").map(Number);
-      
-      let currentTime = new Date(selectedDate);
-      currentTime.setHours(startHour, startMinute, 0, 0);
-      
-      const endTime = new Date(selectedDate);
-      endTime.setHours(endHour, endMinute, 0, 0);
-      
-      console.log('[DEBUG][BOOKING] Processing availability slot', {
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        formattedStart: format(currentTime, 'HH:mm'),
-        formattedEnd: format(endTime, 'HH:mm')
+      // Create correct UTC Date objects based on coach's time string and timezone
+      let currentUtcTime = createUtcDate(selectedDate, slot.startTime, coachTimezone);
+      const endUtcTime = createUtcDate(selectedDate, slot.endTime, coachTimezone);
+
+      console.log('[DEBUG][BOOKING] Processing availability slot (UTC)', {
+        coachStartTimeStr: slot.startTime,
+        coachEndTimeStr: slot.endTime,
+        coachTimezone,
+        generatedStartUtc: currentUtcTime.toISOString(),
+        generatedEndUtc: endUtcTime.toISOString()
       });
-      
-      // Generate slots until reaching end time
-      while (currentTime < endTime) {
-        const slotEndTime = new Date(currentTime);
-        slotEndTime.setMinutes(currentTime.getMinutes() + slotDuration);
-        
-        // Check if this slot ends before or at the availability end time
-        if (slotEndTime <= endTime) {
-          slots.push({
-            startTime: new Date(currentTime),
-            endTime: slotEndTime
+
+      // Iterate using UTC Date objects
+      while (currentUtcTime < endUtcTime) {
+        const slotEndUtcTime = new Date(currentUtcTime.getTime() + slotDuration * 60000);
+
+        if (slotEndUtcTime <= endUtcTime) {
+          utcSlots.push({
+            startTime: currentUtcTime, // Store the correct UTC Date
+            endTime: slotEndUtcTime
           });
         }
-        
-        // Move to next slot
-        currentTime = new Date(slotEndTime);
+        currentUtcTime = slotEndUtcTime;
       }
     });
-    
-    console.log('[DEBUG][BOOKING] Generated time slots before filtering', {
-      count: slots.length,
-      firstSlot: slots.length > 0 ? {
-        start: format(slots[0].startTime, 'HH:mm'),
-        end: format(slots[0].endTime, 'HH:mm')
-      } : null,
-      lastSlot: slots.length > 0 ? {
-        start: format(slots[slots.length - 1].startTime, 'HH:mm'),
-        end: format(slots[slots.length - 1].endTime, 'HH:mm')
-      } : null
-    });
-    
-    // Filter out slots that conflict with busy times
-    console.log('[DEBUG][BOOKING] Filtering slots with busy times', {
-      busyTimesCount: busyTimes.length
-    });
-    
-    // NOTE: Cal.com API integration commented out for testing local functionality
-    // Using all slots without filtering for busy times
-    const availableSlots = slots;
-    /*
-    const availableSlots = slots.filter(slot => {
-      // Check for conflicts with busy times
-      const conflicts = busyTimes.some(busyTime => {
-        const busyStart = parseISO(busyTime.start);
-        const busyEnd = parseISO(busyTime.end);
-        
-        // Check if slot overlaps with busy time
-        const overlaps = doesTimeSlotOverlapWithBusyTime(slot, busyStart, busyEnd);
-        if (overlaps) {
-          console.log('[DEBUG][BOOKING] Slot conflicts with busy time', {
-            slot: {
-              start: format(slot.startTime, 'HH:mm'),
-              end: format(slot.endTime, 'HH:mm')
-            },
-            busy: {
-              start: format(busyStart, 'HH:mm'),
-              end: format(busyEnd, 'HH:mm')
-            }
-          });
-        }
-        return overlaps;
-      });
-      
-      return !conflicts;
-    });
-    */
-    
-    console.log('[DEBUG][BOOKING] Final available time slots', {
-      count: availableSlots.length,
-      slots: availableSlots.map(slot => ({
-        start: format(slot.startTime, 'HH:mm'),
-        end: format(slot.endTime, 'HH:mm')
+
+    // availableSlots now holds correct UTC Date objects
+    const availableUtcSlots = utcSlots;
+
+    console.log('[DEBUG][BOOKING] Final available UTC time slots', {
+      count: availableUtcSlots.length,
+      slots: availableUtcSlots.map(slot => ({
+        startUtc: slot.startTime.toISOString(),
+        endUtc: slot.endTime.toISOString(),
+        // Format for display log in user's timezone
+        userDisplayTime: formatUtcDateInTimezone(slot.startTime, getUserTimezone()),
+        // Format for display log in coach's timezone
+        coachDisplayTime: formatUtcDateInTimezone(slot.startTime, coachTimezone)
       }))
     });
-    
-    setTimeSlots(availableSlots);
-    setSelectedTimeSlot(null); // Reset selected time slot when date changes
-    
-    setLoadingState({
-      status: 'success',
-      context: 'TIME_SLOTS'
-    });
-  }, [selectedDate, coachSchedule, busyTimes]);
 
-  // Prepare times for rendering by grouping into morning, afternoon, evening
+    // Set state with the array of correct UTC TimeSlots
+    setTimeSlots(availableUtcSlots);
+    setSelectedTimeSlot(null);
+    setLoadingState({ status: 'success', context: 'TIME_SLOTS' });
+  }, [selectedDate, coachSchedule, busyTimes, coachTimezone]);
+
+  // Prepare times for rendering by grouping based on user's timezone hour
   const timeSlotGroups = useMemo<TimeSlotGroup[]>(() => {
-    if (!timeSlots.length) return [];
-    
-    // Group into morning, afternoon, evening
+    if (!timeSlots.length || !coachTimezone) return [];
+
     const morning: TimeSlot[] = [];
     const afternoon: TimeSlot[] = [];
     const evening: TimeSlot[] = [];
-    
+    const userTimezone = getUserTimezone();
+
     timeSlots.forEach(slot => {
-      const hour = slot.startTime.getHours();
-      if (hour < 12) {
+      // Get the hour in the user's local timezone from the UTC Date object
+      const hourInUserTz = getHourInTimezone(slot.startTime, userTimezone);
+
+      if (hourInUserTz < 12) {
         morning.push(slot);
-      } else if (hour < 17) {
+      } else if (hourInUserTz < 17) {
         afternoon.push(slot);
       } else {
         evening.push(slot);
       }
     });
-    
+
+    // Sort slots within each group based on UTC time (which is reliable)
+    const sortByUtcStartTime = (a: TimeSlot, b: TimeSlot) => {
+      return a.startTime.getTime() - b.startTime.getTime();
+    };
+
+    morning.sort(sortByUtcStartTime);
+    afternoon.sort(sortByUtcStartTime);
+    evening.sort(sortByUtcStartTime);
+
     const groups = [
       { title: "Morning", slots: morning },
       { title: "Afternoon", slots: afternoon },
       { title: "Evening", slots: evening }
     ].filter(group => group.slots.length > 0);
-    
-    console.log('[DEBUG][BOOKING] Time slot groups for UI', {
+
+    console.log('[DEBUG][BOOKING] Time slot groups for UI (based on user timezone)', {
       morning: morning.length,
       afternoon: afternoon.length,
       evening: evening.length,
-      totalGroups: groups.length
+      totalGroups: groups.length,
+      // Log formatted times for verification
+      morningTimes: morning.map(slot => formatUtcDateInTimezone(slot.startTime, userTimezone)),
+      afternoonTimes: afternoon.map(slot => formatUtcDateInTimezone(slot.startTime, userTimezone)),
+      eveningTimes: evening.map(slot => formatUtcDateInTimezone(slot.startTime, userTimezone))
     });
-    
+
     return groups;
-  }, [timeSlots]);
+  }, [timeSlots, coachTimezone]);
 
-  // Handle booking confirmation
+  // Handle booking confirmation - Pass UTC ISO strings if needed by API
   const handleConfirmBooking = useCallback(async () => {
-    if (!selectedTimeSlot || !actualCoachId) return;
-    
-    console.log('[DEBUG][BOOKING] Starting booking confirmation', {
+    if (!selectedTimeSlot || !actualCoachId || !coachTimezone) return;
+
+    const startTimeUtcIso = selectedTimeSlot.startTime.toISOString();
+    const endTimeUtcIso = selectedTimeSlot.endTime.toISOString();
+
+    console.log('[DEBUG][BOOKING] Starting booking confirmation (UTC)', {
       coachId: actualCoachId,
-      startTime: format(selectedTimeSlot.startTime, 'yyyy-MM-dd HH:mm'),
-      endTime: format(selectedTimeSlot.endTime, 'yyyy-MM-dd HH:mm')
+      startTimeUtc: startTimeUtcIso,
+      endTimeUtc: endTimeUtcIso,
+      coachTimezone, // Coach's original TZ for reference
+      userTimezone: getUserTimezone() // User's TZ for reference
     });
-    
+
     setIsBooking(true);
-    setLoadingState({
-      status: 'loading',
-      context: 'BOOKING',
-      message: 'Creating your booking...'
-    });
-    
+    setLoadingState({ status: 'loading', context: 'BOOKING', message: 'Creating your booking...' });
+
     try {
-      // NOTE: This is a placeholder for testing local functionality
-      // In real implementation, this would call the Cal.com API
-      
-      // Simulating a successful booking without actually making one
+      // --- TEST MODE --- //
       setTimeout(() => {
-        setLoadingState({
-          status: 'success',
-          context: 'BOOKING',
-          message: 'Booking created successfully! (TEST MODE)'
-        });
-        
-        toast({
-          title: "Booking Confirmed (Test Mode)",
-          description: "This is a test booking and was not actually created. In production, this would create a real booking.",
-          variant: "default"
-        });
-        
+        setLoadingState({ status: 'success', context: 'BOOKING', message: 'Booking created successfully! (TEST MODE)'});
+        toast({ title: "Booking Confirmed (Test Mode)", description: "This is a test booking and was not actually created. In production, this would create a real booking." });
         setIsBooking(false);
-        
-        // Redirect to a success page with simulated data
         const coachIdentifier = coachSlug ? `slug=${coachSlug}` : `coachId=${actualCoachId}`;
-        const startTimeStr = selectedTimeSlot.startTime.toISOString();
-        const endTimeStr = selectedTimeSlot.endTime.toISOString();
-        
-        router.push(`/booking/booking-success?${coachIdentifier}&startTime=${encodeURIComponent(startTimeStr)}&endTime=${encodeURIComponent(endTimeStr)}&bookingUid=test-booking&testMode=true`);
-      }, 1500); // Simulate API delay
-      
-      /* PRODUCTION CODE (COMMENTED OUT FOR TESTING)
+        // Pass the reliable UTC ISO strings
+        router.push(`/booking/booking-success?${coachIdentifier}&startTime=${encodeURIComponent(startTimeUtcIso)}&endTime=${encodeURIComponent(endTimeUtcIso)}&bookingUid=test-booking&testMode=true`);
+      }, 1500);
+      // --- END TEST MODE --- //
+
+      /* --- PRODUCTION CODE (Requires API update if not expecting UTC) --- //
       const result = await createBooking({
-        eventTypeId: 12345, // This would be fetched from the actual coach's calendar
-        startTime: selectedTimeSlot.startTime.toISOString(),
-        endTime: selectedTimeSlot.endTime.toISOString(),
-        attendeeName: "Test User", // This would be the current user's name
-        attendeeEmail: "test@example.com", // This would be the current user's email
-        timeZone: coachSchedule?.timeZone || "America/New_York",
-        notes: "Booked via local testing" // User entered notes would go here
+        eventTypeId: 12345, // Placeholder
+        startTime: startTimeUtcIso, // Send UTC ISO string
+        endTime: endTimeUtcIso,     // Send UTC ISO string
+        attendeeName: "Test User", // Placeholder
+        attendeeEmail: "test@example.com", // Placeholder
+        timeZone: coachTimezone, // Maybe needed by API? Consult Cal.com docs
+        notes: "Booked via local testing"
       });
-      
-      if (result.error) {
-        console.error("[BOOKING_ERROR]", {
-          error: result.error,
-          timestamp: new Date().toISOString()
-        });
-        toast({
-          title: "Booking Failed",
-          description: result.error.message || "Could not complete booking. Please try again later.",
-          variant: "destructive"
-        });
-        setIsBooking(false);
-        setLoadingState({
-          status: 'error',
-          context: 'BOOKING',
-          message: result.error.message || 'Booking failed'
-        });
-        return;
-      }
-
-      if (!result.data) {
-        toast({
-          title: "Booking Error",
-          description: "No booking data received. Please try again later.",
-          variant: "destructive"
-        });
-        setIsBooking(false);
-        setLoadingState({
-          status: 'error',
-          context: 'BOOKING',
-          message: 'No booking data received'
-        });
-        return;
-      }
-
-      // Redirect to booking success page with all necessary data
-      // Prefer the slug if available, otherwise use the coachId
-      const coachIdentifier = coachSlug ? `slug=${coachSlug}` : `coachId=${actualCoachId}`;
-      setLoadingState({
-        status: 'success',
-        context: 'BOOKING',
-        message: 'Booking created successfully!'
-      });
-      router.push(`/booking/booking-success?${coachIdentifier}&startTime=${encodeURIComponent(result.data.startTime)}&endTime=${encodeURIComponent(result.data.endTime)}&bookingUid=${encodeURIComponent(result.data.calBookingUid)}`);
+      // ... [rest of production error handling/redirect] ...
       */
     } catch (error) {
       console.error("[BOOKING_ERROR]", {
@@ -700,10 +575,22 @@ export function useBookingUI() {
         message: 'An unexpected error occurred'
       });
     }
-  }, [selectedTimeSlot, actualCoachId, coachSchedule, coachSlug, router]);
+  }, [selectedTimeSlot, actualCoachId, coachSchedule, coachSlug, router, coachTimezone]);
+
+  // Format time for display (kept for BookingSummary, should ideally be updated there too)
+  const formatTime = useCallback((time: string | Date) => {
+    try {
+      const date = typeof time === "string" ? parseISO(time) : time;
+      // Format using user's local timezone for BookingSummary
+      // This assumes the Date object passed *to BookingSummary* is already correct for user's locale
+      return format(date, "h:mm a");
+    } catch (error) {
+        console.error("[FORMAT_TIME_ERROR] Failed to format time for BookingSummary", { time, error });
+        return "Invalid Time";
+    }
+  }, []);
 
   return {
-    // State
     loading,
     loadingState,
     error,
@@ -711,18 +598,17 @@ export function useBookingUI() {
     selectedDate,
     setSelectedDate: handleDateChange,
     availableDates,
-    timeSlots,
+    timeSlots, // Now contains UTC Date objects
     selectedTimeSlot,
     setSelectedTimeSlot,
     isBooking,
     coachSchedule,
-    
-    // Computed values
-    timeSlotGroups,
-    
-    // Functions
+    coachTimezone, // Ensure this is returned
+
+    timeSlotGroups, // Correctly grouped by user's timezone hour
+
     handleConfirmBooking,
     isDateDisabled,
-    formatTime
+    formatTime // Keep for BookingSummary
   };
 } 

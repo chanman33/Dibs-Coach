@@ -44,8 +44,8 @@ export interface Coach {
 
 // Loading state type for more detailed status tracking
 export interface LoadingState {
-  status: 'idle' | 'loading' | 'success' | 'error' | 'warning';
-  context: string;
+  status: 'loading' | 'success' | 'error';
+  context?: string;
   message?: string;
 }
 

@@ -35,7 +35,8 @@ export default function BookingAvailabilityPage() {
     isBooking,
     handleConfirmBooking,
     isDateDisabled,
-    formatTime
+    formatTime,
+    coachTimezone
   } = useBookingUI();
 
   // Format the date for display
@@ -74,6 +75,7 @@ export default function BookingAvailabilityPage() {
             selectedDate={selectedDate}
             availableDates={availableDates}
             isDateDisabled={isDateDisabled}
+            coachTimezone={coachTimezone}
           />
         </div>
 
@@ -95,28 +97,32 @@ export default function BookingAvailabilityPage() {
               {!selectedDate ? (
                 <EmptyState message="Select a date to see available times" />
               ) : timeSlotGroups.length === 0 ? (
-                <EmptyState message="No available times on this date" />
+                <EmptyState message="No available times on this date, please try a different day." />
               ) : (
                 <TimeSlotsSection
                   timeSlotGroups={timeSlotGroups}
                   selectedTimeSlot={selectedTimeSlot}
                   onSelectTimeSlot={setSelectedTimeSlot}
                   formatTime={formatTime}
+                  coachTimezone={coachTimezone}
                 />
               )}
             </CardContent>
           </Card>
 
-          {/* Booking Summary Section */}
-          <BookingSummary
-            selectedDate={selectedDate}
-            selectedTimeSlot={selectedTimeSlot}
-            onConfirm={handleConfirmBooking}
-            canBook={canBook}
-            isBooking={isBooking}
-            coachName={coachName}
-            formatTime={formatTime}
-          />
+          {/* Booking Summary Section - Only show if a slot is selected AND coach timezone is known */}
+          {selectedTimeSlot && coachTimezone && (
+            <BookingSummary
+              selectedDate={selectedDate}
+              selectedTimeSlot={selectedTimeSlot}
+              onConfirm={handleConfirmBooking}
+              canBook={canBook}
+              isBooking={isBooking}
+              coachName={coachName}
+              formatTime={formatTime}
+              coachTimezone={coachTimezone}
+            />
+          )}
         </div>
       </div>
     </div>

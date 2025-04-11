@@ -2,11 +2,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { CalendarIcon } from "lucide-react";
 import { InlineDatePicker } from "@/components/ui/date-picker-inline";
 import { useCallback } from "react";
-import { format } from "date-fns";
+import { format, isSameDay } from "date-fns";
 
 interface DatePickerSectionProps {
-  selectedDate?: Date;
-  onDateChange: (date: Date | undefined) => void;
+  selectedDate: Date | null;
+  onDateChange: (date: Date | null) => void;
   availableDates: Date[];
   isDateDisabled: (date: Date) => boolean;
 }
@@ -23,20 +23,35 @@ export function DatePickerSection({
     const isDisabled = isDateDisabled(date);
     
     // Log important dates with detailed info
-    if (date.getDate() === 1 || date.getDate() === 15) {
-      console.log('[DEBUG][DATE_PICKER_SECTION]', {
-        date: format(date, 'yyyy-MM-dd'),
-        isDisabled,
-        inAvailableDates: availableDates.some(d => 
-          d.getFullYear() === date.getFullYear() &&
-          d.getMonth() === date.getMonth() &&
-          d.getDate() === date.getDate()
-        )
-      });
-    }
+    // if (date.getDate() === 1 || date.getDate() === 15) {
+    //   console.log('[DEBUG][DATE_PICKER_SECTION]', {
+    //     date: format(date, 'yyyy-MM-dd'),
+    //     isDisabled,
+    //     inAvailableDates: availableDates.some(d => 
+    //       d.getFullYear() === date.getFullYear() &&
+    //       d.getMonth() === date.getMonth() &&
+    //       d.getDate() === date.getDate()
+    //     )
+    //   });
+    // }
     
     return isDisabled;
   }, [isDateDisabled, availableDates]);
+  
+  const handleDateSelect = (date: Date | null) => {
+    if (!date) return;
+    
+    // Only log when date actually changes
+    if (!selectedDate || date.getTime() !== selectedDate.getTime()) {
+      console.log('[DEBUG][DATE_PICKER] Date selected:', {
+        date: format(date, 'yyyy-MM-dd'),
+        isDisabled: isDateDisabled(date),
+        inAvailableDates: availableDates.some(d => isSameDay(d, date))
+      });
+    }
+    
+    onDateChange(date);
+  };
   
   return (
     <Card>
@@ -50,7 +65,7 @@ export function DatePickerSection({
       <CardContent>
         <InlineDatePicker
           date={selectedDate}
-          onSelect={onDateChange}
+          onSelect={handleDateSelect}
           disabledDates={handleDateDisabled}
           className="w-full"
         />

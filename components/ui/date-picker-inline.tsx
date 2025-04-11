@@ -4,13 +4,15 @@ import * as React from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import '@/styles/date-picker.css'
+import { format } from 'date-fns'
+import { useCallback } from 'react'
 
 interface InlineDatePickerProps {
-  date?: Date
-  onSelect?: (date: Date | undefined) => void
-  disabled?: boolean
-  disabledDates?: (date: Date) => boolean
-  className?: string
+  date: Date | null;
+  onSelect: (date: Date | null) => void;
+  disabled?: boolean;
+  disabledDates?: (date: Date) => boolean;
+  className?: string;
 }
 
 export function InlineDatePicker({ 
@@ -20,48 +22,34 @@ export function InlineDatePicker({
   disabledDates,
   className
 }: InlineDatePickerProps) {
+  const handleSelect = (date: Date | undefined) => {
+    if (onSelect) {
+      onSelect(date || null);
+    }
+  };
+
   const handleChange = (date: Date | null) => {
     console.log('[DEBUG][DATE_PICKER] Date selected:', date);
-    
-    // If date is null, pass it through
-    if (!date) {
-      onSelect?.(undefined)
-      return;
+    if (onSelect) {
+      onSelect(date);
     }
-    
-    // Extra validation check - if disabledDates function exists, double-check that
-    // we're not selecting a disabled date (should never happen, but as a safeguard)
-    if (disabledDates && disabledDates(date)) {
-      console.error('[DEBUG][DATE_PICKER] Prevented selection of disabled date:', 
-        date.toISOString().split('T')[0]);
-      return;
-    }
-    
-    // Date is valid, pass it on
-    onSelect?.(date)
-  }
+  };
 
-  // Create a wrapper for the disabledDates function to add logging
-  const filterDateWithLogging = React.useCallback((date: Date) => {
+  const handleDateFilter = useCallback((date: Date): boolean => {
     // If no disabledDates function provided, don't disable any dates
-    if (!disabledDates) return true; // Return true to enable date if no filter exists
+    if (!disabledDates) return true;
     
-    const isDisabled = disabledDates(date); // Check if the date *should* be disabled
+    const shouldBeDisabled = disabledDates(date);
+    const willBeEnabled = !shouldBeDisabled;
     
-    // Only log for visible dates to avoid console spam
-    const isVisible = date.getDate() === 1 || date.getDate() === 15;
-    if (isVisible) {
-      console.log('[DEBUG][DATE_PICKER_FILTER]', {
-        date: date.toISOString().split('T')[0],
-        shouldBeDisabled: isDisabled,
-        willBeEnabled: !isDisabled // Log the inverted result passed to filterDate
-      });
-    }
+    // Only log when a date is being enabled (reduces noise)
+    // if (willBeEnabled) {
+    //   console.log('[DEBUG][DATE_PICKER] Enabling date:', {
+    //     date: format(date, 'yyyy-MM-dd')
+    //   });
+    // }
     
-    // react-datepicker's filterDate expects TRUE to *keep* (enable) the date
-    // and FALSE to *filter out* (disable) the date.
-    // We need to return the *opposite* of what our isDateDisabled function returns.
-    return !isDisabled; 
+    return willBeEnabled;
   }, [disabledDates]);
 
   return (
@@ -70,7 +58,7 @@ export function InlineDatePicker({
         selected={date}
         onChange={handleChange}
         disabled={disabled}
-        filterDate={filterDateWithLogging}
+        filterDate={handleDateFilter}
         inline
         calendarClassName="border rounded-md shadow-sm"
         dayClassName={() => "text-sm"}
