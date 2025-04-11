@@ -75,8 +75,8 @@ export default function BusinessSolutions() {
           </div>
 
           <div className="mt-8 flex flex-col sm:flex-row gap-4">
-            <Link href="/contact-us">
-              <Button size="lg">Schedule a Demo</Button>
+            <Link href="/business-solutions">
+              <Button size="lg">Learn More</Button>
             </Link>
             <Link href="/case-studies">
               <Button variant="outline" size="lg">
