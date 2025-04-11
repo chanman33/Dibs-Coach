@@ -10,6 +10,9 @@ import Link from "next/link";
 import { createAuthClient } from "@/utils/auth";
 import { CalendarLink, getCalendarLinks } from "@/utils/actions/booking-actions";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useUser } from "@clerk/nextjs";
+import { fetchUserCapabilities } from "@/utils/actions/user-actions";
+import { USER_CAPABILITIES } from "@/utils/roles/roles";
 
 export default function BookingSuccessPage() {
   const searchParams = useSearchParams();
@@ -21,6 +24,42 @@ export default function BookingSuccessPage() {
   const [coachName, setCoachName] = useState("");
   const [calendarLinks, setCalendarLinks] = useState<CalendarLink[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
+  const [sessionsPath, setSessionsPath] = useState("/dashboard/sessions");
+  const { user } = useUser();
+  
+  // Determine the correct sessions path based on user capabilities
+  useEffect(() => {
+    const determineSessionsPath = async () => {
+      if (!user) return;
+      
+      try {
+        const result = await fetchUserCapabilities();
+        
+        if (result.data) {
+          const capabilities = result.data.capabilities;
+          
+          // Check if user has COACH capability
+          if (capabilities.includes(USER_CAPABILITIES.COACH)) {
+            setSessionsPath("/dashboard/coach/sessions");
+          } 
+          // Check if user has MENTEE capability
+          else if (capabilities.includes(USER_CAPABILITIES.MENTEE)) {
+            setSessionsPath("/dashboard/mentee/sessions");
+          }
+          // Default to general sessions page if no specific capability
+          else {
+            setSessionsPath("/dashboard/sessions");
+          }
+        }
+      } catch (error) {
+        console.error("[FETCH_CAPABILITIES_ERROR]", error);
+        // Default to general sessions page on error
+        setSessionsPath("/dashboard/sessions");
+      }
+    };
+    
+    determineSessionsPath();
+  }, [user]);
   
   useEffect(() => {
     if (!coachId && !coachSlug) return;
@@ -189,7 +228,7 @@ export default function BookingSuccessPage() {
             <Link href="/">Return to Dashboard</Link>
           </Button>
           <Button asChild>
-            <Link href={`/dashboard/sessions`}>View My Sessions</Link>
+            <Link href={sessionsPath}>View My Sessions</Link>
           </Button>
         </CardFooter>
       </Card>
