@@ -115,4 +115,48 @@ export function createWallClockDate(baseDate: Date, timeString: string): Date {
   // Set hours/minutes according to the timeString, interpreted in system local time
   newDate.setHours(hours, minutes, 0, 0);
   return newDate;
+}
+
+/**
+ * Converts a TimeSlot from coach's timezone to user's timezone.
+ * Takes a TimeSlot object with startTime and endTime Date objects, 
+ * and converts them to the equivalent times in the user's timezone.
+ */
+export function convertTimeSlotToUserTimezone(
+  timeSlot: { startTime: Date; endTime: Date },
+  coachTimezone: string,
+  userTimezone: string
+): { startTime: Date; endTime: Date } {
+  try {
+    // If timezones are the same, no conversion needed
+    if (!areTimezonesDifferent(coachTimezone, userTimezone)) {
+      return { ...timeSlot };
+    }
+
+    // Convert the start time to user timezone
+    const startTimeInUserTimezone = toZonedTime(
+      timeSlot.startTime,
+      userTimezone
+    );
+
+    // Convert the end time to user timezone
+    const endTimeInUserTimezone = toZonedTime(
+      timeSlot.endTime,
+      userTimezone
+    );
+
+    return {
+      startTime: startTimeInUserTimezone,
+      endTime: endTimeInUserTimezone
+    };
+  } catch (error) {
+    console.error(`[CONVERT_TIME_SLOT_ERROR] Failed to convert time slot between timezones`, {
+      timeSlot,
+      coachTimezone,
+      userTimezone,
+      error
+    });
+    // Return the original time slot as fallback
+    return { ...timeSlot };
+  }
 } 
