@@ -76,4 +76,17 @@ export interface BookingResult {
   attendeeName: string;
   attendeeEmail: string;
   calendarLinks?: CalendarLink[];
+}
+
+/**
+ * Response from booking creation
+ */
+export interface BookingResponse {
+  id: string;
+  calBookingUid: string;
+  startTime: string;
+  endTime: string;
+  attendeeName: string;
+  attendeeEmail: string;
+  createdAt: string;
 } 

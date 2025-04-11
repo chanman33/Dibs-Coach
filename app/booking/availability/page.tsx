@@ -1,66 +1,24 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
-import { format, addDays, isWithinInterval, parseISO, isSameDay } from "date-fns";
-import { InlineDatePicker } from "@/components/ui/date-picker-inline";
-import { Button } from "@/components/ui/button";
+import { useMemo } from "react";
+import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Separator } from "@/components/ui/separator";
-import { redirect, useRouter } from "next/navigation";
-import { createAuthClient } from "@/utils/auth";
-import { toast } from "@/components/ui/use-toast";
-import { createBooking } from "@/utils/actions/booking-actions";
-import { CalendarIcon, Clock } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { useBookingAvailability } from "@/hooks/useBookingAvailability";
-import { DatePickerSection } from "@/components/booking/DatePickerSection";
-import { TimeSlotsSection } from "@/components/booking/TimeSlotsSection";
-import { BookingSummary } from "@/components/booking/BookingSummary";
+import { Clock } from "lucide-react";
+import { useBookingUI } from "./useBookingUI";
+import { TimeSlotsSection } from "./TimeSlotsSection";
+import { DatePickerSection } from "./DatePickerSection";
+import { BookingSummary } from "./BookingSummary";
+import { EmptyState } from "./EmptyState";
+import { LoadingState } from "./LoadingState";
+import { ErrorState } from "./ErrorState";
 
-// Types for component
-interface TimeSlot {
-  startTime: Date;
-  endTime: Date;
-}
-
-interface BusyTime {
-  start: string;
-  end: string;
-  source: string;
-}
-
-interface AvailabilitySlot {
-  days: string[];
-  startTime: string; // Format: "HH:MM"
-  endTime: string;   // Format: "HH:MM"
-}
-
-interface CoachSchedule {
-  ulid: string;
-  userUlid: string;
-  name: string;
-  timeZone: string;
-  availability: AvailabilitySlot[];
-  isDefault: boolean;
-  active: boolean;
-  defaultDuration: number;
-}
-
-// Day mapping for converting day names to numbers
-const dayMapping: Record<string, number> = {
-  Monday: 1,
-  Tuesday: 2,
-  Wednesday: 3,
-  Thursday: 4,
-  Friday: 5,
-  Saturday: 6,
-  Sunday: 0
-};
-
+/**
+ * Booking Availability Page
+ * 
+ * This is the main page for booking coach availability. It displays 
+ * a calendar to pick a date, time slots for the selected date,
+ * and a booking summary.
+ */
 export default function BookingAvailabilityPage() {
   const {
     loading,
@@ -69,146 +27,87 @@ export default function BookingAvailabilityPage() {
     coachName,
     selectedDate,
     setSelectedDate,
+    availableDates,
     timeSlotGroups,
     selectedTimeSlot,
     setSelectedTimeSlot,
     isBooking,
-    coachSchedule,
     handleConfirmBooking,
-    isDateDisabled
-  } = useBookingAvailability();
-  
-  // Debug logging for loading state changes
-  useEffect(() => {
-    console.log('[DEBUG][BOOKING_PAGE] Loading state changed', loadingState);
-  }, [loadingState]);
+    isDateDisabled,
+    formatTime
+  } = useBookingUI();
 
-  // Prepare coach information for the summary
-  const coach = coachName ? {
-    name: coachName,
-    sessionType: "1:1 Coaching Session",
-    sessionDuration: coachSchedule?.defaultDuration,
-  } : null;
+  // Format the date for display
+  const formattedDate = useMemo(() => {
+    if (!selectedDate) return "";
+    return format(selectedDate, "EEEE, MMMM d, yyyy");
+  }, [selectedDate]);
 
-  // Display warning if there are calendar sync issues
-  const hasCalendarWarning = loadingState.status === 'warning' && 
-                            loadingState.context === 'BUSY_TIMES';
-                            
-  // Debug logging for key state changes
-  useEffect(() => {
-    if (selectedTimeSlot) {
-      console.log('[DEBUG][BOOKING_PAGE] Time slot selected', {
-        startTime: format(selectedTimeSlot.startTime, 'yyyy-MM-dd HH:mm'),
-        endTime: format(selectedTimeSlot.endTime, 'yyyy-MM-dd HH:mm'),
-      });
-    }
-  }, [selectedTimeSlot]);
-  
-  useEffect(() => {
-    if (selectedDate) {
-      console.log('[DEBUG][BOOKING_PAGE] Date selected', {
-        date: format(selectedDate, 'yyyy-MM-dd'),
-        timeSlotCount: timeSlotGroups.reduce((acc, group) => acc + group.slots.length, 0)
-      });
-    }
-  }, [selectedDate, timeSlotGroups]);
+  // Determine if we can proceed with booking
+  const canBook = !!selectedTimeSlot;
+
+  if (loading) {
+    return <LoadingState message={loadingState.message || "Loading availability..."} />;
+  }
+
+  if (error) {
+    return <ErrorState message={error} />;
+  }
 
   return (
-    <div className="container mx-auto py-8 px-4 max-w-5xl">
-      {/* Header */}
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold mb-2">
-          {loading ? <Skeleton className="h-10 w-2/3 mx-auto" /> : `Book a Session with ${coachName}`}
-        </h1>
-        <p className="text-muted-foreground max-w-xl mx-auto">
-          {loading ? (
-            <Skeleton className="h-5 w-full mx-auto mt-2" />
-          ) : (
-            "Select a date and time that works for you to schedule your coaching session."
-          )}
-        </p>
-      </div>
-
-      {/* Booking Process Steps */}
-      <div className="flex items-center justify-center mb-8 max-w-md mx-auto">
-        <div className="flex flex-col items-center">
-          <div className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center font-medium">
-            1
-          </div>
-          <span className="text-sm mt-1">Select Date</span>
-        </div>
-        <div className="h-px bg-border w-16 mx-2"></div>
-        <div className="flex flex-col items-center">
-          <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center font-medium ${
-              selectedDate ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-            }`}
-          >
-            2
-          </div>
-          <span className="text-sm mt-1">Choose Time</span>
-        </div>
-        <div className="h-px bg-border w-16 mx-2"></div>
-        <div className="flex flex-col items-center">
-          <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center font-medium ${
-              selectedTimeSlot ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-            }`}
-          >
-            3
-          </div>
-          <span className="text-sm mt-1">Confirm</span>
-        </div>
-      </div>
-
-      {/* Calendar connection warning */}
-      {hasCalendarWarning && (
-        <Alert variant="default" className="mb-6">
-          <ExclamationTriangleIcon className="h-4 w-4" />
-          <AlertTitle>Calendar Sync Warning</AlertTitle>
-          <AlertDescription>
-            We couldn't sync with the coach's calendar. Some displayed times might not reflect their actual availability.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Error state */}
-      {error && (
-        <Alert variant="destructive" className="mb-6">
-          <ExclamationTriangleIcon className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left side - Calendar */}
+    <div className="container max-w-5xl py-10">
+      <h1 className="text-2xl font-bold mb-6">Book a Session with {coachName}</h1>
+      
+      <div className="grid md:grid-cols-3 gap-6">
+        {/* Date Picker Section */}
         <DatePickerSection
-          loading={loading}
           selectedDate={selectedDate}
-          setSelectedDate={setSelectedDate}
+          onDateChange={setSelectedDate}
+          availableDates={availableDates}
           isDateDisabled={isDateDisabled}
         />
 
-        {/* Right side - Time slots */}
-        {selectedTimeSlot ? (
+        {/* Time Slots Section */}
+        <div className="md:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Clock className="w-5 h-5 mr-2" />
+                Available Times
+              </CardTitle>
+              <CardDescription>
+                {selectedDate
+                  ? `Select a time slot for ${formattedDate}`
+                  : "Please select a date first"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!selectedDate ? (
+                <EmptyState message="Select a date to see available times" />
+              ) : timeSlotGroups.length === 0 ? (
+                <EmptyState message="No available times on this date" />
+              ) : (
+                <TimeSlotsSection
+                  timeSlotGroups={timeSlotGroups}
+                  selectedTimeSlot={selectedTimeSlot}
+                  onSelectTimeSlot={setSelectedTimeSlot}
+                  formatTime={formatTime}
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Booking Summary Section */}
           <BookingSummary
-            loading={loading}
-            coach={coach}
             selectedDate={selectedDate}
             selectedTimeSlot={selectedTimeSlot}
-            handleBookSession={handleConfirmBooking}
+            onConfirm={handleConfirmBooking}
+            canBook={canBook}
             isBooking={isBooking}
+            coachName={coachName}
+            formatTime={formatTime}
           />
-        ) : (
-          <TimeSlotsSection
-            loading={loading}
-            selectedDate={selectedDate}
-            timeSlotGroups={timeSlotGroups}
-            handleSelectTimeSlot={setSelectedTimeSlot}
-            isBooking={isBooking}
-          />
-        )}
+        </div>
       </div>
     </div>
   );

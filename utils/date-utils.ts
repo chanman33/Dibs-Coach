@@ -1,18 +1,19 @@
 import { format, addDays, isWithinInterval, parseISO, isSameDay } from "date-fns";
+import { TimeSlot } from "./types/booking";
 
-// Day mapping for converting day names to numbers (0 = Sunday, 1 = Monday, etc.)
+// Day mapping for converting between day names and day numbers
 export const dayMapping: Record<string, number> = {
-  Monday: 1,
-  Tuesday: 2,
-  Wednesday: 3,
-  Thursday: 4,
-  Friday: 5,
-  Saturday: 6,
-  Sunday: 0
+  "Sunday": 0,
+  "Monday": 1,
+  "Tuesday": 2,
+  "Wednesday": 3,
+  "Thursday": 4,
+  "Friday": 5,
+  "Saturday": 6,
 };
 
 /**
- * Format time for display
+ * Format a time consistently for display
  */
 export function formatTime(date: Date): string {
   return format(date, "h:mm a");
@@ -43,20 +44,19 @@ export function formatDate(date: Date): string {
 }
 
 /**
- * Get tomorrow's date with time set to start of day
+ * Get tomorrow's date (for booking policy)
  */
 export function getTomorrowDate(): Date {
-  const today = new Date();
-  const tomorrow = addDays(today, 1);
+  const tomorrow = addDays(new Date(), 1);
   tomorrow.setHours(0, 0, 0, 0);
   return tomorrow;
 }
 
 /**
- * Get the maximum booking date (15 days from tomorrow)
+ * Get the maximum date allowed for booking (15 days from today)
  */
 export function getMaxBookingDate(): Date {
-  const maxDate = addDays(getTomorrowDate(), 15);
+  const maxDate = addDays(new Date(), 15);
   maxDate.setHours(23, 59, 59, 999);
   return maxDate;
 }
@@ -69,24 +69,31 @@ export function isSameDayFn(date1: Date, date2: Date): boolean {
 }
 
 /**
- * Convert day number to day name
+ * Convert a day number (0-6) to day name (Sunday-Saturday)
  */
-export function getDayNameFromNumber(dayNumber: number): string | undefined {
-  const dayNames = Object.keys(dayMapping);
-  return dayNames.find(day => dayMapping[day] === dayNumber);
+export function getDayNameFromNumber(dayNumber: number): string | null {
+  return Object.keys(dayMapping).find(day => dayMapping[day] === dayNumber) || null;
 }
 
 /**
- * Check if a time slot overlaps with a busy time period
+ * Check if a time slot overlaps with busy times
  */
 export function doesTimeSlotOverlapWithBusyTime(
-  slot: { startTime: Date; endTime: Date },
+  slot: TimeSlot,
   busyStart: Date,
   busyEnd: Date
 ): boolean {
-  return (
-    isWithinInterval(slot.startTime, { start: busyStart, end: busyEnd }) ||
-    isWithinInterval(slot.endTime, { start: busyStart, end: busyEnd }) ||
-    (slot.startTime <= busyStart && slot.endTime >= busyEnd)
-  );
+  // Slot starts during busy time
+  const slotStartsDuringBusyTime = 
+    slot.startTime >= busyStart && slot.startTime < busyEnd;
+  
+  // Slot ends during busy time
+  const slotEndsDuringBusyTime = 
+    slot.endTime > busyStart && slot.endTime <= busyEnd;
+  
+  // Slot completely contains busy time
+  const slotContainsBusyTime = 
+    slot.startTime <= busyStart && slot.endTime >= busyEnd;
+  
+  return slotStartsDuringBusyTime || slotEndsDuringBusyTime || slotContainsBusyTime;
 } 

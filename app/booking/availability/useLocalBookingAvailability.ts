@@ -1,29 +1,46 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useSearchParams, useRouter, redirect } from "next/navigation";
-import { parseISO, format, addDays, addMinutes } from "date-fns";
+import { useSearchParams, useRouter } from "next/navigation";
+import { format, addDays, parseISO } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 import { createAuthClient } from "@/utils/auth";
 import { createBooking } from "@/utils/actions/booking-actions";
-import { 
-  TimeSlot, 
-  BusyTime, 
-  CoachSchedule, 
-  TimeSlotGroup,
-  LoadingState
-} from "@/utils/types/booking";
+import { TimeSlot, TimeSlotGroup, LoadingState } from "@/utils/types/booking";
 import {
   dayMapping,
   formatTime,
   getTomorrowDate,
   getMaxBookingDate,
-  isSameDayFn,
   getDayNameFromNumber,
   doesTimeSlotOverlapWithBusyTime
 } from "@/utils/date-utils";
 
-export function useBookingAvailability() {
+// Interface for coach schedule from the database
+export interface AvailabilitySlot {
+  days: string[];
+  startTime: string; // Format: "HH:MM"
+  endTime: string;   // Format: "HH:MM"
+}
+
+export interface CoachSchedule {
+  ulid: string;
+  userUlid: string;
+  name: string;
+  timeZone: string;
+  availability: AvailabilitySlot[];
+  isDefault: boolean;
+  active: boolean;
+  defaultDuration: number;
+}
+
+export interface BusyTime {
+  start: string;
+  end: string;
+  source: string;
+}
+
+export function useLocalBookingAvailability() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -32,13 +49,12 @@ export function useBookingAvailability() {
   const coachSlug = searchParams.get("slug");
   
   // State variables
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [availableDates, setAvailableDates] = useState<Date[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [coachSchedule, setCoachSchedule] = useState<CoachSchedule | null>(null);
   const [busyTimes, setBusyTimes] = useState<BusyTime[]>([]);
-  const [calToken, setCalToken] = useState<string | null>(null);
   const [coachName, setCoachName] = useState("");
   const [isBooking, setIsBooking] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
@@ -51,143 +67,76 @@ export function useBookingAvailability() {
     context: ''
   });
 
-  // Test function to directly validate the coach token and calendar
-  const testCoachCalendarAccess = async (coachId: string) => {
-    try {
-      console.log('[DEBUG][BOOKING] Testing direct coach calendar access', { coachId });
-      
-      const supabase = createAuthClient();
-      
-      // Get coach's calendar token
-      const { data: calData, error: calError } = await supabase
-        .from("CalendarIntegration")
-        .select("calAccessToken, calManagedUserId")
-        .eq("userUlid", coachId)
-        .single();
-        
-      if (calError || !calData) {
-        console.error('[DEBUG][BOOKING] Test failed - no calendar integration found', {
-          error: calError,
-          coachId
-        });
-        return;
-      }
-      
-      // Get calendar credentials
-      const token = calData.calAccessToken;
-      const managedUserId = calData.calManagedUserId;
-      
-      // Only proceed if we have both
-      if (!token || !managedUserId) {
-        console.error('[DEBUG][BOOKING] Test failed - missing token or managed user ID', {
-          hasToken: !!token,
-          hasManagedUserId: !!managedUserId
-        });
-        return;
-      }
-      
-      console.log('[DEBUG][BOOKING] Test - token and managed user ID found', {
-        tokenLength: token.length,
-        managedUserId
-      });
-      
-      // Call the API directly with coach-specific params
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const testUrl = `/api/cal/calendars/get-busy-times?coachUlid=${encodeURIComponent(coachId)}&loggedInUsersTz=${encodeURIComponent(timezone)}&calendarsToLoad[0][credentialId]=${managedUserId}&calendarsToLoad[0][externalId]=primary`;
-      
-      console.log('[DEBUG][BOOKING] Test - making API call', { url: testUrl });
-      
-      const response = await fetch(testUrl, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      
-      console.log('[DEBUG][BOOKING] Test - API response', {
-        status: response.status,
-        ok: response.ok
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[DEBUG][BOOKING] Test failed - API error', {
-          status: response.status,
-          error: errorText
-        });
-        return;
-      }
-      
-      const result = await response.json();
-      console.log('[DEBUG][BOOKING] Test succeeded - busy times retrieved', {
-        status: result.status,
-        count: result.data?.length || 0
-      });
-    } catch (error) {
-      console.error('[DEBUG][BOOKING] Test failed - unexpected error', error);
+  // Helper function to check if a date should be disabled
+  const isDateDisabled = useCallback((date: Date) => {
+    if (!date) return true;
+    
+    // First check: Is the date within the allowed booking window?
+    const tomorrow = getTomorrowDate();
+    const maxDate = getMaxBookingDate();
+    
+    if (date < tomorrow || date > maxDate) {
+      return true; // Outside booking window - disable
     }
-  };
-
-  // Redirect if no coach identifier provided
-  useEffect(() => {
-    if (!coachId && !coachSlug) {
-      redirect("/");
+    
+    // Second check: Is this a day the coach works on?
+    const dayOfWeek = date.getDay();
+    const dateDayName = getDayNameFromNumber(dayOfWeek);
+    
+    if (!dateDayName || !coachSchedule) {
+      return true; // We don't have enough info - disable to be safe
     }
-  }, [coachId, coachSlug]);
+    
+    // Check if this day is in the coach's schedule
+    const isDayAvailable = coachSchedule.availability.some(slot => 
+      slot.days.includes(dateDayName)
+    );
+    
+    return !isDayAvailable; // Disable if not available
+  }, [coachSchedule]);
 
-  // Fetch coach data and availability schedule
+  // Fetch coach data and schedule when component mounts
   useEffect(() => {
     if (!coachId && !coachSlug) return;
-
+    
+    setLoading(true);
+    setLoadingState({
+      status: 'loading',
+      context: 'COACH_DATA',
+      message: 'Loading coach details...'
+    });
+    
     const fetchCoachData = async () => {
-      console.log('[DEBUG][BOOKING] Starting coach data fetch', { coachId, coachSlug });
-      setLoadingState({
-        status: 'loading',
-        context: 'COACH_DATA',
-        message: 'Fetching coach information...'
-      });
-      setLoading(true);
-      
       try {
-        // Fetch coach profile and availability schedule
         const supabase = createAuthClient();
-        
-        // First determine the coach's actual ULID
         let coachUlid: string;
         
-        if (coachSlug) {
-          // If a slug is provided, look up coach by profile slug
-          console.log('[DEBUG][BOOKING] Looking up coach by slug', { slug: coachSlug });
-          const { data: coachProfile, error: profileError } = await supabase
+        // First, resolve the coach ID from slug if needed
+        if (coachSlug && !coachId) {
+          console.log('[DEBUG][BOOKING] Fetching coach ID from slug', { slug: coachSlug });
+          const { data: slugData, error: slugError } = await supabase
             .from("CoachProfile")
             .select("userUlid")
-            .eq("profileSlug", coachSlug)
+            .eq("slug", coachSlug)
             .single();
             
-          if (profileError || !coachProfile) {
-            console.error("[FETCH_COACH_ERROR] Coach profile not found by slug", {
+          if (slugError || !slugData) {
+            console.error("[FETCH_COACH_SLUG_ERROR]", {
+              error: slugError,
               slug: coachSlug,
-              error: profileError,
               timestamp: new Date().toISOString()
             });
-            
-            // If not found by slug, try using the coachId as backup
-            if (coachId) {
-              console.log('[DEBUG][BOOKING] Falling back to coachId', { coachId });
-              coachUlid = coachId;
-            } else {
-              setError("Coach not found");
-              setLoading(false);
-              setLoadingState({
-                status: 'error',
-                context: 'COACH_DATA',
-                message: 'Coach profile not found'
-              });
-              return;
-            }
-          } else {
-            coachUlid = coachProfile.userUlid;
-            console.log('[DEBUG][BOOKING] Found coach by slug', { slug: coachSlug, coachUlid });
+            setLoadingState({
+              status: 'error',
+              context: 'COACH_DATA',
+              message: 'Coach not found'
+            });
+            setError("Coach not found. Please check the URL and try again.");
+            return;
           }
+          
+          coachUlid = slugData.userUlid;
+          console.log('[DEBUG][BOOKING] Found coach ID from slug', { coachUlid });
         } else {
           // If only coachId provided, use it directly
           coachUlid = coachId!;
@@ -197,9 +146,6 @@ export function useBookingAvailability() {
         // Store the actual coachId for later use
         setActualCoachId(coachUlid);
         console.log('[DEBUG][BOOKING] Coach ID set for availability fetch', { coachUlid });
-        
-        // Test calendar integration directly
-        testCoachCalendarAccess(coachUlid);
         
         // Get coach info
         console.log('[DEBUG][BOOKING] Fetching coach user details', { coachUlid });
@@ -266,6 +212,8 @@ export function useBookingAvailability() {
             availability: availabilityData
           });
           
+          // NOTE: Cal.com API integration commented out for testing local functionality
+          /*
           // Get the cal.com token for this coach to fetch busy times
           console.log('[DEBUG][BOOKING] Fetching calendar integration token', { coachUlid });
           const { data: calData, error: calError } = await supabase
@@ -283,6 +231,7 @@ export function useBookingAvailability() {
           } else {
             console.warn('[DEBUG][BOOKING] No calendar token found', { error: calError });
           }
+          */
           
           setLoadingState({
             status: 'success',
@@ -397,196 +346,21 @@ export function useBookingAvailability() {
         message: 'No available dates found in the booking window'
       });
     }
-  }, [coachSchedule]);
+  }, [coachSchedule, selectedDate, isDateDisabled]);
 
+  // NOTE: Cal.com API integration commented out for testing local functionality
+  /*
   // Fetch busy times when calendar token is available and date is selected
   useEffect(() => {
     if (!calToken || !selectedDate || !coachSchedule || !actualCoachId) return;
 
     const fetchBusyTimes = async () => {
-      console.log('[DEBUG][BOOKING] Fetching busy times', {
-        date: format(selectedDate, 'yyyy-MM-dd'),
-        coachId: actualCoachId
-      });
-      
-      setLoadingState({
-        status: 'loading',
-        context: 'BUSY_TIMES',
-        message: 'Checking coach availability...'
-      });
-      
-      try {
-        // First, get the coach's calendar token
-        const supabase = createAuthClient();
-        console.log('[DEBUG][BOOKING] Getting calendar integration details');
-        const { data: calendarData, error: calendarError } = await supabase
-          .from("CalendarIntegration")
-          .select("calAccessToken")
-          .eq("userUlid", actualCoachId)
-          .single();
-          
-        if (calendarError || !calendarData) {
-          console.error("[FETCH_CALENDAR_ERROR]", {
-            error: calendarError,
-            timestamp: new Date().toISOString()
-          });
-          setLoadingState({
-            status: 'error',
-            context: 'BUSY_TIMES',
-            message: 'Failed to fetch calendar integration'
-          });
-          return;
-        }
-
-        const coachToken = calendarData.calAccessToken;
-        
-        // Now fetch the coach's connected calendars to get the credential ID
-        console.log('[DEBUG][BOOKING] Fetching coach connected calendars');
-        
-        // Call the calendars API with the coach's token
-        const calendarResponse = await fetch(`/api/cal/calendars/get-all-calendars?coachUlid=${encodeURIComponent(actualCoachId)}`, {
-          headers: {
-            'Authorization': `Bearer ${coachToken}`
-          }
-        });
-        
-        if (!calendarResponse.ok) {
-          console.error("[FETCH_CALENDARS_ERROR]", {
-            status: calendarResponse.status,
-            statusText: calendarResponse.statusText,
-            timestamp: new Date().toISOString()
-          });
-          setLoadingState({
-            status: 'warning',
-            context: 'BUSY_TIMES',
-            message: 'Could not fetch coach calendars'
-          });
-          setBusyTimes([]);
-          return;
-        }
-        
-        const calendarsData = await calendarResponse.json();
-        
-        if (!calendarsData.success || !calendarsData.data?.calendars?.length) {
-          console.warn("[FETCH_CALENDARS_WARNING] No connected calendars found", {
-            coachUlid: actualCoachId,
-            timestamp: new Date().toISOString()
-          });
-          setLoadingState({
-            status: 'warning',
-            context: 'BUSY_TIMES',
-            message: 'Coach has no connected calendars'
-          });
-          setBusyTimes([]);
-          return;
-        }
-        
-        // Get the first calendar's credential ID
-        const calendar = calendarsData.data.calendars[0];
-        
-        console.log('[DEBUG][BOOKING] Found coach calendar', {
-          calendar: {
-            id: calendar.id,
-            name: calendar.name,
-            credentialId: calendar.credentialId,
-            externalId: calendar.externalId
-          }
-        });
-        
-        if (!calendar.credentialId || !calendar.externalId) {
-          console.error("[FETCH_CALENDAR_ERROR] Missing credential details", {
-            calendar,
-            timestamp: new Date().toISOString()
-          });
-          setLoadingState({
-            status: 'warning',
-            context: 'BUSY_TIMES',
-            message: 'Coach calendar not properly configured'
-          });
-          setBusyTimes([]);
-          return;
-        }
-        
-        // Now we have the correct credential ID, make the busy times request
-        const apiUrl = `/api/cal/calendars/get-busy-times?coachUlid=${encodeURIComponent(actualCoachId)}&loggedInUsersTz=${encodeURIComponent(coachSchedule.timeZone)}&calendarsToLoad[0][credentialId]=${calendar.credentialId}&calendarsToLoad[0][externalId]=${calendar.externalId}`;
-        
-        console.log('[DEBUG][BOOKING] Calling busy times API', {
-          url: apiUrl,
-          timezone: coachSchedule.timeZone,
-          coachUlid: actualCoachId,
-          credentialId: calendar.credentialId,
-          externalId: calendar.externalId
-        });
-
-        // Send the coach's token
-        const response = await fetch(apiUrl, {
-          headers: {
-            Authorization: `Bearer ${coachToken}`
-          }
-        });
-
-        if (!response.ok) {
-          console.error("[FETCH_BUSY_TIMES_ERROR]", {
-            statusCode: response.status,
-            statusText: response.statusText,
-            timestamp: new Date().toISOString()
-          });
-          
-          // Specific handling for authorization issues
-          if (response.status === 401) {
-            setLoadingState({
-              status: 'error',
-              context: 'BUSY_TIMES',
-              message: 'Calendar authorization expired'
-            });
-            return;
-          }
-          
-          setLoadingState({
-            status: 'error',
-            context: 'BUSY_TIMES',
-            message: 'Failed to fetch busy times'
-          });
-          return;
-        }
-
-        const busyTimesData = await response.json();
-        
-        if (!busyTimesData.success) {
-          console.error("[FETCH_BUSY_TIMES_ERROR]", busyTimesData.error || "Unknown error");
-          setLoadingState({
-            status: 'error',
-            context: 'BUSY_TIMES',
-            message: 'Error fetching busy times'
-          });
-          return;
-        }
-
-        const busyTimes = busyTimesData.data;
-        console.log('[DEBUG][BOOKING] Busy times for selected date', {
-          date: format(selectedDate, 'yyyy-MM-dd'),
-          busyTimesCount: busyTimes.length,
-          busyTimes: busyTimes.map((bt: BusyTime) => ({
-            start: bt.start,
-            end: bt.end,
-            source: bt.source
-          }))
-        });
-        
-        setBusyTimes(busyTimes);
-        setLoadingState({ status: 'idle', context: 'BUSY_TIMES' });
-      } catch (error) {
-        console.error("[FETCH_BUSY_TIMES_ERROR]", error);
-        setLoadingState({
-          status: 'error',
-          context: 'BUSY_TIMES',
-          message: 'Failed to process busy times'
-        });
-      }
+      // Cal.com API integration code here...
     };
 
     fetchBusyTimes();
   }, [calToken, selectedDate, actualCoachId, coachSchedule]);
+  */
 
   // Calculate available time slots based on schedule and busy times
   useEffect(() => {
@@ -647,7 +421,7 @@ export function useBookingAvailability() {
     
     // Generate time slots for the selected day
     const slots: TimeSlot[] = [];
-    const slotDuration = coachSchedule.defaultDuration; // minutes
+    const slotDuration = coachSchedule.defaultDuration || 60; // minutes
     
     console.log('[DEBUG][BOOKING] Generating time slots with duration', {
       slotDuration
@@ -705,6 +479,10 @@ export function useBookingAvailability() {
       busyTimesCount: busyTimes.length
     });
     
+    // NOTE: Cal.com API integration commented out for testing local functionality
+    // Using all slots without filtering for busy times
+    const availableSlots = slots;
+    /*
     const availableSlots = slots.filter(slot => {
       // Check for conflicts with busy times
       const conflicts = busyTimes.some(busyTime => {
@@ -730,11 +508,10 @@ export function useBookingAvailability() {
       
       return !conflicts;
     });
+    */
     
-    console.log('[DEBUG][BOOKING] Final available time slots after filtering', {
-      before: slots.length,
-      after: availableSlots.length,
-      filtered: slots.length - availableSlots.length,
+    console.log('[DEBUG][BOOKING] Final available time slots', {
+      count: availableSlots.length,
       slots: availableSlots.map(slot => ({
         start: format(slot.startTime, 'HH:mm'),
         end: format(slot.endTime, 'HH:mm')
@@ -751,7 +528,7 @@ export function useBookingAvailability() {
   }, [selectedDate, coachSchedule, busyTimes]);
 
   // Prepare times for rendering by grouping into morning, afternoon, evening
-  const timeSlotGroups = useMemo(() => {
+  const timeSlotGroups = useMemo<TimeSlotGroup[]>(() => {
     if (!timeSlots.length) return [];
     
     // Group into morning, afternoon, evening
@@ -785,60 +562,63 @@ export function useBookingAvailability() {
     
     return groups;
   }, [timeSlots]);
-  
+
   // Handle booking confirmation
   const handleConfirmBooking = useCallback(async () => {
     if (!selectedTimeSlot || !actualCoachId) return;
     
+    console.log('[DEBUG][BOOKING] Starting booking confirmation', {
+      coachId: actualCoachId,
+      startTime: format(selectedTimeSlot.startTime, 'yyyy-MM-dd HH:mm'),
+      endTime: format(selectedTimeSlot.endTime, 'yyyy-MM-dd HH:mm')
+    });
+    
+    setIsBooking(true);
+    setLoadingState({
+      status: 'loading',
+      context: 'BOOKING',
+      message: 'Creating your booking...'
+    });
+    
     try {
-      setIsBooking(true);
-      setLoadingState({
-        status: 'loading',
-        context: 'BOOKING',
-        message: 'Creating your booking...'
-      });
+      // NOTE: This is a placeholder for testing local functionality
+      // In real implementation, this would call the Cal.com API
       
-      // Get the event type for this coach
-      const supabase = createAuthClient();
-      const { data: eventTypes, error: eventTypeError } = await supabase
-        .from("CalEventType")
-        .select("calEventTypeId")
-        .eq("calendarIntegrationUlid", actualCoachId)
-        .eq("isDefault", true)
-        .single();
-
-      if (eventTypeError || !eventTypes?.calEventTypeId) {
-        console.error("[BOOKING_ERROR] No event type found for coach", {
-          error: eventTypeError,
-          coachId: actualCoachId,
-          timestamp: new Date().toISOString()
+      // Simulating a successful booking without actually making one
+      setTimeout(() => {
+        setLoadingState({
+          status: 'success',
+          context: 'BOOKING',
+          message: 'Booking created successfully! (TEST MODE)'
         });
         
         toast({
-          title: "Booking Error",
-          description: "Could not find booking configuration for this coach. Please try again later.",
-          variant: "destructive"
+          title: "Booking Confirmed (Test Mode)",
+          description: "This is a test booking and was not actually created. In production, this would create a real booking.",
+          variant: "default"
         });
         
         setIsBooking(false);
-        setLoadingState({
-          status: 'error',
-          context: 'BOOKING',
-          message: 'Failed to find booking configuration'
-        });
-        return;
-      }
-
-      // Call the booking action with the event type ID and time slot
+        
+        // Redirect to a success page with simulated data
+        const coachIdentifier = coachSlug ? `slug=${coachSlug}` : `coachId=${actualCoachId}`;
+        const startTimeStr = selectedTimeSlot.startTime.toISOString();
+        const endTimeStr = selectedTimeSlot.endTime.toISOString();
+        
+        router.push(`/booking/booking-success?${coachIdentifier}&startTime=${encodeURIComponent(startTimeStr)}&endTime=${encodeURIComponent(endTimeStr)}&bookingUid=test-booking&testMode=true`);
+      }, 1500); // Simulate API delay
+      
+      /* PRODUCTION CODE (COMMENTED OUT FOR TESTING)
       const result = await createBooking({
-        eventTypeId: eventTypes.calEventTypeId,
+        eventTypeId: 12345, // This would be fetched from the actual coach's calendar
         startTime: selectedTimeSlot.startTime.toISOString(),
         endTime: selectedTimeSlot.endTime.toISOString(),
-        attendeeName: "Your Name", // In a real app, you would get this from the user profile
-        attendeeEmail: "your.email@example.com", // In a real app, you would get this from the user profile
-        timeZone: coachSchedule?.timeZone || "UTC"
+        attendeeName: "Test User", // This would be the current user's name
+        attendeeEmail: "test@example.com", // This would be the current user's email
+        timeZone: coachSchedule?.timeZone || "America/New_York",
+        notes: "Booked via local testing" // User entered notes would go here
       });
-
+      
       if (result.error) {
         console.error("[BOOKING_ERROR]", {
           error: result.error,
@@ -882,6 +662,7 @@ export function useBookingAvailability() {
         message: 'Booking created successfully!'
       });
       router.push(`/booking/booking-success?${coachIdentifier}&startTime=${encodeURIComponent(result.data.startTime)}&endTime=${encodeURIComponent(result.data.endTime)}&bookingUid=${encodeURIComponent(result.data.calBookingUid)}`);
+      */
     } catch (error) {
       console.error("[BOOKING_ERROR]", {
         error,
@@ -900,34 +681,6 @@ export function useBookingAvailability() {
       });
     }
   }, [selectedTimeSlot, actualCoachId, coachSchedule, coachSlug, router]);
-
-  // Helper function to check if a date should be disabled
-  const isDateDisabled = useCallback((date: Date) => {
-    if (!date) return true;
-    
-    // First check: Is the date within the allowed booking window?
-    const tomorrow = getTomorrowDate();
-    const maxDate = getMaxBookingDate();
-    
-    if (date < tomorrow || date > maxDate) {
-      return true; // Outside booking window - disable
-    }
-    
-    // Second check: Is this a day the coach works on?
-    const dayOfWeek = date.getDay();
-    const dateDayName = getDayNameFromNumber(dayOfWeek);
-    
-    if (!dateDayName || !coachSchedule) {
-      return true; // We don't have enough info - disable to be safe
-    }
-    
-    // Check if this day is in the coach's schedule
-    const isDayAvailable = coachSchedule.availability.some(slot => 
-      slot.days.includes(dateDayName)
-    );
-    
-    return !isDayAvailable; // Disable if not available
-  }, [coachSchedule]);
 
   return {
     // State
