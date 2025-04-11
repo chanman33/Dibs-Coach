@@ -15,7 +15,7 @@ export default function AudienceSegments() {
         "Accelerate your career growth with personalized coaching from industry experts who understand your challenges.",
       icon: UserRound,
       cta: "Find Your Perfect Coach",
-      link: "/sign-in?forceRedirectUrl=/dashboard/mentee/browse-coaches",
+      link: "/coaches",
       features: [
         "One-on-one personalized coaching sessions",
         "Flexible scheduling to fit your busy calendar",

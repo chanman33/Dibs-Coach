@@ -22,6 +22,8 @@ const publicPaths = [
   '/faq(.*)',
   '/case-studies(.*)',
   '/business-solutions(.*)',
+  '/become-coach(.*)',
+  '/how-it-works(.*)',
   '/((?!dashboard|admin|coach|settings).*)'
 ]
 

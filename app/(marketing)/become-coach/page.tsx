@@ -227,7 +227,7 @@ const BecomeCoachPage: React.FC = () => {
               </p>
               <Link href="/sign-up?forceRedirectUrl=/apply-coach">
                 <Button size="lg" variant="secondary" className="w-full sm:w-auto">
-                  Apply to Become a Coach
+                  Get Started
                 </Button>
               </Link>
             </div>

@@ -15,7 +15,7 @@ export default function HeroSection() {
                 Connect with top real estate coaches who can help you reach your full potential. Whether you're a new agent or an experienced professional, find the guidance you need to succeed.
             </p>
             <div className="flex justify-center items-center gap-3">
-                <Link href="/sign-in?forceRedirectUrl=/dashboard/mentee/browse-coaches" className="mt-5">
+                <Link href="/coaches" className="mt-5">
                     <Button className="animate-buttonheartbeat rounded-md bg-blue-600 hover:bg-blue-500 text-sm font-semibold text-white">
                         Find Your Coach
                     </Button>

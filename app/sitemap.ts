@@ -18,7 +18,7 @@ type SitemapEntry = {
 };
 
 export default async function sitemap(): Promise<SitemapEntry[]> {
-  const baseUrl = "https://starter.rasmic.xyz";
+  const baseUrl = "https://dibs.coach";
 
   const staticPages: SitemapEntry[] = [
     {

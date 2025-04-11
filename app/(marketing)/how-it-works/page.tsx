@@ -5,7 +5,7 @@ import PageWrapper from "@/components/wrapper/page-wrapper";
 import { VideoPlayer } from '@/components/zoom/video-player';
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://starter.rasmic.xyz"),
+  metadataBase: new URL("https://dibs.coach"),
   keywords: ['real estate coaching', 'real estate mentoring', 'coaching marketplace', 'real estate career'],
   title: 'How It Works | Real Estate Coaching Platform',
   openGraph: {
@@ -36,10 +36,10 @@ export default async function HowItWorksPage() {
           Our platform connects you with experienced real estate coaches who can help you achieve your career goals through personalized guidance and industry expertise.
         </p>
         <div className='flex gap-2 mt-2'>
-          <Link href="/sign-in?forceRedirectUrl=/dashboard/mentee/browse-coaches" className="mt-2">
+          <Link href="/coaches" className="mt-2">
             <Button size="lg">Find a Coach</Button>
           </Link>
-          <Link href="/sign-in?forceRedirectUrl=/apply-coach" className="mt-2">
+          <Link href="/become-coach" className="mt-2">
             <Button size="lg" variant="outline">Become a Coach</Button>
           </Link>
         </div>
@@ -79,6 +79,13 @@ export default async function HowItWorksPage() {
                 <li className="mb-2"><strong>Flexible Offering:</strong> Set your own availability, session durations, and specialty areas to attract your ideal clients.</li>
                 <li className="mb-2"><strong>Built-in Tools:</strong> Access our scheduling, video conferencing, and payment systems to manage your coaching business efficiently.</li>
               </ul>
+              <div className="mt-6 flex justify-center">
+                <Link href="/become-coach">
+                  <Button size="lg" className="bg-blue-600 hover:bg-blue-500">
+                    Learn More About Coaching
+                  </Button>
+                </Link>
+              </div>
             </section>
 
 
