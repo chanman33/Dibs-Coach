@@ -246,6 +246,7 @@ export default function CoachCalendarPage() {
       
       const queryParams = new URLSearchParams({
         'loggedInUsersTz': timeZone,
+        'coachUlid': coachDbId || '',
         'calendarsToLoad[0][credentialId]': calendar.credentialId.toString(),
         'calendarsToLoad[0][externalId]': calendar.externalId.toString()
       })
