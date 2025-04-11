@@ -11,6 +11,7 @@ import { BookingSummary } from "./BookingSummary";
 import { EmptyState } from "./EmptyState";
 import { LoadingState } from "./LoadingState";
 import { ErrorState } from "./ErrorState";
+import { DebugPanel } from "./DebugPanel";
 
 /**
  * Booking Availability Page
@@ -60,12 +61,21 @@ export default function BookingAvailabilityPage() {
       
       <div className="grid md:grid-cols-3 gap-6">
         {/* Date Picker Section */}
-        <DatePickerSection
-          selectedDate={selectedDate}
-          onDateChange={setSelectedDate}
-          availableDates={availableDates}
-          isDateDisabled={isDateDisabled}
-        />
+        <div>
+          <DatePickerSection
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            availableDates={availableDates}
+            isDateDisabled={isDateDisabled}
+          />
+          
+          {/* Debug Panel - only shown in development */}
+          <DebugPanel 
+            selectedDate={selectedDate}
+            availableDates={availableDates}
+            isDateDisabled={isDateDisabled}
+          />
+        </div>
 
         {/* Time Slots Section */}
         <div className="md:col-span-2">

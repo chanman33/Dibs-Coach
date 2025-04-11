@@ -45,18 +45,25 @@ export function formatDate(date: Date): string {
 
 /**
  * Get tomorrow's date (for booking policy)
+ * Ensures we get tomorrow at 00:00:00 local time
  */
 export function getTomorrowDate(): Date {
-  const tomorrow = addDays(new Date(), 1);
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
   return tomorrow;
 }
 
 /**
- * Get the maximum date allowed for booking (15 days from today)
+ * Get the maximum date allowed for booking (15 days from tomorrow)
+ * Returns the 15th day after tomorrow at 23:59:59 local time
  */
 export function getMaxBookingDate(): Date {
-  const maxDate = addDays(new Date(), 15);
+  const tomorrow = getTomorrowDate();
+  // Add 14 days to tomorrow to get 15 days total
+  const maxDate = new Date(tomorrow);
+  maxDate.setDate(tomorrow.getDate() + 14);
   maxDate.setHours(23, 59, 59, 999);
   return maxDate;
 }

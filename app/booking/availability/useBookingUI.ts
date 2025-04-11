@@ -57,29 +57,74 @@ export function useBookingUI() {
   const isDateDisabled = useCallback((date: Date) => {
     if (!date) return true;
     
-    // First check: Is the date within the allowed booking window?
+    // Get the booking window boundaries
+    const tomorrow = getTomorrowDate();
+    const maxDate = getMaxBookingDate();
+    
+    // Debug info to find date comparison issues
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
+    const maxDateStr = format(maxDate, 'yyyy-MM-dd');
+    
+    console.log('[DEBUG][DATE_CHECK]', {
+      checking: dateStr,
+      tomorrow: tomorrowStr,
+      maxDate: maxDateStr,
+      beforeTomorrow: date < tomorrow,
+      afterMaxDate: date > maxDate,
+      withinWindow: date >= tomorrow && date <= maxDate,
+      shouldDisable: date < tomorrow || date > maxDate
+    });
+    
+    // CRITICAL FIX: The date should be DISABLED if it's OUTSIDE the booking window
+    // This was previously reversed - we were disabling dates we should enable!
+    if (date >= tomorrow && date <= maxDate) {
+      // Date is WITHIN the booking window - it should be ENABLED (return false to NOT disable)
+      return false;
+    } else {
+      // Date is OUTSIDE the booking window - it should be DISABLED (return true to disable)
+      return true;
+    }
+  }, []);
+
+  // Wrapped setSelectedDate to add logging and validation
+  const handleDateChange = useCallback((date: Date | undefined) => {
+    console.log('[DEBUG][BOOKING] Date selection changed', {
+      from: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : 'undefined',
+      to: date ? format(date, 'yyyy-MM-dd') : 'undefined',
+      timestamp: new Date().toISOString()
+    });
+    
+    // If date is undefined, allow clearing the selection
+    if (!date) {
+      setSelectedDate(undefined);
+      return;
+    }
+    
+    // Validate that the selected date is within the booking window
     const tomorrow = getTomorrowDate();
     const maxDate = getMaxBookingDate();
     
     if (date < tomorrow || date > maxDate) {
-      return true; // Outside booking window - disable
+      console.error('[DEBUG][BOOKING] Attempted to select date outside booking window', {
+        date: format(date, 'yyyy-MM-dd'),
+        tomorrow: format(tomorrow, 'yyyy-MM-dd'),
+        maxDate: format(maxDate, 'yyyy-MM-dd')
+      });
+      
+      // Don't update the state for invalid dates
+      toast({
+        title: "Invalid Date Selection",
+        description: "Please select a date within the available booking window.",
+        variant: "destructive"
+      });
+      
+      return;
     }
     
-    // Second check: Is this a day the coach works on?
-    const dayOfWeek = date.getDay();
-    const dateDayName = getDayNameFromNumber(dayOfWeek);
-    
-    if (!dateDayName || !coachSchedule) {
-      return true; // We don't have enough info - disable to be safe
-    }
-    
-    // Check if this day is in the coach's schedule
-    const isDayAvailable = coachSchedule.availability.some(slot => 
-      slot.days.includes(dateDayName)
-    );
-    
-    return !isDayAvailable; // Disable if not available
-  }, [coachSchedule]);
+    // Date is valid, update the state
+    setSelectedDate(date);
+  }, [selectedDate]);
 
   // Fetch coach data and schedule from server action
   useEffect(() => {
@@ -195,6 +240,15 @@ export function useBookingUI() {
     const tomorrow = getTomorrowDate();
     const maxDate = getMaxBookingDate();
     
+    // Log booking window details
+    console.log('[DEBUG][BOOKING_WINDOW]', {
+      tomorrowDate: format(tomorrow, 'yyyy-MM-dd'),
+      maxDate: format(maxDate, 'yyyy-MM-dd'),
+      windowDays: 15,
+      currentDate: format(new Date(), 'yyyy-MM-dd')
+    });
+    
+    // Track days the coach is available (for highlighting in UI)
     const availableDays = new Set<number>();
     
     // Collect all days the coach is available
@@ -215,22 +269,18 @@ export function useBookingUI() {
       )
     });
     
-    // Generate dates within the allowed booking window: tomorrow up to 15 days later
-    // and only include days when the coach is available
+    // Generate ALL dates within the allowed booking window (15 days)
     const dates: Date[] = [];
     
-    // Start from tomorrow (no same-day bookings)
-    for (let i = 0; i <= 15; i++) {
+    // Start from tomorrow (no same-day bookings) and go for 15 days
+    for (let i = 0; i <= 14; i++) {
       const date = addDays(tomorrow, i);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const withinWindow = date >= tomorrow && date <= maxDate;
       
-      // Stop if we've reached beyond the max date
-      if (date > maxDate) break;
+      console.log(`[DEBUG][DATE_GENERATION] Date ${i+1}/15: ${dateStr}, within window: ${withinWindow}`);
       
-      const dayOfWeek = date.getDay(); // 0-6, Sunday is 0
-      
-      if (availableDays.has(dayOfWeek)) {
-        dates.push(date);
-      }
+      dates.push(date);
     }
     
     console.log('[DEBUG][BOOKING] Available dates calculated', { 
@@ -241,10 +291,11 @@ export function useBookingUI() {
       } : 'No dates available'
     });
     
+    // Keep track of all dates in the booking window
     setAvailableDates(dates);
     
     // If we have dates and no selected date yet, select the first available date
-    if (dates.length > 0 && (!selectedDate || isDateDisabled(selectedDate))) {
+    if (dates.length > 0 && !selectedDate) {
       console.log('[DEBUG][BOOKING] Setting default selected date', { 
         date: format(dates[0], 'yyyy-MM-dd')
       });
@@ -254,7 +305,7 @@ export function useBookingUI() {
         context: 'CALCULATING_DATES'
       });
     } else if (dates.length === 0) {
-      // No dates available in booking window
+      // This should never happen as we're including all dates in the window
       console.warn('[DEBUG][BOOKING] No available dates found in booking window');
       setError("No available booking slots in the next 15 days");
       setLoadingState({
@@ -263,7 +314,7 @@ export function useBookingUI() {
         message: 'No available dates found in the booking window'
       });
     }
-  }, [coachSchedule, selectedDate, isDateDisabled]);
+  }, [coachSchedule, selectedDate]);
 
   // NOTE: Cal.com API integration commented out for testing local functionality
   /*
@@ -315,6 +366,25 @@ export function useBookingUI() {
   // Calculate available time slots based on schedule and busy times
   useEffect(() => {
     if (!selectedDate || !coachSchedule) return;
+    
+    // Validate selected date is within booking window
+    const tomorrow = getTomorrowDate();
+    const maxDate = getMaxBookingDate();
+    
+    if (selectedDate < tomorrow || selectedDate > maxDate) {
+      console.error('[DEBUG][BOOKING] Selected date is outside booking window', {
+        selectedDate: format(selectedDate, 'yyyy-MM-dd'),
+        tomorrow: format(tomorrow, 'yyyy-MM-dd'),
+        maxDate: format(maxDate, 'yyyy-MM-dd')
+      });
+      
+      // If somehow an invalid date got through, fix it by selecting first available date
+      if (availableDates.length > 0) {
+        console.log('[DEBUG][BOOKING] Selecting first available date as fallback');
+        setSelectedDate(availableDates[0]);
+      }
+      return;
+    }
     
     console.log('[DEBUG][BOOKING] Calculating time slots for selected date', {
       date: format(selectedDate, 'yyyy-MM-dd')
@@ -639,7 +709,7 @@ export function useBookingUI() {
     error,
     coachName,
     selectedDate,
-    setSelectedDate,
+    setSelectedDate: handleDateChange,
     availableDates,
     timeSlots,
     selectedTimeSlot,
