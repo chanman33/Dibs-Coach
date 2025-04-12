@@ -4,10 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { format, addDays, parseISO } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
-import { 
-  getCoachAvailability, 
-  getCoachBusyTimes
-} from "@/utils/actions/coach-availability";
+import { getCoachAvailability } from "@/utils/actions/coach-availability";
+import { getCoachBusyTimes } from "@/utils/actions/coach-calendar";
 import { type CoachSchedule } from "@/utils/types/coach-availability";
 import { createBooking } from "@/utils/actions/booking-actions";
 import { TimeSlot, TimeSlotGroup, LoadingState } from "@/utils/types/booking";
@@ -32,6 +30,14 @@ export interface BusyTime {
   source: string;
 }
 
+// Add this interface for tracking cached busy times
+export interface BusyTimesCache {
+  startDate: Date | null;
+  endDate: Date | null;
+  busyTimes: BusyTime[];
+  lastFetched: Date | null;
+}
+
 export function useBookingUI() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -47,7 +53,12 @@ export function useBookingUI() {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [coachSchedule, setCoachSchedule] = useState<CoachSchedule | null>(null);
-  const [busyTimes, setBusyTimes] = useState<BusyTime[]>([]);
+  const [busyTimesCache, setBusyTimesCache] = useState<BusyTimesCache>({
+    startDate: null,
+    endDate: null,
+    busyTimes: [],
+    lastFetched: null
+  });
   const [coachName, setCoachName] = useState("");
   const [isBooking, setIsBooking] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
@@ -283,9 +294,7 @@ export function useBookingUI() {
     }
   }, [coachSchedule, selectedDate]);
 
-  // NOTE: Cal.com API integration commented out for testing local functionality
-  /*
-  // Fetch busy times when date is selected
+  // Fetch busy times when date is selected, but with caching
   useEffect(() => {
     if (!selectedDate || !coachSchedule || !actualCoachId) return;
 
@@ -297,25 +306,84 @@ export function useBookingUI() {
           message: 'Checking coach availability...'
         });
         
-        // Use server action to fetch busy times
+        // Check if we already have this date in our cache
+        const dateInCache = busyTimesCache.startDate && busyTimesCache.endDate && 
+                           selectedDate >= busyTimesCache.startDate && 
+                           selectedDate <= busyTimesCache.endDate;
+        
+        // Calculate cache age in minutes
+        const cacheAge = busyTimesCache.lastFetched 
+          ? Math.floor((Date.now() - busyTimesCache.lastFetched.getTime()) / (1000 * 60)) 
+          : Number.MAX_SAFE_INTEGER;
+        
+        // Cache expires after 30 minutes to ensure we have fresh calendar data
+        const isCacheExpired = cacheAge > 30;
+        
+        // If the date is already in our cache and cache is not expired, use cached data
+        if (dateInCache && !isCacheExpired) {
+          console.log("[BUSY_TIMES] Using cached busy times", {
+            selectedDate: selectedDate.toISOString().split('T')[0],
+            cacheStartDate: busyTimesCache.startDate?.toISOString().split('T')[0],
+            cacheEndDate: busyTimesCache.endDate?.toISOString().split('T')[0],
+            cachedTimesCount: busyTimesCache.busyTimes.length,
+            cacheAgeMinutes: cacheAge
+          });
+          
+          setLoadingState({ status: 'success', context: 'BUSY_TIMES' });
+          return;
+        }
+        
+        // Fetch a month's worth of busy times starting from the selected date
+        console.log("[BUSY_TIMES] Fetching new 31-day range", {
+          startDate: selectedDate.toISOString().split('T')[0],
+          reason: isCacheExpired ? "Cache expired" : "Date not in cache"
+        });
+        
+        // Use server action to fetch busy times for a month
         const result = await getCoachBusyTimes({
           coachId: actualCoachId,
-          date: selectedDate.toISOString()
+          date: selectedDate.toISOString(),
+          days: 31 // Fetch a full month of busy times to cover the entire booking window
         });
         
         if (result.error) {
           console.error("[FETCH_BUSY_TIMES_ERROR]", result.error);
           setLoadingState({
-            status: 'warning',
+            status: 'success',
             context: 'BUSY_TIMES',
             message: 'Could not fetch coach calendar - showing all available slots'
           });
-          setBusyTimes([]);
+          
+          // Clear the cache on error
+          setBusyTimesCache({
+            startDate: null,
+            endDate: null,
+            busyTimes: [],
+            lastFetched: null
+          });
           return;
         }
         
-        setBusyTimes(result.data || []);
-        setLoadingState({ status: 'idle', context: 'BUSY_TIMES' });
+        const busyTimes = result.data || [];
+        console.log("[BUSY_TIMES] Successfully fetched", {
+          count: busyTimes.length, 
+          sampleTimes: busyTimes.slice(0, 2) || [],
+          dateRange: "Month-long range"
+        });
+        
+        // Calculate end date (31 days from selected date)
+        const endDate = new Date(selectedDate);
+        endDate.setDate(endDate.getDate() + 30); // 31 days total including start date
+        
+        // Update the cache with the new data
+        setBusyTimesCache({
+          startDate: selectedDate,
+          endDate: endDate,
+          busyTimes: busyTimes,
+          lastFetched: new Date()
+        });
+        
+        setLoadingState({ status: 'success', context: 'BUSY_TIMES' });
       } catch (error) {
         console.error("[FETCH_BUSY_TIMES_ERROR]", error);
         setLoadingState({
@@ -328,9 +396,8 @@ export function useBookingUI() {
 
     fetchBusyTimes();
   }, [selectedDate, actualCoachId, coachSchedule]);
-  */
 
-  // Calculate available time slots based on schedule and busy times
+  // Calculate available time slots based on schedule and busy times from cache
   useEffect(() => {
     if (!selectedDate || !coachSchedule || !coachTimezone) return;
     
@@ -445,8 +512,47 @@ export function useBookingUI() {
     });
 
     // availableSlots now holds correct UTC Date objects
-    const availableUtcSlots = utcSlots;
+    let availableUtcSlots = utcSlots;
 
+    // Filter slots that overlap with busy times from cache
+    if (busyTimesCache.busyTimes.length > 0) {
+      console.log('[DEBUG][BOOKING] Filtering slots with busy times', {
+        totalSlots: utcSlots.length,
+        busyTimesCount: busyTimesCache.busyTimes.length
+      });
+
+      // Filter out slots that conflict with busy times
+      availableUtcSlots = utcSlots.filter(slot => {
+        // Check each busy time for conflicts
+        return !busyTimesCache.busyTimes.some(busyTime => {
+          const busyStart = new Date(busyTime.start);
+          const busyEnd = new Date(busyTime.end);
+          
+          // Use the utility function to check for overlap
+          const overlaps = doesTimeSlotOverlapWithBusyTime(slot, busyStart, busyEnd);
+          
+          if (overlaps) {
+            console.log('[DEBUG][BOOKING] Excluding slot due to calendar conflict', {
+              slotStart: slot.startTime.toISOString(),
+              slotEnd: slot.endTime.toISOString(),
+              busyStart: busyStart.toISOString(),
+              busyEnd: busyEnd.toISOString(),
+              source: busyTime.source || 'External Calendar'
+            });
+          }
+          
+          return overlaps;
+        });
+      });
+
+      console.log('[DEBUG][BOOKING] Filtering results', { 
+        originalCount: utcSlots.length,
+        filteredCount: availableUtcSlots.length,
+        removedCount: utcSlots.length - availableUtcSlots.length
+      });
+    }
+
+    // Add back the final debug log:
     console.log('[DEBUG][BOOKING] Final available UTC time slots', {
       count: availableUtcSlots.length,
       slots: availableUtcSlots.map(slot => ({
@@ -463,7 +569,7 @@ export function useBookingUI() {
     setTimeSlots(availableUtcSlots);
     setSelectedTimeSlot(null);
     setLoadingState({ status: 'success', context: 'TIME_SLOTS' });
-  }, [selectedDate, coachSchedule, busyTimes, coachTimezone]);
+  }, [selectedDate, coachSchedule, coachTimezone, busyTimesCache]);
 
   // Prepare times for rendering by grouping based on user's timezone hour
   const timeSlotGroups = useMemo<TimeSlotGroup[]>(() => {

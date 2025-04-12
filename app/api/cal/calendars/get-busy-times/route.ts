@@ -16,33 +16,12 @@ export async function GET(request: Request) {
   try {
     console.log('[CAL_GET_BUSY_TIMES] Starting fetch of busy times');
     
-    // Get the Authorization header with coach's token
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('[CAL_GET_BUSY_TIMES_ERROR] Missing or invalid authorization token');
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Missing or invalid authorization token' 
-      }, { status: 401 });
-    }
-    
-    // Extract coach's token
-    const accessToken = authHeader.substring(7);
-    
     // Get query parameters
     const { searchParams } = new URL(request.url);
     const coachUlid = searchParams.get('coachUlid');
     const loggedInUsersTz = searchParams.get('loggedInUsersTz');
     const credentialId = searchParams.get('calendarsToLoad[0][credentialId]');
     const externalId = searchParams.get('calendarsToLoad[0][externalId]');
-    
-    console.log('[CAL_GET_BUSY_TIMES] Request parameters', {
-      coachUlid,
-      timezone: loggedInUsersTz,
-      credentialId,
-      externalId,
-      tokenLength: accessToken ? accessToken.length : 0
-    });
     
     // Validate required parameters
     if (!coachUlid || !loggedInUsersTz || !credentialId || !externalId) {
@@ -57,18 +36,36 @@ export async function GET(request: Request) {
         error: 'Missing required parameters' 
       }, { status: 400 });
     }
-
-    // We now use the coachUlid directly from the query parameters
-    // This ensures we're validating the token for the correct coach
-    console.log('[CAL_GET_BUSY_TIMES] Using provided coach ULID:', coachUlid);
     
-    // Use the token from the Authorization header directly
-    // This is crucial for Cal.com's API when accessing another user's calendar data
-    const validatedToken = accessToken;
+    console.log('[CAL_GET_BUSY_TIMES] Request parameters', {
+      coachUlid,
+      timezone: loggedInUsersTz,
+      credentialId,
+      externalId
+    });
+
+    // Get a valid Cal.com token for the coach using our utility
+    const tokenResult = await ensureValidCalToken(coachUlid);
+    
+    if (!tokenResult.success || !tokenResult.tokenInfo?.accessToken) {
+      console.error('[CAL_GET_BUSY_TIMES_ERROR] Failed to get valid token', {
+        coachUlid,
+        error: tokenResult.error,
+        timestamp: new Date().toISOString()
+      });
+      
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Failed to get valid calendar token' 
+      }, { status: 401 });
+    }
+    
+    // Use the validated token
+    const validatedToken = tokenResult.tokenInfo.accessToken;
     
     // Construct the query string for Cal.com API
-    const dateFrom = new Date().toISOString();
-    const dateTo = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days range
+    const dateFrom = searchParams.get('dateFrom') || new Date().toISOString();
+    const dateTo = searchParams.get('dateTo') || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // Default 30 days
     
     const queryParams = new URLSearchParams();
     queryParams.append('dateFrom', dateFrom);
@@ -99,8 +96,9 @@ export async function GET(request: Request) {
     console.log('[CAL_GET_BUSY_TIMES] Making API request with validated token');
     let response = await makeCalRequest(validatedToken);
     
-    // For requests with user-provided tokens, we don't attempt token refresh
-    // This API should return the error directly to the client
+    // Handle token expiration and retry if needed
+    response = await handleCalApiResponse(response, makeCalRequest, coachUlid);
+    
     console.log('[CAL_GET_BUSY_TIMES] API response status', {
       status: response.status,
       ok: response.ok
