@@ -1,5 +1,5 @@
 import { format as formatBase } from "date-fns";
-import { fromZonedTime, toZonedTime, format as formatInTimeZone } from 'date-fns-tz';
+import { fromZonedTime, toZonedTime, format } from 'date-fns-tz';
 
 /**
  * Gets the user's local timezone string.
@@ -36,11 +36,14 @@ export function formatUtcDateInTimezone(
   formatString: string = 'h:mm a' // Default format
 ): string {
   try {
-    return formatInTimeZone(utcDate, formatString, { timeZone: displayTimeZone });
+    // Convert UTC date to the target timezone, then format it
+    const zonedDate = toZonedTime(utcDate, displayTimeZone);
+    return format(zonedDate, formatString, { timeZone: displayTimeZone });
   } catch (error) {
     console.error(`[FORMAT_UTC_DATE_ERROR] Failed to format UTC date in timezone ${displayTimeZone}`, {
       utcDate,
       displayTimeZone,
+      formatString,
       error
     });
     return formatBase(utcDate, formatString);

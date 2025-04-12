@@ -4,17 +4,18 @@ import { useEffect, useCallback, useState } from 'react'
 import { AvailabilityManager } from '@/components/coaching/AvailabilityManager'
 import { saveCoachAvailability, fetchCoachAvailability } from '@/utils/actions/availability'
 import { fetchCoachEventTypes, saveCoachEventTypes } from '@/utils/actions/cal-event-type-actions'
-import { Loader2, Calendar, RefreshCw } from 'lucide-react'
+import { Loader2, Calendar, RefreshCw, AlertCircle, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
-import { AvailabilityResponse, SaveAvailabilityParams } from '@/utils/types/availability'
+import { AvailabilityResponse, SaveAvailabilityParams, WeeklySchedule } from '@/utils/types/availability'
 import { ApiResponse } from '@/utils/types/api'
 import dynamic from 'next/dynamic'
 import { type EventType } from '@/components/cal/EventTypeCard'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Decimal } from '@prisma/client/runtime/library'
 import { fetchCoachHourlyRate, type CoachHourlyRateResponse } from '@/utils/actions/cal-coach-rate-actions'
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 // Dynamically import EventTypeManager with no SSR
 const EventTypeManager = dynamic(
@@ -51,10 +52,10 @@ export default function CoachAvailabilityPage() {
     isLoading: isLoadingAvailability,
     error: availabilityError,
     refetch: refetchAvailability
-  } = useQuery({
+  } = useQuery<AvailabilityResponse | null, Error>({
     queryKey: ['coach-availability'],
     queryFn: async () => {
-      const result = await fetchCoachAvailability({})
+      const result = await fetchCoachAvailability({});
       
       if (result.error) {
         // Don't throw error for first-time setup
@@ -64,7 +65,8 @@ export default function CoachAvailabilityPage() {
         throw new Error(result.error.message)
       }
       
-      return result.data
+      // Ensure data exists before returning
+      return result.data ? { schedule: result.data.schedule, timezone: result.data.timezone } : null;
     }
   })
 
@@ -143,7 +145,11 @@ export default function CoachAvailabilityPage() {
 
   // Handle save - Define this BEFORE conditional returns
   const handleSave = useCallback(async (params: SaveAvailabilityParams): Promise<ApiResponse<{ success: true }>> => {
-    const result = await saveCoachAvailability(params);
+    // Let the server re-fetch the Cal.com timezone as the source of truth
+    // Don't pass in an explicit timezone to ensure the server gets it fresh from Cal.com
+    const result = await saveCoachAvailability({
+      ...params,
+    });
     if (result.data?.success) {
       await handleSaveSuccess();
     }
@@ -241,13 +247,35 @@ export default function CoachAvailabilityPage() {
     );
   }
 
-  // First time setup message
+  // Determine if it's the first time setup (no schedule AND no event types)
   const isFirstTimeSetup = !availabilityData && !eventTypesData?.eventTypes?.length
+  const determinedTimezone = availabilityData?.timezone;
   
   return (
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Manage Your Availability</h1>
       
+      {/* Timezone Alert */}
+      {!isFirstTimeSetup && (
+        <Alert className="mb-6">
+          {determinedTimezone ? (
+            <Info className="h-4 w-4" />
+          ) : (
+            <AlertCircle className="h-4 w-4 text-yellow-500" />
+          )}
+          <AlertTitle>{determinedTimezone ? "Timezone Information" : "Timezone Required"}</AlertTitle>
+          <AlertDescription>
+            {determinedTimezone ? (
+              `Your availability is currently managed in the ${determinedTimezone} timezone. This is synchronized with your connected calendar or your profile settings.`
+            ) : (
+              <span>
+                Please set your timezone to ensure accurate scheduling. You can connect your Cal.com account or set it manually in your <Link href="/dashboard/settings" className="underline font-medium">Settings</Link>.
+              </span>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+
       {isFirstTimeSetup && (
         <Alert className="mb-6">
           <Calendar className="h-4 w-4" />
@@ -264,10 +292,12 @@ export default function CoachAvailabilityPage() {
         onEventTypesChange={handleEventTypesChange}
       />
       
-      {/* Existing Availability Manager */}
+      {/* Existing Availability Manager - Pass timezone and schedule directly */} 
       <AvailabilityManager
         onSave={handleSave}
-        initialSchedule={availabilityData || undefined}
+        initialSchedule={availabilityData?.schedule || undefined} // Pass directly
+        timezone={determinedTimezone} 
+        disabled={!determinedTimezone} 
       />
     </div>
   )

@@ -153,11 +153,38 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
         ? JSON.parse(scheduleData.availability) 
         : scheduleData.availability;
       
+      // Get Cal.com timezone if available (this should be prioritized)
+      const { data: calendarIntegration, error: integrationError } = await supabase
+        .from('CalendarIntegration')
+        .select('timeZone')
+        .eq('userUlid', coachUlid)
+        .maybeSingle();
+        
+      if (integrationError) {
+        console.warn('[GET_COACH_AVAILABILITY_WARNING] Failed to fetch calendar integration', {
+          error: integrationError,
+          coachUlid,
+          timestamp: new Date().toISOString()
+        });
+        // Continue even if integration fetch fails, we can fallback to schedule timezone
+      }
+      
+      // Determine timezone: Prioritize CalendarIntegration, then Schedule
+      const determinedTimeZone = calendarIntegration?.timeZone || scheduleData.timeZone;
+      
+      // Log timezone info for debugging
+      console.log('[COACH_TIMEZONE_INFO]', {
+        calTimeZone: calendarIntegration?.timeZone || 'none',
+        dbTimeZone: scheduleData.timeZone || 'none',
+        using: determinedTimeZone || 'none',
+        timestamp: new Date().toISOString()
+      });
+      
       // Enhanced logging for debugging timezone and availability issues
       console.log('[DEBUG][COACH_AVAILABILITY] Coach schedule details', {
         coachUlid,
         coachName: `${coachData.firstName || ''} ${coachData.lastName || ''}`,
-        timeZone: scheduleData.timeZone,
+        timeZone: determinedTimeZone,
         availabilityCount: availabilityData.length,
         availabilityDetails: availabilityData.map((slot: { days: string[], startTime: string, endTime: string }) => ({
           days: slot.days,
@@ -181,7 +208,7 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
             ulid: scheduleData.ulid,
             userUlid: scheduleData.userUlid,
             name: scheduleData.name,
-            timeZone: scheduleData.timeZone,
+            timeZone: determinedTimeZone,
             availability: availabilityData,
             isDefault: scheduleData.isDefault,
             active: scheduleData.active,

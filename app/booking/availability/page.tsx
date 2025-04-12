@@ -77,6 +77,14 @@ export default function BookingAvailabilityPage() {
             isDateDisabled={isDateDisabled}
             coachTimezone={coachTimezone}
           />
+          
+          {/* Add timezone display in booking UI */}
+          {coachTimezone && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              <p>Coach's timezone: {coachTimezone}</p>
+              <p className="mt-1 text-xs">Times will adjust to your local timezone when displayed.</p>
+            </div>
+          )}
         </div>
 
         {/* Time Slots Section */}

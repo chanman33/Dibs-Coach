@@ -63,7 +63,7 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
         .eq('userId', userId)
         .single()
 
-      if (userError) {
+      if (userError || !userData) {
         console.error('[FETCH_AVAILABILITY_ERROR]', {
           error: userError,
           userId,
@@ -74,23 +74,37 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
           error: { code: 'DATABASE_ERROR', message: 'Failed to find user in database' }
         }
       }
+      const userUlid = userData.ulid;
+
+      // Fetch Calendar Integration first to get the primary timezone
+      const { data: calendarIntegration, error: integrationError } = await supabase
+        .from('CalendarIntegration')
+        .select('timeZone')
+        .eq('userUlid', userUlid)
+        .maybeSingle();
+
+      if (integrationError) {
+        console.warn('[FETCH_AVAILABILITY_WARNING] Failed to fetch calendar integration', {
+          error: integrationError,
+          userUlid,
+          timestamp: new Date().toISOString()
+        })
+        // Continue even if integration fetch fails, we can fallback to schedule timezone
+      }
 
       // Get availability schedule for the user
       const { data: schedule, error: scheduleError } = await supabase
         .from('CoachingAvailabilitySchedule')
         .select('*')
-        .eq('userUlid', userData.ulid)
+        .eq('userUlid', userUlid)
         .maybeSingle()
 
       if (scheduleError) {
-        // Log the error but don't expose database details to client
         console.error('[FETCH_AVAILABILITY_ERROR]', {
           error: scheduleError,
-          userUlid: userData.ulid,
+          userUlid,
           timestamp: new Date().toISOString()
         })
-        
-        // Return a more user-friendly error
         return {
           data: null,
           error: { 
@@ -101,6 +115,7 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
       }
 
       // If no schedule exists yet, return NOT_FOUND error
+      // This indicates first-time setup
       if (!schedule) {
         return {
           data: null,
@@ -115,26 +130,62 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
           THURSDAY: [], FRIDAY: [], SATURDAY: []
         }
         
-        if (!availability?.length) return defaultSchedule
+        // Ensure availability is treated as an array
+        const availabilityArray = Array.isArray(availability) ? availability : [];
+
+        if (!availabilityArray.length) return defaultSchedule
         
-        return availability.reduce((acc: WeeklySchedule, slot: any) => {
+        // Create new accumulator to avoid mutation issues
+        return availabilityArray.reduce((acc: WeeklySchedule, slot: any): WeeklySchedule => {
+          const newAcc = { ...acc };
+          
+          // Create the time slot
           const timeSlot = {
             from: slot.startTime,
             to: slot.endTime
-          }
-          slot.days.forEach((day: string) => {
-            const upperDay = day.toUpperCase() as WeekDay
-            if (upperDay in acc) {
-              acc[upperDay].push(timeSlot)
+          };
+          
+          // Add it to applicable days
+          const days = slot.days || [];
+          days.forEach((day: any) => {
+            // Handle both string (legacy) and numeric (new) day formats
+            let dayKey: WeekDay;
+            
+            if (typeof day === 'number') {
+              // If day is a number (0-6), convert to corresponding day string
+              dayKey = DAYS_OF_WEEK[day] as WeekDay;
+            } else if (typeof day === 'string') {
+              // If day is a string, convert to uppercase for our enum format
+              dayKey = day.toUpperCase() as WeekDay;
+            } else {
+              // Skip invalid day format
+              console.warn('[AVAILABILITY_WARNING] Invalid day format:', { day, type: typeof day });
+              return;
             }
-          })
-          return acc
+            
+            if (dayKey in newAcc) {
+              newAcc[dayKey] = [...newAcc[dayKey], timeSlot];
+            }
+          });
+          
+          return newAcc;
         }, defaultSchedule)
       }
 
+      // Determine timezone: Prioritize CalendarIntegration, then Schedule, then null
+      const determinedTimeZone = calendarIntegration?.timeZone || schedule.timeZone || null;
+      
+      // Log timezone info for debugging
+      console.log('[TIMEZONE_INFO]', {
+        calTimeZone: calendarIntegration?.timeZone || 'none',
+        dbTimeZone: schedule.timeZone || 'none',
+        using: determinedTimeZone || 'none',
+        timestamp: new Date().toISOString()
+      });
+
       const response: AvailabilityResponse = {
         schedule: mapCalAvailabilityToWeeklySchedule(schedule.availability),
-        timezone: schedule.timeZone || 'America/New_York'
+        timezone: determinedTimeZone
       }
 
       return {
@@ -159,6 +210,24 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
 export const saveCoachAvailability = withServerAction<{ success: true }, SaveAvailabilityParams>(
   async (params) => {
     try {
+      // Validate input parameters using Zod schema
+      const validationResult = SaveAvailabilityParamsSchema.safeParse(params);
+      if (!validationResult.success) {
+        console.error('[SAVE_AVAILABILITY_ERROR] Invalid input parameters:', {
+          error: validationResult.error.flatten(),
+          timestamp: new Date().toISOString()
+        });
+        return {
+          data: null,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid input data',
+            details: validationResult.error.flatten()
+          }
+        };
+      }
+      const validatedParams = validationResult.data;
+
       // Get the user's ID from auth
       const userId = await getCurrentUserId()
       if (!userId) {
@@ -177,7 +246,7 @@ export const saveCoachAvailability = withServerAction<{ success: true }, SaveAva
         .eq('userId', userId)
         .single()
 
-      if (userError) {
+      if (userError || !userData) {
         console.error('[SAVE_AVAILABILITY_ERROR]', {
           error: userError,
           userId,
@@ -188,37 +257,66 @@ export const saveCoachAvailability = withServerAction<{ success: true }, SaveAva
           error: { code: 'DATABASE_ERROR', message: 'Failed to find user in database' }
         }
       }
+      const userUlid = userData.ulid;
 
-      // Check if schedule already exists
-      const { data: existingSchedule } = await supabase
-        .from('CoachingAvailabilitySchedule')
-        .select('ulid, timeZone')
-        .eq('userUlid', userData.ulid)
-        .maybeSingle()
+      // Fetch both existing schedule and calendar integration concurrently
+      const [existingScheduleResult, calendarIntegrationResult] = await Promise.all([
+        supabase
+          .from('CoachingAvailabilitySchedule')
+          .select('ulid, timeZone')
+          .eq('userUlid', userUlid)
+          .maybeSingle(),
+        supabase
+          .from('CalendarIntegration')
+          .select('timeZone')
+          .eq('userUlid', userUlid)
+          .maybeSingle()
+      ]);
+
+      const { data: existingSchedule, error: scheduleError } = existingScheduleResult;
+      const { data: calendarIntegration, error: integrationError } = calendarIntegrationResult;
+
+      if (scheduleError) {
+         console.error('[SAVE_AVAILABILITY_ERROR] Failed to check existing schedule', {
+          error: scheduleError,
+          userUlid,
+          timestamp: new Date().toISOString()
+        })
+        // Potentially return error, or proceed carefully
+      }
+      if (integrationError) {
+        console.warn('[SAVE_AVAILABILITY_WARNING] Failed to fetch calendar integration during save', {
+          error: integrationError,
+          userUlid,
+          timestamp: new Date().toISOString()
+        })
+        // Log warning but proceed, as timezone fallback exists
+      }
 
       // Convert our weekly schedule format to Cal.com availability format
       const mapWeeklyScheduleToCalAvailability = (weeklySchedule: WeeklySchedule) => {
-        const availability: { days: string[], startTime: string, endTime: string }[] = []
+        // Cal.com expects days as numbers 0-6, where 0 is Sunday, 1 is Monday, etc.
+        const availability: { days: number[], startTime: string, endTime: string }[] = []
         
-        // Process each day
         Object.entries(weeklySchedule).forEach(([day, slots]) => {
-          // Skip days with no slots
           if (!slots.length) return
           
-          // Process each time slot for this day
+          const dayIndex = DAYS_OF_WEEK.indexOf(day as WeekDay); // Get index (0-6)
+          if (dayIndex === -1) return; // Skip invalid days
+
           slots.forEach(slot => {
-            // Look for existing slot with same times
             const existingSlot = availability.find(
               a => a.startTime === slot.from && a.endTime === slot.to
             )
             
             if (existingSlot) {
-              // Add this day to existing slot with same times
-              existingSlot.days.push(day.charAt(0) + day.slice(1).toLowerCase())
+              if (!existingSlot.days.includes(dayIndex)) { // Ensure day is not already added
+                existingSlot.days.push(dayIndex)
+                existingSlot.days.sort((a, b) => a - b); // Keep days sorted
+              }
             } else {
-              // Create new slot
               availability.push({
-                days: [day.charAt(0) + day.slice(1).toLowerCase()],
+                days: [dayIndex],
                 startTime: slot.from,
                 endTime: slot.to
               })
@@ -229,49 +327,67 @@ export const saveCoachAvailability = withServerAction<{ success: true }, SaveAva
         return availability
       }
 
-      // Default to America/New_York if no timezone is provided
-      const timeZone = params.timezone || existingSchedule?.timeZone || "America/New_York"
+      // Determine timezone: ALWAYS prioritize CalendarIntegration as source of truth
+      // Only fall back to other sources if Cal.com integration not available
+      const determinedTimeZone = calendarIntegration?.timeZone || 
+                               validatedParams.timezone || 
+                               existingSchedule?.timeZone || 
+                               "America/New_York";
+      
+      // Log timezone for debugging
+      console.log('[SAVE_TIMEZONE_INFO]', {
+        calTimeZone: calendarIntegration?.timeZone || 'none',
+        paramTimeZone: validatedParams.timezone || 'none',
+        existingTimeZone: existingSchedule?.timeZone || 'none',
+        using: determinedTimeZone,
+        timestamp: new Date().toISOString()
+      });
 
-      const scheduleData = {
-        name: "Default Schedule",
-        timeZone,
-        availability: mapWeeklyScheduleToCalAvailability(params.schedule),
-        isDefault: true,
-        updatedAt: new Date().toISOString() // Required by project rules
+      const schedulePayload = {
+        name: "Default Schedule", // Consider making this configurable or using existing name
+        timeZone: determinedTimeZone,
+        availability: mapWeeklyScheduleToCalAvailability(validatedParams.schedule),
+        isDefault: true, // Assuming this is the default schedule being saved
+        updatedAt: new Date().toISOString(), // Required by project rules
+        // Include other relevant fields from schema like buffer times, duration settings if applicable
+        // bufferAfter: params.bufferAfter ?? existingSchedule?.bufferAfter ?? 0,
+        // bufferBefore: params.bufferBefore ?? existingSchedule?.bufferBefore ?? 0,
+        // defaultDuration: params.defaultDuration ?? existingSchedule?.defaultDuration ?? 60,
+        // ...etc
       }
 
       let result;
       if (existingSchedule) {
         // Update existing schedule
+        console.log('[SAVE_AVAILABILITY] Updating existing schedule', { userUlid, scheduleId: existingSchedule.ulid });
         result = await supabase
           .from('CoachingAvailabilitySchedule')
-          .update({
-            timeZone: scheduleData.timeZone,
-            availability: scheduleData.availability,
-            updatedAt: scheduleData.updatedAt
-          })
+          .update(schedulePayload) // Pass the whole payload for update
           .eq('ulid', existingSchedule.ulid)
       } else {
         // Create new schedule
+        console.log('[SAVE_AVAILABILITY] Creating new schedule', { userUlid });
         result = await supabase
           .from('CoachingAvailabilitySchedule')
           .insert({
-            ulid: generateUlid(), // Use generateUlid instead of nanoid
-            userUlid: userData.ulid,
-            name: scheduleData.name,
-            timeZone: scheduleData.timeZone,
-            availability: scheduleData.availability,
-            isDefault: true,
-            active: true,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+            ulid: generateUlid(),
+            userUlid: userUlid,
+            ...schedulePayload, // Spread the payload
+            active: true, // Ensure new schedules are active
+            createdAt: new Date().toISOString(), // Set createdAt only for new records
+            // Add defaults for other required fields if not in payload
+            allowCustomDuration: true,
+            minimumDuration: 30,
+            maximumDuration: 120,
+            bufferAfter: 0,
+            bufferBefore: 0
           })
       }
 
       if (result.error) {
         console.error('[SAVE_AVAILABILITY_ERROR]', {
           error: result.error,
-          userUlid: userData.ulid,
+          userUlid,
           timestamp: new Date().toISOString()
         })
         return {
@@ -285,14 +401,12 @@ export const saveCoachAvailability = withServerAction<{ success: true }, SaveAva
 
       // After successfully saving the availability schedule, update the coach profile completion
       try {
-        // Use the centralized function to update profile completion
         const { updateProfileCompletion } = await import('@/utils/actions/update-profile-completion')
-        await updateProfileCompletion(userData.ulid, true) // Force refresh since we just added availability
+        await updateProfileCompletion(userUlid, true) // Force refresh
       } catch (updateError) {
-        // Only log the error, don't fail the availability save
         console.error('[UPDATE_PROFILE_COMPLETION_ERROR]', {
           error: updateError,
-          userUlid: userData.ulid,
+          userUlid,
           timestamp: new Date().toISOString()
         })
       }

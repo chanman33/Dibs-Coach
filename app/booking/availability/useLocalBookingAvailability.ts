@@ -63,8 +63,8 @@ export function useLocalBookingAvailability() {
   
   // Enhanced loading state
   const [loadingState, setLoadingState] = useState<LoadingState>({
-    status: 'idle',
-    context: ''
+    status: 'loading',
+    context: 'initial'
   });
 
   // Helper function to check if a date should be disabled
@@ -207,8 +207,26 @@ export function useLocalBookingAvailability() {
             defaultDuration: scheduleData.defaultDuration
           });
           
+          // Check if there's a Cal.com integration with timezone (prioritize it)
+          const { data: calData, error: calError } = await supabase
+            .from("CalendarIntegration")
+            .select("calAccessToken, timeZone")
+            .eq("userUlid", coachUlid)
+            .single();
+          
+          // Use Cal.com timezone if available (priority), otherwise use schedule timezone
+          const determinedTimeZone = calData?.timeZone || scheduleData.timeZone;
+          
+          console.log('[DEBUG][BOOKING] Timezone determination', {
+            calTimeZone: calData?.timeZone || 'none',
+            scheduleTimeZone: scheduleData.timeZone,
+            using: determinedTimeZone,
+            timestamp: new Date().toISOString()
+          });
+          
           setCoachSchedule({
             ...scheduleData,
+            timeZone: determinedTimeZone, // Use the prioritized timezone
             availability: availabilityData
           });
           
@@ -366,8 +384,10 @@ export function useLocalBookingAvailability() {
   useEffect(() => {
     if (!selectedDate || !coachSchedule) return;
     
-    console.log('[DEBUG][BOOKING] Calculating time slots for selected date', {
-      date: format(selectedDate, 'yyyy-MM-dd')
+    console.log('[DEBUG][BOOKING_LOCAL] Calculating time slots for selected date', {
+      date: format(selectedDate, 'yyyy-MM-dd'),
+      timezone: coachSchedule.timeZone,
+      availability: coachSchedule.availability
     });
     
     setLoadingState({
@@ -382,13 +402,14 @@ export function useLocalBookingAvailability() {
     // Convert day number to day name for matching with availability
     const selectedDayName = getDayNameFromNumber(dayOfWeek);
     
-    console.log('[DEBUG][BOOKING] Selected day info', {
+    console.log('[DEBUG][BOOKING_LOCAL] Selected day info', {
       dayOfWeek,
-      dayName: selectedDayName
+      dayName: selectedDayName,
+      dayOfWeekType: typeof dayOfWeek
     });
     
     if (!selectedDayName) {
-      console.error('[DEBUG][BOOKING] Invalid day selection', { dayOfWeek });
+      console.error('[DEBUG][BOOKING_LOCAL] Invalid day selection', { dayOfWeek });
       setLoadingState({
         status: 'error',
         context: 'TIME_SLOTS',
@@ -398,18 +419,37 @@ export function useLocalBookingAvailability() {
     }
     
     // Find availability slots for the selected day
-    const daySlots = coachSchedule.availability.filter(slot => 
-      slot.days.includes(selectedDayName)
-    );
+    // IMPORTANT FIX: Handle both number and string day formats
+    const daySlots = coachSchedule.availability.filter(slot => {
+      if (!slot.days || !Array.isArray(slot.days)) return false;
+      
+      // Handle both number and string day formats
+      return slot.days.some(day => {
+        if (typeof day === 'number') {
+          // If day is stored as number (0-6), compare directly with dayOfWeek
+          return day === dayOfWeek;
+        } else if (typeof day === 'string') {
+          // If day is stored as string, compare with selectedDayName
+          return day.toUpperCase() === selectedDayName;
+        }
+        return false;
+      });
+    });
     
-    console.log('[DEBUG][BOOKING] Availability slots for selected day', {
+    console.log('[DEBUG][BOOKING_LOCAL] Availability slots for selected day', {
       dayName: selectedDayName,
       slotsCount: daySlots.length,
-      slots: daySlots
+      slots: daySlots,
+      fullCoachSchedule: coachSchedule.availability.map(slot => ({
+        days: slot.days,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        dayTypes: slot.days.map(d => typeof d)
+      }))
     });
     
     if (daySlots.length === 0) {
-      console.log('[DEBUG][BOOKING] No availability slots for selected day');
+      console.log('[DEBUG][BOOKING_LOCAL] No availability slots for selected day');
       setTimeSlots([]);
       setLoadingState({
         status: 'success',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -17,19 +17,19 @@ import {
   WeeklySchedule,
   DAYS_OF_WEEK,
   SaveAvailabilityParams,
-  AvailabilityResponse,
   WeeklySchedule as WeeklyScheduleType
 } from '@/utils/types/availability'
 import { ApiResponse } from '@/utils/types/api'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Trash2, Loader2, Info } from 'lucide-react'
+import { Plus, Trash2, Loader2, Info, AlertCircle } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 const DEFAULT_TIME_SLOT: TimeSlot = {
   from: '09:00',
@@ -75,21 +75,27 @@ const DISPLAY_ORDER: WeekDay[] = [
 
 interface AvailabilityManagerProps {
   onSave: (params: SaveAvailabilityParams) => Promise<ApiResponse<{ success: true }>>
-  initialSchedule?: AvailabilityResponse
+  initialSchedule?: WeeklyScheduleType
+  timezone?: string | null
+  disabled?: boolean
 }
 
-export function AvailabilityManager({ onSave, initialSchedule }: AvailabilityManagerProps) {
+export function AvailabilityManager({ 
+  onSave, 
+  initialSchedule, 
+  timezone: propTimezone,
+  disabled = false
+}: AvailabilityManagerProps) {
   const [schedule, setSchedule] = useState<WeeklyScheduleType>(() => {
     const baseSchedule = createBaseSchedule()
 
     // If we have an initial schedule with valid data, merge it with the base schedule
-    if (initialSchedule?.schedule) {
+    if (initialSchedule) {
       const mergedSchedule = { ...baseSchedule }
       
-      // Safely merge the initial schedule
-      Object.entries(initialSchedule.schedule).forEach(([day, slots]) => {
-        if (DAYS_OF_WEEK.includes(day as WeekDay)) {
-          mergedSchedule[day as WeekDay] = Array.isArray(slots) ? slots : []
+      Object.entries(initialSchedule).forEach(([day, slots]) => {
+        if (DAYS_OF_WEEK.includes(day as WeekDay) && Array.isArray(slots)) {
+          mergedSchedule[day as WeekDay] = slots
         }
       })
 
@@ -98,8 +104,15 @@ export function AvailabilityManager({ onSave, initialSchedule }: AvailabilityMan
 
     return baseSchedule
   })
-  const [timezone, setTimezone] = useState(initialSchedule?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const [timezone, setTimezone] = useState(propTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
   const [isLoading, setIsLoading] = useState(false)
+
+  // Update timezone state if the prop changes
+  useEffect(() => {
+    // Always use Cal.com timezone (passed via propTimezone) as the source of truth
+    // Only fall back to browser-detected timezone if no Cal.com timezone is available
+    setTimezone(propTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone)
+  }, [propTimezone])
 
   const addTimeSlot = (day: WeekDay) => {
     setSchedule(prev => ({
@@ -155,6 +168,10 @@ export function AvailabilityManager({ onSave, initialSchedule }: AvailabilityMan
   }
 
   const handleSave = async () => {
+    if (disabled) {
+      toast.error("Please set your timezone before saving availability.")
+      return
+    }
     try {
       // Validate all time slots before saving
       const invalidSlots = Object.entries(schedule).flatMap(([day, slots]) =>
@@ -173,9 +190,9 @@ export function AvailabilityManager({ onSave, initialSchedule }: AvailabilityMan
       setIsLoading(true)
       
       // Log the schedule being sent
-      console.log('[SAVE_SCHEDULE_REQUEST]', { schedule })
+      console.log('[SAVE_SCHEDULE_REQUEST]', { schedule, timezone })
       
-      const result = await onSave({ schedule })
+      const result = await onSave({ schedule, timezone: timezone || undefined })
       
       if (!result) {
         throw new Error('No response from server')
@@ -220,12 +237,14 @@ export function AvailabilityManager({ onSave, initialSchedule }: AvailabilityMan
             <div>
               <h2 className="text-lg font-semibold">Weekly Availability Schedule</h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Set your weekly coaching availability. Times shown in {timezone}
+                {timezone 
+                  ? `Set your weekly coaching availability. Times shown in ${timezone}.` 
+                  : "Set your weekly coaching availability."}
               </p>
             </div>
             <Button 
               onClick={handleSave} 
-              disabled={isLoading}
+              disabled={isLoading || disabled}
               className="min-w-[100px]"
             >
               {isLoading ? (
@@ -239,7 +258,17 @@ export function AvailabilityManager({ onSave, initialSchedule }: AvailabilityMan
             </Button>
           </div>
 
-          <div className="space-y-6">
+          {disabled && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Timezone Required</AlertTitle>
+              <AlertDescription>
+                A timezone must be set in your profile or detected from your calendar integration before you can manage availability.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className={`space-y-6 ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
             {DISPLAY_ORDER.map((day) => (
               <div key={day} className="space-y-4 p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors">
                 <div className="flex items-center justify-between">

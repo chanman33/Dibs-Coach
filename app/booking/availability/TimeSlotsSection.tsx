@@ -23,12 +23,33 @@ export function TimeSlotsSection({
 }: TimeSlotsSectionProps) {
   const userTimezone = getUserTimezone();
 
+  // Add debug logging to identify rendering issues
+  console.log("[DEBUG][TIME_SLOTS_SECTION] Rendering time slots", {
+    groupsCount: timeSlotGroups.length,
+    totalSlots: timeSlotGroups.reduce((count, group) => count + group.slots.length, 0),
+    groups: timeSlotGroups.map(g => ({
+      title: g.title,
+      slotsCount: g.slots.length,
+      firstSlot: g.slots[0] ? {
+        startTime: g.slots[0].startTime.toISOString(),
+        userTimeDisplay: formatUtcDateInTimezone(g.slots[0].startTime, userTimezone)
+      } : null
+    })),
+    userTimezone,
+    coachTimezone
+  });
+
   const formatForUser = (date: Date) => {
     return formatUtcDateInTimezone(date, userTimezone);
   };
 
   return (
     <div className="space-y-6">
+      {timeSlotGroups.length === 0 && (
+        <div className="p-4 text-center text-muted-foreground">
+          No available time slots found for this date.
+        </div>
+      )}
       {timeSlotGroups.map((group, index) => (
         <div key={index} className="space-y-3">
           <h3 className="font-medium text-sm text-muted-foreground">{group.title}</h3>

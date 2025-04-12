@@ -81,7 +81,7 @@ export type AvailabilitySchedule = z.infer<typeof AvailabilitySchedule>
 // API response types
 export const AvailabilityResponse = z.object({
   schedule: WeeklyScheduleSchema,
-  timezone: z.string()
+  timezone: z.string().nullable()
 })
 export type AvailabilityResponse = z.infer<typeof AvailabilityResponse>
 

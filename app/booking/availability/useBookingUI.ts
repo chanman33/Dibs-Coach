@@ -148,12 +148,18 @@ export function useBookingUI() {
         const { coach, schedule } = result.data;
         setActualCoachId(coach.ulid);
         setCoachName(`${coach.firstName || ""} ${coach.lastName || ""}`);
-        setCoachTimezone(schedule?.timeZone);
+        
+        // Get the timezone, prioritizing Cal.com integration timezone
+        // This fetching is handled in getCoachAvailability server action
+        // Will be consistent with the timezone shown in coach's dashboard
+        const coachTimezoneSrc = schedule?.timeZone;
+        setCoachTimezone(coachTimezoneSrc);
         
         console.log('[DEBUG][BOOKING] Coach data loaded', { 
           coachId: coach.ulid,
           name: `${coach.firstName || ""} ${coach.lastName || ""}`,
-          hasSchedule: !!schedule
+          hasSchedule: !!schedule,
+          timezone: coachTimezoneSrc || 'undefined'
         });
         
         if (schedule) {
@@ -423,7 +429,8 @@ export function useBookingUI() {
     console.log('[DEBUG][BOOKING] Calculating UTC time slots for selected date', {
       date: format(selectedDate, 'yyyy-MM-dd'),
       coachTimezone,
-      userTimezone: getUserTimezone()
+      userTimezone: getUserTimezone(),
+      isDateDisabled: isDateDisabled(selectedDate)
     });
     
     setLoadingState({
@@ -440,7 +447,8 @@ export function useBookingUI() {
     
     console.log('[DEBUG][BOOKING] Selected day info', {
       dayOfWeek,
-      dayName: selectedDayName
+      dayName: selectedDayName,
+      dayOfWeekType: typeof dayOfWeek
     });
     
     if (!selectedDayName) {
@@ -454,14 +462,33 @@ export function useBookingUI() {
     }
     
     // Find availability slots for the selected day
-    const daySlots = coachSchedule.availability.filter(slot => 
-      slot.days.includes(selectedDayName)
-    );
+    // IMPORTANT FIX: Ensure we're handling number days as well as string days
+    const daySlots = coachSchedule.availability.filter(slot => {
+      if (!slot.days || !Array.isArray(slot.days)) return false;
+      
+      // Handle both number and string day formats
+      return slot.days.some(day => {
+        if (typeof day === 'number') {
+          // If day is stored as number (0-6), compare directly with dayOfWeek
+          return day === dayOfWeek;
+        } else if (typeof day === 'string') {
+          // If day is stored as string, compare with selectedDayName
+          return day.toUpperCase() === selectedDayName;
+        }
+        return false;
+      });
+    });
     
     console.log('[DEBUG][BOOKING] Availability slots for selected day', {
       dayName: selectedDayName,
       slotsCount: daySlots.length,
-      slots: daySlots // Log the raw string times from schedule
+      slots: daySlots, // Log the raw string times from schedule
+      fullCoachSchedule: coachSchedule.availability.map(slot => ({
+        days: slot.days,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        dayTypes: slot.days.map(d => typeof d)
+      }))
     });
     
     if (daySlots.length === 0) {
@@ -477,38 +504,60 @@ export function useBookingUI() {
     
     // Array to hold TimeSlot objects with correct UTC Date instances
     const utcSlots: TimeSlot[] = [];
-    const slotDuration = 30; // minutes
-
+    const slotDuration = 30; // minutes - hardcoded to ensure consistent available slots
+    
     console.log('[DEBUG][BOOKING] Generating UTC time slots with duration', {
       slotDuration,
       originalDefaultDuration: coachSchedule.defaultDuration || 60
     });
 
     daySlots.forEach(slot => {
-      // Create correct UTC Date objects based on coach's time string and timezone
-      let currentUtcTime = createUtcDate(selectedDate, slot.startTime, coachTimezone);
-      const endUtcTime = createUtcDate(selectedDate, slot.endTime, coachTimezone);
-
-      console.log('[DEBUG][BOOKING] Processing availability slot (UTC)', {
-        coachStartTimeStr: slot.startTime,
-        coachEndTimeStr: slot.endTime,
-        coachTimezone,
-        generatedStartUtc: currentUtcTime.toISOString(),
-        generatedEndUtc: endUtcTime.toISOString()
-      });
-
-      // Iterate using UTC Date objects
-      while (currentUtcTime < endUtcTime) {
-        const slotEndUtcTime = new Date(currentUtcTime.getTime() + slotDuration * 60000);
-
-        if (slotEndUtcTime <= endUtcTime) {
-          utcSlots.push({
-            startTime: currentUtcTime, // Store the correct UTC Date
-            endTime: slotEndUtcTime
-          });
-        }
-        currentUtcTime = slotEndUtcTime;
+      // Verify the slot has valid startTime and endTime
+      if (!slot.startTime || !slot.endTime) {
+        console.warn('[DEBUG][BOOKING] Invalid slot', { slot });
+        return;
       }
+      
+      // Create correct UTC Date objects based on coach's time string and timezone
+      try {
+        let currentUtcTime = createUtcDate(selectedDate, slot.startTime, coachTimezone);
+        const endUtcTime = createUtcDate(selectedDate, slot.endTime, coachTimezone);
+
+        console.log('[DEBUG][BOOKING] Processing availability slot (UTC)', {
+          coachStartTimeStr: slot.startTime,
+          coachEndTimeStr: slot.endTime,
+          coachTimezone,
+          generatedStartUtc: currentUtcTime.toISOString(),
+          generatedEndUtc: endUtcTime.toISOString()
+        });
+
+        // Iterate using UTC Date objects
+        while (currentUtcTime < endUtcTime) {
+          const slotEndUtcTime = new Date(currentUtcTime.getTime() + slotDuration * 60000);
+
+          if (slotEndUtcTime <= endUtcTime) {
+            utcSlots.push({
+              startTime: new Date(currentUtcTime), // Clone to avoid reference issues
+              endTime: new Date(slotEndUtcTime)    // Clone to avoid reference issues
+            });
+          }
+          currentUtcTime = new Date(slotEndUtcTime); // Clone to avoid reference issues
+        }
+      } catch (err) {
+        console.error('[DEBUG][BOOKING] Error creating UTC dates', {
+          error: err,
+          slot,
+          selectedDate: selectedDate.toISOString()
+        });
+      }
+    });
+
+    console.log('[DEBUG][BOOKING] Generated UTC slots before filtering', {
+      count: utcSlots.length,
+      slots: utcSlots.slice(0, 3).map(s => ({
+        start: s.startTime.toISOString(),
+        end: s.endTime.toISOString()
+      }))
     });
 
     // availableSlots now holds correct UTC Date objects
