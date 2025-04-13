@@ -85,6 +85,7 @@ export interface DefaultCalEventType {
   isFree: boolean;
   isActive: boolean;
   isDefault: boolean;
+  isRequired?: boolean; // Whether this event type is required (cannot be disabled by user)
   
   // Scheduling settings
   scheduling: CalSchedulingType | string;

@@ -37,7 +37,9 @@ function constructCalEventTypePayload(eventType: DefaultCalEventType) {
     description: eventType.description,
     lengthInMinutes: eventType.lengthInMinutes,
     hidden: false,
-    metadata: {},
+    metadata: {
+      isRequired: eventType.isRequired || false, // Store the isRequired flag in metadata for UI
+    },
     locations: eventType.locations,
     customInputs: [],
     children: [],
@@ -53,7 +55,7 @@ function constructCalEventTypePayload(eventType: DefaultCalEventType) {
     periodCountCalendarDays: null,
     requiresConfirmation: false,
     requiresBookerEmailVerification: false,
-    price: 0,
+    price: eventType.isFree ? 0 : null, // Will be set appropriately for paid events in the creation flow
     currency: "USD",
     slotInterval: eventType.slotInterval,
     minimumBookingNotice: eventType.minimumBookingNotice,
@@ -294,7 +296,7 @@ export async function POST(request: Request) {
 
     // 4. Check if default event types already exist in Cal.com but not in our DB
     // This is a key idempotency check to avoid duplicate creation
-    const defaultEventTypeNames = ['Coaching Session', 'Office Hours'];
+    const defaultEventTypeNames = ['1:1 Q&A Coaching Call', '1:1 Deep Dive Coaching Call', 'Get to Know You'];
     const defaultEventTypesInCal = calEventTypesFromApi.filter((et: any) => 
       defaultEventTypeNames.includes(et.title)
     );
@@ -308,6 +310,24 @@ export async function POST(request: Request) {
       // They exist in Cal.com but not locally - save them to our DB
       try {
         for (const calEventType of defaultEventTypesInCal) {
+          // Determine if this is a required event type (30-min or 60-min session)
+          // Q&A and Deep Dive session are required, Get to Know You is not
+          const isRequiredEventType = 
+            calEventType.title === '1:1 Q&A Coaching Call' || 
+            calEventType.title === '1:1 Deep Dive Coaching Call';
+          
+          // For required event types, always set active to true
+          const isActive = isRequiredEventType ? true : !calEventType.hidden;
+          
+          // Determine if this is a free event type (only Get to Know You is free)
+          const isFree = calEventType.title === 'Get to Know You';
+          
+          // Prepare the metadata with isRequired flag
+          const metadata = {
+            ...(calEventType.metadata || {}),
+            isRequired: isRequiredEventType,
+          };
+          
           const dbPayload = {
             ulid: generateUlid(),
             calendarIntegrationUlid: calendarIntegration.ulid,
@@ -315,12 +335,12 @@ export async function POST(request: Request) {
             name: calEventType.title,
             description: calEventType.description || '',
             lengthInMinutes: calEventType.lengthInMinutes || calEventType.length || 30,
-            isActive: !calEventType.hidden,
+            isActive: isActive, // Use our determined active status
             isDefault: true, // Mark as default event type
-            isFree: calEventType.price === 0,
+            isFree: isFree, // Only Get to Know You is free
             scheduling: (calEventType.schedulingType?.toUpperCase() || 'MANAGED') as DbCalEventType['scheduling'],
             position: calEventType.position,
-            price: calEventType.price,
+            price: calEventType.price, // Keep the Cal.com price
             currency: calEventType.currency || 'USD',
             minimumBookingNotice: calEventType.minimumBookingNotice || 0,
             locations: calEventType.locations || [],
@@ -331,10 +351,10 @@ export async function POST(request: Request) {
             discountPercentage: calEventType.metadata?.discountPercentage as number | null,
             slug: calEventType.slug,
             // Fill in required fields with defaults
-            metadata: calEventType.metadata ?? null,
+            metadata: metadata, // Use the updated metadata with isRequired flag
             organizationUlid: null,
             slotInterval: 30,
-            hidden: calEventType.hidden,
+            hidden: !isActive, // Hidden is inverse of active
             successRedirectUrl: null,
             disableGuests: true,
             customName: null,
@@ -398,9 +418,10 @@ export async function POST(request: Request) {
         slug: 'coaching-qa-30',
         description: 'A focused 30-minute 1-on-1 coaching session to ask questions and get personalized guidance.',
         lengthInMinutes: 30,
-        isFree: false,
-        isActive: true,
+        isFree: false, // This is a paid session
+        isActive: true, // Always active
         isDefault: true,
+        isRequired: true, // Cannot be disabled by the user
         scheduling: 'MANAGED',
         position: 0,
         disableGuests: true,
@@ -435,9 +456,10 @@ export async function POST(request: Request) {
         slug: 'coaching-deep-dive-60',
         description: 'A comprehensive 60-minute 1-on-1 coaching session for deeper exploration and problem-solving.',
         lengthInMinutes: 60,
-        isFree: false,
-        isActive: true,
+        isFree: false, // This is a paid session
+        isActive: true, // Always active
         isDefault: true,
+        isRequired: true, // Cannot be disabled by the user
         scheduling: 'MANAGED',
         position: 1,
         disableGuests: true,
@@ -472,9 +494,10 @@ export async function POST(request: Request) {
         slug: 'get-to-know-you-15',
         description: '15-minute goal setting and introduction session',
         lengthInMinutes: 15,
-        isFree: true,
-        isActive: true,
+        isFree: true, // This is the only free session
+        isActive: true, // Initially active but can be toggled
         isDefault: true,
+        isRequired: false, // Can be disabled by the user
         scheduling: 'MANAGED',
         position: 2,
         disableGuests: true,
@@ -518,9 +541,10 @@ export async function POST(request: Request) {
         creationAttempted = true;
         console.log(`[CREATE_DEFAULT_EVENT_TYPES_INFO] Default type "${eventType.name}" missing locally, attempting creation...`);
 
-        // Skip paid default if rate is invalid
-        if (eventType.isFree === false && !hasValidHourlyRateAfterSync) {
-          console.warn('[CREATE_DEFAULT_EVENT_TYPES_SKIP] Skipping creation of paid default due to invalid hourly rate.', { targetUserUlid, eventName: eventType.name, hourlyRate: hourlyRateAfterSync });
+        // For non-required event types, skip paid ones if rate is invalid
+        // For required event types, always create them (will use price=0 if no hourly rate)
+        if (!eventType.isRequired && eventType.isFree === false && !hasValidHourlyRateAfterSync) {
+          console.warn('[CREATE_DEFAULT_EVENT_TYPES_SKIP] Skipping non-required paid default due to invalid hourly rate.', { targetUserUlid, eventName: eventType.name, hourlyRate: hourlyRateAfterSync });
           continue
         }
 
@@ -529,10 +553,24 @@ export async function POST(request: Request) {
             // Define the function to make the Cal.com CREATE request
             const makeCreateRequest = async (token: string) => {
                 const eventTypePayload = constructCalEventTypePayload(eventType);
-                // Important: Ensure price is set correctly based on hourly rate for paid events
-                if (!eventType.isFree) {
+                
+                // Set price appropriately:
+                // - Free event types: always price=0
+                // - Paid event types with valid hourly rate: calculate based on rate
+                // - Required paid event types with no valid rate: price=0 (we'll update later when rate is set)
+                if (eventType.isFree) {
+                    eventTypePayload.price = 0;
+                } else if (hasValidHourlyRateAfterSync) {
                     eventTypePayload.price = calculateEventPrice(hourlyRateAfterSync, eventType.lengthInMinutes);
+                } else if (eventType.isRequired) {
+                    // For required event types with no rate, create with price=0 and update later
+                    eventTypePayload.price = 0;
+                    console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Creating required event type with temporary price=0', { 
+                      eventName: eventType.name, 
+                      hourlyRate: hourlyRateAfterSync 
+                    });
                 }
+                
                 console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Sending CREATE payload to Cal.com', { targetUserUlid, eventName: eventType.name, payloadSummary: { title: eventTypePayload.title, slug: eventTypePayload.slug, length: eventTypePayload.lengthInMinutes, price: eventTypePayload.price } });
                 
                 return fetch('https://api.cal.com/v2/event-types', {
@@ -571,6 +609,18 @@ export async function POST(request: Request) {
         const createdCalId = calEventType?.data?.id;
         if (createdCalId) {
           const eventTypeUlid = generateUlid()
+          
+          // If this is a required event type, always set isActive to true
+          // We never allow required event types to be inactive
+          const isRequired = eventType.isRequired === true;
+          const isActive = isRequired ? true : eventType.isActive;
+          
+          // Prepare metadata with isRequired flag if needed
+          const metadata = {
+            ...(calEventType?.data?.metadata || {}),
+            isRequired: isRequired,
+          };
+          
           const { data: dbEventType, error: insertError } = await supabase
             .from('CalEventType')
             .insert({
@@ -581,7 +631,7 @@ export async function POST(request: Request) {
               description: eventType.description,
               lengthInMinutes: eventType.lengthInMinutes,
               isFree: eventType.isFree,
-              isActive: eventType.isActive,
+              isActive: isActive, // Uses determined active status
               isDefault: eventType.isDefault,
               slug: calEventType?.data?.slug || eventType.slug,
               position: eventType.position,
@@ -603,10 +653,10 @@ export async function POST(request: Request) {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
               // Ensure all other fields from schema have values
-              hidden: !eventType.isActive,
+              hidden: !isActive, // Hidden is the opposite of active
               bookingLimits: null,
               requiresConfirmation: false,
-              metadata: calEventType?.data?.metadata || null,
+              metadata: metadata, // Use the updated metadata with isRequired flag
               afterEventBuffer: eventType.afterEventBuffer || 0,
               beforeEventBuffer: eventType.beforeEventBuffer || 0,
               successRedirectUrl: null,
