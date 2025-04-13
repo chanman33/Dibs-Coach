@@ -277,7 +277,7 @@ export async function POST(request: Request) {
         calEventTypeId: calEventType?.id || null,
         name,
         description: description || '',
-        duration,
+        lengthInMinutes: duration,
         isFree,
         isActive,
         isDefault: false, // Custom event types are not default ones

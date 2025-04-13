@@ -78,6 +78,12 @@ interface DefaultEventType {
 
 /**
  * Fetch event types for a coach from the database
+ * 
+ * This enhanced version now includes sync functionality that:
+ * 1. Fetches event types from the local database
+ * 2. Fetches event types directly from Cal.com
+ * 3. Compares and reconciles any differences
+ * 4. Returns the reconciled list
  */
 export async function fetchCoachEventTypes(): Promise<ApiResponse<FetchEventTypesResponse>> {
   try {
@@ -166,8 +172,8 @@ export async function fetchCoachEventTypes(): Promise<ApiResponse<FetchEventType
       }
     }
 
-    // Get event types for this calendar integration
-    const { data: eventTypes, error: eventTypesError } = await supabase
+    // Step 1: Get event types from local DB
+    const { data: dbEventTypes, error: eventTypesError } = await supabase
       .from('CalEventType')
       .select('*')
       .eq('calendarIntegrationUlid', calendarIntegration.ulid)
@@ -184,9 +190,387 @@ export async function fetchCoachEventTypes(): Promise<ApiResponse<FetchEventType
         error: { code: 'DATABASE_ERROR', message: 'Failed to fetch event types' }
       }
     }
+    
+    // Create a map of DB event types by Cal ID for faster lookup
+    const dbEventTypesByCalId = new Map<number, any>();
+    dbEventTypes.forEach(et => {
+      if (et.calEventTypeId) {
+        dbEventTypesByCalId.set(et.calEventTypeId, et);
+      }
+    });
+    
+    // Step 2: Fetch from Cal.com API directly for reconciliation
+    // First check if we have valid tokens
+    const isTokenExpired = await isCalTokenExpired(
+      calendarIntegration.calAccessToken,
+      Number(calendarIntegration.calAccessTokenExpiresAt)
+    )
+    
+    let accessToken = calendarIntegration.calAccessToken;
+    
+    // Refresh token if needed
+    if (isTokenExpired) {
+      console.log('[FETCH_EVENT_TYPES_INFO] Cal token expired, refreshing...', { 
+        userUlid: userData.ulid, 
+        timestamp: new Date().toISOString() 
+      });
+      
+      try {
+        const refreshResult = await refreshCalAccessToken(
+          userData.ulid
+        );
+        
+        if (refreshResult.success && refreshResult.tokens) {
+          accessToken = refreshResult.tokens.access_token;
+          console.log('[FETCH_EVENT_TYPES_INFO] Cal token refreshed successfully', { 
+            userUlid: userData.ulid,
+            timestamp: new Date().toISOString() 
+          });
+        } else {
+          console.error('[FETCH_EVENT_TYPES_ERROR] Failed to refresh Cal token', { 
+            error: refreshResult.error,
+            userUlid: userData.ulid,
+            timestamp: new Date().toISOString() 
+          });
+          // Continue with local data only, skip reconciliation
+          const mappedLocalEventTypes = dbEventTypes.map(mapDbEventTypeToUi);
+          return {
+            data: { 
+              eventTypes: mappedLocalEventTypes,
+              coachHourlyRate: hourlyRateData
+            },
+            error: null
+          }
+        }
+      } catch (refreshError) {
+        console.error('[FETCH_EVENT_TYPES_ERROR] Exception during token refresh', { 
+          error: refreshError,
+          userUlid: userData.ulid,
+          timestamp: new Date().toISOString() 
+        });
+        // Continue with local data only, skip reconciliation
+        const mappedLocalEventTypes = dbEventTypes.map(mapDbEventTypeToUi);
+        return {
+          data: { 
+            eventTypes: mappedLocalEventTypes,
+            coachHourlyRate: hourlyRateData
+          },
+          error: null
+        }
+      }
+    }
+    
+    // Fetch event types from Cal.com API
+    console.log('[FETCH_EVENT_TYPES_INFO] Fetching event types from Cal.com API for reconciliation', { 
+      userUlid: userData.ulid,
+      timestamp: new Date().toISOString() 
+    });
+    
+    let calEventTypes: any[] = [];
+    try {
+      // Fetch the user's calUsername first - we need this for the API request
+      const { data: calIntegrationData, error: calIntegrationError } = await supabase
+        .from('CalendarIntegration')
+        .select('calUsername')
+        .eq('userUlid', userData.ulid)
+        .single();
+        
+      if (calIntegrationError || !calIntegrationData?.calUsername) {
+        console.error('[FETCH_EVENT_TYPES_ERROR] Failed to get Cal.com username', { 
+          error: calIntegrationError, 
+          userUlid: userData.ulid,
+          timestamp: new Date().toISOString() 
+        });
+        // Continue with local data only
+        const mappedLocalEventTypes = dbEventTypes.map(mapDbEventTypeToUi);
+        return {
+          data: { 
+            eventTypes: mappedLocalEventTypes,
+            coachHourlyRate: hourlyRateData
+          },
+          error: null
+        }
+      }
+      
+      const calUsername = calIntegrationData.calUsername;
+      
+      // Use the username in the request URL, matching the format that works in Postman
+      const response = await fetch(`https://api.cal.com/v2/event-types?username=${encodeURIComponent(calUsername)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'cal-api-version': '2024-06-14'
+        }
+      });
+      
+      if (response.ok) {
+        const calData = await response.json();
+        calEventTypes = calData.data || [];
+        console.log('[FETCH_EVENT_TYPES_INFO] Successfully fetched from Cal.com API', { 
+          count: calEventTypes.length,
+          userUlid: userData.ulid,
+          timestamp: new Date().toISOString() 
+        });
+      } else {
+        console.error('[FETCH_EVENT_TYPES_ERROR] Failed to fetch from Cal.com API', { 
+          status: response.status,
+          statusText: response.statusText,
+          userUlid: userData.ulid,
+          timestamp: new Date().toISOString() 
+        });
+        // Continue with local data only
+        const mappedLocalEventTypes = dbEventTypes.map(mapDbEventTypeToUi);
+        return {
+          data: { 
+            eventTypes: mappedLocalEventTypes,
+            coachHourlyRate: hourlyRateData
+          },
+          error: null
+        }
+      }
+    } catch (calApiError) {
+      console.error('[FETCH_EVENT_TYPES_ERROR] Exception during Cal.com API fetch', { 
+        error: calApiError,
+        userUlid: userData.ulid,
+        timestamp: new Date().toISOString() 
+      });
+      // Continue with local data only
+      const mappedLocalEventTypes = dbEventTypes.map(mapDbEventTypeToUi);
+      return {
+        data: { 
+          eventTypes: mappedLocalEventTypes,
+          coachHourlyRate: hourlyRateData
+        },
+        error: null
+      }
+    }
+    
+    // Step 3: Reconcile data between Cal.com and local DB
+    console.log('[FETCH_EVENT_TYPES_INFO] Starting reconciliation', { 
+      dbCount: dbEventTypes.length,
+      calCount: calEventTypes.length,
+      userUlid: userData.ulid,
+      timestamp: new Date().toISOString() 
+    });
+    
+    const reconciliationStats = {
+      added: 0,
+      updated: 0,
+      deactivated: 0
+    };
+    
+    // 3.1 Process Cal.com event types that might be missing or need updates locally
+    for (const calEventType of calEventTypes) {
+      const dbEventType = dbEventTypesByCalId.get(calEventType.id);
+      
+      if (!dbEventType) {
+        // Event type exists in Cal.com but not in local DB - add it
+        console.log('[FETCH_EVENT_TYPES_INFO] Found event type in Cal.com not in local DB, adding', { 
+          calEventTypeId: calEventType.id,
+          title: calEventType.title,
+          userUlid: userData.ulid,
+          timestamp: new Date().toISOString() 
+        });
+        
+        try {
+          // Log the structure of the Cal.com event type to help debug
+          console.log('[FETCH_EVENT_TYPES_DEBUG] Cal.com event type structure', {
+            id: calEventType.id,
+            title: calEventType.title,
+            lengthInMinutes: calEventType.lengthInMinutes,
+            length: calEventType.length,
+            duration: typeof calEventType.duration !== 'undefined' ? calEventType.duration : null
+          });
+          
+          const newDbEventType = {
+            ulid: generateUlid(),
+            calendarIntegrationUlid: calendarIntegration.ulid,
+            calEventTypeId: calEventType.id,
+            name: calEventType.title,
+            description: calEventType.description || '',
+            lengthInMinutes: calEventType.lengthInMinutes || calEventType.length || 30,
+            isActive: !calEventType.hidden,
+            isDefault: ['Coaching Session', 'Office Hours', 'Get to Know You'].includes(calEventType.title),
+            isFree: calEventType.price === 0,
+            scheduling: (calEventType.schedulingType?.toUpperCase() || 'MANAGED'),
+            position: calEventType.position,
+            price: calEventType.price,
+            currency: calEventType.currency || 'USD',
+            minimumBookingNotice: calEventType.minimumBookingNotice || 0,
+            locations: calEventType.locations || [],
+            bookerLayouts: calEventType.bookerLayouts || { defaultLayout: 'month', enabledLayouts: ['month', 'week', 'column'] },
+            beforeEventBuffer: calEventType.beforeEventBuffer || 0,
+            afterEventBuffer: calEventType.afterEventBuffer || 0,
+            maxParticipants: calEventType.seatsPerTimeSlot ?? null,
+            discountPercentage: calEventType.metadata?.discountPercentage as number | null,
+            // Fill in required fields
+            slug: calEventType.slug || generateSlug(calEventType.title),
+            metadata: calEventType.metadata ?? null,
+            organizationUlid: null,
+            slotInterval: 30,
+            hidden: calEventType.hidden,
+            successRedirectUrl: null,
+            disableGuests: true,
+            customName: null,
+            useDestinationCalendarEmail: true,
+            hideCalendarEventDetails: false,
+            color: null,
+            requiresConfirmation: false,
+            bookingLimits: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          
+          const { error: insertError } = await supabase
+            .from('CalEventType')
+            .insert(newDbEventType);
+            
+          if (insertError) {
+            console.error('[FETCH_EVENT_TYPES_ERROR] Failed to insert reconciled event type', { 
+              error: insertError,
+              calEventTypeId: calEventType.id,
+              userUlid: userData.ulid,
+              timestamp: new Date().toISOString() 
+            });
+            // Continue with other event types
+          } else {
+            reconciliationStats.added++;
+            // Add to dbEventTypes array for return
+            dbEventTypes.push(newDbEventType);
+          }
+        } catch (insertError) {
+          console.error('[FETCH_EVENT_TYPES_ERROR] Exception during reconciliation insert', { 
+            error: insertError,
+            calEventTypeId: calEventType.id,
+            userUlid: userData.ulid,
+            timestamp: new Date().toISOString() 
+          });
+          // Continue reconciliation
+        }
+      } else {
+        // Event type exists in both - check for key differences and update if needed
+        const needsUpdate = (
+          dbEventType.name !== calEventType.title ||
+          dbEventType.description !== (calEventType.description || '') ||
+          dbEventType.duration !== calEventType.length ||
+          dbEventType.isActive !== !calEventType.hidden ||
+          dbEventType.price !== calEventType.price
+        );
+        
+        if (needsUpdate) {
+          console.log('[FETCH_EVENT_TYPES_INFO] Found differences in event type, updating local DB', { 
+            calEventTypeId: calEventType.id,
+            title: calEventType.title,
+            userUlid: userData.ulid,
+            timestamp: new Date().toISOString() 
+          });
+          
+          try {
+            const updatePayload = {
+              name: calEventType.title,
+              description: calEventType.description || '',
+              duration: calEventType.length,
+              isActive: !calEventType.hidden,
+              price: calEventType.price,
+              locations: calEventType.locations || dbEventType.locations,
+              bookerLayouts: calEventType.bookerLayouts || dbEventType.bookerLayouts,
+              updatedAt: new Date().toISOString()
+            };
+            
+            const { error: updateError } = await supabase
+              .from('CalEventType')
+              .update(updatePayload)
+              .eq('ulid', dbEventType.ulid);
+              
+            if (updateError) {
+              console.error('[FETCH_EVENT_TYPES_ERROR] Failed to update reconciled event type', { 
+                error: updateError,
+                calEventTypeId: calEventType.id,
+                userUlid: userData.ulid,
+                timestamp: new Date().toISOString() 
+              });
+              // Continue with other event types
+            } else {
+              reconciliationStats.updated++;
+              // Update the local event type in our array
+              Object.assign(dbEventType, updatePayload);
+            }
+          } catch (updateError) {
+            console.error('[FETCH_EVENT_TYPES_ERROR] Exception during reconciliation update', { 
+              error: updateError,
+              calEventTypeId: calEventType.id,
+              userUlid: userData.ulid,
+              timestamp: new Date().toISOString() 
+            });
+            // Continue reconciliation
+          }
+        }
+      }
+    }
+    
+    // 3.2 Check for event types in local DB that don't exist in Cal.com anymore
+    // Create a map of Cal.com event types by ID for faster lookup
+    const calEventTypesById = new Map<number, any>();
+    calEventTypes.forEach(et => calEventTypesById.set(et.id, et));
+    
+    for (const dbEventType of dbEventTypes) {
+      // Skip event types without a Cal ID (local-only types)
+      if (!dbEventType.calEventTypeId) continue;
+      
+      if (!calEventTypesById.has(dbEventType.calEventTypeId) && dbEventType.isActive) {
+        // Event type exists locally but not in Cal.com - mark as inactive
+        console.log('[FETCH_EVENT_TYPES_INFO] Found event type in local DB not in Cal.com, deactivating', { 
+          calEventTypeId: dbEventType.calEventTypeId,
+          name: dbEventType.name,
+          userUlid: userData.ulid,
+          timestamp: new Date().toISOString() 
+        });
+        
+        try {
+          // We don't delete, just mark as inactive to preserve history
+          const { error: deactivateError } = await supabase
+            .from('CalEventType')
+            .update({ 
+              isActive: false,
+              updatedAt: new Date().toISOString()
+            })
+            .eq('ulid', dbEventType.ulid);
+            
+          if (deactivateError) {
+            console.error('[FETCH_EVENT_TYPES_ERROR] Failed to deactivate event type during reconciliation', { 
+              error: deactivateError,
+              calEventTypeId: dbEventType.calEventTypeId,
+              userUlid: userData.ulid,
+              timestamp: new Date().toISOString() 
+            });
+            // Continue with other event types
+          } else {
+            reconciliationStats.deactivated++;
+            // Update the local event type in our array
+            dbEventType.isActive = false;
+          }
+        } catch (deactivateError) {
+          console.error('[FETCH_EVENT_TYPES_ERROR] Exception during reconciliation deactivation', { 
+            error: deactivateError,
+            calEventTypeId: dbEventType.calEventTypeId,
+            userUlid: userData.ulid,
+            timestamp: new Date().toISOString() 
+          });
+          // Continue reconciliation
+        }
+      }
+    }
+    
+    // Log reconciliation results
+    console.log('[FETCH_EVENT_TYPES_INFO] Reconciliation completed', { 
+      stats: reconciliationStats,
+      userUlid: userData.ulid,
+      timestamp: new Date().toISOString() 
+    });
 
-    // Map database event types to the UI format using the helper function
-    const mappedEventTypes: EventType[] = eventTypes.map(mapDbEventTypeToUi);
+    // Map the potentially updated database event types to the UI format
+    const mappedEventTypes: EventType[] = dbEventTypes.map(mapDbEventTypeToUi);
 
     return {
       data: { 
@@ -565,7 +949,7 @@ export async function saveCoachEventTypes(
               calEventTypeId: calEventType?.id || null, // Use ID from Cal.com response
               name: eventType.name,
               description: eventType.description,
-              duration: eventType.duration,
+              lengthInMinutes: eventType.duration,
               isFree: eventType.free,
               isActive: eventType.enabled,
               isDefault: eventType.isDefault,
@@ -1540,6 +1924,30 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
         minimumBookingNotice: 0
       },
       {
+        name: '1:1 Deep Dive Coaching Call',
+        description: 'A comprehensive 60-minute 1-on-1 coaching session for deeper exploration and problem-solving',
+        duration: 60,
+        isFree: false,
+        isActive: true,
+        isDefault: true,
+        scheduling: 'MANAGED',
+        position: 1,
+        // Add new fields required by Cal.com API
+        locations: [
+          {
+            type: "integrations:daily",
+            displayName: "Video Call"
+          }
+        ],
+        bookerLayouts: {
+          defaultLayout: "month",
+          enabledLayouts: ["month", "week", "column"]
+        },
+        beforeEventBuffer: 5,
+        afterEventBuffer: 5,
+        minimumBookingNotice: 0
+      },
+      {
         name: 'Get to Know You',
         description: '15-minute goal setting and introduction session',
         duration: 15,
@@ -1547,7 +1955,7 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
         isActive: true,
         isDefault: true,
         scheduling: 'MANAGED',
-        position: 1,
+        position: 2,
         // Add new fields required by Cal.com API
         locations: [
           {
@@ -1635,7 +2043,7 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
             calEventTypeId: calEventType?.id || null,
             name: eventType.name,
             description: eventType.description,
-            duration: eventType.duration,
+            lengthInMinutes: eventType.duration,
             isFree: eventType.isFree,
             isActive: eventType.isActive,
             isDefault: eventType.isDefault,
@@ -2033,7 +2441,7 @@ export async function createFreeIntroCallEventType(userUlid: string): Promise<Ap
           calEventTypeId: calEventType.id,
           name: eventType.name,
           description: eventType.description,
-          duration: eventType.duration,
+          lengthInMinutes: eventType.duration,
           isFree: eventType.isFree,
           isActive: eventType.isActive,
           isDefault: eventType.isDefault,

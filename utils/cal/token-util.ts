@@ -167,62 +167,61 @@ export async function handleCalApiResponse(
   try {
     // Check if this is a token expiration error
     const status = apiResponse.status;
-    
-    // Cal.com uses status 498 specifically for token expired errors
-    // Immediately handle this without trying to parse the body
-    if (status === 498) {
-      console.log('[CAL_TOKEN_UTIL] Detected token expiration (status 498), refreshing token');
-      
-      // Force refresh the token when we know it's expired
+
+    // Treat 401 Unauthorized or 498 Token Expired as needing a refresh
+    if (status === 401 || status === 498) {
+      console.log(`[CAL_TOKEN_UTIL] Detected potential token expiration (status ${status}), refreshing token`);
+
+      // Force refresh the token
       const refreshResult = await ensureValidCalToken(userUlid, true);
-      
+
       if (!refreshResult.success || !refreshResult.tokenInfo?.accessToken) {
-        console.error('[CAL_TOKEN_UTIL] Failed to refresh token after 498 status:', refreshResult.error);
+        console.error(`[CAL_TOKEN_UTIL] Failed to refresh token after ${status} status:`, refreshResult.error);
         // Return the original error response if token refresh fails
         return apiResponse;
       }
-      
+
       // Retry the original API call with the new token
-      console.log('[CAL_TOKEN_UTIL] Retrying API call with new token after 498 response');
+      console.log(`[CAL_TOKEN_UTIL] Retrying API call with new token after ${status} response`);
       return await retryFn(refreshResult.tokenInfo.accessToken);
     }
-    
-    // For other status codes, try to examine the response body for token errors
+
+    // For other status codes, try to examine the response body for specific token errors
     // Clone the response before reading it
     const clonedResponse = apiResponse.clone();
-    
+
     // Try to parse as JSON to check for token expiration
     let errorBody;
-    let isTokenError = false;
-    
+    let isTokenExpiredException = false;
+
     try {
       errorBody = await clonedResponse.json();
-      isTokenError = (typeof errorBody === 'object' && 
-                      errorBody?.error?.code === 'TokenExpiredException');
+      isTokenExpiredException = (typeof errorBody === 'object' &&
+                                 errorBody?.error?.code === 'TokenExpiredException');
     } catch (e) {
-      // If we can't parse as JSON, not a token error we can detect
-      isTokenError = false;
+      // If we can't parse as JSON, assume it's not the specific exception
+      isTokenExpiredException = false;
     }
-    
-    if (!isTokenError) {
-      // Not a token error, return the original response
+
+    if (!isTokenExpiredException) {
+      // Not the specific TokenExpiredException, return the original response
       return apiResponse;
     }
 
-    // This is a token expiration error, refresh the token and retry
-    console.log('[CAL_TOKEN_UTIL] Detected token expiration in API response body, refreshing token');
-    
+    // This is the TokenExpiredException, refresh the token and retry
+    console.log('[CAL_TOKEN_UTIL] Detected TokenExpiredException in API response body, refreshing token');
+
     // Refresh token
     const refreshResult = await ensureValidCalToken(userUlid, true);
-    
+
     if (!refreshResult.success || !refreshResult.tokenInfo?.accessToken) {
-      console.error('[CAL_TOKEN_UTIL] Failed to refresh token for API retry:', refreshResult.error);
+      console.error('[CAL_TOKEN_UTIL] Failed to refresh token for API retry (TokenExpiredException):', refreshResult.error);
       // Return the original error response if token refresh fails
       return apiResponse;
     }
-    
+
     // Retry the original API call with the new token
-    console.log('[CAL_TOKEN_UTIL] Retrying API call with new token');
+    console.log('[CAL_TOKEN_UTIL] Retrying API call with new token (TokenExpiredException)');
     return await retryFn(refreshResult.tokenInfo.accessToken);
   } catch (error) {
     console.error('[CAL_TOKEN_UTIL] Error handling Cal API response:', error);

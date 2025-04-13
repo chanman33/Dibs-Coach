@@ -80,7 +80,7 @@ export interface DefaultCalEventType {
   title: string;
   slug: string;
   description: string;
-  duration: number;
+  duration?: number;
   lengthInMinutes: number; // Required by Cal.com API - must match duration
   isFree: boolean;
   isActive: boolean;

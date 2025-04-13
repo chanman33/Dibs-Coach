@@ -62,11 +62,6 @@ export default function EventTypeManager({
     }
     
     await onToggleEventType(id, enabled); // Let parent handle API call and refetch
-    // Optionally update local state optimistically or rely on refetch
-    // const updatedEventTypes = eventTypes.map(event => 
-    //   event.id === id ? { ...event, enabled } : event
-    // );
-    // updateLocalEventTypes(updatedEventTypes);
   }
 
   // Open edit dialog
@@ -110,9 +105,6 @@ export default function EventTypeManager({
     }
     
     await onDeleteEventType(id); // Let parent handle API call and refetch
-    // Optionally update local state optimistically or rely on refetch
-    // const updatedEventTypes = eventTypes.filter(event => event.id !== id);
-    // updateLocalEventTypes(updatedEventTypes);
   }
 
   // Save event type changes - Calls parent handler
@@ -150,41 +142,6 @@ export default function EventTypeManager({
     setIsEditing(false);
   }
 
-  // Add new event type
-  const handleAddEventType = () => {
-    const newEventType: EventType = {
-      id: '', 
-      name: '',
-      description: '',
-      duration: 30,
-      free: false,
-      enabled: true,
-      isDefault: false, // New types are not default
-      isRequired: false,
-      schedulingType: CalSchedulingType.MANAGED, // Default to MANAGED
-      // Default Cal.com integration settings
-      bookerLayouts: {
-        defaultLayout: 'month',
-        enabledLayouts: ['month', 'week', 'column']
-      },
-      locations: [
-        {
-          type: 'integrations:daily', // Use a sensible default like user's primary calendar or video
-          displayName: 'Video Call'
-        }
-      ],
-      minimumBookingNotice: 0,
-      beforeEventBuffer: 0,
-      afterEventBuffer: 0,
-      // Initialize other fields as needed
-      maxParticipants: undefined,
-      discountPercentage: undefined,
-    }
-    setCurrentEventType(newEventType)
-    setIsEditing(false)
-    setDialogOpen(true)
-  }
-
   return (
     <Card className="mb-8">
       <CardHeader>
@@ -207,9 +164,6 @@ export default function EventTypeManager({
               Configure and manage the types of coaching sessions synchronized with your Cal.com account.
             </CardDescription>
           </div>
-          <Button onClick={handleAddEventType} className="gap-2">
-            <Plus className="h-4 w-4" /> Add Session Type
-          </Button>
         </div>
       </CardHeader>
       

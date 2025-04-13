@@ -1934,7 +1934,7 @@ model CalEventType {
   name                     String
   description              String?
   slug                     String?
-  duration                 Int                 // in minutes
+  lengthInMinutes          Int                 // Duration in minutes - matches Cal.com API
   hidden                   Boolean             @default(false)
   position                 Int?                // for ordering
   isDefault                Boolean             @default(false)

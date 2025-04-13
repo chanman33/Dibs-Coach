@@ -13,8 +13,11 @@ export async function makeCalApiRequest({
   headers = {},
   body
 }: CalApiRequestOptions) {
+  // Use the exact base URL from official docs: https://api.cal.com/v2
   const baseUrl = 'https://api.cal.com/v2'
-  const url = `${baseUrl}${endpoint}`
+  // Make sure endpoint doesn't start with a slash to avoid double slashes
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint.substring(1) : endpoint
+  const url = `${baseUrl}/${cleanEndpoint}`
 
   // Always include client credentials for managed users
   const defaultHeaders = {
