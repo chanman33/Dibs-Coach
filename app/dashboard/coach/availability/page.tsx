@@ -7,15 +7,15 @@ import { fetchCoachEventTypes, saveCoachEventTypes } from '@/utils/actions/cal-e
 import { Loader2, Calendar, RefreshCw, AlertCircle, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
-import { AvailabilityResponse, SaveAvailabilityParams, WeeklySchedule } from '@/utils/types/availability'
+import { AvailabilityResponse, SaveAvailabilityParams } from '@/utils/types/availability'
 import { ApiResponse } from '@/utils/types/api'
 import dynamic from 'next/dynamic'
-import { type EventType } from '@/components/cal/EventTypeCard'
+import { EventType } from '@/components/cal/EventTypeCard'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Decimal } from '@prisma/client/runtime/library'
-import { fetchCoachHourlyRate, type CoachHourlyRateResponse } from '@/utils/actions/cal-coach-rate-actions'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { auth } from '@clerk/nextjs'
+import { createAuthClient } from '@/utils/auth'
 
 // Dynamically import EventTypeManager with no SSR
 const EventTypeManager = dynamic(
@@ -26,6 +26,7 @@ const EventTypeManager = dynamic(
 export default function CoachAvailabilityPage() {
   // State to track auth recovery state
   const [isRecovering, setIsRecovering] = useState(false);
+  const [isCreatingDefaultTypes, setIsCreatingDefaultTypes] = useState(false);
 
   // Fetch coach's event types
   const {
@@ -36,15 +37,107 @@ export default function CoachAvailabilityPage() {
   } = useQuery({
     queryKey: ['coach-event-types'],
     queryFn: async () => {
-      const result = await fetchCoachEventTypes()
+      console.log('[EVENT_TYPES_FETCH] Starting fetch of coach event types');
+      const result = await fetchCoachEventTypes();
       
       if (result.error) {
-        throw new Error(result.error.message)
+        console.error('[EVENT_TYPES_FETCH_ERROR]', {
+          error: result.error,
+          message: result.error.message,
+          timestamp: new Date().toISOString()
+        });
+        throw new Error(result.error.message);
       }
       
-      return result.data
+      // Debug log the result
+      console.log('[EVENT_TYPES_FETCH_SUCCESS]', {
+        count: result.data?.eventTypes?.length || 0,
+        eventTypes: result.data?.eventTypes?.map(et => ({
+          id: et.id,
+          name: et.name,
+          enabled: et.enabled
+        })),
+        hasHourlyRate: !!result.data?.coachHourlyRate?.hourlyRate,
+        timestamp: new Date().toISOString()
+      });
+      
+      return result.data;
     }
   })
+
+  // Auto-create default event types when none are found
+  useEffect(() => {
+    // Only run this effect if we've loaded event types data and found none
+    if (!isLoadingEventTypes && eventTypesData && eventTypesData.eventTypes) {
+      const hasNoEventTypes = eventTypesData.eventTypes.length === 0;
+      
+      console.log('[AUTO_CREATE_CHECK]', {
+        hasEventTypesData: !!eventTypesData,
+        eventTypesCount: eventTypesData.eventTypes?.length || 0,
+        shouldCreateDefault: hasNoEventTypes,
+        timestamp: new Date().toISOString()
+      });
+      
+      if (hasNoEventTypes) {
+        handleCreateDefaultEventTypes();
+      }
+    }
+  }, [isLoadingEventTypes, eventTypesData]);
+
+  // Handle creating default event types
+  const handleCreateDefaultEventTypes = async () => {
+    if (isCreatingDefaultTypes) return; // Prevent multiple calls
+    
+    setIsCreatingDefaultTypes(true);
+    const toastId = toast.loading('Setting up default session types...');
+    
+    try {
+      console.log('[CREATE_DEFAULT_START]', {
+        timestamp: new Date().toISOString(),
+      });
+      
+      // Call the API endpoint to create default event types
+      const response = await fetch('/api/cal/event-types/create-default', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}) // No need for userUlid, API will get from auth context
+      });
+      
+      console.log('[CREATE_DEFAULT_RESPONSE]', {
+        status: response.status,
+        ok: response.ok,
+        timestamp: new Date().toISOString()
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to create default session types');
+      }
+      
+      console.log('[CREATE_DEFAULT_SUCCESS]', {
+        created: result.data.totalCreated,
+        eventTypes: result.data.createdEventTypes?.map((et: { name: string }) => et.name) || [],
+        timestamp: new Date().toISOString()
+      });
+      
+      toast.success(`Created ${result.data.totalCreated} default session types`, { id: toastId });
+      
+      // Refetch event types to show the newly created ones
+      await refetchEventTypes();
+    } catch (error: any) {
+      console.error('[CREATE_DEFAULT_ERROR]', {
+        error,
+        message: error.message,
+        timestamp: new Date().toISOString()
+      });
+      toast.error(`Failed to create default session types: ${error.message}`, { id: toastId });
+    } finally {
+      setIsCreatingDefaultTypes(false);
+    }
+  };
 
   // Fetch coach's availability schedule
   const { 
@@ -200,6 +293,88 @@ export default function CoachAvailabilityPage() {
     }
   }, [validateEventTypes, refetchEventTypes]);
 
+  // --- Handlers for EventTypeManager ---
+
+  const handleCreateEventType = async (eventTypeData: Omit<EventType, 'id'>) => {
+    const toastId = toast.loading('Creating new session type...');
+    try {
+      // Call saveCoachEventTypes with a single event type
+      const result = await saveCoachEventTypes({ 
+        eventTypes: [{ ...eventTypeData, id: '' }] 
+      });
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      toast.success('Session type created successfully.', { id: toastId });
+      refetchEventTypes(); // Refetch data to show the new type
+    } catch (error: any) {
+      console.error("Error creating event type:", error);
+      toast.error(`Failed to create session type: ${error.message}`, { id: toastId });
+    }
+  };
+
+  const handleUpdateEventType = async (eventType: EventType) => {
+    const toastId = toast.loading('Updating session type...');
+    try {
+      // Call saveCoachEventTypes with a single event type
+      const result = await saveCoachEventTypes({ 
+        eventTypes: [eventType] 
+      });
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      toast.success('Session type updated successfully.', { id: toastId });
+      refetchEventTypes(); // Refetch data
+    } catch (error: any) {
+      console.error("Error updating event type:", error);
+      toast.error(`Failed to update session type: ${error.message}`, { id: toastId });
+    }
+  };
+
+  const handleDeleteEventType = async (eventTypeId: string) => {
+    const toastId = toast.loading('Deleting session type...');
+    try {
+      // Call saveCoachEventTypes with an empty array for this ID
+      const result = await saveCoachEventTypes({ 
+        eventTypes: eventTypesData?.eventTypes.filter(et => et.id !== eventTypeId) || [] 
+      });
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      toast.success('Session type deleted successfully.', { id: toastId });
+      refetchEventTypes(); // Refetch data
+    } catch (error: any) {
+      console.error("Error deleting event type:", error);
+      toast.error(`Failed to delete session type: ${error.message}`, { id: toastId });
+    }
+  };
+  
+  const handleToggleEventType = async (eventTypeId: string, enabled: boolean) => {
+    const toastId = toast.loading(`${enabled ? 'Enabling' : 'Disabling'} session type...`);
+    try {
+      // Find the event type and update its enabled status
+      const eventType = eventTypesData?.eventTypes.find(et => et.id === eventTypeId);
+      if (!eventType) {
+        throw new Error('Event type not found');
+      }
+      
+      // Call saveCoachEventTypes with the updated event type
+      const result = await saveCoachEventTypes({ 
+        eventTypes: eventTypesData?.eventTypes.map(et => 
+          et.id === eventTypeId ? { ...et, enabled } : et
+        ) || []
+      });
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+      toast.success(`Session type ${enabled ? 'enabled' : 'disabled'} successfully.`, { id: toastId });
+      refetchEventTypes(); // Refetch data
+    } catch (error: any) {
+      console.error(`Error toggling event type:`, error);
+      toast.error(`Failed to update session type: ${error.message}`, { id: toastId });
+    }
+  };
+
   // Show loading state
   const isLoading = isLoadingAvailability || isLoadingEventTypes
   if (isLoading) {
@@ -248,7 +423,7 @@ export default function CoachAvailabilityPage() {
   }
 
   // Determine if it's the first time setup (no schedule AND no event types)
-  const isFirstTimeSetup = !availabilityData && !eventTypesData?.eventTypes?.length
+  const isFirstTimeSetup = !availabilityData && !(eventTypesData?.eventTypes?.length)
   const determinedTimezone = availabilityData?.timezone;
   
   return (
@@ -286,10 +461,13 @@ export default function CoachAvailabilityPage() {
         </Alert>
       )}
       
-      {/* Event Type Manager */}
+      {/* Event Type Manager - Pass the new handlers */}
       <EventTypeManager
-        initialEventTypes={eventTypesData?.eventTypes}
-        onEventTypesChange={handleEventTypesChange}
+        initialEventTypes={eventTypesData?.eventTypes || []}
+        onCreateEventType={handleCreateEventType}
+        onUpdateEventType={handleUpdateEventType}
+        onDeleteEventType={handleDeleteEventType}
+        onToggleEventType={handleToggleEventType}
       />
       
       {/* Existing Availability Manager - Pass timezone and schedule directly */} 

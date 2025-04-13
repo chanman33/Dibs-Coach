@@ -1958,6 +1958,11 @@ model CalEventType {
   afterEventBuffer         Int?                // Buffer time after event in minutes
   slotInterval             Int?                // Custom slot interval in minutes
   successRedirectUrl       String?             // URL to redirect after successful booking
+  disableGuests            Boolean?            // Whether guests are allowed in the booking
+  customName               String?             // Custom name format for the event
+  useDestinationCalendarEmail Boolean?         // Use destination calendar email for the event
+  hideCalendarEventDetails Boolean?            // Hide calendar event details
+  color                    Json?               // Color settings for the event
   createdAt                DateTime            @default(now()) @db.Timestamptz(6)
   updatedAt                DateTime            @updatedAt @db.Timestamptz(6)
   calendarIntegration      CalendarIntegration @relation(fields: [calendarIntegrationUlid], references: [ulid], onDelete: Cascade)
