@@ -16,7 +16,7 @@ import {
   CalEventTypeCreatePayload, 
   CalEventTypeLocation
 } from '@/utils/types/cal-event-types'
-import { getCalAuthHeaders } from '@/utils/cal/cal-api-utils'
+import { getCalAuthHeaders, makeCalApiRequest } from '@/utils/cal/cal-api-utils' // Add makeCalApiRequest import
 import { Database } from '@/types/supabase' // Import Database type
 
 // Define the specific table type
@@ -35,7 +35,7 @@ function constructCalEventTypePayload(eventType: DefaultCalEventType) {
     title: eventType.title,
     slug: eventType.slug,
     description: eventType.description,
-    lengthInMinutes: eventType.lengthInMinutes,
+    length: eventType.lengthInMinutes,
     hidden: false,
     metadata: {
       isRequired: eventType.isRequired || false, // Store the isRequired flag in metadata for UI
@@ -235,36 +235,52 @@ export async function POST(request: Request) {
 
     // 1. Fetch existing event types from Cal.com
     console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Fetching existing types from Cal.com', { calUsername: calendarIntegration.calUsername });
-    const makeFetchRequest = (token: string) => fetch(`https://api.cal.com/v2/event-types?username=${encodeURIComponent(calendarIntegration.calUsername)}`, {
-        method: 'GET',
-        headers: { ...getCalAuthHeaders(token), 'cal-api-version': '2024-08-13' }
-    });
-    const fetchResponse = await handleCalApiResponse(await makeFetchRequest(currentAccessToken), makeFetchRequest, targetUserUlid);
     
-    // Update token if refresh occurred during fetch
-    const latestFetchTokenResult = await ensureValidCalToken(targetUserUlid);
-    if (latestFetchTokenResult.success && latestFetchTokenResult.tokenInfo?.accessToken) {
-        currentAccessToken = latestFetchTokenResult.tokenInfo.accessToken;
-    }
-
-    if (!fetchResponse.ok) {
-        const errorText = await fetchResponse.text();
-        console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Failed to fetch from Cal.com', { status: fetchResponse.status, errorText, targetUserUlid });
-        return NextResponse.json({ error: `Failed to fetch event types from Cal.com: ${fetchResponse.status}` }, { status: fetchResponse.status });
-    }
-    const calApiResponse = await fetchResponse.json();
-    const calEventTypesFromApi = calApiResponse.data || [];
-    console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Fetched from Cal.com', { count: calEventTypesFromApi.length });
-
-    // 2. Sync with Database
-    console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Syncing with database...');
-    const syncResult = await syncCalEventTypesWithDb(targetUserUlid, calendarIntegration.ulid, calEventTypesFromApi);
-    if (!syncResult.success) {
-      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Sync failed', { error: syncResult.error, targetUserUlid });
-      // Continue with default creation attempt instead of failing
-      console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Continuing with default event type creation despite sync failure');
-    } else {
-      console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Sync completed', { stats: syncResult.stats });
+    // Initialize this outside the try block so it can be accessed in the rest of the function
+    let calEventTypesFromApi: any[] = [];
+    
+    try {
+      // Use the same makeCalApiRequest utility that works in get-all-event-types
+      const result = await makeCalApiRequest({
+        endpoint: `event-types?username=${encodeURIComponent(calendarIntegration.calUsername)}`,
+        method: 'GET'
+      });
+      
+      // The makeCalApiRequest function returns the full response object
+      // We need to extract the data array from it properly
+      if (result && result.data && Array.isArray(result.data)) {
+        calEventTypesFromApi = result.data;
+      } else if (result && Array.isArray(result)) {
+        calEventTypesFromApi = result;
+      } else {
+        console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] No event types found in Cal.com or unexpected response format', { 
+          resultType: typeof result,
+          hasData: !!result?.data,
+          isDataArray: result?.data ? Array.isArray(result.data) : false
+        });
+        // Initialize as empty array if response format is unexpected
+        calEventTypesFromApi = [];
+      }
+      
+      console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Fetched from Cal.com', { count: calEventTypesFromApi.length });
+    
+      // 2. Sync with Database
+      console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Syncing with database...');
+      const syncResult = await syncCalEventTypesWithDb(targetUserUlid, calendarIntegration.ulid, calEventTypesFromApi);
+      if (!syncResult.success) {
+        console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Sync failed', { error: syncResult.error, targetUserUlid });
+        // Continue with default creation attempt instead of failing
+        console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Continuing with default event type creation despite sync failure');
+      } else {
+        console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Sync completed', { stats: syncResult.stats });
+      }
+    } catch (apiError) {
+      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Cal.com API error', { 
+        error: apiError,
+        username: calendarIntegration.calUsername,
+        userUlid: targetUserUlid
+      });
+      // Continue with default creation logic as fallback
     }
 
     // 3. Recheck for default event types after sync (they might have been pulled from Cal.com)
@@ -551,56 +567,68 @@ export async function POST(request: Request) {
         let calEventType = null;
         try {
             // Define the function to make the Cal.com CREATE request
-            const makeCreateRequest = async (token: string) => {
-                const eventTypePayload = constructCalEventTypePayload(eventType);
-                
-                // Set price appropriately:
-                // - Free event types: always price=0
-                // - Paid event types with valid hourly rate: calculate based on rate
-                // - Required paid event types with no valid rate: price=0 (we'll update later when rate is set)
-                if (eventType.isFree) {
-                    eventTypePayload.price = 0;
-                } else if (hasValidHourlyRateAfterSync) {
-                    eventTypePayload.price = calculateEventPrice(hourlyRateAfterSync, eventType.lengthInMinutes);
-                } else if (eventType.isRequired) {
-                    // For required event types with no rate, create with price=0 and update later
-                    eventTypePayload.price = 0;
-                    console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Creating required event type with temporary price=0', { 
-                      eventName: eventType.name, 
-                      hourlyRate: hourlyRateAfterSync 
-                    });
-                }
-                
-                console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Sending CREATE payload to Cal.com', { targetUserUlid, eventName: eventType.name, payloadSummary: { title: eventTypePayload.title, slug: eventTypePayload.slug, length: eventTypePayload.lengthInMinutes, price: eventTypePayload.price } });
-                
-                return fetch('https://api.cal.com/v2/event-types', {
-                    method: 'POST',
-                    headers: { ...getCalAuthHeaders(token), 'cal-api-version': '2024-06-14' },
-                    body: JSON.stringify(eventTypePayload)
-                });
-            };
-
-            // Make the initial create request
-            const initialResponse = await makeCreateRequest(currentAccessToken);
-            const finalResponse = await handleCalApiResponse(initialResponse, makeCreateRequest, targetUserUlid);
+            const eventTypePayload = constructCalEventTypePayload(eventType);
             
-             // Update token if refresh occurred during create attempt
-            const latestCreateTokenResult = await ensureValidCalToken(targetUserUlid);
-            if (latestCreateTokenResult.success && latestCreateTokenResult.tokenInfo?.accessToken) {
-                currentAccessToken = latestCreateTokenResult.tokenInfo.accessToken;
+            // Set price appropriately:
+            // - Free event types: always price=0
+            // - Paid event types with valid hourly rate: calculate based on rate
+            // - Required paid event types with no valid rate: price=0 (we'll update later when rate is set)
+            if (eventType.isFree) {
+                eventTypePayload.price = 0;
+            } else if (hasValidHourlyRateAfterSync) {
+                eventTypePayload.price = calculateEventPrice(hourlyRateAfterSync, eventType.lengthInMinutes);
+            } else if (eventType.isRequired) {
+                // For required event types with no rate, create with price=0 and update later
+                eventTypePayload.price = 0;
+                console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Creating required event type with temporary price=0', { 
+                  eventName: eventType.name, 
+                  hourlyRate: hourlyRateAfterSync 
+                });
             }
-
-            if (!finalResponse.ok) {
-                const errorText = await finalResponse.text();
-                 console.error('[CREATE_DEFAULT_EVENT_TYPES_CAL_ERROR] Cal.com CREATE error', { status: finalResponse.status, error: errorText, eventName: eventType.name, targetUserUlid });
-                continue; // Skip DB insert if Cal.com creation failed
+            
+            console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Sending CREATE payload to Cal.com', { 
+              targetUserUlid, 
+              eventName: eventType.name, 
+              payloadSummary: { 
+                title: eventTypePayload.title, 
+                slug: eventTypePayload.slug, 
+                length: eventTypePayload.length, 
+                price: eventTypePayload.price 
+              } 
+            });
+            
+            // Use makeCalApiRequest instead of direct fetch
+            const result = await makeCalApiRequest({
+              endpoint: 'event-types',
+              method: 'POST',
+              body: eventTypePayload
+            });
+            
+            // Handle the response properly based on its structure
+            if (result && typeof result === 'object') {
+              // The response might be directly the result object or have a data property
+              calEventType = result.data ? result : { data: result };
+            } else {
+              // Unexpected format, log and continue
+              console.error('[CREATE_DEFAULT_EVENT_TYPES_CAL_ERROR] Unexpected response format', {
+                resultType: typeof result,
+                eventName: eventType.name
+              });
+              continue; // Skip DB insert if response format is unexpected
             }
-
-            calEventType = await finalResponse.json();
-            console.log('[CREATE_DEFAULT_EVENT_TYPES_CAL_SUCCESS]', { targetUserUlid, eventName: eventType.name, calEventTypeId: calEventType?.data?.id }); // Adjust parsing based on actual Cal.com response
+            
+            console.log('[CREATE_DEFAULT_EVENT_TYPES_CAL_SUCCESS]', { 
+              targetUserUlid, 
+              eventName: eventType.name, 
+              calEventTypeId: calEventType?.data?.id 
+            });
 
         } catch (error) {
-            console.error('[CREATE_DEFAULT_EVENT_TYPES_CAL_ERROR] Catch block during create', { error, eventName: eventType.name, targetUserUlid });
+            console.error('[CREATE_DEFAULT_EVENT_TYPES_CAL_ERROR] Catch block during create', { 
+              error, 
+              eventName: eventType.name, 
+              targetUserUlid 
+            });
             continue; // Skip DB insert on caught error
         }
 
