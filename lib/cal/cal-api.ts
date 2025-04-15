@@ -1,14 +1,8 @@
 import { calConfig, getCalUrls } from './cal';
+import { CalEventTypeResponse } from '@/utils/types/cal-event-types';
 
-// Types for Cal.com API
-export interface CalEventType {
-  id: number;
-  title: string;
-  description: string | null;
-  length: number;
-  slug: string;
-  hidden: boolean;
-}
+// Use the centralized type definition for Cal.com API
+export type CalEventType = CalEventTypeResponse;
 
 export interface CalTimeSlot {
   time: string;

@@ -17,7 +17,6 @@ type CalEventTypeFromApi = {
     schedulingType?: string | null;
     minimumBookingNotice?: number | null;
     locations?: any[] | null;
-    bookerLayouts?: any | null;
     beforeEventBuffer?: number | null;
     afterEventBuffer?: number | null;
     seatsPerTimeSlot?: number | null; // Used for maxParticipants
@@ -104,7 +103,7 @@ export async function syncCalEventTypesWithDb(
                 currency: calEventType.currency || 'USD',
                 minimumBookingNotice: calEventType.minimumBookingNotice || 0,
                 locations: calEventType.locations || [],
-                bookerLayouts: calEventType.bookerLayouts || { defaultLayout: 'month', enabledLayouts: ['month', 'week', 'column'] },
+                bookerLayouts: null, // Set to null as we don't need this field
                 beforeEventBuffer: calEventType.beforeEventBuffer || 0,
                 afterEventBuffer: calEventType.afterEventBuffer || 0,
                 maxParticipants: calEventType.seatsPerTimeSlot ?? null, // Ensure null if undefined
@@ -142,7 +141,6 @@ export async function syncCalEventTypesWithDb(
                     existingDbRecord.discountPercentage !== dbPayload.discountPercentage ||
                     existingDbRecord.slug !== dbPayload.slug ||
                     JSON.stringify(existingDbRecord.locations) !== JSON.stringify(dbPayload.locations) || // Simple JSON compare
-                    JSON.stringify(existingDbRecord.bookerLayouts) !== JSON.stringify(dbPayload.bookerLayouts) || // Simple JSON compare
                     JSON.stringify(existingDbRecord.metadata) !== JSON.stringify(dbPayload.metadata) // Simple JSON compare
                 );
 

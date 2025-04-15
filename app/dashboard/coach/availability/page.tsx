@@ -10,7 +10,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AvailabilityResponse, SaveAvailabilityParams } from '@/utils/types/availability'
 import { ApiResponse } from '@/utils/types/api'
 import dynamic from 'next/dynamic'
-import { EventType } from '@/components/cal/EventTypeCard'
+import { EventType } from '@/utils/types/cal-event-types'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
@@ -118,12 +118,12 @@ export default function CoachAvailabilityPage() {
       }
       
       console.log('[CREATE_DEFAULT_SUCCESS]', {
-        created: result.data.totalCreated,
-        eventTypes: result.data.createdEventTypes?.map((et: { name: string }) => et.name) || [],
+        created: result.data?.totalCreated || 0,
+        eventTypes: result.data?.createdEventTypes?.map((et: { name: string }) => et.name) || [],
         timestamp: new Date().toISOString()
       });
       
-      toast.success(`Created ${result.data.totalCreated} default session types`, { id: toastId });
+      toast.success(`Created default session types successfully`, { id: toastId });
       
       // Refetch event types to show the newly created ones
       await refetchEventTypes();

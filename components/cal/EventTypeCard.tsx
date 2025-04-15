@@ -7,40 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-
-// Define event type interface
-export interface EventType {
-  id: string
-  name: string
-  description: string
-  duration: number
-  free: boolean
-  enabled: boolean
-  isDefault: boolean
-  // New fields for required event types
-  isRequired?: boolean
-  canDisable?: boolean
-  // New fields for Office Hours and Group Sessions
-  schedulingType: 'MANAGED' | 'OFFICE_HOURS' | 'GROUP_SESSION'
-  maxParticipants?: number
-  discountPercentage?: number
-  organizationId?: string
-  // Additional Cal.com API fields
-  bookerLayouts?: {
-    defaultLayout: 'month' | 'week' | 'column'
-    enabledLayouts: ('month' | 'week' | 'column')[]
-  }
-  locations?: {
-    type: string
-    displayName?: string
-    address?: string
-    public?: boolean
-  }[]
-  // Buffer settings
-  beforeEventBuffer?: number
-  afterEventBuffer?: number
-  minimumBookingNotice?: number
-}
+import { EventType } from '@/utils/types/cal-event-types'
 
 interface EventTypeCardProps {
   eventType: EventType

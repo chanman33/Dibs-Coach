@@ -18,6 +18,7 @@ import {
 } from '@/utils/types/cal-event-types'
 import { getCalAuthHeaders, makeCalApiRequest } from '@/utils/cal/cal-api-utils' // Add makeCalApiRequest import
 import { Database } from '@/types/supabase' // Import Database type
+import { createDefaultEventTypesWithUniqueSlug } from '@/utils/actions/cal-event-type-actions'
 
 // Define the specific table type
 type DbCalEventType = Database['public']['Tables']['CalEventType']['Row'];
@@ -35,12 +36,16 @@ function constructCalEventTypePayload(eventType: DefaultCalEventType) {
     title: eventType.title,
     slug: eventType.slug,
     description: eventType.description,
-    length: eventType.lengthInMinutes,
+    lengthInMinutes: eventType.lengthInMinutes,
     hidden: false,
     metadata: {
       isRequired: eventType.isRequired || false, // Store the isRequired flag in metadata for UI
     },
-    locations: eventType.locations,
+    locations: eventType.locations || [{
+      type: "link",
+      link: "https://dibs.coach/call/session", 
+      public: true
+    }],
     customInputs: [],
     children: [],
     hosts: [],
@@ -71,11 +76,7 @@ function constructCalEventTypePayload(eventType: DefaultCalEventType) {
     bookingLimits: null,
     requiresBookerAddress: false,
     eventName: eventType.customName,
-    team: null,
-    bookerLayouts: {
-      enabledLayouts: ["month", "week", "column"],
-      defaultLayout: "month"
-    }
+    team: null
   };
 }
 
@@ -425,297 +426,32 @@ export async function POST(request: Request) {
     const hasValidHourlyRateAfterSync = hourlyRateAfterSync > 0
     console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Hourly Rate check for creation after sync', { hourlyRate: hourlyRateAfterSync, hasValidHourlyRate: hasValidHourlyRateAfterSync });
 
-    // Proceed with the rest of the function to create default event types in Cal.com if needed
-    // Define the standard default event types we want to ensure exist
-    const standardDefaultEventTypes: DefaultCalEventType[] = [
-      {
-        name: '1:1 Q&A Coaching Call',
-        title: '1:1 Q&A Coaching Call',
-        slug: 'coaching-qa-30',
-        description: 'A focused 30-minute 1-on-1 coaching session to ask questions and get personalized guidance.',
-        lengthInMinutes: 30,
-        isFree: false, // This is a paid session
-        isActive: true, // Always active
-        isDefault: true,
-        isRequired: true, // Cannot be disabled by the user
-        scheduling: 'MANAGED',
-        position: 0,
-        disableGuests: true,
-        slotInterval: 30,
-        minimumBookingNotice: 60,
-        useDestinationCalendarEmail: true,
-        hideCalendarEventDetails: false,
-        customName: "Dibs: Q&A between {Organiser} and {Scheduler}",
-        confirmationPolicy: {
-          disabled: true
-        },
-        color: {
-          lightThemeHex: "#3B82F6",
-          darkThemeHex: "#60A5FA"
-        },
-        seats: {
-          seatsPerTimeSlot: 1,
-          showAttendeeInfo: false,
-          showAvailabilityCount: false
-        },
-        locations: [
-          {
-            type: "link",
-            link: "https://dibs.coach/call/session-abc123",
-            public: true
-          }
-        ]
-      },
-      {
-        name: '1:1 Deep Dive Coaching Call',
-        title: '1:1 Deep Dive Coaching Call',
-        slug: 'coaching-deep-dive-60',
-        description: 'A comprehensive 60-minute 1-on-1 coaching session for deeper exploration and problem-solving.',
-        lengthInMinutes: 60,
-        isFree: false, // This is a paid session
-        isActive: true, // Always active
-        isDefault: true,
-        isRequired: true, // Cannot be disabled by the user
-        scheduling: 'MANAGED',
-        position: 1,
-        disableGuests: true,
-        slotInterval: 60,
-        minimumBookingNotice: 60,
-        useDestinationCalendarEmail: true,
-        hideCalendarEventDetails: false,
-        customName: "Dibs: Deep Dive between {Organiser} and {Scheduler}",
-        confirmationPolicy: {
-          disabled: true
-        },
-        color: {
-          lightThemeHex: "#8B5CF6",
-          darkThemeHex: "#A78BFA"
-        },
-        seats: {
-          seatsPerTimeSlot: 1,
-          showAttendeeInfo: false,
-          showAvailabilityCount: false
-        },
-        locations: [
-          {
-            type: "link",
-            link: "https://dibs.coach/call/deep-dive-abc123",
-            public: true
-          }
-        ]
-      },
-      {
-        name: 'Get to Know You',
-        title: 'Get to Know You',
-        slug: 'get-to-know-you-15',
-        description: '15-minute goal setting and introduction session',
-        lengthInMinutes: 15,
-        isFree: true, // This is the only free session
-        isActive: true, // Initially active but can be toggled
-        isDefault: true,
-        isRequired: false, // Can be disabled by the user
-        scheduling: 'MANAGED',
-        position: 2,
-        disableGuests: true,
-        slotInterval: 15,
-        minimumBookingNotice: 60,
-        useDestinationCalendarEmail: true,
-        hideCalendarEventDetails: false,
-        customName: "Dibs: Introduction between {Organiser} and {Scheduler}",
-        confirmationPolicy: {
-          disabled: true
-        },
-        color: {
-          lightThemeHex: "#10B981",
-          darkThemeHex: "#34D399"
-        },
-        seats: {
-          seatsPerTimeSlot: 1,
-          showAttendeeInfo: false,
-          showAvailabilityCount: false
-        },
-        locations: [
-          {
-            type: "link",
-            link: "https://dibs.coach/call/intro-abc123",
-            public: true
-          }
-        ]
-      }
-    ];
-
-    const createdEventTypes = []
-    let creationAttempted = false;
-
-    // 5. Loop through standard defaults and create if missing locally
-    // Get local event type names from previous step, if not set, create an empty array to avoid errors
-    const localDefaultEventTypeNames = localEventTypesAfterSync ? 
-      localEventTypesAfterSync.map((et: { name: string }) => et.name) : [];
+    // Use the new function that creates event types with unique slugs to avoid conflicts
+    console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Attempting to create default event types with unique slugs');
+    const result = await createDefaultEventTypesWithUniqueSlug(targetUserUlid);
+    
+    if (result.error) {
+      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Error creating default event types with unique slugs', {
+        error: result.error,
+        targetUserUlid,
+        timestamp: new Date().toISOString()
+      });
       
-    for (const eventType of standardDefaultEventTypes) {
-      if (!localDefaultEventTypeNames.includes(eventType.name)) {
-        creationAttempted = true;
-        console.log(`[CREATE_DEFAULT_EVENT_TYPES_INFO] Default type "${eventType.name}" missing locally, attempting creation...`);
-
-        // For non-required event types, skip paid ones if rate is invalid
-        // For required event types, always create them (will use price=0 if no hourly rate)
-        if (!eventType.isRequired && eventType.isFree === false && !hasValidHourlyRateAfterSync) {
-          console.warn('[CREATE_DEFAULT_EVENT_TYPES_SKIP] Skipping non-required paid default due to invalid hourly rate.', { targetUserUlid, eventName: eventType.name, hourlyRate: hourlyRateAfterSync });
-          continue
-        }
-
-        let calEventType = null;
-        try {
-            // Define the function to make the Cal.com CREATE request
-            const eventTypePayload = constructCalEventTypePayload(eventType);
-            
-            // Set price appropriately:
-            // - Free event types: always price=0
-            // - Paid event types with valid hourly rate: calculate based on rate
-            // - Required paid event types with no valid rate: price=0 (we'll update later when rate is set)
-            if (eventType.isFree) {
-                eventTypePayload.price = 0;
-            } else if (hasValidHourlyRateAfterSync) {
-                eventTypePayload.price = calculateEventPrice(hourlyRateAfterSync, eventType.lengthInMinutes);
-            } else if (eventType.isRequired) {
-                // For required event types with no rate, create with price=0 and update later
-                eventTypePayload.price = 0;
-                console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Creating required event type with temporary price=0', { 
-                  eventName: eventType.name, 
-                  hourlyRate: hourlyRateAfterSync 
-                });
-            }
-            
-            console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Sending CREATE payload to Cal.com', { 
-              targetUserUlid, 
-              eventName: eventType.name, 
-              payloadSummary: { 
-                title: eventTypePayload.title, 
-                slug: eventTypePayload.slug, 
-                length: eventTypePayload.length, 
-                price: eventTypePayload.price 
-              } 
-            });
-            
-            // Use makeCalApiRequest instead of direct fetch
-            const result = await makeCalApiRequest({
-              endpoint: 'event-types',
-              method: 'POST',
-              body: eventTypePayload
-            });
-            
-            // Handle the response properly based on its structure
-            if (result && typeof result === 'object') {
-              // The response might be directly the result object or have a data property
-              calEventType = result.data ? result : { data: result };
-            } else {
-              // Unexpected format, log and continue
-              console.error('[CREATE_DEFAULT_EVENT_TYPES_CAL_ERROR] Unexpected response format', {
-                resultType: typeof result,
-                eventName: eventType.name
-              });
-              continue; // Skip DB insert if response format is unexpected
-            }
-            
-            console.log('[CREATE_DEFAULT_EVENT_TYPES_CAL_SUCCESS]', { 
-              targetUserUlid, 
-              eventName: eventType.name, 
-              calEventTypeId: calEventType?.data?.id 
-            });
-
-        } catch (error) {
-            console.error('[CREATE_DEFAULT_EVENT_TYPES_CAL_ERROR] Catch block during create', { 
-              error, 
-              eventName: eventType.name, 
-              targetUserUlid 
-            });
-            continue; // Skip DB insert on caught error
-        }
-
-        // Create in database ONLY if Cal.com succeeded
-        // Adjust based on actual response structure from Cal.com v2
-        const createdCalId = calEventType?.data?.id;
-        if (createdCalId) {
-          const eventTypeUlid = generateUlid()
-          
-          // If this is a required event type, always set isActive to true
-          // We never allow required event types to be inactive
-          const isRequired = eventType.isRequired === true;
-          const isActive = isRequired ? true : eventType.isActive;
-          
-          // Prepare metadata with isRequired flag if needed
-          const metadata = {
-            ...(calEventType?.data?.metadata || {}),
-            isRequired: isRequired,
-          };
-          
-          const { data: dbEventType, error: insertError } = await supabase
-            .from('CalEventType')
-            .insert({
-              ulid: eventTypeUlid,
-              calendarIntegrationUlid: calendarIntegration.ulid,
-              calEventTypeId: createdCalId,
-              name: eventType.name,
-              description: eventType.description,
-              lengthInMinutes: eventType.lengthInMinutes,
-              isFree: eventType.isFree,
-              isActive: isActive, // Uses determined active status
-              isDefault: eventType.isDefault,
-              slug: calEventType?.data?.slug || eventType.slug,
-              position: eventType.position,
-              scheduling: eventType.scheduling as 'MANAGED' | 'OFFICE_HOURS' | 'GROUP_SESSION',
-              maxParticipants: eventType.seats?.seatsPerTimeSlot || null,
-              price: calEventType?.data?.price || (eventType.isFree ? 0 : calculateEventPrice(hourlyRateAfterSync, eventType.lengthInMinutes)),
-              currency: calEventType?.data?.currency || 'USD',
-              discountPercentage: null,
-              organizationUlid: null,
-              locations: eventType.locations as any,
-              bookerLayouts: { defaultLayout: "month", enabledLayouts: ["month", "week", "column"] },
-              customName: eventType.customName,
-              color: eventType.color as any,
-              minimumBookingNotice: eventType.minimumBookingNotice,
-              disableGuests: eventType.disableGuests,
-              useDestinationCalendarEmail: eventType.useDestinationCalendarEmail,
-              hideCalendarEventDetails: eventType.hideCalendarEventDetails,
-              slotInterval: eventType.slotInterval,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              // Ensure all other fields from schema have values
-              hidden: !isActive, // Hidden is the opposite of active
-              bookingLimits: null,
-              requiresConfirmation: false,
-              metadata: metadata, // Use the updated metadata with isRequired flag
-              afterEventBuffer: eventType.afterEventBuffer || 0,
-              beforeEventBuffer: eventType.beforeEventBuffer || 0,
-              successRedirectUrl: null,
-            } as DbCalEventType)
-            .select()
-            .single()
-
-          if (insertError) {
-            console.error('[CREATE_DEFAULT_EVENT_TYPES_DB_ERROR] Insert failed', { error: insertError, eventName: eventType.name, targetUserUlid });
-            // Consider rollback? Deleting from Cal.com?
-          } else {
-            createdEventTypes.push(dbEventType)
-            console.log('[CREATE_DEFAULT_EVENT_TYPES_DB_SUCCESS]', { dbEventTypeUlid: dbEventType.ulid, calEventTypeId: dbEventType.calEventTypeId });
-          }
-        } else {
-             console.warn('[CREATE_DEFAULT_EVENT_TYPES_SKIP_DB] Skipping DB insert because Cal.com creation did not return a valid event type ID.', { eventName: eventType.name, targetUserUlid, calResponse: calEventType });
-        }
-      } else {
-        console.log(`[CREATE_DEFAULT_EVENT_TYPES_INFO] Default type "${eventType.name}" already exists locally. Skipping creation.`);
-      }
-    } // End loop through standardDefaultEventTypes
-
-    console.log('[CREATE_DEFAULT_EVENT_TYPES] Finished processing default event types', { totalCreated: createdEventTypes.length });
-    return NextResponse.json({ 
-      success: true, 
-      data: { 
-        message: creationAttempted ? `Created ${createdEventTypes.length} missing default event types.` : 'Default event types already exist.',
-        createdEventTypes: createdEventTypes, // Only includes newly created ones
-        totalCreated: createdEventTypes.length 
-      }
-    })
+      return NextResponse.json({
+        success: false,
+        error: result.error.message || "Failed to create default event types"
+      }, { status: 500 });
+    }
+    
+    console.log('[CREATE_DEFAULT_EVENT_TYPES_SUCCESS] Successfully created default event types with unique slugs', {
+      targetUserUlid,
+      timestamp: new Date().toISOString()
+    });
+    
+    return NextResponse.json({
+      success: true,
+      message: "Successfully created default event types with unique slugs"
+    });
 
   } catch (error) {
     console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Top-level catch block', { error });

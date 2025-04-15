@@ -5,26 +5,210 @@
  */
 
 import { CalSchedulingType } from '@prisma/client'
+import { Json } from '@/types/supabase'
+
+/**
+ * Core EventType interface for UI components
+ * Contains only essential fields needed for display and editing
+ */
+export interface EventType {
+  id: string;
+  name: string;
+  description: string;
+  duration: number;
+  free: boolean;
+  enabled: boolean;
+  isDefault: boolean;
+  schedulingType: CalSchedulingType | string;
+  
+  // Optional fields for special scheduling types
+  maxParticipants?: number;
+  discountPercentage?: number;
+  organizationId?: string;
+  
+  // Buffer settings (needed for Cal.com API)
+  beforeEventBuffer?: number;
+  afterEventBuffer?: number;
+  minimumBookingNotice?: number;
+  slotInterval?: number;
+  
+  // Location settings
+  locations?: CalEventTypeLocation[];
+  
+  // UI-specific fields
+  isRequired?: boolean;
+  canDisable?: boolean;
+}
+
+/**
+ * Location type for Cal.com event types
+ */
+export interface CalEventTypeLocation {
+  type: string;
+  link?: string;
+  displayName?: string;
+  address?: string;
+  public?: boolean;
+}
 
 /**
  * API response from Cal.com for event types
  */
 export interface CalEventTypeResponse {
   id: number;
-  userId: number;
   title: string;
   slug: string;
   description: string | null;
   length: number;
   hidden: boolean;
-  position: number;
   price: number;
-  currency: string;
-  metadata: Record<string, any>;
-  // Additional fields for scheduling types
+  metadata?: Record<string, any>;
   seatsPerTimeSlot?: number;
   schedulingType?: string;
-  // Plus other Cal.com API fields
+}
+
+/**
+ * Payload for creating an event type in Cal.com API
+ */
+export interface CalEventTypeCreatePayload {
+  title: string;
+  slug: string;
+  description: string;
+  lengthInMinutes: number;
+  hidden: boolean;
+  price: number;
+  schedulingType: string | null;
+  locations: CalEventTypeLocation[];
+  seatsPerTimeSlot?: number;
+  metadata?: Record<string, any>;
+  minimumBookingNotice?: number;
+  beforeEventBuffer?: number;
+  afterEventBuffer?: number;
+  // Other fields as needed by Cal.com API
+}
+
+/**
+ * Default event type definition with basic required fields
+ */
+export interface DefaultEventType {
+  name: string;
+  description: string;
+  duration: number;
+  isFree: boolean;
+  schedulingType: string;
+  isDefault: boolean;
+}
+
+/**
+ * Type converters between database/API/UI formats
+ */
+
+/**
+ * Converts CalEventTypeLocation array to Json for database storage
+ */
+export function locationArrayToJson(locations: CalEventTypeLocation[] | undefined): Json | undefined {
+  if (!locations) return undefined;
+  return locations as unknown as Json;
+}
+
+/**
+ * Converts Json from database to CalEventTypeLocation array
+ */
+export function jsonToLocationArray(json: Json | null | undefined): CalEventTypeLocation[] | undefined {
+  if (!json) return undefined;
+  return json as unknown as CalEventTypeLocation[];
+}
+
+/**
+ * Converts a database event type to UI EventType format
+ */
+export function dbToEventType(dbRecord: any): EventType {
+  return {
+    id: dbRecord.ulid,
+    name: dbRecord.name,
+    description: dbRecord.description || '',
+    duration: dbRecord.lengthInMinutes,
+    free: dbRecord.isFree,
+    enabled: dbRecord.isActive,
+    isDefault: dbRecord.isDefault,
+    schedulingType: dbRecord.scheduling,
+    maxParticipants: dbRecord.maxParticipants || undefined,
+    discountPercentage: dbRecord.discountPercentage || undefined,
+    organizationId: dbRecord.organizationUlid || undefined,
+    
+    // UI display settings
+    isRequired: dbRecord.isDefault, // Default events are required
+    canDisable: !dbRecord.isDefault, // Non-default events can be disabled
+  };
+}
+
+/**
+ * Converts a UI EventType to database insert format
+ */
+export function eventTypeToDbFields(eventType: EventType, calendarIntegrationUlid: string): any {
+  return {
+    name: eventType.name,
+    description: eventType.description,
+    lengthInMinutes: eventType.duration,
+    isFree: eventType.free,
+    isActive: eventType.enabled,
+    isDefault: eventType.isDefault,
+    scheduling: eventType.schedulingType as CalSchedulingType,
+    maxParticipants: eventType.maxParticipants || null,
+    discountPercentage: eventType.discountPercentage || null,
+    organizationUlid: eventType.organizationId || null,
+    calendarIntegrationUlid,
+    // Default values for JSON fields - will be properly typed in DB operations
+    locations: [{
+      type: 'link',
+      link: 'https://dibs.coach/call/session',
+      public: true
+    }],
+  };
+}
+
+/**
+ * Converts an EventType to Cal.com API format
+ */
+export function eventTypeToCalFormat(eventType: EventType, hourlyRate: number = 0): CalEventTypeCreatePayload {
+  const price = eventType.free ? 0 : calculateEventPrice(hourlyRate, eventType.duration);
+  
+  return {
+    title: eventType.name,
+    slug: generateSlug(eventType.name),
+    description: eventType.description,
+    lengthInMinutes: eventType.duration,
+    hidden: !eventType.enabled,
+    price,
+    schedulingType: (eventType.schedulingType as string).toLowerCase() || null,
+    locations: [{
+      type: 'link',
+      link: 'https://dibs.coach/call/session',
+      public: true
+    }],
+    seatsPerTimeSlot: eventType.maxParticipants,
+    metadata: eventType.discountPercentage ? { discountPercentage: eventType.discountPercentage } : undefined,
+  };
+}
+
+/**
+ * Helper to calculate event price based on hourly rate and duration
+ */
+export function calculateEventPrice(hourlyRate: number, durationMinutes: number): number {
+  const hourlyRateInCents = Math.round(hourlyRate * 100);
+  const durationHours = durationMinutes / 60;
+  const priceInCents = Math.round(hourlyRateInCents * durationHours);
+  return priceInCents;
+}
+
+/**
+ * Helper to generate a slug from a name
+ */
+export function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 /**
@@ -52,17 +236,6 @@ export interface CalEventTypeSeats {
 }
 
 /**
- * Location for Cal.com event types
- */
-export interface CalEventTypeLocation {
-  type: string;
-  link?: string;
-  displayName?: string;
-  address?: string;
-  public?: boolean;
-}
-
-/**
  * Booker layouts for Cal.com event types
  */
 export interface CalEventTypeBookerLayouts {
@@ -77,7 +250,7 @@ export interface CalEventTypeBookerLayouts {
 export interface DefaultCalEventType {
   // Basic event info
   name: string;
-  title: string;
+  title: string; // Same as name, but used for Cal.com API
   slug: string;
   description: string;
   duration?: number;
@@ -117,92 +290,7 @@ export interface DefaultCalEventType {
   // Buffer settings
   beforeEventBuffer?: number;
   afterEventBuffer?: number;
-}
-
-/**
- * Event type definition for UI components
- */
-export interface EventType {
-  id: string;
-  name: string;
-  description: string;
-  duration: number;
-  free: boolean;
-  enabled: boolean;
-  isDefault: boolean;
   
-  // Scheduling type and related fields
-  schedulingType: CalSchedulingType | string;
-  maxParticipants?: number;
-  discountPercentage?: number;
-  organizationId?: string;
-  
-  // Required fields for Cal.com API
-  bookerLayouts?: CalEventTypeBookerLayouts;
-  locations?: CalEventTypeLocation[];
-  
-  // Buffer settings
-  beforeEventBuffer?: number;
-  afterEventBuffer?: number;
-  minimumBookingNotice?: number;
-  
-  // Additional fields
-  isRequired?: boolean;
-  canDisable?: boolean;
-  disableGuests?: boolean;
-  customName?: string;
-  useDestinationCalendarEmail?: boolean;
-  hideCalendarEventDetails?: boolean;
-  color?: CalEventTypeColor;
-  slotInterval?: number;
-}
-
-/**
- * API payload for creating a Cal.com event type
- * This exactly matches the structure required by Cal.com API v2
- */
-export interface CalEventTypeCreatePayload {
-  title: string;
-  slug: string;
-  description: string;
-  length: number;
-  hidden: boolean;
-  metadata: Record<string, any>;
-  locations: CalEventTypeLocation[];
-  customInputs: any[];
-  bookingFields: any[];
-  children: any[];
-  hosts: any[];
-  schedule: any;
-  workflows: any[];
-  successRedirectUrl: string | null;
-  brandColor: string;
-  periodType: string;
-  periodDays: number | null;
-  periodStartDate: string | null;
-  periodEndDate: string | null;
-  periodCountCalendarDays: boolean | null;
-  requiresConfirmation: boolean;
-  requiresBookerEmailVerification: boolean;
-  price: number;
-  currency: string;
-  slotInterval: number;
-  minimumBookingNotice: number;
-  beforeEventBuffer: number;
-  afterEventBuffer: number;
-  seatsPerTimeSlot: number | null;
-  seatsShowAttendees: boolean;
-  seatsShowAvailabilityCount: boolean;
-  disableGuests: boolean;
-  hideCalendarNotes: boolean;
-  schedulingType: string | null;
-  durationLimits: any | null;
-  bookingLimits: any | null;
-  requiresBookerAddress: boolean;
-  eventName: string;
-  team: any | null;
-  bookerLayouts: {
-    enabledLayouts: string[];
-    defaultLayout: string;
-  };
+  // Confirmation settings
+  requiresConfirmation?: boolean;
 } 

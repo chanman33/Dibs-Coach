@@ -35,7 +35,18 @@ export async function POST(request: Request) {
       schedulingType = 'MANAGED',
       maxParticipants,
       discountPercentage,
-      userUlid // Optional: If admin is creating for a specific user
+      userUlid, // Optional: If admin is creating for a specific user
+      minimumBookingNotice,
+      beforeEventBuffer,
+      afterEventBuffer,
+      slotInterval,
+      disableGuests,
+      customName,
+      useDestinationCalendarEmail,
+      hideCalendarEventDetails,
+      color,
+      showAttendeeInfo,
+      showAvailabilityCount
     } = requestBody
 
     // Validation
@@ -198,31 +209,48 @@ export async function POST(request: Request) {
           hidden: !isActive,
           price,
           metadata, // Add metadata field
-          // Required booker layout configuration
+          // Booker layout configuration
           bookerLayouts: {
             defaultLayout: "month",
             enabledLayouts: ["month", "week", "column"]
           },
-          // Required locations
+          // Locations - maintain default video call
           locations: [
             {
-              type: "integrations:daily",
-              displayName: "Video Call"
+              type: "link",
+              link: "https://dibs.coach/call/session",
+              public: true
             }
           ],
-          // Minimum booking notice in minutes
-          minimumBookingNotice: 0,
-          // Time buffers between meetings
-          beforeEventBuffer: 0,
-          afterEventBuffer: 0,
+          // Time settings
+          minimumBookingNotice: minimumBookingNotice || 0,
+          beforeEventBuffer: beforeEventBuffer || 0,
+          afterEventBuffer: afterEventBuffer || 0,
+          slotInterval: slotInterval || 30,
           // Scheduling type
           schedulingType: schedulingType === 'MANAGED' ? null : schedulingType.toLowerCase(),
-          // Seats configuration if needed
+          // Display settings
+          disableGuests: disableGuests ?? true,
+          customName: customName || `Dibs: Coaching call with {Organiser}`,
+          useDestinationCalendarEmail: useDestinationCalendarEmail ?? true,
+          hideCalendarEventDetails: hideCalendarEventDetails ?? false,
+          // Confirmation settings
+          requiresConfirmation: false,
+          // Color settings if provided
+          color: color || {
+            lightThemeHex: "#3B82F6",
+            darkThemeHex: "#60A5FA"
+          },
+          // Seats configuration based on maxParticipants
           seats: maxParticipants ? {
             seatsPerTimeSlot: maxParticipants,
-            showAttendeeInfo: true,
-            showAvailabilityCount: true
-          } : undefined
+            showAttendeeInfo: showAttendeeInfo ?? false,
+            showAvailabilityCount: showAvailabilityCount ?? true
+          } : {
+            seatsPerTimeSlot: 1,
+            showAttendeeInfo: false,
+            showAvailabilityCount: false
+          }
         }
 
         // Make request to Cal.com API
@@ -287,11 +315,34 @@ export async function POST(request: Request) {
         maxParticipants: maxParticipants || null,
         discountPercentage: discountPercentage || null,
         organizationUlid: null,
-        locations: [{ type: 'integrations:daily', displayName: 'Video Call' }],
-        bookerLayouts: { defaultLayout: 'month', enabledLayouts: ['month', 'week', 'column'] },
-        beforeEventBuffer: 0,
-        afterEventBuffer: 0,
-        minimumBookingNotice: 0,
+        locations: [
+          {
+            type: "link",
+            link: "https://dibs.coach/call/session",
+            public: true
+          }
+        ],
+        bookerLayouts: { 
+          defaultLayout: "month", 
+          enabledLayouts: ["month", "week", "column"] 
+        },
+        beforeEventBuffer: beforeEventBuffer || 0,
+        afterEventBuffer: afterEventBuffer || 0,
+        minimumBookingNotice: minimumBookingNotice || 0,
+        slotInterval: slotInterval || 30,
+        disableGuests: disableGuests ?? true,
+        customName: customName || `Dibs: Coaching call with {Organiser}`,
+        useDestinationCalendarEmail: useDestinationCalendarEmail ?? true,
+        hideCalendarEventDetails: hideCalendarEventDetails ?? false,
+        color: color || {
+          lightThemeHex: "#3B82F6",
+          darkThemeHex: "#60A5FA"
+        },
+        metadata: {
+          ...(schedulingType === 'OFFICE_HOURS' ? { isOfficeHours: true } : {}),
+          ...(schedulingType === 'GROUP_SESSION' ? { isGroupSession: true } : {}),
+          ...(discountPercentage ? { discountPercentage } : {})
+        },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       })

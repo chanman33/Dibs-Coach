@@ -3,9 +3,10 @@ import { createAuthClient } from '@/utils/supabase/server'
 import { auth } from '@clerk/nextjs'
 import { syncCalEventTypesWithDb } from '@/utils/actions/cal-event-type-sync'
 import { Database } from '@/types/supabase'
-import { EventType } from '@/components/cal/EventTypeCard'
+import { EventType } from '@/utils/types/cal-event-types'
 import { env } from '@/lib/env'
 import { makeCalApiRequest } from '@/utils/cal/cal-api-utils'
+import { dbToEventType } from '@/utils/types/cal-event-types'
 
 // Type mapping for Cal API response structure (adjust based on actual API)
 type CalApiEventType = {
@@ -158,25 +159,4 @@ export async function GET() {
 }
 
 // Helper function to map DB event type to UI EventType
-// Ensure all fields required by EventType are mapped
-const mapDbEventTypeToUi = (dbEt: DbCalEventType): EventType => ({
-  id: dbEt.ulid,
-  name: dbEt.name,
-  description: dbEt.description || '',
-  duration: dbEt.lengthInMinutes,
-  free: dbEt.isFree,
-  enabled: dbEt.isActive,
-  isDefault: dbEt.isDefault,
-  schedulingType: dbEt.scheduling,
-  maxParticipants: dbEt.maxParticipants ?? undefined,
-  discountPercentage: dbEt.discountPercentage ?? undefined,
-  organizationId: dbEt.organizationUlid ?? undefined,
-  bookerLayouts: dbEt.bookerLayouts as any, // Cast if types don't match exactly
-  locations: dbEt.locations as any,
-  beforeEventBuffer: dbEt.beforeEventBuffer ?? undefined,
-  afterEventBuffer: dbEt.afterEventBuffer ?? undefined,
-  minimumBookingNotice: dbEt.minimumBookingNotice ?? undefined,
-  // Map additional UI fields if needed, e.g., from metadata or defaults
-  isRequired: dbEt.isDefault, // Example: Assume default means required
-  canDisable: !dbEt.isDefault, // Example: Assume non-default can be disabled
-});
+const mapDbEventTypeToUi = (dbEt: DbCalEventType) => dbToEventType(dbEt);

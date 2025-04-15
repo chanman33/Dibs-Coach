@@ -2,38 +2,31 @@
 
 import { auth } from '@clerk/nextjs/server'
 import { createAuthClient } from '@/utils/supabase/server'
-import { ApiResponse } from '@/utils/types/api'
+import { ApiResponse, ApiErrorCode } from '@/utils/types/api'
 import { env } from '@/lib/env'
 import { nanoid } from 'nanoid'
 import { generateUlid } from '@/utils/ulid'
-import { type EventType } from '@/components/cal/EventTypeCard'
+import { 
+  EventType, 
+  CalEventTypeResponse, 
+  CalEventTypeLocation,
+  locationArrayToJson, 
+  calculateEventPrice as calcEventPrice, 
+  generateSlug as genSlug, 
+  eventTypeToDbFields,
+  eventTypeToCalFormat,
+  dbToEventType
+} from '@/utils/types/cal-event-types'
 import { isCalTokenExpired, refreshCalAccessToken } from '@/utils/auth/cal-token-service'
 import { Decimal } from '@prisma/client/runtime/library'
 import type { Database } from '@/types/supabase'
 import { fetchCoachHourlyRate } from '@/utils/actions/cal-coach-rate-actions'
+import { ensureValidCalToken } from '@/utils/cal/token-util'
 
 type DbCalEventType = Database['public']['Tables']['CalEventType']['Row'];
 
 // Define API error codes
-type ApiErrorCode = 'UNAUTHORIZED' | 'DATABASE_ERROR' | 'INTERNAL_ERROR' | 'VALIDATION_ERROR' | 'NOT_FOUND' | 'CREATE_ERROR' | 'AUTH_ERROR';
-
-interface CalEventTypeResponse {
-  id: number
-  userId: number
-  title: string
-  slug: string
-  description: string | null
-  length: number
-  hidden: boolean
-  position: number
-  price: number
-  currency: string
-  metadata: Record<string, any>
-  // Additional fields for scheduling types
-  seatsPerTimeSlot?: number
-  schedulingType?: string
-  // Plus other Cal.com API fields
-}
+// type ApiErrorCode = 'UNAUTHORIZED' | 'DATABASE_ERROR' | 'INTERNAL_ERROR' | 'VALIDATION_ERROR' | 'NOT_FOUND' | 'CREATE_ERROR' | 'AUTH_ERROR';
 
 interface SaveEventTypeParams {
   eventTypes: EventType[]
@@ -57,17 +50,15 @@ interface DefaultEventType {
   isDefault: boolean
   scheduling: string
   position: number
+  slug?: string
   // Cal.com API required fields
   locations: {
     type: string
+    link?: string
     displayName?: string
     address?: string
     public?: boolean
   }[]
-  bookerLayouts: {
-    defaultLayout: string
-    enabledLayouts: string[]
-  }
   beforeEventBuffer: number
   afterEventBuffer: number
   minimumBookingNotice: number
@@ -405,7 +396,7 @@ export async function fetchCoachEventTypes(): Promise<ApiResponse<FetchEventType
             maxParticipants: calEventType.seatsPerTimeSlot ?? null,
             discountPercentage: calEventType.metadata?.discountPercentage as number | null,
             // Fill in required fields
-            slug: calEventType.slug || generateSlug(calEventType.title),
+            slug: calEventType.slug || genSlug(calEventType.title),
             metadata: calEventType.metadata ?? null,
             organizationUlid: null,
             slotInterval: 30,
@@ -846,7 +837,7 @@ export async function saveCoachEventTypes(
               name: eventType.name,
               description: eventType.description || '', // Ensure description is not null
               duration: eventType.duration,
-              price: eventType.free ? 0 : calculateEventPrice(numericHourlyRate, eventType.duration),
+              price: eventType.free ? 0 : calcEventPrice(numericHourlyRate, eventType.duration),
               isActive: eventType.enabled,
               schedulingType: eventType.schedulingType,
               maxParticipants: eventType.maxParticipants,
@@ -887,9 +878,11 @@ export async function saveCoachEventTypes(
               maxParticipants: eventType.maxParticipants || null,
               discountPercentage: eventType.discountPercentage || null,
               organizationUlid: eventType.organizationId || null,
-              // New fields
-              locations: eventType.locations || [{ type: 'integrations:daily', displayName: 'Video Call' }],
-              bookerLayouts: eventType.bookerLayouts || { defaultLayout: 'month', enabledLayouts: ['month', 'week', 'column'] },
+              locations: locationArrayToJson(eventType.locations || [{ 
+                type: 'link',
+                link: 'https://dibs.coach/call/session',
+                public: true
+              }]),
               beforeEventBuffer: eventType.beforeEventBuffer || 0,
               afterEventBuffer: eventType.afterEventBuffer || 0,
               minimumBookingNotice: eventType.minimumBookingNotice || 0,
@@ -928,11 +921,19 @@ export async function saveCoachEventTypes(
               name: eventType.name,
               description: eventType.description || '',
               duration: eventType.duration,
-              price: eventType.free ? 0 : calculateEventPrice(numericHourlyRate, eventType.duration),
+              price: eventType.free ? 0 : calcEventPrice(numericHourlyRate, eventType.duration),
               isActive: eventType.enabled,
-              schedulingType: eventType.schedulingType,
-              maxParticipants: eventType.maxParticipants,
-              discountPercentage: eventType.discountPercentage
+              schedulingType: eventType.schedulingType || 'MANAGED', // Default to MANAGED instead of null
+              maxParticipants: eventType.maxParticipants || undefined,
+              locations: eventType.locations || [{ 
+                type: 'link',
+                link: 'https://dibs.coach/call/session',
+                public: true
+              }],
+              discountPercentage: eventType.discountPercentage,
+              beforeEventBuffer: eventType.beforeEventBuffer,
+              afterEventBuffer: eventType.afterEventBuffer,
+              minimumBookingNotice: eventType.minimumBookingNotice
             },
             userUlid // Pass userUlid to enable token refresh if needed
           );
@@ -941,34 +942,31 @@ export async function saveCoachEventTypes(
         // 2. Save to database ONLY if Cal.com creation succeeded (or wasn't applicable)
         // If calManagedUserId exists, calEventType MUST be non-null to proceed.
         if (!calendarIntegration.calManagedUserId || calEventType) {
+          // Apply type conversion for database operation
+          const dbFields = eventTypeToDbFields(eventType, calendarIntegration.ulid);
+          
           const { data: insertData, error: insertError } = await supabase
             .from('CalEventType')
             .insert({
               ulid: newUlid,
-              calendarIntegrationUlid: calendarIntegration.ulid,
               calEventTypeId: calEventType?.id || null, // Use ID from Cal.com response
-              name: eventType.name,
-              description: eventType.description,
-              lengthInMinutes: eventType.duration,
-              isFree: eventType.free,
-              isActive: eventType.enabled,
-              isDefault: eventType.isDefault,
-              slug: calEventType?.slug || generateSlug(eventType.name), // Use slug from Cal.com response
+              slug: calEventType?.slug || genSlug(eventType.name), // Use slug from Cal.com response
               position: params.eventTypes.indexOf(eventType),
-              scheduling: eventType.schedulingType as 'MANAGED' | 'OFFICE_HOURS' | 'GROUP_SESSION',
-              maxParticipants: eventType.maxParticipants || null,
-              discountPercentage: eventType.discountPercentage || null,
-              organizationUlid: eventType.organizationId || null,
-              // New fields
-              locations: eventType.locations || [{ type: 'integrations:daily', displayName: 'Video Call' }],
-              bookerLayouts: eventType.bookerLayouts || { defaultLayout: 'month', enabledLayouts: ['month', 'week', 'column'] },
               beforeEventBuffer: eventType.beforeEventBuffer || 0,
               afterEventBuffer: eventType.afterEventBuffer || 0,
               minimumBookingNotice: eventType.minimumBookingNotice || 0,
+              // Convert locations array to Json for database
+              locations: locationArrayToJson(eventType.locations) || locationArrayToJson([{ 
+                type: 'link',
+                link: 'https://dibs.coach/call/session',
+                public: true
+              }]),
               createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            })
-
+              updatedAt: new Date().toISOString(),
+              // Include all fields from dbFields
+              ...dbFields
+            });
+            
           if (insertError) {
             console.error('[SAVE_EVENT_TYPES_INSERT_DB_ERROR]', {
               error: insertError,
@@ -1082,14 +1080,12 @@ async function createCalEventType(
     // Add new fields
     locations?: {
       type: string
+      link?: string
       displayName?: string
       address?: string
       public?: boolean
     }[]
-    bookerLayouts?: {
-      defaultLayout: string
-      enabledLayouts: string[]
-    }
+    // Remove bookerLayouts from parameter definition
     beforeEventBuffer?: number
     afterEventBuffer?: number
     minimumBookingNotice?: number
@@ -1097,70 +1093,44 @@ async function createCalEventType(
   userUlid?: string // Added to support token refresh
 ): Promise<CalEventTypeResponse | null> {
   try {
-    // Use the official Cal.com API URL
-    const calApiUrl = `https://api.cal.com/v2/event-types`;
+    // Use hardcoded API URL like other parts of the application
+    const calApiUrl = `https://api.cal.com/v2/event-types`
     
-    // Build the event type metadata based on scheduling type
-    let metadata: Record<string, any> = {};
-    let seatsPerTimeSlot: number | undefined;
+    // Generate slug from event type name
+    const slug = genSlug(eventType.name)
     
-    if (eventType.schedulingType === 'OFFICE_HOURS') {
-      metadata = {
-        ...metadata,
-        discountPercentage: eventType.discountPercentage || 0,
-        isOfficeHours: true
-      };
-      seatsPerTimeSlot = eventType.maxParticipants;
-    } else if (eventType.schedulingType === 'GROUP_SESSION') {
-      metadata = {
-        ...metadata,
-        isGroupSession: true
-      };
-      seatsPerTimeSlot = eventType.maxParticipants;
-    }
-    
-    // Format data according to Cal.com v2 API docs
-    const calData = {
+    // Map our internal fields to Cal.com API field names
+    // IMPORTANT: Cal API uses 'lengthInMinutes' for the duration with API version 2024-06-14
+    const payload = {
       title: eventType.name,
-      slug: generateSlug(eventType.name),
-      description: eventType.description,
-      lengthInMinutes: eventType.duration,
+      slug: slug,
+      description: eventType.description || '',
+      lengthInMinutes: eventType.duration, // Use lengthInMinutes as per Cal.com API docs
       hidden: !eventType.isActive,
       price: eventType.price,
-      // Required booker layout configuration
-      bookerLayouts: eventType.bookerLayouts || {
-        defaultLayout: "month",
-        enabledLayouts: ["month", "week", "column"]
+      currency: 'USD',
+      schedulingType: eventType.schedulingType || null, // Only set if defined
+      seatsPerTimeSlot: eventType.maxParticipants || null, // Only set if defined
+      locations: eventType.locations || [{ 
+        type: 'link',
+        link: 'https://dibs.coach/call/session',
+        public: true
+      }], // Default to link location
+      bookingLimits: null,
+      metadata: {
+        discountPercentage: eventType.discountPercentage // Store discount percentage in metadata if provided
       },
-      // Required locations
-      locations: eventType.locations || [
-        {
-          type: "integrations:daily",
-          displayName: "Video Call"
-        }
-      ],
-      // Minimum booking notice in minutes
-      minimumBookingNotice: 0,
-      // Time buffers between meetings
-      beforeEventBuffer: eventType.beforeEventBuffer || 0,
-      afterEventBuffer: eventType.afterEventBuffer || 0,
-      // Metadata fields
-      metadata,
-      // Scheduling type
-      schedulingType: eventType.schedulingType === 'MANAGED' ? null : eventType.schedulingType.toLowerCase(),
-      // Seats configuration if needed
-      seats: seatsPerTimeSlot ? {
-        seatsPerTimeSlot,
-        showAttendeeInfo: true,
-        showAvailabilityCount: true
-      } : undefined
-    };
+      // Include new fields if they are provided
+      beforeEventBuffer: eventType.beforeEventBuffer,
+      afterEventBuffer: eventType.afterEventBuffer,
+      minimumBookingNotice: eventType.minimumBookingNotice
+    }
     
     console.log('[CREATE_CAL_EVENT_TYPE_REQUEST]', {
       url: calApiUrl,
       calUserId,
       clientId: env.NEXT_PUBLIC_CAL_CLIENT_ID,
-      data: calData,
+      data: payload,
       timestamp: new Date().toISOString()
     });
     
@@ -1171,10 +1141,10 @@ async function createCalEventType(
         'Content-Type': 'application/json',
         // Use the managed user's access token for authorization
         'Authorization': `Bearer ${accessToken}`, 
-        'cal-api-version': '2024-01-01'
+        'cal-api-version': '2024-06-14'
         // Remove x-cal-managed-user-id as it's not needed with Bearer token auth
       },
-      body: JSON.stringify(calData)
+      body: JSON.stringify(payload)
     });
     
     // Check for token expiration specifically (status 498)
@@ -1337,6 +1307,7 @@ async function syncEventTypeWithCal(
     // Add new fields
     locations?: {
       type: string
+      link?: string
       displayName?: string
       address?: string
       public?: boolean
@@ -1410,7 +1381,7 @@ async function syncEventTypeWithCal(
         'Content-Type': 'application/json',
         // Use the managed user's access token for authorization
         'Authorization': `Bearer ${accessToken}`,
-        'cal-api-version': '2024-01-01'
+        'cal-api-version': '2024-06-14'
         // Remove x-cal-managed-user-id as it's not needed with Bearer token auth
       },
       body: JSON.stringify(calData)
@@ -1595,7 +1566,7 @@ async function deleteCalEventType(
         'Content-Type': 'application/json',
         // Use the managed user's access token for authorization
         'Authorization': `Bearer ${accessToken}`,
-        'cal-api-version': '2024-01-01'
+        'cal-api-version': '2024-06-14'
         // Remove x-cal-managed-user-id as it's not needed with Bearer token auth
       }
     });
@@ -1790,7 +1761,6 @@ const mapDbEventTypeToUi = (eventType: Record<string, any>): EventType => ({
   organizationId: eventType.organizationUlid || null,
   // New Cal.com API fields
   locations: eventType.locations || [{ type: 'integrations:daily', displayName: 'Video Call' }],
-  bookerLayouts: eventType.bookerLayouts || { defaultLayout: 'month', enabledLayouts: ['month', 'week', 'column'] },
   beforeEventBuffer: eventType.beforeEventBuffer || 0,
   afterEventBuffer: eventType.afterEventBuffer || 0,
   minimumBookingNotice: eventType.minimumBookingNotice || 0
@@ -1915,10 +1885,6 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
             displayName: "Video Call"
           }
         ],
-        bookerLayouts: {
-          defaultLayout: "month",
-          enabledLayouts: ["month", "week", "column"]
-        },
         beforeEventBuffer: 5,
         afterEventBuffer: 5,
         minimumBookingNotice: 0
@@ -1939,10 +1905,6 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
             displayName: "Video Call"
           }
         ],
-        bookerLayouts: {
-          defaultLayout: "month",
-          enabledLayouts: ["month", "week", "column"]
-        },
         beforeEventBuffer: 5,
         afterEventBuffer: 5,
         minimumBookingNotice: 0
@@ -1963,10 +1925,6 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
             displayName: "Video Call"
           }
         ],
-        bookerLayouts: {
-          defaultLayout: "month",
-          enabledLayouts: ["month", "week", "column"]
-        },
         beforeEventBuffer: 0,
         afterEventBuffer: 0,
         minimumBookingNotice: 0
@@ -2016,7 +1974,7 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
               name: eventType.name,
               description: eventType.description,
               duration: eventType.duration,
-              price: eventType.isFree ? 0 : calculateEventPrice(numericHourlyRate, eventType.duration),
+              price: eventType.isFree ? 0 : calcEventPrice(numericHourlyRate, eventType.duration),
               isActive: eventType.isActive,
               schedulingType: eventType.scheduling
             },
@@ -2047,7 +2005,7 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
             isFree: eventType.isFree,
             isActive: eventType.isActive,
             isDefault: eventType.isDefault,
-            slug: calEventType?.slug || generateSlug(eventType.name),
+            slug: calEventType?.slug || genSlug(eventType.name),
             position: eventType.position,
             scheduling: eventType.scheduling as 'MANAGED' | 'OFFICE_HOURS' | 'GROUP_SESSION',
             maxParticipants: null,
@@ -2055,7 +2013,6 @@ export async function createDefaultEventTypes(userUlid: string): Promise<ApiResp
             organizationUlid: null,
             // New fields
             locations: eventType.locations || [{ type: 'integrations:daily', displayName: 'Video Call' }],
-            bookerLayouts: eventType.bookerLayouts || { defaultLayout: 'month', enabledLayouts: ['month', 'week', 'column'] },
             beforeEventBuffer: eventType.beforeEventBuffer || 0,
             afterEventBuffer: eventType.afterEventBuffer || 0,
             minimumBookingNotice: eventType.minimumBookingNotice || 0,
@@ -2345,10 +2302,6 @@ export async function createFreeIntroCallEventType(userUlid: string): Promise<Ap
           displayName: "Video Call"
         }
       ],
-      bookerLayouts: {
-        defaultLayout: "month",
-        enabledLayouts: ["month", "week", "column"]
-      },
       beforeEventBuffer: 0,
       afterEventBuffer: 0,
       minimumBookingNotice: 0
@@ -2452,8 +2405,11 @@ export async function createFreeIntroCallEventType(userUlid: string): Promise<Ap
           discountPercentage: null,
           organizationUlid: null,
           // New fields
-          locations: eventType.locations || [{ type: 'integrations:daily', displayName: 'Video Call' }],
-          bookerLayouts: eventType.bookerLayouts || { defaultLayout: 'month', enabledLayouts: ['month', 'week', 'column'] },
+          locations: eventType.locations || [{ 
+            type: 'link',
+            link: 'https://dibs.coach/call/session',
+            public: true
+          }],
           beforeEventBuffer: eventType.beforeEventBuffer || 0,
           afterEventBuffer: eventType.afterEventBuffer || 0,
           minimumBookingNotice: eventType.minimumBookingNotice || 0,
@@ -2499,5 +2455,346 @@ export async function createFreeIntroCallEventType(userUlid: string): Promise<Ap
       data: { success: false },
       error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }
     }
+  }
+} 
+
+/**
+ * Creates default event types with unique slugs by appending a timestamp
+ * This helps avoid collisions with "hidden" event types in Cal.com
+ */
+export async function createDefaultEventTypesWithUniqueSlug(userUlid: string): Promise<ApiResponse<{ success: boolean, totalCreated?: number, createdEventTypes?: any[] }>> {
+  try {
+    // Get Supabase client
+    const supabase = createAuthClient()
+
+    // Get the calendar integration for the user
+    const { data: calendarIntegration, error: calendarError } = await supabase
+      .from('CalendarIntegration')
+      .select('ulid, calManagedUserId, calAccessToken, calAccessTokenExpiresAt')
+      .eq('userUlid', userUlid)
+      .maybeSingle()
+
+    if (calendarError) {
+      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Calendar Integration lookup', { 
+        error: calendarError, 
+        userUlid,
+        timestamp: new Date().toISOString()
+      })
+      return {
+        data: { success: false },
+        error: { code: 'DATABASE_ERROR', message: 'Failed to fetch calendar integration' }
+      }
+    }
+
+    if (!calendarIntegration || !calendarIntegration.calManagedUserId) {
+      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] No Cal.com connection found', { 
+        userUlid,
+        timestamp: new Date().toISOString()
+      })
+      return {
+        data: { success: false },
+        error: { 
+          code: 'NOT_FOUND', 
+          message: 'No Cal.com integration found for this user. Please connect Cal.com in settings.'
+        }
+      }
+    }
+
+    // Fetch coach's hourly rate for pricing
+    const { data: coachProfile, error: profileError } = await supabase
+      .from('CoachProfile')
+      .select('hourlyRate')
+      .eq('userUlid', userUlid)
+      .maybeSingle()
+
+    if (profileError) {
+      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Coach Profile lookup', { 
+        error: profileError, 
+        userUlid, 
+        timestamp: new Date().toISOString()
+      })
+      // Continue with default hourly rate as fallback
+    }
+
+    const hourlyRate = coachProfile?.hourlyRate as number || 0
+    const hasValidHourlyRate = hourlyRate !== null && hourlyRate !== undefined && hourlyRate > 0
+
+    // Check if token is valid
+    const isTokenExpired = await isCalTokenExpired(
+      calendarIntegration.calAccessToken,
+      Number(calendarIntegration.calAccessTokenExpiresAt)
+    )
+
+    let accessToken = calendarIntegration.calAccessToken
+
+    // Refresh token if needed
+    if (isTokenExpired) {
+      console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Cal token expired, refreshing...', { 
+        userUlid, 
+        timestamp: new Date().toISOString() 
+      })
+      
+      const refreshResult = await refreshCalAccessToken(userUlid)
+      
+      if (refreshResult.success && refreshResult.tokens) {
+        accessToken = refreshResult.tokens.access_token
+      } else {
+        console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Failed to refresh token', { 
+          error: refreshResult.error, 
+          userUlid, 
+          timestamp: new Date().toISOString() 
+        })
+        return {
+          data: { success: false },
+          error: { 
+            code: 'UNAUTHORIZED', // Use valid code from ApiErrorCode 
+            message: 'Failed to refresh Cal.com token. Please reconnect in settings.'
+          }
+        }
+      }
+    }
+
+    // Create unique suffix for each event type to ensure no slug collisions
+    const uniqueSuffix = Math.floor(Date.now() / 1000).toString()
+    const calUserId = calendarIntegration.calManagedUserId
+
+    // Define default event types
+    const defaultEventTypes: DefaultEventType[] = [
+      {
+        name: '1:1 Q&A Coaching Call',
+        description: '30-minute Q&A coaching call to address specific questions',
+        duration: 30,
+        isFree: false,
+        isActive: true,
+        isDefault: true,
+        scheduling: 'MANAGED' as const,
+        position: 0,
+        // Use unique slug with timestamp
+        slug: `coaching-qa-30-${uniqueSuffix}`,
+        // Add locations and other required fields
+        locations: [
+          {
+            type: "link",
+            link: "https://dibs.coach/call/session",
+            public: true
+          }
+        ],
+        beforeEventBuffer: 0,
+        afterEventBuffer: 0,
+        minimumBookingNotice: 60,
+        maxParticipants: 1,
+        discountPercentage: undefined
+      },
+      {
+        name: '1:1 Deep Dive Coaching Call',
+        description: 'A comprehensive 60-minute 1-on-1 coaching session for deeper exploration and problem-solving.',
+        duration: 60,
+        isFree: false,
+        isActive: true,
+        isDefault: true,
+        scheduling: 'MANAGED' as const,
+        position: 1,
+        // Use unique slug with timestamp
+        slug: `coaching-deep-dive-60-${uniqueSuffix}`,
+        locations: [
+          {
+            type: "link",
+            link: "https://dibs.coach/call/session",
+            public: true
+          }
+        ],
+        beforeEventBuffer: 0,
+        afterEventBuffer: 0,
+        minimumBookingNotice: 60,
+        maxParticipants: 1,
+        discountPercentage: undefined
+      },
+      {
+        name: 'Get to Know You',
+        description: '15-minute goal setting and introduction session',
+        duration: 15,
+        isFree: true,
+        isActive: true,
+        isDefault: true,
+        scheduling: 'MANAGED' as const,
+        position: 2,
+        // Use unique slug with timestamp
+        slug: `get-to-know-you-15-${uniqueSuffix}`,
+        locations: [
+          {
+            type: "link",
+            link: "https://dibs.coach/call/session",
+            public: true
+          }
+        ],
+        beforeEventBuffer: 0,
+        afterEventBuffer: 0,
+        minimumBookingNotice: 60,
+        maxParticipants: 1,
+        discountPercentage: undefined
+      }
+    ]
+    
+    const createdEventTypes = []
+    let totalCreatedCount = 0
+    let allCreationFailed = true
+    
+    // Create each event type
+    for (const eventType of defaultEventTypes) {
+      // Skip paid event types if no valid hourly rate
+      if (!eventType.isFree && !hasValidHourlyRate) {
+        console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Skipping paid event type due to missing hourly rate', {
+          eventType: eventType.name,
+          userUlid,
+          timestamp: new Date().toISOString()
+        })
+        continue
+      }
+      
+      // Calculate price for paid event types
+      const price = eventType.isFree ? 0 : calcEventPrice(hourlyRate, eventType.duration)
+      
+      try {
+        // Create in Cal.com
+        const calEventType = await createCalEventType(
+          accessToken,
+          calUserId,
+          {
+            name: eventType.name,
+            description: eventType.description,
+            duration: eventType.duration, // This gets mapped to lengthInMinutes in createCalEventType
+            price,
+            isActive: eventType.isActive,
+            schedulingType: 'MANAGED',
+            maxParticipants: eventType.maxParticipants,
+            discountPercentage: eventType.discountPercentage,
+            locations: eventType.locations,
+            beforeEventBuffer: eventType.beforeEventBuffer,
+            afterEventBuffer: eventType.afterEventBuffer,
+            minimumBookingNotice: eventType.minimumBookingNotice
+          },
+          userUlid
+        )
+        
+        if (!calEventType) {
+          console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Failed to create Cal.com event type', {
+            eventType: eventType.name,
+            userUlid,
+            timestamp: new Date().toISOString()
+          })
+          continue
+        }
+        
+        // Create in our database
+        const { data: dbEventType, error: insertError } = await supabase
+          .from('CalEventType')
+          .insert({
+            ulid: generateUlid(),
+            calendarIntegrationUlid: calendarIntegration.ulid,
+            calEventTypeId: calEventType.id,
+            name: eventType.name,
+            description: eventType.description,
+            lengthInMinutes: eventType.duration,
+            isFree: eventType.isFree,
+            isActive: eventType.isActive,
+            isDefault: true,
+            scheduling: eventType.scheduling as 'MANAGED' | 'OFFICE_HOURS' | 'GROUP_SESSION',
+            position: eventType.position,
+            price,
+            currency: 'USD',
+            slug: calEventType.slug,
+            locations: eventType.locations,
+            bookerLayouts: null, // Set to null since field exists in DB schema
+            beforeEventBuffer: eventType.beforeEventBuffer || 0, 
+            afterEventBuffer: eventType.afterEventBuffer || 0,
+            minimumBookingNotice: eventType.minimumBookingNotice || 0,
+            maxParticipants: eventType.maxParticipants,
+            discountPercentage: eventType.discountPercentage,
+            metadata: {
+              isRequired: eventType.name.includes('Q&A') || eventType.name.includes('Deep Dive')
+            },
+            // Add required fields that were missing
+            organizationUlid: null,
+            hidden: !eventType.isActive,
+            requiresConfirmation: false,
+            slotInterval: 30,
+            customName: null,
+            color: null,
+            useDestinationCalendarEmail: true,
+            hideCalendarEventDetails: false,
+            successRedirectUrl: null,
+            bookingLimits: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          })
+          .select()
+          .single()
+        
+        if (insertError) {
+          console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Failed to create DB event type', {
+            eventType: eventType.name,
+            error: insertError,
+            userUlid,
+            timestamp: new Date().toISOString()
+          })
+          continue
+        }
+        
+        createdEventTypes.push(dbEventType)
+        totalCreatedCount++
+        allCreationFailed = false
+      } catch (error) {
+        console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Error creating event type', {
+          eventType: eventType.name,
+          error,
+          userUlid,
+          timestamp: new Date().toISOString()
+        })
+      }
+    }
+    
+    // If all creation attempts failed, return an error
+    if (allCreationFailed && defaultEventTypes.length > 0) {
+      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] All event type creation attempts failed', {
+        userUlid,
+        timestamp: new Date().toISOString()
+      })
+      return {
+        data: { success: false },
+        error: { 
+          code: 'CREATE_ERROR', 
+          message: 'Failed to create default event types. Check Cal.com API response for details.' 
+        }
+      }
+    }
+    
+    return {
+      data: { 
+        success: true, 
+        totalCreated: totalCreatedCount,
+        createdEventTypes: createdEventTypes
+      },
+      error: null
+    }
+  } catch (error) {
+    console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR]', {
+      error,
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    })
+    return {
+      data: { success: false },
+      error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }
+    }
+  }
+  
+  // Explicit return for the case when no default event types were defined
+  return {
+    data: { 
+      success: true, 
+      totalCreated: 0,
+      createdEventTypes: []
+    },
+    error: null
   }
 } 

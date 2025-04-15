@@ -10,7 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { EventTypeCard, type EventType } from './EventTypeCard'
+import { EventTypeCard } from './EventTypeCard'
+import { EventType } from '@/utils/types/cal-event-types'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { CalSchedulingType } from '@prisma/client' // Import enum
 
@@ -82,7 +83,6 @@ export default function EventTypeManager({
         discountPercentage: eventType.discountPercentage,
         isRequired: eventType.isRequired ?? eventType.isDefault, // Assume default means required for now
         canDisable: eventType.canDisable ?? !eventType.isDefault, // Assume default cannot be disabled unless specified
-        bookerLayouts: eventType.bookerLayouts || { defaultLayout: 'month', enabledLayouts: ['month', 'week', 'column'] },
         locations: eventType.locations || [{ type: 'integrations:daily', displayName: 'Video Call' }],
         minimumBookingNotice: eventType.minimumBookingNotice ?? 0,
         beforeEventBuffer: eventType.beforeEventBuffer ?? 0,
