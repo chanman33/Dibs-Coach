@@ -85,11 +85,6 @@ const NoSessionsCTA = () => {
       <p className="text-sm text-muted-foreground max-w-[250px]">
         You currently have no coaching sessions scheduled. Check your calendar availability to accept more sessions.
       </p>
-      <Link href="/dashboard/coach/availability">
-        <Button variant="outline" size="sm" className="mt-2">
-          Manage Availability
-        </Button>
-      </Link>
     </div>
   )
 }

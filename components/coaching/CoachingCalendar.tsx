@@ -358,22 +358,29 @@ export function CoachingCalendar({
       <div className="flex justify-between items-center">
         <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
 
-        {showCalendlyButton && (
-          <Button
-            onClick={onRefreshCalendly}
-            disabled={isCalendlyLoading}
-            variant={calendarConnectionState === 'not_connected' || calendarConnectionState === 'error' ? 'default' : 'outline'}
-            size="sm"
-            className="flex items-center gap-2"
-          >
-            {isCalendlyLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-            {calendarActionText}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {showCalendlyButton && (
+            <Button
+              onClick={onRefreshCalendly}
+              disabled={isCalendlyLoading}
+              variant={calendarConnectionState === 'not_connected' || calendarConnectionState === 'error' ? 'default' : 'outline'}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              {isCalendlyLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {calendarActionText}
+            </Button>
+          )}
+          <Link href="/dashboard/coach/availability">
+            <Button variant="outline" size="sm">
+              Manage Availability
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4">
