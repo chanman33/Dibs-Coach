@@ -71,7 +71,7 @@ class CalApiClient {
     
     // Note: This is retained for backward compatibility, but the central token service
     // should be preferred for all new code.
-    const response = await fetch('https://api.cal.com/v1/auth/refresh', {
+    const response = await fetch('https://api.cal.com/v2/auth/refresh', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -106,7 +106,7 @@ class CalApiClient {
   // Fetch available event types
   async getEventTypes(): Promise<CalEventType[]> {
     const headers = await this.getHeaders();
-    const response = await fetch('https://api.cal.com/v1/event-types', {
+    const response = await fetch('https://api.cal.com/v2/event-types', {
       headers,
     });
     
@@ -125,7 +125,7 @@ class CalApiClient {
   ): Promise<CalTimeSlot[]> {
     const headers = await this.getHeaders();
     const response = await fetch(
-      `https://api.cal.com/v1/availability/${eventTypeId}?start=${start}&end=${end}`,
+      `https://api.cal.com/v2/availability/${eventTypeId}?start=${start}&end=${end}`,
       {
         headers,
       }
@@ -146,7 +146,7 @@ class CalApiClient {
     const headers = await this.getHeaders();
     const urls = getCalUrls(customRedirectPath);
     
-    const response = await fetch('https://api.cal.com/v1/bookings', {
+    const response = await fetch('https://api.cal.com/v2/bookings', {
       method: 'POST',
       headers,
       body: JSON.stringify({

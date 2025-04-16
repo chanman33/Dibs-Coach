@@ -1747,24 +1747,9 @@ function calculateEventPrice(hourlyRate: number, durationMinutes: number): numbe
 /**
  * Map database event types to the UI format
  */
-const mapDbEventTypeToUi = (eventType: Record<string, any>): EventType => ({
-  id: eventType.ulid,
-  name: eventType.name,
-  description: eventType.description || '',
-  duration: eventType.duration,
-  free: eventType.isFree,
-  enabled: eventType.isActive,
-  isDefault: eventType.isDefault,
-  schedulingType: eventType.scheduling || 'MANAGED',
-  maxParticipants: eventType.maxParticipants || null,
-  discountPercentage: eventType.discountPercentage || null,
-  organizationId: eventType.organizationUlid || null,
-  // New Cal.com API fields
-  locations: eventType.locations || [{ type: 'integrations:daily', displayName: 'Video Call' }],
-  beforeEventBuffer: eventType.beforeEventBuffer || 0,
-  afterEventBuffer: eventType.afterEventBuffer || 0,
-  minimumBookingNotice: eventType.minimumBookingNotice || 0
-});
+const mapDbEventTypeToUi = (eventType: Record<string, any>): EventType => {
+  return dbToEventType(eventType);
+};
 
 /**
  * Create default event types for a new coach
