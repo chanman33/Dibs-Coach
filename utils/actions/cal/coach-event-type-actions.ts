@@ -123,7 +123,7 @@ export async function fetchCoachEventTypes(): Promise<ApiResponse<FetchEventType
       .from('CalEventType')
       .select('*')
       .eq('calendarIntegrationUlid', calendarIntegration.ulid)
-      .eq('isActive', true)
+      .eq('hidden', false)
       .order('position', { ascending: true })
 
     if (eventTypesError) {
@@ -137,12 +137,27 @@ export async function fetchCoachEventTypes(): Promise<ApiResponse<FetchEventType
         error: { code: 'DATABASE_ERROR', message: 'Failed to fetch event types' }
       }
     }
+    
+    // Log retrieved event types for debugging
+    console.log('[FETCH_EVENT_TYPES_DEBUG]', {
+      count: dbEventTypes?.length || 0,
+      eventTypes: dbEventTypes?.map(et => ({
+        id: et.ulid,
+        name: et.name,
+        isActive: et.isActive,
+        hidden: et.hidden
+      })),
+      timestamp: new Date().toISOString()
+    });
 
     // Map database event types to UI format
     const mappedEventTypes: EventType[] = (dbEventTypes || []).map(et => {
       // Safely extract metadata properties
       const metadata = et.metadata ? (typeof et.metadata === 'object' ? et.metadata : {}) : {};
       const isRequired = 'isRequired' in metadata ? !!metadata.isRequired : false;
+      
+      // Special case for "Get to Know You" 15-minute free session
+      const isGetToKnowYouCall = et.name === "Get to Know You" && et.lengthInMinutes === 15 && et.isFree;
 
       return {
         id: et.ulid,
@@ -163,7 +178,8 @@ export async function fetchCoachEventTypes(): Promise<ApiResponse<FetchEventType
         locations: et.locations as any[] || [],
         // UI-specific fields
         isRequired,
-        canDisable: !isRequired
+        // Allow "Get to Know You" call to be disabled, even though it's a default
+        canDisable: isGetToKnowYouCall ? true : !isRequired
       };
     });
 
@@ -544,6 +560,126 @@ export async function syncCoachEventTypes(): Promise<ApiResponse<{ success: bool
     };
   } catch (error) {
     console.error('[SYNC_EVENT_TYPES_ERROR]', {
+      error,
+      timestamp: new Date().toISOString()
+    });
+    return {
+      data: { success: false },
+      error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }
+    };
+  }
+}
+
+/**
+ * Toggle an event type's active status (only in database, not in Cal.com)
+ * 
+ * This is a local-only operation that doesn't sync with Cal.com
+ * 
+ * @param eventTypeId Database ID of the event type
+ * @param enabled Whether the event type should be enabled or disabled
+ * @returns ApiResponse with success status
+ */
+export async function toggleEventTypeActive(
+  eventTypeId: string,
+  enabled: boolean
+): Promise<ApiResponse<{ success: boolean }>> {
+  try {
+    // Get authenticated user
+    const { userId } = auth();
+    if (!userId) {
+      return {
+        data: { success: false },
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' }
+      };
+    }
+
+    // Initialize Supabase client
+    const supabase = createAuthClient();
+
+    // Get the user's ULID
+    const { data: userData, error: userError } = await supabase
+      .from('User')
+      .select('ulid')
+      .eq('userId', userId)
+      .single();
+
+    if (userError) {
+      console.error('[TOGGLE_EVENT_TYPE_ERROR]', {
+        error: userError,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+      return {
+        data: { success: false },
+        error: { code: 'DATABASE_ERROR', message: 'Failed to find user in database' }
+      };
+    }
+
+    const userUlid = userData.ulid;
+
+    // Get the event type to check ownership
+    const { data: eventType, error: eventTypeError } = await supabase
+      .from('CalEventType')
+      .select('*, CalendarIntegration!inner(userUlid)')
+      .eq('ulid', eventTypeId)
+      .single();
+
+    if (eventTypeError) {
+      console.error('[TOGGLE_EVENT_TYPE_ERROR]', {
+        error: eventTypeError,
+        eventTypeId,
+        timestamp: new Date().toISOString()
+      });
+      return {
+        data: { success: false },
+        error: { code: 'DATABASE_ERROR', message: 'Failed to fetch event type' }
+      };
+    }
+
+    // Check ownership
+    if (eventType.CalendarIntegration.userUlid !== userUlid) {
+      console.error('[TOGGLE_EVENT_TYPE_ERROR] Unauthorized', {
+        eventTypeId,
+        userUlid,
+        ownerUlid: eventType.CalendarIntegration.userUlid,
+        timestamp: new Date().toISOString()
+      });
+      return {
+        data: { success: false },
+        error: { code: 'FORBIDDEN', message: 'You do not have permission to update this event type' }
+      };
+    }
+
+    // Update only the isActive field in the database (not syncing with Cal.com)
+    const { error: updateError } = await supabase
+      .from('CalEventType')
+      .update({
+        isActive: enabled,
+        updatedAt: new Date().toISOString()
+      })
+      .eq('ulid', eventTypeId);
+
+    if (updateError) {
+      console.error('[TOGGLE_EVENT_TYPE_ERROR]', {
+        error: updateError,
+        eventTypeId,
+        timestamp: new Date().toISOString()
+      });
+      return {
+        data: { success: false },
+        error: { code: 'DATABASE_ERROR', message: 'Failed to update event type' }
+      };
+    }
+
+    // Revalidate the path to ensure UI shows latest data
+    revalidatePath('/dashboard/coach/availability');
+
+    return {
+      data: { success: true },
+      error: null
+    };
+  } catch (error) {
+    console.error('[TOGGLE_EVENT_TYPE_ERROR]', {
       error,
       timestamp: new Date().toISOString()
     });

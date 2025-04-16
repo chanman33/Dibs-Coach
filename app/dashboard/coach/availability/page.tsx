@@ -3,7 +3,12 @@
 import { useEffect, useCallback, useState } from 'react'
 import { AvailabilityManager } from '@/components/coaching/AvailabilityManager'
 import { saveCoachAvailability, fetchCoachAvailability } from '@/utils/actions/availability'
-import { fetchCoachEventTypes, saveCoachEventTypes, createCoachDefaultEventTypes } from '@/utils/actions/cal/coach-event-type-actions'
+import { 
+  fetchCoachEventTypes, 
+  saveCoachEventTypes, 
+  createCoachDefaultEventTypes,
+  toggleEventTypeActive
+} from '@/utils/actions/cal/coach-event-type-actions'
 import { Loader2, Calendar, RefreshCw, AlertCircle, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
@@ -334,28 +339,24 @@ export default function CoachAvailabilityPage() {
   };
   
   const handleToggleEventType = async (eventTypeId: string, enabled: boolean) => {
-    const toastId = toast.loading(`${enabled ? 'Enabling' : 'Disabling'} session type...`);
+    const toastId = toast.loading(`${enabled ? 'Making session visible' : 'Making session invisible'} to clients...`);
     try {
-      // Find the event type and update its enabled status
-      const eventType = eventTypesData?.eventTypes.find(et => et.id === eventTypeId);
-      if (!eventType) {
-        throw new Error('Event type not found');
-      }
+      // Call our new direct toggle function
+      const result = await toggleEventTypeActive(eventTypeId, enabled);
       
-      // Call saveCoachEventTypes with the updated event type
-      const result = await saveCoachEventTypes({ 
-        eventTypes: eventTypesData?.eventTypes.map(et => 
-          et.id === eventTypeId ? { ...et, enabled } : et
-        ) || []
-      });
       if (result.error) {
         throw new Error(result.error.message);
       }
-      toast.success(`Session type ${enabled ? 'enabled' : 'disabled'} successfully.`, { id: toastId });
+      
+      const successMessage = enabled 
+        ? 'Session type is now active and visible to clients' 
+        : 'Session type is now inactive and hidden from clients';
+      
+      toast.success(successMessage, { id: toastId });
       refetchEventTypes(); // Refetch data
     } catch (error: any) {
       console.error(`Error toggling event type:`, error);
-      toast.error(`Failed to update session type: ${error.message}`, { id: toastId });
+      toast.error(`Failed to update session visibility: ${error.message}`, { id: toastId });
     }
   };
 

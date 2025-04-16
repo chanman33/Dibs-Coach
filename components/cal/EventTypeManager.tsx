@@ -56,10 +56,13 @@ export default function EventTypeManager({
     const eventType = eventTypes.find(et => et.id === id);
     
     // Check if this is a default/required event type that cannot be disabled
-    // Using isDefault as the indicator for now, adjust if needed
+    // Special case: "Get to Know You" free intro call CAN be toggled despite being a default
     if (eventType?.isDefault && !enabled) {
-      toast.error('The default Coaching Session event type cannot be disabled.');
-      return;
+      // Allow "Get to Know You" to be toggled, prevent disabling other default types
+      if (eventType.name !== "Get to Know You" && eventType.duration !== 15) {
+        toast.error(`The default ${eventType.name} event type cannot be disabled.`);
+        return;
+      }
     }
     
     await onToggleEventType(id, enabled); // Let parent handle API call and refetch
@@ -115,6 +118,11 @@ export default function EventTypeManager({
     if (isEditing && finalEventType.isDefault) {
       const originalEventType = eventTypes.find(et => et.id === finalEventType.id);
       
+      // Special case for "Get to Know You" free intro call - can be toggled on/off
+      const isGetToKnowYouCall = finalEventType.name === "Get to Know You" && 
+                                 finalEventType.duration === 15 && 
+                                 finalEventType.free;
+      
       // Ensure core properties of the default type aren't changed via UI
       // (API should enforce this too)
       finalEventType = {
@@ -124,9 +132,13 @@ export default function EventTypeManager({
         duration: originalEventType?.duration || finalEventType.duration, // Keep original duration
         free: originalEventType?.free ?? finalEventType.free, // Keep original free status
         schedulingType: originalEventType?.schedulingType || finalEventType.schedulingType, // Keep original type
-        enabled: true, // Default type must always be enabled
+        // Allow enabled toggle for "Get to Know You" call, force enabled=true for other default types
+        enabled: isGetToKnowYouCall ? finalEventType.enabled : true,
       };
-      toast.info('Some properties of the default event type cannot be changed.');
+      
+      if (!isGetToKnowYouCall) {
+        toast.info('Some properties of the default event type cannot be changed.');
+      }
     }
 
     if (isEditing) {
@@ -184,7 +196,12 @@ export default function EventTypeManager({
                   onToggle={handleToggleEventType}
                   // Pass flags based on fetched data
                   isRequired={Boolean(eventType.isDefault || eventType.isRequired)} // Ensure boolean type
-                  canDisable={eventType.canDisable ?? !eventType.isDefault} // Determine ability to disable
+                  canDisable={
+                    // Special case: "Get to Know You" 15-min free session can be toggled
+                    (eventType.name === "Get to Know You" && eventType.duration === 15 && eventType.free) 
+                      ? true 
+                      : (eventType.canDisable ?? !eventType.isDefault) // Otherwise follow normal rule
+                  }
                 />
               ))}
             </div>
@@ -327,17 +344,37 @@ export default function EventTypeManager({
                  </div>
 
                 {/* Active toggle - Disable if default and cannot be disabled */}
-                <div className="flex items-center space-x-2">
-                  <Switch 
-                    id="active"
-                    checked={currentEventType.enabled} 
-                    onCheckedChange={(checked) => setCurrentEventType({...currentEventType, enabled: checked})}
-                    // Disable toggle if it's the default event type (cannot be disabled)
-                    disabled={currentEventType.isDefault && isEditing} 
-                  />
-                  <Label htmlFor="active">Active / Enabled</Label>
-                  {currentEventType.isDefault && isEditing && (
-                    <span className="text-xs text-muted-foreground">(Required Enabled)</span>
+                <div className="space-y-2">
+                  <Label htmlFor="active" className="flex items-center gap-2">
+                    Visible to Clients
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="max-w-[250px]">
+                          <p>When active, this session type will be visible to clients for booking. Inactive sessions are hidden from clients but visible to you in this dashboard.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </Label>
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="active"
+                      checked={currentEventType.enabled} 
+                      onCheckedChange={(checked) => setCurrentEventType({...currentEventType, enabled: checked})}
+                      // Special case for "Get to Know You" free intro call - can be toggled
+                      disabled={
+                        currentEventType.isDefault && isEditing && 
+                        !(currentEventType.name === "Get to Know You" && currentEventType.duration === 15 && currentEventType.free)
+                      } 
+                    />
+                    <Label htmlFor="active" className="text-sm">
+                      {currentEventType.enabled ? 'Active - clients can book this session' : 'Inactive - hidden from clients'}
+                    </Label>
+                  </div>
+                  {currentEventType.isDefault && isEditing && currentEventType.name !== "Get to Know You" && (
+                    <p className="text-xs text-muted-foreground">Default session types must remain active.</p>
                   )}
                 </div>
               </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { Clock, Video, Trash2, Edit2, AlertTriangle } from 'lucide-react'
+import { Clock, Video, Trash2, Edit2, AlertTriangle, Info } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -54,6 +54,7 @@ export function EventTypeCard({
 
   return (
     <Card className="relative overflow-hidden transition-all flex flex-col h-[250px] w-[350px]">
+      
       {/* Changed from absolute positioning to integrated within CardHeader */}
       <CardHeader className="pb-0 space-y-1.5">
         <div className="flex justify-between items-start">
@@ -113,7 +114,23 @@ export function EventTypeCard({
             />
             <Label htmlFor={`enable-${eventType.id}`} className="text-sm">
               {eventType.enabled ? 'Active' : 'Inactive'}
+              {eventType.name === "Get to Know You" && eventType.duration === 15 && eventType.free && (
+                <span className="ml-1 text-xs text-muted-foreground">(Optional)</span>
+              )}
             </Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[220px]">
+                  <p>
+                    Toggle to {eventType.enabled ? 'hide' : 'show'} this session type from clients. 
+                    {!eventType.enabled && " Inactive sessions won't appear for booking."}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           
           {!isRequired ? (
@@ -121,7 +138,7 @@ export function EventTypeCard({
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="h-8 w-8 p-0" 
+                className="h-8 w-8 p-0"
                 onClick={() => onEdit(eventType.id)}
               >
                 <Edit2 className="h-3.5 w-3.5" />
@@ -131,7 +148,7 @@ export function EventTypeCard({
               <Button 
                 variant="outline" 
                 size="sm" 
-                className="h-8 w-8 p-0 text-destructive" 
+                className="h-8 w-8 p-0 text-destructive"
                 onClick={() => onDelete(eventType.id)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
