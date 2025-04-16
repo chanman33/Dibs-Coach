@@ -3,8 +3,7 @@
 import { useEffect, useCallback, useState } from 'react'
 import { AvailabilityManager } from '@/components/coaching/AvailabilityManager'
 import { saveCoachAvailability, fetchCoachAvailability } from '@/utils/actions/availability'
-import { fetchCoachEventTypes, saveCoachEventTypes } from '@/utils/actions/cal/cal-event-type-actions'
-import { createDefaultEventTypes } from '@/utils/actions/cal/cal-default-event-type'
+import { fetchCoachEventTypes, saveCoachEventTypes, createCoachDefaultEventTypes } from '@/utils/actions/cal/coach-event-type-actions'
 import { Loader2, Calendar, RefreshCw, AlertCircle, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'
@@ -97,28 +96,14 @@ export default function CoachAvailabilityPage() {
         timestamp: new Date().toISOString(),
       });
       
-      // Get the user's ULID from the current session
-      // We use dynamic approach to ensure we always have the latest user data
-      const { data: userData, error: userError } = await createAuthClient()
-        .from('User')
-        .select('ulid')
-        .eq('userId', (await auth()).userId as string)
-        .single();
-      
-      if (userError || !userData) {
-        throw new Error('Could not find user data');
-      }
-      
-      // Call the server action directly instead of the API endpoint
-      const result = await createDefaultEventTypes(userData.ulid);
+      // Call the new server action directly
+      const result = await createCoachDefaultEventTypes();
       
       if (!result.data?.success) {
         throw new Error(result.error?.message || 'Failed to create default session types');
       }
       
       console.log('[CREATE_DEFAULT_SUCCESS]', {
-        created: result.data?.totalCreated || 0,
-        eventTypes: result.data?.createdEventTypes?.map((et: { name: string }) => et.name) || [],
         timestamp: new Date().toISOString()
       });
       

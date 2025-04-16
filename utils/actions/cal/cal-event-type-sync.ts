@@ -2,6 +2,7 @@
 
 import { createAuthClient } from '@/utils/supabase/server';
 import { generateUlid } from '@/utils/ulid';
+import { makeCalApiRequest } from '@/lib/cal/cal-api';
 import { 
     DbCalEventType,
     CalEventTypeFromApi,
@@ -12,23 +13,64 @@ import {
  * Syncs Cal.com event types with the local database for a given user.
  * Creates missing event types, updates existing ones, and deactivates
  * local types that no longer exist in Cal.com.
+ * 
+ * If `calEventTypesFromApi` is empty, it fetches them from Cal.com API.
  */
 export async function syncCalEventTypesWithDb(
     userUlid: string,
     calendarIntegrationUlid: string,
-    calEventTypesFromApi: CalEventTypeFromApi[]
+    calEventTypesFromApiInput: CalEventTypeFromApi[]
 ): Promise<SyncResult> {
     const supabase = createAuthClient();
+    let fetchedFromCalCount = calEventTypesFromApiInput.length;
     const stats = {
-        fetchedFromCal: calEventTypesFromApi.length,
+        fetchedFromCal: 0,
         fetchedFromDb: 0,
         createdInDb: 0,
         updatedInDb: 0,
         deactivatedInDb: 0,
         skipped: 0,
     };
+    let currentCalEventTypes: CalEventTypeFromApi[] = calEventTypesFromApiInput;
 
     try {
+        // Fetch from Cal.com API if input array is empty
+        if (currentCalEventTypes.length === 0) {
+            console.log('[SYNC_EVENT_TYPES] Input array empty, fetching from Cal.com API', { userUlid });
+            try {
+                // Need calUsername to fetch event types for a specific user
+                const { data: integrationData, error: integrationError } = await supabase
+                    .from('CalendarIntegration')
+                    .select('calUsername')
+                    .eq('ulid', calendarIntegrationUlid)
+                    .single();
+
+                if (integrationError || !integrationData?.calUsername) {
+                    console.error('[SYNC_EVENT_TYPES_ERROR] Failed to get Cal username for API fetch', { error: integrationError, userUlid });
+                    return { success: false, error: 'Failed to get Cal username for synchronization' };
+                }
+                
+                // Fetch using makeCalApiRequest
+                // Assuming the response structure is { data: CalEventTypeFromApi[] }
+                const apiResponse = await makeCalApiRequest<{ data: CalEventTypeFromApi[] }>(
+                    `event-types?username=${encodeURIComponent(integrationData.calUsername)}`,
+                    'GET',
+                    undefined,
+                    userUlid // Pass userUlid for authentication
+                );
+                
+                currentCalEventTypes = apiResponse.data || [];
+                fetchedFromCalCount = currentCalEventTypes.length;
+                console.log('[SYNC_EVENT_TYPES] Fetched from Cal.com API', { count: fetchedFromCalCount, userUlid });
+
+            } catch (apiError) {
+                console.error('[SYNC_EVENT_TYPES_API_ERROR] Fetching from Cal.com failed', { error: apiError, userUlid });
+                return { success: false, error: 'Failed to fetch event types from Cal.com' };
+            }
+        }
+        
+        stats.fetchedFromCal = fetchedFromCalCount;
+
         // 1. Get existing DB event types for this integration
         const { data: dbEventTypesData, error: fetchError } = await supabase
             .from('CalEventType')
@@ -45,7 +87,7 @@ export async function syncCalEventTypesWithDb(
 
         // 2. Create maps for efficient lookup
         const calApiMap = new Map<number, CalEventTypeFromApi>();
-        calEventTypesFromApi.forEach(et => calApiMap.set(et.id, et));
+        currentCalEventTypes.forEach(et => calApiMap.set(et.id, et));
 
         const dbMap = new Map<number, DbCalEventType>();
         dbEventTypes.forEach(et => {
@@ -55,7 +97,7 @@ export async function syncCalEventTypesWithDb(
         });
 
         // 3. Process Creates and Updates (Sequentially)
-        for (const calEventType of calEventTypesFromApi) {
+        for (const calEventType of currentCalEventTypes) {
             const existingDbRecord = dbMap.get(calEventType.id);
             const dbPayload: Omit<DbCalEventType, 'ulid' | 'createdAt' | 'updatedAt'> = {
                 calendarIntegrationUlid,

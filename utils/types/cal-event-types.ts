@@ -135,7 +135,15 @@ export interface CalEventTypeCreatePayload {
   minimumBookingNotice?: number;
   beforeEventBuffer?: number;
   afterEventBuffer?: number;
-  // Other fields as needed by Cal.com API
+  disableGuests?: boolean;
+  slotInterval?: number;
+  confirmationPolicy?: CalConfirmationPolicy;
+  color?: CalEventTypeColor;
+  seats?: CalEventTypeSeats;
+  customName?: string;
+  useDestinationCalendarEmail?: boolean;
+  hideCalendarEventDetails?: boolean;
+  currency?: string;
 }
 
 /**
@@ -355,21 +363,45 @@ export function eventTypeToDbFields(eventType: EventType, calendarIntegrationUli
 export function eventTypeToCalFormat(eventType: EventType, hourlyRate: number = 0): CalEventTypeCreatePayload {
   const price = eventType.free ? 0 : calculateEventPrice(hourlyRate, eventType.duration);
   
+  // Default values based on working payload
+  const defaultColor: CalEventTypeColor = {
+    lightThemeHex: '#3B82F6',
+    darkThemeHex: '#60A5FA'
+  };
+  const defaultSeats: CalEventTypeSeats = {
+    seatsPerTimeSlot: eventType.maxParticipants || 1, // Use maxParticipants if available, default 1
+    showAttendeeInfo: false,
+    showAvailabilityCount: false
+  };
+  const defaultConfirmationPolicy: CalConfirmationPolicy = {
+    disabled: true
+  };
+
   return {
     title: eventType.name,
     slug: generateSlug(eventType.name),
-    description: eventType.description,
+    description: eventType.description || '', // Ensure non-null description
     lengthInMinutes: eventType.duration,
     hidden: !eventType.enabled,
     price,
-    schedulingType: (eventType.schedulingType as string).toLowerCase() || null,
-    locations: [{
-      type: 'link',
-      link: 'https://dibs.coach/call/session',
-      public: true
-    }],
-    seatsPerTimeSlot: eventType.maxParticipants,
-    metadata: eventType.discountPercentage ? { discountPercentage: eventType.discountPercentage } : undefined,
+    currency: 'USD', // Default currency
+    // Ensure schedulingType is uppercase string or null
+    schedulingType: eventType.schedulingType ? (eventType.schedulingType as string).toUpperCase() : null,
+    locations: eventType.locations || [{ type: 'link', link: 'https://dibs.coach/call/session', public: true }], // Default location
+    // Optional fields with defaults from working payload or EventType
+    minimumBookingNotice: eventType.minimumBookingNotice ?? 60,
+    beforeEventBuffer: eventType.beforeEventBuffer ?? undefined, // Send if defined
+    afterEventBuffer: eventType.afterEventBuffer ?? undefined, // Send if defined
+    disableGuests: true, // Default from working payload
+    slotInterval: eventType.slotInterval ?? 30, // Default from working payload
+    confirmationPolicy: defaultConfirmationPolicy, // Default from working payload
+    color: defaultColor, // Default from working payload
+    seats: defaultSeats, // Default from working payload, includes seatsPerTimeSlot
+    customName: `Dibs: ${eventType.name} between {Organiser} and {Scheduler}`, // Default format
+    useDestinationCalendarEmail: true, // Default from working payload
+    hideCalendarEventDetails: false, // Default from working payload
+    // Removed metadata mapping for discountPercentage
+    metadata: eventType.discountPercentage ? { dibsDiscountPercentage: eventType.discountPercentage } : undefined, // Example metadata usage
   };
 }
 

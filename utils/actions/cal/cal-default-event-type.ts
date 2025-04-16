@@ -3,12 +3,13 @@
 import { createAuthClient } from '@/utils/auth';
 import { CalTokenService } from '@/lib/cal/cal-service';
 import { generateUlid } from '@/utils/ulid';
-import { ensureValidCalToken } from '@/utils/actions/cal/cal-tokens';
 import { makeCalApiRequest } from '@/lib/cal/cal-api';
 import { ApiResponse } from '@/utils/types/api';
 import { 
   DbCalEventType, 
-  calculateEventPrice 
+  calculateEventPrice,
+  eventTypeToCalFormat,
+  generateSlug
 } from '@/utils/types/cal-event-types';
 import { syncCalEventTypesWithDb } from '@/utils/actions/cal/cal-event-type-sync';
 
@@ -133,22 +134,6 @@ export async function createDefaultEventTypes(
       };
     }
 
-    // Ensure a valid token exists using our centralized token service
-    const tokenResult = await ensureValidCalToken(userUlid);
-    if (!tokenResult.success || !tokenResult.accessToken) {
-      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Invalid token', { 
-        error: tokenResult.error, 
-        userUlid 
-      });
-      return {
-        data: { success: false },
-        error: { 
-          code: 'AUTH_ERROR', 
-          message: tokenResult.error || 'Failed to obtain valid Cal.com token. Please reconnect in settings.' 
-        }
-      };
-    }
-
     // Get coach's hourly rate for paid events
     const { data: coachProfile, error: profileError } = await supabase
       .from('CoachProfile')
@@ -235,7 +220,7 @@ export async function createDefaultEventTypes(
         position: 0,
         maxParticipants: 1,
         discountPercentage: null,
-        locations: [{ type: 'link', link: 'https://dibs.coach/call/session' }],
+        locations: [{ type: 'link', link: 'https://dibs.coach/call/session', public: true }],
         beforeEventBuffer: 5,
         afterEventBuffer: 5,
         minimumBookingNotice: 60,
@@ -251,7 +236,7 @@ export async function createDefaultEventTypes(
         position: 1,
         maxParticipants: 1,
         discountPercentage: null,
-        locations: [{ type: 'link', link: 'https://dibs.coach/call/session' }],
+        locations: [{ type: 'link', link: 'https://dibs.coach/call/session', public: true }],
         beforeEventBuffer: 5,
         afterEventBuffer: 5,
         minimumBookingNotice: 240,
@@ -267,7 +252,7 @@ export async function createDefaultEventTypes(
         position: 2,
         maxParticipants: 1,
         discountPercentage: null,
-        locations: [{ type: 'link', link: 'https://dibs.coach/call/session' }],
+        locations: [{ type: 'link', link: 'https://dibs.coach/call/session', public: true }],
         beforeEventBuffer: 5,
         afterEventBuffer: 5,
         minimumBookingNotice: 60,
@@ -281,7 +266,6 @@ export async function createDefaultEventTypes(
     let allCreationFailed = true;
     
     const calUserId = calendarIntegration.calManagedUserId;
-    const accessToken = tokenResult.accessToken;
 
     // Create each event type
     for (const eventType of defaultEventTypes) {
@@ -299,25 +283,39 @@ export async function createDefaultEventTypes(
       const price = eventType.isFree ? 0 : calculateEventPrice(hourlyRate, eventType.duration);
       
       try {
-        // Create in Cal.com using makeCalApiRequest which handles token validation internally
+        // Construct the EventType object required by the helper
+        const tempEventType = {
+          id: 'temp-' + generateUlid(), // Temporary ID for helper
+          name: eventType.name,
+          description: eventType.description,
+          duration: eventType.duration,
+          free: eventType.isFree,
+          enabled: eventType.isActive,
+          isDefault: true, // Mark as default
+          schedulingType: eventType.scheduling,
+          maxParticipants: eventType.maxParticipants,
+          // Ensure discountPercentage is number | undefined
+          discountPercentage: eventType.discountPercentage === null ? undefined : eventType.discountPercentage,
+          beforeEventBuffer: eventType.beforeEventBuffer,
+          afterEventBuffer: eventType.afterEventBuffer,
+          minimumBookingNotice: eventType.minimumBookingNotice,
+          locations: eventType.locations,
+          metadata: eventType.metadata, // Pass metadata along
+          // Ensure required fields for EventType are present
+          // These won't be sent to Cal.com by the helper if not part of Cal format
+          slotInterval: 30, // Default
+          organizationId: undefined
+        };
+
+        // Prepare payload using the helper function
+        const calPayload = eventTypeToCalFormat(tempEventType, price);
+
+        // Create in Cal.com using makeCalApiRequest
+        // makeCalApiRequest handles token validation internally via userUlid
         const calEventTypeResult = await makeCalApiRequest(
           `event-types`,
           'POST',
-          {
-            title: eventType.name,
-            description: eventType.description,
-            lengthInMinutes: eventType.duration,
-            price,
-            hidden: !eventType.isActive,
-            schedulingType: eventType.scheduling,
-            metadata: eventType.metadata,
-            locations: eventType.locations,
-            beforeEventBuffer: eventType.beforeEventBuffer,
-            afterEventBuffer: eventType.afterEventBuffer,
-            minimumBookingNotice: eventType.minimumBookingNotice,
-            seatsPerTimeSlot: eventType.maxParticipants,
-            currency: 'USD'
-          },
+          calPayload, // Use the payload from the helper function
           userUlid
         );
         
@@ -362,7 +360,6 @@ export async function createDefaultEventTypes(
             organizationUlid: null,
             hidden: !eventType.isActive,
             requiresConfirmation: false,
-            slotInterval: 30,
             customName: null,
             color: null,
             useDestinationCalendarEmail: true,

@@ -67,6 +67,7 @@ export async function makeCalApiRequest<T = any>(
     let headers: HeadersInit = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'cal-api-version': '2024-06-14'
     };
 
     if (userUlid) {
@@ -97,9 +98,39 @@ export async function makeCalApiRequest<T = any>(
     }
 
     // Make the request
-    const response = await fetch(url, requestConfig);
+    let response = await fetch(url, requestConfig);
 
-    // Handle non-success responses
+    // Handle token expiration (status 498) specifically with auto-retry
+    if (response.status === 498 && userUlid) {
+      console.log('[CAL_API] Detected token expiration (status 498), refreshing token');
+      
+      // Force refresh the token
+      const refreshResult = await CalTokenService.refreshTokens(userUlid, true);
+      
+      if (refreshResult.success && refreshResult.tokens?.access_token) {
+        console.log('[CAL_API] Token refreshed successfully, retrying request');
+        
+        // Update the Authorization header with the new token
+        const newHeaders = { ...requestConfig.headers } as Record<string, string>;
+        newHeaders['Authorization'] = `Bearer ${refreshResult.tokens.access_token}`;
+        
+        // Create a new request config with the updated headers
+        const retryConfig = {
+          ...requestConfig,
+          headers: newHeaders
+        };
+        
+        // Retry the request with the new token
+        response = await fetch(url, retryConfig);
+      } else {
+        console.error('[CAL_API] Failed to refresh token for retry', {
+          userUlid,
+          error: refreshResult.error
+        });
+      }
+    }
+
+    // Handle non-success responses after potential retry
     if (!response.ok) {
       let errorMessage = `Cal.com API request failed with status ${response.status}`;
       let errorDetail = '';
@@ -141,87 +172,4 @@ export async function makeCalApiRequest<T = any>(
   }
 }
 
-// Legacy client maintained for backward compatibility
-class CalApiClient {
-  private tokens: CalTokens | null = null;
-  private tokenPromise: Promise<CalTokens> | null = null;
-  private isConfigured: boolean;
-
-  constructor() {
-    // Check if we have the necessary configuration
-    this.isConfigured = !!(
-      calConfig.clientId && 
-      (calConfig.clientSecret || process.env.CAL_CLIENT_SECRET) && 
-      calConfig.organizationId
-    );
-    
-    console.warn('[DEPRECATED] CalApiClient is deprecated, use makeCalApiRequest instead.');
-  }
-
-  private async ensureValidToken(): Promise<string> {
-    if (!this.isConfigured) {
-      throw new Error('Cal.com API is not configured. Missing required credentials.');
-    }
-
-    if (!this.tokens) {
-      if (!this.tokenPromise) {
-        this.tokenPromise = this.refreshTokens();
-      }
-      this.tokens = await this.tokenPromise;
-      this.tokenPromise = null;
-    } else if (this.tokens.expires_at <= Date.now()) {
-      this.tokens = await this.refreshTokens();
-    }
-    return this.tokens.access_token;
-  }
-
-  private async refreshTokens(): Promise<CalTokens> {
-    throw new Error('Deprecated: Use CalTokenService for token management instead');
-  }
-
-  private async getHeaders(): Promise<HeadersInit> {
-    const token = await this.ensureValidToken();
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
-  // Fetch available event types
-  async getEventTypes(): Promise<CalEventType[]> {
-    console.warn('[DEPRECATED] Use makeCalApiRequest instead of CalApiClient');
-    throw new Error('Deprecated: Use makeCalApiRequest for API calls');
-  }
-
-  // Fetch available time slots for an event type
-  async getAvailability(
-    eventTypeId: number,
-    start: string,
-    end: string
-  ): Promise<CalTimeSlot[]> {
-    console.warn('[DEPRECATED] Use makeCalApiRequest instead of CalApiClient');
-    throw new Error('Deprecated: Use makeCalApiRequest for API calls');
-  }
-
-  // Create a new booking
-  async createBooking(
-    data: CreateBookingData,
-    customRedirectPath?: string
-  ) {
-    console.warn('[DEPRECATED] Use makeCalApiRequest instead of CalApiClient');
-    throw new Error('Deprecated: Use makeCalApiRequest for API calls');
-  }
-
-  // Set tokens (used after OAuth flow)
-  setTokens(tokens: CalTokens) {
-    console.warn('[DEPRECATED] Use CalTokenService instead of CalApiClient');
-    this.tokens = tokens;
-  }
-
-  // Check if Cal.com is properly configured
-  isCalConfigured(): boolean {
-    return this.isConfigured;
-  }
-}
-
-export const calApiClient = new CalApiClient(); 
+// [CURSOR]: Removed deprecated CalApiClient class and instance 
