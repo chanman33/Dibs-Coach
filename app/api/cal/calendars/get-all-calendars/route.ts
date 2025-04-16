@@ -116,27 +116,16 @@ export async function GET() {
     // Initial request with current token
     let response = await makeCalRequest(accessToken);
     
-    // If initial request fails with 401, force refresh token and try again
-    if (response.status === 401) {
-      console.log('[CAL_GET_CALENDARS] First attempt failed with 401, forcing token refresh');
-      
-      // Force refresh token only when needed (after a 401 response)
-      const forcedTokenResult = await ensureValidCalToken(userData.ulid, true);
-      
-      if (forcedTokenResult.success && forcedTokenResult.tokenInfo?.accessToken) {
-        console.log('[CAL_GET_CALENDARS] Token refreshed successfully, retrying request');
-        response = await makeCalRequest(forcedTokenResult.tokenInfo.accessToken);
-      }
-    } else {
-      // Handle other potential token issues with our utility
-      response = await handleCalApiResponse(
-        response,
-        makeCalRequest,
-        userData.ulid
-      );
-    }
+    // Simplified: Always pass the response through handleCalApiResponse
+    // It will handle 401/498 by attempting refresh and retry, or return the original response otherwise.
+    response = await handleCalApiResponse(
+      response,
+      makeCalRequest, // The function to retry the request
+      userData.ulid
+    );
 
     if (!response.ok) {
+      // Log the final response status and error after potential retry
       console.error('[CAL_GET_CALENDARS_ERROR]', {
         status: response.status,
         error: await response.text(),

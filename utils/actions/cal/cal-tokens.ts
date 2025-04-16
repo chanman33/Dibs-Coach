@@ -134,9 +134,10 @@ export async function refreshUserCalTokens(userUlid: string, forceRefresh = fals
  * Refreshes the token if necessary
  * 
  * @param userUlid The user's ULID
+ * @param forceRefresh (Optional) Force token refresh even if not expired
  * @returns The valid token or an error
  */
-export async function ensureValidCalToken(userUlid: string): Promise<{
+export async function ensureValidCalToken(userUlid: string, forceRefresh = false): Promise<{
   accessToken: string;
   success: boolean;
   error?: string;
@@ -144,11 +145,12 @@ export async function ensureValidCalToken(userUlid: string): Promise<{
   try {
     console.log('[CAL_TOKENS_ENSURE]', {
       userUlid,
+      forceRefresh,
       timestamp: new Date().toISOString()
     });
 
-    // Call the centralized service to ensure a valid token
-    return await CalTokenService.ensureValidToken(userUlid);
+    // Call the centralized service to ensure a valid token, passing forceRefresh
+    return await CalTokenService.ensureValidToken(userUlid, forceRefresh);
   } catch (error) {
     console.error('[CAL_TOKENS_ENSURE_ERROR]', {
       context: 'SERVER_ACTION',

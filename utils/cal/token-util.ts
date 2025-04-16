@@ -107,8 +107,8 @@ export async function ensureValidCalToken(
       timestamp: new Date().toISOString()
     });
 
-    // Use the server action for consistent cache invalidation behavior
-    const tokenResult = await serverActionEnsureValidToken(userUlid);
+    // Use the server action, passing the forceRefresh flag
+    const tokenResult = await serverActionEnsureValidToken(userUlid, forceRefresh);
     
     if (!tokenResult.success) {
       return {
@@ -171,12 +171,14 @@ export async function handleCalApiResponse(
         return apiResponse;
       }
       
-      // Get the updated token
-      const tokenResult = await CalTokenService.ensureValidToken(userUlid);
+      // Get the updated token using the centralized ensureValidToken service
+      // We use forceRefresh=false here because we ONLY want the LATEST token,
+      // the refresh should have already happened via CalTokenService.refreshTokens above.
+      const tokenResult = await CalTokenService.ensureValidToken(userUlid, false);
       
-      if (!tokenResult.success) {
+      if (!tokenResult.success || !tokenResult.accessToken) {
         console.error(`[CAL_TOKEN_UTIL] Failed to get valid token after refresh:`, tokenResult.error);
-        return apiResponse;
+        return apiResponse; // Return original error if we can't get the new token
       }
 
       // Retry the original API call with the new token
@@ -218,11 +220,11 @@ export async function handleCalApiResponse(
       return apiResponse;
     }
     
-    // Get the updated token
-    const tokenResult = await CalTokenService.ensureValidToken(userUlid);
+    // Get the updated token using the centralized ensureValidToken service
+    const tokenResult = await CalTokenService.ensureValidToken(userUlid, false);
     
-    if (!tokenResult.success) {
-      console.error('[CAL_TOKEN_UTIL] Failed to get valid token after refresh:', tokenResult.error);
+    if (!tokenResult.success || !tokenResult.accessToken) {
+      console.error(`[CAL_TOKEN_UTIL] Failed to get valid token after refresh (TokenExpiredException):`, tokenResult.error);
       return apiResponse;
     }
 

@@ -21,6 +21,7 @@ import {
   updateScheduleSyncStatus
 } from '@/utils/mapping/schedule-mapper'
 import { Json } from '@/types/supabase'
+import { CalTokenService } from '@/lib/cal/cal-service'
 import { makeCalApiRequest, getCalOAuthHeaders, getCalAuthHeaders } from '@/utils/cal/cal-api-utils'
 
 // Add custom error codes
@@ -127,8 +128,7 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
     
     try {
       // Use the utility function to check expiration with buffer
-      const { isCalTokenExpired } = await import('@/utils/cal/cal-token-service');
-      isTokenExpired = await isCalTokenExpired(integration.calAccessTokenExpiresAt, 5);
+      isTokenExpired = CalTokenService.isTokenExpired(integration.calAccessTokenExpiresAt || '', 5);
       
       console.log('[CAL_DEBUG] Token expiration check:', {
         isExpired: isTokenExpired,
@@ -466,8 +466,7 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
     
     // Use proper token expiration check instead of simple date comparison
     try {
-      const { isCalTokenExpired } = await import('@/utils/cal/cal-token-service');
-      const isTokenExpired = await isCalTokenExpired(integration.calAccessTokenExpiresAt, 5);
+      const isTokenExpired = CalTokenService.isTokenExpired(integration.calAccessTokenExpiresAt || '', 5);
       
       if (isTokenExpired) {
         console.log('[SYNC_CAL_SCHEDULES]', {

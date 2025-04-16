@@ -6,6 +6,7 @@ export type ApiErrorCode =
   | 'FETCH_ERROR'
   | 'UPDATE_ERROR'
   | 'CREATE_ERROR'
+  | 'DELETE_ERROR'
   | 'NOT_FOUND'
   | 'MISSING_ID'
   | 'MISSING_PARAMETERS'

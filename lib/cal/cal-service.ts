@@ -524,9 +524,10 @@ export class CalTokenService {
    * Refreshes the token if necessary
    * 
    * @param userUlid The user's ULID
+   * @param forceRefresh Whether to force refresh even if not expired
    * @returns The valid access token or an error
    */
-  static async ensureValidToken(userUlid: string): Promise<{
+  static async ensureValidToken(userUlid: string, forceRefresh = false): Promise<{
     accessToken: string;
     success: boolean;
     error?: string;
@@ -534,6 +535,7 @@ export class CalTokenService {
     try {
       console.log('[CAL_TOKEN_SERVICE] Ensuring valid token', {
         userUlid,
+        forceRefresh,
         timestamp: new Date().toISOString()
       });
 
@@ -580,16 +582,20 @@ export class CalTokenService {
         };
       }
 
-      // Check if token is expired
-      if (integration.calAccessTokenExpiresAt && 
-          this.isTokenExpired(integration.calAccessTokenExpiresAt)) {
-        console.log('[CAL_TOKEN_SERVICE] Token expired, refreshing', {
+      // Check if token is expired or if forceRefresh is requested
+      const needsRefresh = forceRefresh || (integration.calAccessTokenExpiresAt && 
+          this.isTokenExpired(integration.calAccessTokenExpiresAt));
+
+      if (needsRefresh) {
+        console.log('[CAL_TOKEN_SERVICE] Token needs refresh', {
           userUlid,
+          reason: forceRefresh ? 'Forced refresh' : 'Token expired',
           expiresAt: integration.calAccessTokenExpiresAt
         });
         
-        // Refresh token
-        const refreshResult = await this.refreshTokens(userUlid);
+        // Refresh token, passing forceRefresh flag
+        // Note: refreshTokens internally handles the logic for managed vs. non-managed based on DB data
+        const refreshResult = await this.refreshTokens(userUlid, forceRefresh);
         
         if (!refreshResult.success) {
           return { 
