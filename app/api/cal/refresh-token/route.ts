@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { createAuthClient } from '@/utils/auth';
-import { refreshUserCalTokens } from '@/utils/actions/cal-tokens';
+import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens';
 
 /**
  * API endpoint for refreshing a user's Cal.com token

@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import CalAvailabilityTest from './CalAvailabilityTest'
-import { fetchCalIntegrationStatus } from '@/utils/actions/cal-integration-actions'
+import { fetchCalIntegrationStatus } from '@/utils/actions/cal/cal-integration-actions'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import CalManagedUserTest from './CalManagedUserTest'

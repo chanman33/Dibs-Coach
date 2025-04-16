@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/utils/auth'
 import { auth } from '@clerk/nextjs'
-import { refreshUserCalTokens } from '@/utils/actions/cal-tokens'
+import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens'
 
 // Define a simple interface just for what we need
 interface CalendarIntegration {

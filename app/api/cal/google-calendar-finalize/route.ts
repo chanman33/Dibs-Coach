@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/utils/auth'
 import { auth } from '@clerk/nextjs'
-import { ensureValidCalToken as serverActionEnsureValidToken } from '@/utils/actions/cal-tokens'
+import { ensureValidCalToken as serverActionEnsureValidToken } from '@/utils/actions/cal/cal-tokens'
 
 /**
  * API Route to finalize Google Calendar connection after the user

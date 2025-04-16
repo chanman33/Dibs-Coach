@@ -192,7 +192,7 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
         tokenStatus = 'expired';
         
         // Use the refreshUserCalTokens utility to refresh the token
-        const { refreshUserCalTokens } = await import('@/utils/actions/cal-tokens');
+        const { refreshUserCalTokens } = await import('@/utils/actions/cal/cal-tokens');
         
         // Always use force refresh for managed users to ensure we use the correct endpoint
         const isManagedUser = !!integration.calManagedUserId;
@@ -477,7 +477,7 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
         });
         
         // Use the refreshUserCalTokens utility with force refresh for managed users
-        const { refreshUserCalTokens } = await import('@/utils/actions/cal-tokens');
+        const { refreshUserCalTokens } = await import('@/utils/actions/cal/cal-tokens');
         const isManagedUser = !!integration.calManagedUserId;
         const refreshResult = await refreshUserCalTokens(userData.ulid, isManagedUser);
         

@@ -2,7 +2,7 @@
 'use server';
 
 import { createAuthClient } from '@/utils/auth';
-import { ensureValidCalToken as serverActionEnsureValidToken } from '@/utils/actions/cal-tokens';
+import { ensureValidCalToken as serverActionEnsureValidToken } from '@/utils/actions/cal/cal-tokens';
 import { CalTokenService } from '@/lib/cal/cal-service';
 
 /**

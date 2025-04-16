@@ -11,7 +11,7 @@ import { auth } from '@clerk/nextjs';
 import { createAuthClient } from '@/utils/auth';
 import { env } from '@/lib/env';
 import { CalTokenService } from '@/lib/cal/cal-service';
-import { refreshUserCalTokens } from '@/utils/actions/cal-tokens';
+import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens';
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { fetchCalIntegrationStatus, type CalIntegrationDetails } from '@/utils/actions/cal-integration-actions'
+import { fetchCalIntegrationStatus, type CalIntegrationDetails } from '@/utils/actions/cal/cal-integration-actions'
 import { CheckCircle, RefreshCw, CalendarDays, AlertTriangle, Unlink, RotateCw } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useRouter } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
 import { toast } from 'react-hot-toast'
-import { refreshUserCalTokens } from '@/utils/actions/cal-tokens'
+import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens'
 
 interface CalConnectedStatusProps {
   className?: string

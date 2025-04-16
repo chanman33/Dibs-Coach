@@ -3,14 +3,14 @@
 import { createAuthClient } from '@/utils/auth';
 import { CalTokenService } from '@/lib/cal/cal-service';
 import { generateUlid } from '@/utils/ulid';
-import { ensureValidCalToken } from '@/utils/actions/cal-tokens';
+import { ensureValidCalToken } from '@/utils/actions/cal/cal-tokens';
 import { makeCalApiRequest } from '@/lib/cal/cal-api';
 import { ApiResponse } from '@/utils/types/api';
 import { 
   DbCalEventType, 
   calculateEventPrice 
 } from '@/utils/types/cal-event-types';
-import { syncCalEventTypesWithDb } from '@/utils/actions/cal-event-type-sync';
+import { syncCalEventTypesWithDb } from '@/utils/actions/cal/cal-event-type-sync';
 
 /**
  * Create default event types for a coach user
