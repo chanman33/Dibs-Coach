@@ -20,8 +20,11 @@ export async function GET() {
     console.log('[CAL_GET_CALENDARS] Starting fetch of user calendars');
     
     // Get the user's ID from auth
-    const { userId } = auth()
+    const session = auth()
+    const userId = session?.userId
+    
     if (!userId) {
+      console.error('[CAL_GET_CALENDARS_ERROR] Authentication required');
       return NextResponse.json({ 
         success: false, 
         error: 'User not authenticated' 

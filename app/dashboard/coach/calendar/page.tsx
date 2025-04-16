@@ -106,13 +106,13 @@ interface Calendar {
 }
 
 export default function CoachCalendarPage() {
-  const { user } = useUser()
+  const { user, isLoaded: isUserLoaded } = useUser()
   const [coachDbId, setCoachDbId] = useState<string | null>(null)
   const [busyTimes, setBusyTimes] = useState<BusyTime[]>([])
   const [isLoadingBusyTimes, setIsLoadingBusyTimes] = useState(false)
   const [calendarToken, setCalendarToken] = useState<string | null>(null)
   const [selectedCalendars, setSelectedCalendars] = useState<Calendar[]>([])
-  const [calendarConnectionState, setCalendarConnectionState] = useState<'loading' | 'connected' | 'not_connected' | 'error'>('loading')
+  const [calendarConnectionState, setCalendarConnectionState] = useState<'loading' | 'connected' | 'not_connected' | 'error' | 'auth_error'>('loading')
   const [initialCalendarLoad, setInitialCalendarLoad] = useState(true)
 
   // Fetch coach's database ID using server action
@@ -128,7 +128,7 @@ export default function CoachCalendarPage() {
         return null
       }
     },
-    enabled: !!user?.id
+    enabled: !!user?.id && isUserLoaded
   })
 
   // Update coachDbId when dbId changes
@@ -140,34 +140,57 @@ export default function CoachCalendarPage() {
 
   // Fetch coach sessions
   const { data: sessions, isLoading: isLoadingSessions } = useQuery({
-    queryKey: ['coach-sessions'],
+    queryKey: ['coach-sessions', user?.id],
     queryFn: async () => {
+      if (!user?.id) return []
       const response = await fetchCoachSessions({})
       return response.data || []
     },
+    enabled: !!user?.id && isUserLoaded
   })
 
   // Fetch coach's calendars
   const { data: calendarData, isLoading: isLoadingCalendars, error: calendarError } = useQuery({
-    queryKey: ['coach-calendars', coachDbId],
+    queryKey: ['coach-calendars', coachDbId, user?.id],
     queryFn: async () => {
-      if (!coachDbId) return null
+      if (!coachDbId || !user?.id) return null
       
-      const response = await fetch('/api/cal/calendars/get-all-calendars')
-      if (!response.ok) {
-        throw new Error('Failed to fetch calendars')
+      try {
+        const response = await fetch('/api/cal/calendars/get-all-calendars')
+        
+        if (response.status === 401) {
+          setCalendarConnectionState('auth_error')
+          return null
+        }
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch calendars')
+        }
+        
+        const data = await response.json()
+        return data.success ? data.data : null
+      } catch (error) {
+        console.error('[FETCH_CALENDARS_ERROR]', error)
+        throw error
       }
-      const data = await response.json()
-      return data.success ? data.data : null
     },
-    enabled: !!coachDbId,
-    retry: 2
+    enabled: !!coachDbId && !!user?.id && isUserLoaded,
+    retry: (failureCount, error: any) => {
+      // Don't retry on auth errors
+      if (error?.status === 401) return false
+      return failureCount < 2
+    }
   })
 
   // Handle query errors
   useEffect(() => {
     if (calendarError) {
-      setCalendarConnectionState('error')
+      // Check if it's an auth error
+      if (calendarError.message?.includes('401') || calendarError.status === 401) {
+        setCalendarConnectionState('auth_error')
+      } else {
+        setCalendarConnectionState('error')
+      }
       setInitialCalendarLoad(false)
     }
   }, [calendarError])
@@ -185,15 +208,27 @@ export default function CoachCalendarPage() {
       setCalendarConnectionState('not_connected')
       setInitialCalendarLoad(false)
     } else if (!isLoadingCalendars && calendarError) {
-      setCalendarConnectionState('error')
+      // Already handled in the error effect
       setInitialCalendarLoad(false)
     }
-  }, [calendarData, isLoadingCalendars, calendarError])
+  }, [calendarData, isLoadingCalendars])
 
   // Fetch Cal.com access token
   const fetchToken = async () => {
+    if (!user?.id) {
+      setCalendarConnectionState('auth_error')
+      setInitialCalendarLoad(false)
+      return
+    }
+    
     try {
       const response = await fetch('/api/cal/calendars/status')
+      
+      if (response.status === 401) {
+        setCalendarConnectionState('auth_error')
+        setInitialCalendarLoad(false)
+        return
+      }
       
       if (!response.ok) {
         throw new Error('Failed to fetch calendar status')
@@ -223,7 +258,7 @@ export default function CoachCalendarPage() {
 
   // Function to fetch busy times
   const fetchBusyTimes = async () => {
-    if (selectedCalendars.length === 0 || !calendarToken) {
+    if (selectedCalendars.length === 0 || !calendarToken || !user?.id) {
       setInitialCalendarLoad(false)
       return
     }
@@ -258,6 +293,13 @@ export default function CoachCalendarPage() {
         }
       })
       
+      if (response.status === 401) {
+        setCalendarConnectionState('auth_error')
+        setInitialCalendarLoad(false)
+        setIsLoadingBusyTimes(false)
+        return
+      }
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch busy times: ${response.status}`)
       }
@@ -281,6 +323,12 @@ export default function CoachCalendarPage() {
 
   // Handle manual refresh of busy times or connect calendar
   const handleCalendarAction = () => {
+    if (calendarConnectionState === 'auth_error') {
+      // For auth errors, redirect to sign in
+      window.location.href = '/sign-in?redirect_url=' + encodeURIComponent(window.location.pathname)
+      return
+    }
+    
     if (calendarConnectionState === 'connected' || (selectedCalendars.length > 0 && calendarToken)) {
       setInitialCalendarLoad(true)
       fetchBusyTimes()
@@ -291,7 +339,7 @@ export default function CoachCalendarPage() {
   }
 
   // Include sessions loading in the overall loading state, but handle busyTimes separately
-  const isSessionsLoading = isLoadingSessions || isLoadingDbId
+  const isSessionsLoading = isLoadingSessions || isLoadingDbId || !isUserLoaded
   
   // Include busy times loading in the overall loading state
   const isCalendarLoading = isSessionsLoading || isLoadingBusyTimes || initialCalendarLoad
@@ -304,6 +352,7 @@ export default function CoachCalendarPage() {
       case 'connected': return 'Refresh Calendar'
       case 'not_connected': return 'Connect Calendar'
       case 'error': return 'Retry Connection'
+      case 'auth_error': return 'Sign In Required'
       default: return 'Calendar'
     }
   }
@@ -344,7 +393,10 @@ export default function CoachCalendarPage() {
 
   // Determine if we need to show calendar connection notice
   const showCalendarConnectionNotice = 
-    !isLoadingCalendars && !initialCalendarLoad && (calendarConnectionState === 'not_connected' || calendarConnectionState === 'error')
+    !isLoadingCalendars && !initialCalendarLoad && 
+    (calendarConnectionState === 'not_connected' || 
+     calendarConnectionState === 'error' || 
+     calendarConnectionState === 'auth_error')
 
   return (
     <div className="container mx-auto py-6 px-4 h-full min-h-screen">
@@ -354,6 +406,8 @@ export default function CoachCalendarPage() {
         <div className="mb-4 p-3 border rounded-md bg-amber-50 border-amber-200 text-amber-800">
           {calendarConnectionState === 'not_connected' ? (
             <p>No calendar connected. Connect your calendar to see your busy times.</p>
+          ) : calendarConnectionState === 'auth_error' ? (
+            <p>Authentication error. Please sign in again to access your calendar.</p>
           ) : (
             <p>There was an issue connecting to your calendar. Please try refreshing or check your settings.</p>
           )}

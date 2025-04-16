@@ -9,9 +9,9 @@ const publicPaths = [
   '/',
   '/sign-in(.*)',
   '/sign-up(.*)',
-  '/api/webhooks(.*)',
-  '/api/auth/(.*)',
-  '/api/cal/(.*)',
+  '/api/webhooks(.*)',      // Public webhooks
+  '/api/auth/(.*)',       // Clerk auth routes
+  '/api/cal/webhook(.*)', // Public Cal webhooks
   '/contact-sales(.*)',
   '/coaches(.*)',
   '/pricing(.*)',
@@ -24,90 +24,134 @@ const publicPaths = [
   '/business-solutions(.*)',
   '/become-coach(.*)',
   '/how-it-works(.*)',
-  '/((?!dashboard|admin|coach|settings).*)'
+  '/not-authorized(.*)', // Allow access to the not-authorized page
+  '/((?!dashboard|admin|coach|settings).*)', // Catch-all for non-protected pages (ensure this doesn't conflict)
 ]
 
 export default authMiddleware({
   publicRoutes: publicPaths,
+  // Keep ignored routes minimal - only routes that should COMPLETELY bypass middleware
   ignoredRoutes: [
-    "/api/webhook(.*)",
-    "/api/cal/webhook(.*)",
-    "/api/cal/test(.*)"
+    "/api/cal/test(.*)" // Assuming test routes should bypass middleware entirely
+    // Removed /api/webhook(.*) and /api/cal/webhook(.*) as they are in publicPaths
   ],
   afterAuth: async (auth, req) => {
-    // Block access to test routes in production
+    // Block access to test routes in production (Still needed if ignoredRoutes doesn't cover all cases or for clarity)
     if (process.env.NODE_ENV === 'production' && req.nextUrl.pathname.startsWith('/api/cal/test')) {
       return new NextResponse('Test routes are not available in production', { status: 403 });
     }
 
     // Allow public routes
-    if (!auth.userId && publicPaths.some(path => {
-      if (path.includes('(.*)')) {
-        const basePath = path.replace('(.*)', '')
-        return req.nextUrl.pathname.startsWith(basePath)
+    // Check if the current path matches any public path pattern
+    const isPublic = publicPaths.some(path => {
+      // Handle simple string paths
+      if (!path.includes('(.*)') && !path.includes('/?((?!)')) {
+        return path === req.nextUrl.pathname;
       }
-      return path === req.nextUrl.pathname
-    })) {
+      // Handle regex-like patterns (e.g., /sign-in(.*) or /api/webhooks(.*))
+      if (path.includes('(.*)')) {
+        const basePath = path.replace('(.*)', '');
+        // Ensure we match the start exactly for regex patterns
+        return req.nextUrl.pathname.startsWith(basePath);
+      }
+      // Handle negative lookahead patterns (e.g., /((?!dashboard|admin).*) )
+      if (path.includes('/?((?!)')) { // Simplified check for lookahead structure
+        try {
+          // Attempt to create a RegExp from the path pattern
+          // Ensure special characters are escaped correctly for RegExp
+          const regexPattern = `^${path.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}$`;
+          const pattern = new RegExp(regexPattern);
+          return pattern.test(req.nextUrl.pathname);
+        } catch (e) {
+          console.error(`[MIDDLEWARE_REGEX_ERROR] Invalid regex pattern: ${path}`, e);
+          return false; // Treat invalid patterns as non-matching
+        }
+      }
+      return false;
+    });
+
+    if (!auth.userId && isPublic) {
       return NextResponse.next()
     }
     
-    // Require authentication
+    // Require authentication for non-public routes
     if (!auth.userId) {
-      return NextResponse.redirect(new URL('/sign-in', req.url))
+      // Construct the sign-in URL with a redirect back to the original request URL
+      const signInUrl = new URL('/sign-in', req.url)
+      signInUrl.searchParams.set('redirect_url', req.nextUrl.pathname) // Use pathname for cleaner redirect
+      return NextResponse.redirect(signInUrl)
     }
     
-    // Handle sign-up to onboarding redirect
-    if (req.nextUrl.pathname.startsWith('/sign-up') && auth.userId) {
+    // Handle completed sign-up -> redirect to onboarding
+    // Check if the user is authenticated and the path starts with /sign-up
+    if (auth.userId && req.nextUrl.pathname.startsWith('/sign-up')) {
       return NextResponse.redirect(new URL(ONBOARDING_ROUTE, req.url))
     }
     
-    // For protected routes, verify user exists in database
-    const isProtectedRoute = req.nextUrl.pathname.startsWith('/dashboard') ||
-                            req.nextUrl.pathname.startsWith('/settings') ||
-                            req.nextUrl.pathname.startsWith('/admin') ||
-                            req.nextUrl.pathname.startsWith('/coach') ||
-                            (req.nextUrl.pathname.startsWith('/api') && 
-                             !req.nextUrl.pathname.startsWith('/api/cal/') &&
-                             !publicPaths.some(path => {
-                               if (path.includes('(.*)')) {
-                                 const basePath = path.replace('(.*)', '')
-                                 return req.nextUrl.pathname.startsWith(basePath)
-                               }
-                               return path === req.nextUrl.pathname
-                             }))
+    // For authenticated users on protected routes, verify user exists in database
+    // Determine if the route is protected (adjust logic as needed)
+    const isProtectedRoute = [
+      '/dashboard',
+      '/settings',
+      '/admin',
+      '/coach'
+    ].some(p => req.nextUrl.pathname.startsWith(p)) || 
+    (req.nextUrl.pathname.startsWith('/api') && 
+     !req.nextUrl.pathname.startsWith('/api/webhooks') && 
+     !req.nextUrl.pathname.startsWith('/api/auth') && 
+     !req.nextUrl.pathname.startsWith('/api/cal/webhook') &&
+     !req.nextUrl.pathname.startsWith('/api/cal/test')); // Exclude explicitly public/ignored API routes
     
     if (isProtectedRoute) {
       try {
         const supabase = createAuthClient()
         const { data: user, error } = await supabase
           .from('User')
-          .select('ulid')
+          .select('ulid') // Only select what's needed
           .eq('userId', auth.userId)
-          .maybeSingle()
+          .maybeSingle() // Use maybeSingle to handle user not found gracefully
           
-        // If user doesn't exist in database, redirect to onboarding
-        if (!user || error) {
-          return NextResponse.redirect(new URL(ONBOARDING_ROUTE, req.url))
+        // If user doesn't exist in database (and it's required), redirect to onboarding
+        if (!user && !error) { // Check for !user and no error
+          console.warn('[AUTH_MIDDLEWARE] User not found in DB, redirecting to onboarding:', { userId: auth.userId, path: req.nextUrl.pathname });
+          // Avoid redirect loop if already on onboarding
+          if (req.nextUrl.pathname !== ONBOARDING_ROUTE) {
+            return NextResponse.redirect(new URL(ONBOARDING_ROUTE, req.url))
+          }
+        } else if (error) {
+          // Rethrow unexpected database errors
+          throw error;
         }
       } catch (error) {
-        console.error('[AUTH_ERROR]', {
-          code: 'MIDDLEWARE_ERROR',
-          message: error instanceof Error ? error.message : 'Unknown error',
-          context: { userId: auth.userId, path: req.nextUrl.pathname }
+        console.error('[AUTH_MIDDLEWARE_ERROR]', {
+          code: 'DB_CHECK_FAILED',
+          message: error instanceof Error ? error.message : 'Unknown error during DB check',
+          context: { userId: auth.userId, path: req.nextUrl.pathname },
+          timestamp: new Date().toISOString()
         })
-        return NextResponse.redirect(new URL('/error?code=server_error', req.url))
+        // Redirect to a generic error page or handle appropriately
+        return NextResponse.redirect(new URL('/error?code=middleware_error', req.url))
       }
     }
     
+    // If all checks pass, allow the request to proceed
     return NextResponse.next()
   }
 })
 
+// Updated config matcher
 export const config = {
   matcher: [
-    "/((?!.+\\.[\\w]+$|_next).*)",
-    "/",
-    "/(api|trpc)(.*)",
-    "/api/cal/test/:path*"
-  ]
-}
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - api/webhooks (public API routes)
+     * - api/cal/webhook (public API routes)
+     * Match the root path "/" explicitly.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|api/webhooks|api/cal/webhook).*)', // Main pattern
+    '/', // Explicitly match root
+  ],
+};

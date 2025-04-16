@@ -68,7 +68,9 @@ export function UserProfile() {
     const router = useRouter()
     const pathname = usePathname()
     const [imgError, setImgError] = useState(false)
-    const { organizationName, organizationRole } = useOrganization();
+    const organizationContext = useOrganization();
+    const organizationName = organizationContext?.organizationName;
+    const organizationRole = organizationContext?.organizationRole;
     const { authData } = useCentralizedAuth();
     const [userContext, setUserContext] = useState<'coach' | 'mentee' | null>(null);
     

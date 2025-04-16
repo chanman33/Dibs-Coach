@@ -17,7 +17,7 @@ import {
   eventTypeToCalFormat,
   dbToEventType
 } from '@/utils/types/cal-event-types'
-import { isCalTokenExpired, refreshCalAccessToken } from '@/utils/auth/cal-token-service'
+import { isCalTokenExpired, refreshCalAccessToken } from '@/utils/cal/cal-token-service'
 import { Decimal } from '@prisma/client/runtime/library'
 import type { Database } from '@/types/supabase'
 import { fetchCoachHourlyRate } from '@/utils/actions/coach-rate-actions'

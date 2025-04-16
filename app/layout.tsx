@@ -4,7 +4,6 @@ import { Toaster } from "@/components/ui/sonner"
 import { Analytics } from "@vercel/analytics/react"
 import { GeistSans } from 'geist/font/sans'
 import type { Metadata } from 'next'
-import { getAuthContext } from '@/utils/auth'
 import './globals.css'
 
 // Use proper import for Clerk
@@ -62,25 +61,8 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Get auth context for initial state (now optional)
-  let authContext = null;
-  
-  try {
-    authContext = await getAuthContext();
-    
-    if (authContext && process.env.NODE_ENV === 'development') {
-      console.log('[ROOT_LAYOUT] Initializing auth context:', {
-        userId: authContext.userId,
-        systemRole: authContext.systemRole,
-        timestamp: new Date().toISOString()
-      });
-    }
-  } catch (error) {
-    console.error('[ROOT_LAYOUT] Error getting auth context:', {
-      error: error instanceof Error ? error.message : String(error),
-      timestamp: new Date().toISOString()
-    });
-  }
+  // Removed the attempt to get auth context here
+  // Auth context will be handled by specific layouts/pages and client providers
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -102,7 +84,8 @@ export default async function RootLayout({
             variables: { colorPrimary: '#4f46e5' }
           }}
         >
-          <Provider initialAuthState={authContext}>
+          {/* initialAuthState prop is no longer needed */}
+          <Provider>
             <ThemeProvider
               attribute="class"
               defaultTheme="system"

@@ -48,7 +48,7 @@ interface CoachingCalendarProps {
   isCalendlyLoading?: boolean
   showCalendlyButton?: boolean
   calendarActionText?: string
-  calendarConnectionState?: 'loading' | 'connected' | 'not_connected' | 'error'
+  calendarConnectionState?: 'loading' | 'connected' | 'not_connected' | 'error' | 'auth_error'
 }
 
 // Helper to get badge color based on session status
