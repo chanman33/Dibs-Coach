@@ -2,10 +2,37 @@
  * Cal.com Event Types
  * 
  * This file contains TypeScript definitions for Cal.com event types and related interfaces.
+ * It serves as the central repository for all type definitions related to Cal.com integration.
  */
 
 import { CalSchedulingType } from '@prisma/client'
 import { Json } from '@/types/supabase'
+import { Database } from '@/types/supabase'
+
+/**
+ * Database CalEventType row type - used across all files
+ */
+export type DbCalEventType = Database['public']['Tables']['CalEventType']['Row'];
+
+/**
+ * API responses
+ */
+
+/**
+ * API response structure for event type sync operations
+ */
+export type SyncResult = {
+  success: boolean;
+  error?: string;
+  stats?: {
+    fetchedFromCal: number;
+    fetchedFromDb: number;
+    createdInDb: number;
+    updatedInDb: number;
+    deactivatedInDb: number; // Deactivated instead of deleted
+    skipped: number;
+  };
+};
 
 /**
  * Core EventType interface for UI components
@@ -38,6 +65,30 @@ export interface EventType {
   // UI-specific fields
   isRequired?: boolean;
   canDisable?: boolean;
+}
+
+/**
+ * Event type from Cal.com API
+ */
+export interface CalEventTypeFromApi {
+  id: number;
+  title: string;
+  description?: string | null;
+  length: number; // Duration in minutes (older API format)
+  lengthInMinutes?: number; // Duration in minutes (new v2 API format)
+  hidden: boolean; // Inactive if true
+  position: number;
+  price: number;
+  currency: string;
+  schedulingType?: string | null;
+  minimumBookingNotice?: number | null;
+  locations?: any[] | null;
+  beforeEventBuffer?: number | null;
+  afterEventBuffer?: number | null;
+  seatsPerTimeSlot?: number | null; // Used for maxParticipants
+  metadata?: { [key: string]: any } | null;
+  slug: string;
+  // Add any other relevant fields from Cal.com v2 API response
 }
 
 /**
@@ -97,6 +148,137 @@ export interface DefaultEventType {
   isFree: boolean;
   schedulingType: string;
   isDefault: boolean;
+}
+
+/**
+ * Parameters for fetching event types
+ */
+export interface FetchEventTypesResponse {
+  eventTypes: EventType[]
+  coachHourlyRate?: {
+    hourlyRate: number | null
+    isValid: boolean
+  }
+}
+
+/**
+ * Parameters for saving event types
+ */
+export interface SaveEventTypeParams {
+  eventTypes: EventType[]
+}
+
+/**
+ * Representation of a default event type for creation
+ */
+export interface DefaultEventTypeConfig {
+  name: string
+  description: string
+  duration: number
+  isFree: boolean
+  isActive: boolean
+  isDefault: boolean
+  scheduling: string
+  position: number
+  slug?: string
+  // Cal.com API required fields
+  locations: {
+    type: string
+    link?: string
+    displayName?: string
+    address?: string
+    public?: boolean
+  }[]
+  beforeEventBuffer: number
+  afterEventBuffer: number
+  minimumBookingNotice: number
+  // Optional fields
+  maxParticipants?: number
+  discountPercentage?: number
+}
+
+/**
+ * Colors for Cal.com event types
+ */
+export interface CalEventTypeColor {
+  lightThemeHex: string;
+  darkThemeHex: string;
+}
+
+/**
+ * Confirmation policy for Cal.com event types
+ */
+export interface CalConfirmationPolicy {
+  disabled: boolean;
+}
+
+/**
+ * Seats configuration for Cal.com event types
+ */
+export interface CalEventTypeSeats {
+  seatsPerTimeSlot: number;
+  showAttendeeInfo: boolean;
+  showAvailabilityCount: boolean;
+}
+
+/**
+ * Booker layouts for Cal.com event types
+ */
+export interface CalEventTypeBookerLayouts {
+  defaultLayout: 'month' | 'week' | 'column';
+  enabledLayouts: ('month' | 'week' | 'column')[];
+}
+
+/**
+ * Default event type definition for creating new Cal.com event types
+ * This matches the payload structure used in create-default API
+ */
+export interface DefaultCalEventType {
+  // Basic event info
+  name: string;
+  title: string; // Same as name, but used for Cal.com API
+  slug: string;
+  description: string;
+  duration?: number;
+  lengthInMinutes: number; // Required by Cal.com API - must match duration
+  isFree: boolean;
+  isActive: boolean;
+  isDefault: boolean;
+  isRequired?: boolean; // Whether this event type is required (cannot be disabled by user)
+  
+  // Scheduling settings
+  scheduling: CalSchedulingType | string;
+  position: number;
+  disableGuests: boolean;
+  slotInterval: number;
+  minimumBookingNotice: number;
+  
+  // Calendar integration
+  useDestinationCalendarEmail: boolean;
+  hideCalendarEventDetails: boolean;
+  customName: string;
+  
+  // Appearance
+  confirmationPolicy: CalConfirmationPolicy;
+  color: CalEventTypeColor;
+  
+  // Capacity
+  seats: CalEventTypeSeats;
+  
+  // Meeting location
+  locations: CalEventTypeLocation[];
+  
+  // Optional fields for specific scheduling types
+  maxParticipants?: number;
+  discountPercentage?: number;
+  organizationUlid?: string;
+  
+  // Buffer settings
+  beforeEventBuffer?: number;
+  afterEventBuffer?: number;
+  
+  // Confirmation settings
+  requiresConfirmation?: boolean;
 }
 
 /**
@@ -209,88 +391,4 @@ export function generateSlug(name: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
-}
-
-/**
- * Colors for Cal.com event types
- */
-export interface CalEventTypeColor {
-  lightThemeHex: string;
-  darkThemeHex: string;
-}
-
-/**
- * Confirmation policy for Cal.com event types
- */
-export interface CalConfirmationPolicy {
-  disabled: boolean;
-}
-
-/**
- * Seats configuration for Cal.com event types
- */
-export interface CalEventTypeSeats {
-  seatsPerTimeSlot: number;
-  showAttendeeInfo: boolean;
-  showAvailabilityCount: boolean;
-}
-
-/**
- * Booker layouts for Cal.com event types
- */
-export interface CalEventTypeBookerLayouts {
-  defaultLayout: 'month' | 'week' | 'column';
-  enabledLayouts: ('month' | 'week' | 'column')[];
-}
-
-/**
- * Default event type definition for creating new Cal.com event types
- * This matches the payload structure used in create-default API
- */
-export interface DefaultCalEventType {
-  // Basic event info
-  name: string;
-  title: string; // Same as name, but used for Cal.com API
-  slug: string;
-  description: string;
-  duration?: number;
-  lengthInMinutes: number; // Required by Cal.com API - must match duration
-  isFree: boolean;
-  isActive: boolean;
-  isDefault: boolean;
-  isRequired?: boolean; // Whether this event type is required (cannot be disabled by user)
-  
-  // Scheduling settings
-  scheduling: CalSchedulingType | string;
-  position: number;
-  disableGuests: boolean;
-  slotInterval: number;
-  minimumBookingNotice: number;
-  
-  // Calendar integration
-  useDestinationCalendarEmail: boolean;
-  hideCalendarEventDetails: boolean;
-  customName: string;
-  
-  // Appearance
-  confirmationPolicy: CalConfirmationPolicy;
-  color: CalEventTypeColor;
-  
-  // Capacity
-  seats: CalEventTypeSeats;
-  
-  // Meeting location
-  locations: CalEventTypeLocation[];
-  
-  // Optional fields for specific scheduling types
-  maxParticipants?: number;
-  discountPercentage?: number;
-  organizationUlid?: string;
-  
-  // Buffer settings
-  beforeEventBuffer?: number;
-  afterEventBuffer?: number;
-  
-  // Confirmation settings
-  requiresConfirmation?: boolean;
 } 

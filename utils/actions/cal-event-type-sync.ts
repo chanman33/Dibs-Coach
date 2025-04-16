@@ -2,43 +2,11 @@
 
 import { createAuthClient } from '@/utils/supabase/server';
 import { generateUlid } from '@/utils/ulid';
-import { Database } from '@/types/supabase';
-
-type CalEventTypeFromApi = {
-    id: number;
-    title: string;
-    description?: string | null;
-    length: number; // Duration in minutes (older API format)
-    lengthInMinutes?: number; // Duration in minutes (new v2 API format)
-    hidden: boolean; // Inactive if true
-    position: number;
-    price: number;
-    currency: string;
-    schedulingType?: string | null;
-    minimumBookingNotice?: number | null;
-    locations?: any[] | null;
-    beforeEventBuffer?: number | null;
-    afterEventBuffer?: number | null;
-    seatsPerTimeSlot?: number | null; // Used for maxParticipants
-    metadata?: { [key: string]: any } | null;
-    slug: string;
-    // Add any other relevant fields from Cal.com v2 API response
-};
-
-type DbCalEventType = Database['public']['Tables']['CalEventType']['Row'];
-
-type SyncResult = {
-    success: boolean;
-    error?: string;
-    stats?: {
-        fetchedFromCal: number;
-        fetchedFromDb: number;
-        createdInDb: number;
-        updatedInDb: number;
-        deactivatedInDb: number; // Deactivated instead of deleted
-        skipped: number;
-    };
-};
+import { 
+    DbCalEventType,
+    CalEventTypeFromApi,
+    SyncResult
+} from '@/utils/types/cal-event-types';
 
 /**
  * Syncs Cal.com event types with the local database for a given user.

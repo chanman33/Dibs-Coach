@@ -21,6 +21,9 @@ export type ApiErrorCode =
   | 'INVALID_SLUG'
   | 'SLUG_TAKEN'
   | 'RATE_LIMITED'
+  | 'INVALID_INPUT'
+  | 'INVALID_STATE'
+  | 'AUTH_ERROR'
 
 export interface ApiError {
   code: ApiErrorCode;

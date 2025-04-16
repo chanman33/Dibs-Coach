@@ -11,7 +11,7 @@ import {
   CalEventTypeResponse, 
   CalEventTypeLocation,
   locationArrayToJson, 
-  calculateEventPrice as calcEventPrice, 
+  calculateEventPrice, 
   generateSlug as genSlug, 
   eventTypeToDbFields,
   eventTypeToCalFormat,
@@ -837,7 +837,7 @@ export async function saveCoachEventTypes(
               name: eventType.name,
               description: eventType.description || '', // Ensure description is not null
               duration: eventType.duration,
-              price: eventType.free ? 0 : calcEventPrice(numericHourlyRate, eventType.duration),
+              price: eventType.free ? 0 : calculateEventPrice(numericHourlyRate, eventType.duration),
               isActive: eventType.enabled,
               schedulingType: eventType.schedulingType,
               maxParticipants: eventType.maxParticipants,
@@ -921,7 +921,7 @@ export async function saveCoachEventTypes(
               name: eventType.name,
               description: eventType.description || '',
               duration: eventType.duration,
-              price: eventType.free ? 0 : calcEventPrice(numericHourlyRate, eventType.duration),
+              price: eventType.free ? 0 : calculateEventPrice(numericHourlyRate, eventType.duration),
               isActive: eventType.enabled,
               schedulingType: eventType.schedulingType || 'MANAGED', // Default to MANAGED instead of null
               maxParticipants: eventType.maxParticipants || undefined,
@@ -1725,23 +1725,10 @@ async function deleteCalEventType(
 }
 
 /**
- * Generate a slug from a name
+ * Generate a URL-friendly slug from a name
  */
 function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-
-/**
- * Calculate event price based on hourly rate and duration
- */
-function calculateEventPrice(hourlyRate: number, durationMinutes: number): number {
-  if (hourlyRate <= 0 || durationMinutes <= 0) return 0;
-  const price = (hourlyRate / 60) * durationMinutes;
-  // Round to 2 decimal places
-  return Math.round(price * 100) / 100;
+  return genSlug(name);
 }
 
 /**
@@ -1753,298 +1740,38 @@ const mapDbEventTypeToUi = (eventType: Record<string, any>): EventType => {
 
 /**
  * Create default event types for a new coach
+ * This implementation delegates to the canonical implementation in cal-default-event-type.ts
  */
 export async function createDefaultEventTypes(userUlid: string): Promise<ApiResponse<{ success: boolean }>> {
   try {
-    // Correct: Initialize server client
-    const supabase = createAuthClient()
-    const { data: calendarIntegration, error: calendarError } = await supabase
-      .from('CalendarIntegration')
-      .select(`
-        ulid,
-        calManagedUserId,
-        calAccessToken,
-        calAccessTokenExpiresAt
-      `)
-      .eq('userUlid', userUlid)
-      .maybeSingle()
-
-    if (calendarError) {
-      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR]', {
-        error: calendarError,
-        userUlid,
-        timestamp: new Date().toISOString()
-      })
+    // Import and call the canonical implementation
+    const { createDefaultEventTypes: createDefaultEventTypesImpl } = await import('@/utils/actions/cal-default-event-type');
+    
+    const result = await createDefaultEventTypesImpl(userUlid);
+    
+    // Transform the result to match the expected return type
+    if (result.error) {
       return {
         data: { success: false },
-        error: { 
-          code: 'DATABASE_ERROR', 
-          message: 'Failed to fetch calendar integration' 
-        }
-      }
-    }
-
-    if (!calendarIntegration) {
-      // Not an error, just no calendar integration found yet
-      console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO]', {
-        message: 'No calendar integration found for user',
-        userUlid,
-        timestamp: new Date().toISOString()
-      })
-      
-      return {
-        data: { success: false },
-        error: { 
-          code: 'CREATE_ERROR', 
-          message: 'Calendar integration needed before creating event types' 
-        }
-      }
-    }
-
-    let accessToken = calendarIntegration.calAccessToken;
-    const expiresAt = calendarIntegration.calAccessTokenExpiresAt;
-
-    // Check if token is expired or missing, and try to refresh
-    if (!accessToken || await isCalTokenExpired(expiresAt)) {
-      console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Token expired or missing, attempting refresh.', { userUlid });
-      const refreshResult = await refreshCalAccessToken(userUlid);
-      
-      if (refreshResult.success && refreshResult.tokens?.access_token) {
-        accessToken = refreshResult.tokens.access_token;
-        console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Token refreshed successfully.', { userUlid });
-      } else {
-        console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Token refresh failed.', {
-          userUlid,
-          error: refreshResult.error,
-          timestamp: new Date().toISOString()
-        });
-        return {
-          data: { success: false },
-          error: { 
-            code: 'UNAUTHORIZED', 
-            message: `Failed to refresh Cal.com token: ${refreshResult.error || 'Unknown error'}. Please reconnect Cal.com in settings.`
-          }
-        }
-      }
-    }
-
-    // Fetch Coach Profile for hourly rate needed for price calculation
-    const { data: coachProfile, error: profileError } = await supabase
-      .from('CoachProfile')
-      .select('hourlyRate')
-      .eq('userUlid', userUlid)
-      .maybeSingle();
-
-    if (profileError) {
-      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Failed to fetch coach profile.', { userUlid, error: profileError });
-      // Decide if this is a hard error or if we can proceed with free types only
-      // For now, let's return an error
-      return {
-        data: { success: false },
-        error: { code: 'DATABASE_ERROR', message: 'Failed to fetch coach profile for pricing.' }
+        error: result.error
       };
     }
-    const hourlyRate = coachProfile?.hourlyRate as number | null | undefined;
     
-    // Validate hourly rate
-    const hasValidHourlyRate = hourlyRate !== null && hourlyRate !== undefined && hourlyRate > 0;
-    
-    // Use the hourly rate directly for calculations
-    const numericHourlyRate = hourlyRate || 0;
-
-    // Define default event types
-    const defaultEventTypes: DefaultEventType[] = [
-      {
-        name: 'Coaching Session',
-        description: '30-minute 1:1 coaching video call',
-        duration: 30,
-        isFree: false,
-        isActive: true,
-        isDefault: true,
-        scheduling: 'MANAGED',
-        position: 0,
-        // Add new fields required by Cal.com API
-        locations: [
-          {
-            type: "integrations:daily",
-            displayName: "Video Call"
-          }
-        ],
-        beforeEventBuffer: 5,
-        afterEventBuffer: 5,
-        minimumBookingNotice: 0
-      },
-      {
-        name: '1:1 Deep Dive Coaching Call',
-        description: 'A comprehensive 60-minute 1-on-1 coaching session for deeper exploration and problem-solving',
-        duration: 60,
-        isFree: false,
-        isActive: true,
-        isDefault: true,
-        scheduling: 'MANAGED',
-        position: 1,
-        // Add new fields required by Cal.com API
-        locations: [
-          {
-            type: "integrations:daily",
-            displayName: "Video Call"
-          }
-        ],
-        beforeEventBuffer: 5,
-        afterEventBuffer: 5,
-        minimumBookingNotice: 0
-      },
-      {
-        name: 'Get to Know You',
-        description: '15-minute goal setting and introduction session',
-        duration: 15,
-        isFree: true,
-        isActive: true,
-        isDefault: true,
-        scheduling: 'MANAGED',
-        position: 2,
-        // Add new fields required by Cal.com API
-        locations: [
-          {
-            type: "integrations:daily",
-            displayName: "Video Call"
-          }
-        ],
-        beforeEventBuffer: 0,
-        afterEventBuffer: 0,
-        minimumBookingNotice: 0
-      }
-    ]
-    
-    // Check if any default event types are non-free
-    const hasNonFreeDefaultEvents = defaultEventTypes.some(et => !et.isFree);
-    
-    if (hasNonFreeDefaultEvents && !hasValidHourlyRate) {
-       console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Hourly rate missing or invalid for paid event type.', { 
-           userUlid, 
-           hourlyRate: hourlyRate
-       });
-       return {
-         data: { success: false },
-         error: {
-           code: 'VALIDATION_ERROR',
-           message: 'Please set a valid hourly rate in your coach profile before saving paid event types.'
-         }
-       };
-    }
-
-    // Create each event type
-    for (let i = 0; i < defaultEventTypes.length; i++) {
-      const eventType = defaultEventTypes[i];
-      const newUlid = generateUlid();
-      let calEventType: CalEventTypeResponse | null = null;
-      
-      // 1. Try to create in Cal.com API first (if integration exists)
-      if (calendarIntegration.calManagedUserId) {
-        try {
-          // Skip creating paid default event if rate is invalid
-          if (!eventType.isFree && numericHourlyRate <= 0) {
-             console.warn('[CREATE_DEFAULT_EVENT_TYPE_SKIP] Skipping paid default event due to missing/invalid hourly rate.', {
-                userUlid,
-                eventName: eventType.name,
-                hourlyRate: numericHourlyRate
-             });
-             continue; // Skip this iteration
-          }
-          
-          calEventType = await createCalEventType(
-            accessToken,
-            calendarIntegration.calManagedUserId,
-            {
-              name: eventType.name,
-              description: eventType.description,
-              duration: eventType.duration,
-              price: eventType.isFree ? 0 : calcEventPrice(numericHourlyRate, eventType.duration),
-              isActive: eventType.isActive,
-              schedulingType: eventType.scheduling
-            },
-            userUlid // Pass userUlid to enable token refresh if needed
-          );
-        } catch (error) {
-          console.error('[CREATE_DEFAULT_EVENT_TYPE_CAL_ERROR]', {
-            error,
-            eventType: eventType.name,
-            userUlid,
-            timestamp: new Date().toISOString()
-          });
-          // Do not proceed to DB insert if Cal.com failed
-        }
-      }
-      
-      // 2. Create in database ONLY if Cal.com succeeded (or wasn't applicable)
-      if (!calendarIntegration.calManagedUserId || calEventType) {
-        const { error: insertError } = await supabase
-          .from('CalEventType')
-          .insert({
-            ulid: newUlid,
-            calendarIntegrationUlid: calendarIntegration.ulid,
-            calEventTypeId: calEventType?.id || null,
-            name: eventType.name,
-            description: eventType.description,
-            lengthInMinutes: eventType.duration,
-            isFree: eventType.isFree,
-            isActive: eventType.isActive,
-            isDefault: eventType.isDefault,
-            slug: calEventType?.slug || genSlug(eventType.name),
-            position: eventType.position,
-            scheduling: eventType.scheduling as 'MANAGED' | 'OFFICE_HOURS' | 'GROUP_SESSION',
-            maxParticipants: null,
-            discountPercentage: null,
-            organizationUlid: null,
-            // New fields
-            locations: eventType.locations || [{ type: 'integrations:daily', displayName: 'Video Call' }],
-            beforeEventBuffer: eventType.beforeEventBuffer || 0,
-            afterEventBuffer: eventType.afterEventBuffer || 0,
-            minimumBookingNotice: eventType.minimumBookingNotice || 0,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          });
-
-        if (insertError) {
-          console.error('[CREATE_DEFAULT_EVENT_TYPE_INSERT_DB_ERROR]', {
-            error: insertError,
-            eventType: eventType.name,
-            newUlid,
-            timestamp: new Date().toISOString()
-          });
-          // Continue to try creating other default event types
-        } else {
-          console.log('[CREATE_DEFAULT_EVENT_TYPE_SUCCESS]', {
-            eventType: eventType.name,
-            newUlid,
-            calEventTypeId: calEventType?.id,
-            timestamp: new Date().toISOString()
-          });
-        }
-      } else {
-          console.warn('[CREATE_DEFAULT_EVENT_TYPE_CAL_FAILED_SKIP_DB]', {
-            message: "Cal.com creation failed for default event, skipping database insert.",
-            eventType: eventType.name,
-            userUlid,
-            timestamp: new Date().toISOString()
-          });
-      }
-    }
-
     return {
       data: { success: true },
       error: null
-    }
+    };
   } catch (error) {
-    console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR]', {
+    console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Unexpected error', { 
       error,
       stack: error instanceof Error ? error.stack : undefined,
+      userUlid,
       timestamp: new Date().toISOString()
-    })
+    });
     return {
       data: { success: false },
       error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }
-    }
+    };
   }
 }
 
@@ -2128,7 +1855,9 @@ export async function createDefaultEventTypesForAllCoaches(): Promise<ApiRespons
         }
         
         // Create default event types for this coach
-        const result = await createDefaultEventTypes(coach.ulid)
+        // Import the canonical implementation directly
+        const { createDefaultEventTypes: createDefaultEventTypesImpl } = await import('@/utils/actions/cal-default-event-type');
+        const result = await createDefaultEventTypesImpl(coach.ulid);
         
         if (result.error) {
           console.error('[CREATE_DEFAULT_EVENT_TYPES_COACH_ERROR]', {
@@ -2637,7 +2366,7 @@ export async function createDefaultEventTypesWithUniqueSlug(userUlid: string): P
       }
       
       // Calculate price for paid event types
-      const price = eventType.isFree ? 0 : calcEventPrice(hourlyRate, eventType.duration)
+      const price = eventType.isFree ? 0 : calculateEventPrice(hourlyRate, eventType.duration)
       
       try {
         // Create in Cal.com
