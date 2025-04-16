@@ -29,9 +29,12 @@ export async function GET(request: Request) {
     const protocol = host.includes('localhost') ? 'http' : 'https'
     const baseUrl = `${protocol}://${host}`
     
-    // --- Define the FINAL redirect URL (UI page) --- 
-    // This is where Cal.com will send the user AFTER successfully processing Google OAuth
-    const finalUiCallbackPath = '/dashboard/integrations/google-calendar-callback';
+    // --- Define the FINAL redirect URL (UI page) based on calendar type --- 
+    // This is where Cal.com will send the user AFTER successfully processing OAuth
+    const finalUiCallbackPath = calendarType === 'office365' 
+      ? '/dashboard/integrations/office365-calendar-callback'
+      : '/dashboard/integrations/google-calendar-callback';
+    
     const finalUiCallbackUrl = new URL(finalUiCallbackPath, baseUrl).toString();
     
     // Get the Supabase client from auth utilities
@@ -82,7 +85,7 @@ export async function GET(request: Request) {
     let calAccessToken = calData.calAccessToken || ''; // Use fetched token or empty string
     let tokenRefreshed = false;
     
-    if (calAccessToken) { // Only check/refresh if a token actually exists
+    if (calAccessToken && calData.calAccessTokenExpiresAt) { 
         const tokenExpiresAt = new Date(calData.calAccessTokenExpiresAt || '');
         const now = new Date();
         const tokenExpired = !isNaN(tokenExpiresAt.getTime()) && tokenExpiresAt <= now;
@@ -100,7 +103,8 @@ export async function GET(request: Request) {
           });
           
           try {
-            const refreshResult = await refreshUserCalTokens(userData.ulid, true); // Assume managed user
+            // Use the server action for token refresh
+            const refreshResult = await refreshUserCalTokens(userData.ulid, true);
             
             if (!refreshResult.success) {
               console.error('[CAL_OAUTH_URL_ERROR]', {
@@ -109,14 +113,13 @@ export async function GET(request: Request) {
                 userUlid: userData.ulid,
                 timestamp: new Date().toISOString()
               });
-              // Don't fail the whole request, try connecting with the old token maybe?
-              // Or return error asking user to refresh manually?
-              // For now, return error:
+              
               return NextResponse.json({ 
                 error: 'Failed to refresh Cal.com token. Please refresh your integration on the settings page first.'
               }, { status: 403 });
             }
             
+            // Get the refreshed token
             const { data: refreshedData, error: refreshError } = await supabase
               .from('CalendarIntegration')
               .select('calAccessToken')
@@ -130,7 +133,7 @@ export async function GET(request: Request) {
                 userUlid: userData.ulid,
                 timestamp: new Date().toISOString()
               });
-              // Continue with potentially expired token or return error?
+              
               return NextResponse.json({
                 error: 'Failed to get refreshed token after refresh. Please try again.'
               }, { status: 500 });
@@ -162,12 +165,13 @@ export async function GET(request: Request) {
 
     console.log('[CAL_OAUTH_URL_DEBUG] Calling Cal.com API:', {
       endpoint: endpoint,
+      calendarType,
       finalUiCallbackUrl: finalUiCallbackUrl,
       tokenRefreshed,
       timestamp: new Date().toISOString()
     });
     
-    // Call the Cal.com API to get the Google authorization URL
+    // Call the Cal.com API to get the authorization URL
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
@@ -218,9 +222,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Invalid response from Cal.com: Missing authUrl' }, { status: 500 });
     }
 
-    console.log('[CAL_OAUTH_URL_DEBUG] Received Google authUrl from Cal.com:', authUrl);
+    console.log(`[CAL_OAUTH_URL_DEBUG] Received ${calendarType} authUrl from Cal.com:`, authUrl);
 
-    // Send the Google Auth URL back to the frontend
+    // Send the Auth URL back to the frontend
     const transformedResponse = {
       success: true,
       data: {

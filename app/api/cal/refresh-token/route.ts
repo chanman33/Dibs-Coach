@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs';
 import { createAuthClient } from '@/utils/auth';
-import { refreshCalAccessToken } from '@/utils/auth/cal-token-service';
+import { refreshUserCalTokens } from '@/utils/actions/cal-tokens';
 
 /**
  * API endpoint for refreshing a user's Cal.com token
@@ -49,38 +49,20 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     });
 
-    // Check environment variables are available
-    if (!process.env.CAL_CLIENT_ID || !process.env.CAL_CLIENT_SECRET) {
-      console.error('[API_ERROR]', {
-        context: 'REFRESH_TOKEN_ENV_MISSING',
-        userUlid: user.ulid,
-        clientIdPresent: !!process.env.CAL_CLIENT_ID,
-        clientSecretPresent: !!process.env.CAL_CLIENT_SECRET,
-        timestamp: new Date().toISOString()
-      });
-      
-      return NextResponse.json({
-        success: false,
-        error: 'Missing required environment variables for Cal.com integration'
-      }, { status: 500 });
-    }
-
-    // Use token service to refresh the Cal.com token
-    const result = await refreshCalAccessToken(user.ulid);
+    // Use the server action to refresh the token
+    const refreshResult = await refreshUserCalTokens(user.ulid, true);
     
-    if (!result.success) {
+    if (!refreshResult.success) {
       console.error('[API_ERROR]', {
         context: 'REFRESH_TOKEN_FAILED',
-        error: result.error,
+        error: refreshResult.error,
         userUlid: user.ulid,
         timestamp: new Date().toISOString()
       });
       
-      // Return a more descriptive error
       return NextResponse.json({
         success: false,
-        error: result.error || 'Failed to refresh token',
-        details: result.tokens || null
+        error: refreshResult.error || 'Failed to refresh token'
       }, { status: 400 });
     } else {
       console.log('[API_SUCCESS]', {
@@ -92,12 +74,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Token refreshed successfully',
-      data: {
-        // Return limited token info for client confirmation
-        accessTokenUpdated: true,
-        expiresIn: result.tokens?.expires_in || null
-      }
+      message: 'Token refreshed successfully'
     });
     
   } catch (error) {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/utils/auth'
 import { auth } from '@clerk/nextjs'
-import { ensureValidCalToken } from '@/utils/cal/token-util'
+import { ensureValidCalToken as serverActionEnsureValidToken } from '@/utils/actions/cal-tokens'
 
 /**
  * API Route to finalize Office 365 Calendar connection after the user
@@ -35,8 +35,8 @@ export async function POST(request: Request) {
       throw new Error(errorMessage);
     }
 
-    // Ensure we have a valid Cal token - use the token management utility
-    const tokenResult = await ensureValidCalToken(userData.ulid);
+    // Ensure we have a valid Cal token - use the server action for token validation
+    const tokenResult = await serverActionEnsureValidToken(userData.ulid);
     if (!tokenResult.success) {
       console.error('[OFFICE365_FINALIZE] Failed to ensure valid Cal token:', tokenResult.error);
       errorMessage = 'cal_token_refresh_failed';

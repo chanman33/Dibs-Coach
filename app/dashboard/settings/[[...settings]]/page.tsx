@@ -564,71 +564,42 @@ export default function Settings() {
         });
       }
       
-      // Now fetch the OAuth URL with either refreshed tokens or existing valid tokens
+      // Get the OAuth authorization URL from Cal.com
+      // Include the calendar type in the request to get the correct URL
+      console.log(`[CAL_CONNECT_DEBUG] Getting ${calendarType} OAuth URL`);
       const response = await fetch(`/api/cal/calendars/oauth-connect-url?type=${calendarType}`);
+      const result = await response.json();
       
-      // Dismiss loading toast
+      // Dismiss the loading toast
       toast.dismiss(loadingToast);
       
-      if (!response.ok) {
-        // Try to parse error information
-        let errorMessage = "Failed to get authorization URL";
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch (_) {
-          // Failed to parse JSON, use default message
-        }
-        
+      // Handle errors
+      if (!response.ok || !result.success) {
+        const errorMessage = result.error || 'Failed to prepare calendar connection';
+        console.error(`[CAL_CONNECT_DEBUG] ${calendarType} OAuth URL error:`, errorMessage);
         toast.error(errorMessage);
         return;
       }
       
-      const data = await response.json();
-      
-      // Get the URL from the response (handle both API formats)
-      const redirectUrl = data.url || (data.data && data.data.authUrl);
-      
-      if (!redirectUrl) {
-        toast.error("No valid authorization URL received");
+      // Get the authorization URL
+      const authUrl = result.data?.authUrl;
+      if (!authUrl) {
+        console.error(`[CAL_CONNECT_DEBUG] No ${calendarType} authUrl in response:`, result);
+        toast.error('Failed to get authorization URL');
         return;
       }
       
-      // Store the URL for debugging purposes
-      setOauthDebugUrl(redirectUrl);
+      // For debugging, store the URL
+      setOauthDebugUrl(authUrl);
       
-      // Try opening the URL in a new window
-      const newWindow = window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+      // Redirect to the Cal.com authorization URL
+      // This starts the Cal.com > Google/Microsoft OAuth flow
+      console.log(`[CAL_CONNECT_DEBUG] Redirecting to ${calendarType} authorization URL:`, authUrl);
+      window.location.href = authUrl;
       
-      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-        // Popup was blocked
-        toast.error(
-          "Popup blocked! Please use the 'Copy URL' button below to continue with authorization.",
-          { duration: 8000 }
-        );
-      } else {
-        toast.success(
-          "Redirecting to authorization page. After authorizing, you'll be redirected back.",
-          { duration: 5000 }
-        );
-        
-        // Add a timer to check for window closure
-        const checkWindowClosure = setInterval(() => {
-          if (newWindow.closed) {
-            clearInterval(checkWindowClosure);
-            toast.success("Authorization window closed. Refreshing calendar status...");
-            
-            // Refresh the cal status after a short delay to allow time for the redirect to complete
-            setTimeout(() => {
-              refreshCalStatus();
-              refreshCalendarStatus();
-            }, 2000);
-          }
-        }, 1000);
-      }
     } catch (error) {
-      console.error("[CAL_CONNECT_DEBUG] Error:", error);
-      toast.error(`Failed to connect to ${calendarType} calendar. Please try again later.`);
+      console.error(`[CAL_CONNECT_DEBUG] ${calendarType} connection error:`, error);
+      toast.error('Failed to connect calendar');
     }
   };
 

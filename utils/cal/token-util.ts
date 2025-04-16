@@ -2,8 +2,29 @@
 'use server';
 
 import { createAuthClient } from '@/utils/auth';
-import { refreshUserCalTokens } from '@/utils/actions/cal-tokens';
-import { isTokenExpiredOrExpiringSoon, type CalTokenInfo, type TokenRefreshResult } from '@/utils/cal';
+import { ensureValidCalToken as serverActionEnsureValidToken } from '@/utils/actions/cal-tokens';
+import { CalTokenService } from '@/lib/cal/cal-service';
+
+/**
+ * Token information interface
+ */
+export interface CalTokenInfo {
+  isExpired: boolean;
+  isExpiringImminent: boolean;
+  expiresAt: string | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+  managedUserId: number | null;
+}
+
+/**
+ * Token refresh result interface
+ */
+export interface TokenRefreshResult {
+  success: boolean;
+  tokenInfo: CalTokenInfo | null;
+  error?: string;
+}
 
 /**
  * Get the Cal.com token information for a user
@@ -34,10 +55,15 @@ export async function getCalTokenInfo(
       return null;
     }
 
-    const { isExpired, isExpiringImminent } = isTokenExpiredOrExpiringSoon(
-      integration.calAccessTokenExpiresAt,
+    // Use CalTokenService to check expiration
+    const isExpired = CalTokenService.isTokenExpired(
+      integration.calAccessTokenExpiresAt || '',
       bufferMinutes
     );
+    
+    // For imminent expiration, use a shorter buffer
+    const isExpiringImminent = integration.calAccessTokenExpiresAt ? 
+      CalTokenService.isTokenExpired(integration.calAccessTokenExpiresAt, 2) : true;
 
     console.log('[CAL_TOKEN_UTIL] Token status for user:', {
       userUlid,
@@ -81,59 +107,23 @@ export async function ensureValidCalToken(
       timestamp: new Date().toISOString()
     });
 
-    // Get current token info
-    const tokenInfo = await getCalTokenInfo(userUlid);
-
-    if (!tokenInfo) {
+    // Use the server action for consistent cache invalidation behavior
+    const tokenResult = await serverActionEnsureValidToken(userUlid);
+    
+    if (!tokenResult.success) {
       return {
         success: false,
         tokenInfo: null,
-        error: 'Failed to get token information'
+        error: tokenResult.error || 'Failed to get token'
       };
     }
-
-    // If token is valid and force refresh is not requested, return current token
-    if (!forceRefresh && !tokenInfo.isExpired && !tokenInfo.isExpiringImminent) {
-      return {
-        success: true,
-        tokenInfo
-      };
-    }
-
-    // Need to refresh the token
-    console.log('[CAL_TOKEN_UTIL] Refreshing token for user:', {
-      userUlid,
-      reason: forceRefresh ? 'Force refresh requested' : 
-             tokenInfo.isExpired ? 'Token expired' : 'Token expiring soon',
-      timestamp: new Date().toISOString()
-    });
-
-    // Use the existing refresh function
-    const refreshResult = await refreshUserCalTokens(userUlid, true);
-
-    if (!refreshResult.success) {
-      console.error('[CAL_TOKEN_UTIL] Token refresh failed:', refreshResult.error);
-      return {
-        success: false,
-        tokenInfo,
-        error: refreshResult.error || 'Token refresh failed'
-      };
-    }
-
-    // Get updated token info after refresh
-    const refreshedTokenInfo = await getCalTokenInfo(userUlid);
-
-    if (!refreshedTokenInfo) {
-      return {
-        success: false,
-        tokenInfo,
-        error: 'Failed to get refreshed token information'
-      };
-    }
-
+    
+    // Get the full token info
+    const tokenInfo = await getCalTokenInfo(userUlid);
+    
     return {
       success: true,
-      tokenInfo: refreshedTokenInfo
+      tokenInfo
     };
   } catch (error) {
     console.error('[CAL_TOKEN_UTIL] Error ensuring valid token:', error);
@@ -172,18 +162,26 @@ export async function handleCalApiResponse(
     if (status === 401 || status === 498) {
       console.log(`[CAL_TOKEN_UTIL] Detected potential token expiration (status ${status}), refreshing token`);
 
-      // Force refresh the token
-      const refreshResult = await ensureValidCalToken(userUlid, true);
+      // Use the CalTokenService directly to refresh the token
+      const refreshResult = await CalTokenService.refreshTokens(userUlid, true);
 
-      if (!refreshResult.success || !refreshResult.tokenInfo?.accessToken) {
+      if (!refreshResult.success) {
         console.error(`[CAL_TOKEN_UTIL] Failed to refresh token after ${status} status:`, refreshResult.error);
         // Return the original error response if token refresh fails
+        return apiResponse;
+      }
+      
+      // Get the updated token
+      const tokenResult = await CalTokenService.ensureValidToken(userUlid);
+      
+      if (!tokenResult.success) {
+        console.error(`[CAL_TOKEN_UTIL] Failed to get valid token after refresh:`, tokenResult.error);
         return apiResponse;
       }
 
       // Retry the original API call with the new token
       console.log(`[CAL_TOKEN_UTIL] Retrying API call with new token after ${status} response`);
-      return await retryFn(refreshResult.tokenInfo.accessToken);
+      return await retryFn(tokenResult.accessToken);
     }
 
     // For other status codes, try to examine the response body for specific token errors
@@ -211,18 +209,26 @@ export async function handleCalApiResponse(
     // This is the TokenExpiredException, refresh the token and retry
     console.log('[CAL_TOKEN_UTIL] Detected TokenExpiredException in API response body, refreshing token');
 
-    // Refresh token
-    const refreshResult = await ensureValidCalToken(userUlid, true);
+    // Refresh token using the CalTokenService
+    const refreshResult = await CalTokenService.refreshTokens(userUlid, true);
 
-    if (!refreshResult.success || !refreshResult.tokenInfo?.accessToken) {
+    if (!refreshResult.success) {
       console.error('[CAL_TOKEN_UTIL] Failed to refresh token for API retry (TokenExpiredException):', refreshResult.error);
       // Return the original error response if token refresh fails
+      return apiResponse;
+    }
+    
+    // Get the updated token
+    const tokenResult = await CalTokenService.ensureValidToken(userUlid);
+    
+    if (!tokenResult.success) {
+      console.error('[CAL_TOKEN_UTIL] Failed to get valid token after refresh:', tokenResult.error);
       return apiResponse;
     }
 
     // Retry the original API call with the new token
     console.log('[CAL_TOKEN_UTIL] Retrying API call with new token (TokenExpiredException)');
-    return await retryFn(refreshResult.tokenInfo.accessToken);
+    return await retryFn(tokenResult.accessToken);
   } catch (error) {
     console.error('[CAL_TOKEN_UTIL] Error handling Cal API response:', error);
     // Return the original response in case of errors during our handling
