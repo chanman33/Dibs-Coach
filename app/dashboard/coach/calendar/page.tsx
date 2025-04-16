@@ -1,15 +1,13 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchCoachSessions } from '@/utils/actions/sessions'
 import { fetchUserDbId } from '@/utils/actions/user-profile-actions'
 import { CoachingCalendar } from '@/components/coaching/CoachingCalendar'
 import { useEffect, useState } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
-import { startOfWeek, endOfWeek, addMonths } from 'date-fns'
 import { toast } from 'sonner'
 import { useUser } from '@clerk/nextjs'
-import { TransformedSession } from '@/utils/types/session'
 
 import { Button } from '@/components/ui/button'
 
@@ -107,10 +105,10 @@ interface Calendar {
 
 export default function CoachCalendarPage() {
   const { user, isLoaded: isUserLoaded } = useUser()
+  const queryClient = useQueryClient()
   const [coachDbId, setCoachDbId] = useState<string | null>(null)
   const [busyTimes, setBusyTimes] = useState<BusyTime[]>([])
   const [isLoadingBusyTimes, setIsLoadingBusyTimes] = useState(false)
-  const [calendarToken, setCalendarToken] = useState<string | null>(null)
   const [selectedCalendars, setSelectedCalendars] = useState<Calendar[]>([])
   const [calendarConnectionState, setCalendarConnectionState] = useState<'loading' | 'connected' | 'not_connected' | 'error' | 'auth_error'>('loading')
   const [initialCalendarLoad, setInitialCalendarLoad] = useState(true)
@@ -134,6 +132,7 @@ export default function CoachCalendarPage() {
   // Update coachDbId when dbId changes
   useEffect(() => {
     if (dbId) {
+      console.log('[CoachCalendarPage] Setting coachDbId:', dbId);
       setCoachDbId(dbId)
     }
   }, [dbId])
@@ -153,6 +152,7 @@ export default function CoachCalendarPage() {
   const { data: calendarData, isLoading: isLoadingCalendars, error: calendarError } = useQuery({
     queryKey: ['coach-calendars', coachDbId, user?.id],
     queryFn: async () => {
+      console.log('[CoachCalendarPage] Running fetch for coach-calendars with coachDbId:', coachDbId);
       if (!coachDbId || !user?.id) return null
       
       try {
@@ -181,7 +181,8 @@ export default function CoachCalendarPage() {
       if (calendarConnectionState === 'auth_error') return false
       if (error?.message?.includes('401') || error?.status === 401) return false
       return failureCount < 2
-    }
+    },
+    staleTime: 1000 * 60 * 5 // 5 minutes - consider data fresh for this long
   })
 
   // Handle query errors
@@ -196,80 +197,25 @@ export default function CoachCalendarPage() {
   useEffect(() => {
     if (!isLoadingCalendars && !calendarError && calendarData?.calendars?.length > 0) {
       setSelectedCalendars(calendarData.calendars)
-      // Only fetch token if we don't have one and connection state isn't already 'connected'
-      // This prevents re-fetching if the state updates but we already got the token.
-      if (!calendarToken && calendarConnectionState !== 'connected') {
-        setCalendarConnectionState('connected') // Set state first
-        fetchToken() // Then attempt to fetch token
-      } else if (calendarConnectionState !== 'connected'){
-        // If we have a token but state isn't 'connected', just update the state.
-        setCalendarConnectionState('connected')
-      }
+      // Calendars loaded, mark as connected and trigger busy time fetch
+      setCalendarConnectionState('connected')
+      // Call fetchBusyTimes directly now that calendars are loaded
+      fetchBusyTimes(calendarData.calendars)
     } else if (!isLoadingCalendars && !calendarError && calendarData && (!calendarData.calendars || calendarData.calendars.length === 0)) {
       setCalendarConnectionState('not_connected')
       setInitialCalendarLoad(false)
-      setCalendarToken(null); // Ensure token is cleared if no calendars
     } else if (!isLoadingCalendars && calendarError && calendarConnectionState !== 'auth_error') {
       setCalendarConnectionState('error')
       setInitialCalendarLoad(false)
-      setCalendarToken(null); // Ensure token is cleared on error
     }
-    // Depend on calendarData, loading/error states, and calendarToken to decide if fetchToken is needed.
-    // Removed calendarConnectionState from dependencies to avoid loops caused by setCalendarConnectionState within the effect.
-  }, [calendarData, isLoadingCalendars, calendarError, calendarToken, user?.id]) // Added user?.id as fetchToken depends on it indirectly
+  }, [calendarData, isLoadingCalendars, calendarError, user?.id])
 
-  // Fetch Cal.com access token
-  const fetchToken = async () => {
-    if (!user?.id || calendarConnectionState === 'auth_error') {
-      if (!user?.id) setCalendarConnectionState('auth_error')
-      setInitialCalendarLoad(false)
-      return
-    }
-    
-    try {
-      const response = await fetch('/api/cal/calendars/status')
-      
-      if (response.status === 401) {
-        setCalendarConnectionState('auth_error')
-        setInitialCalendarLoad(false)
-        return
-      }
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch calendar status')
-      }
-      
-      const data = await response.json()
-      
-      if (data.success && data.data?.accessToken) {
-        setCalendarToken(data.data.accessToken)
-        if (selectedCalendars.length > 0) {
-          setCalendarConnectionState('connected')
-        } else {
-          setCalendarConnectionState('not_connected')
-        }
-      } else {
-        setCalendarConnectionState('not_connected')
-        setCalendarToken(null)
-        setInitialCalendarLoad(false)
-      }
-    } catch (error) {
-      console.error('[FETCH_CAL_TOKEN_ERROR]', error)
-      setCalendarConnectionState('error')
-      setInitialCalendarLoad(false)
-    }
-  }
+  // Function to fetch busy times - takes calendars as argument now
+  const fetchBusyTimes = async (calendarsToFetch: Calendar[]) => {
+    // Use the passed calendars, or the state if called by refresh
+    const currentCalendars = calendarsToFetch.length > 0 ? calendarsToFetch : selectedCalendars;
 
-  // Fetch busy times when calendars and token are available
-  useEffect(() => {
-    if (selectedCalendars.length > 0 && calendarToken) {
-      fetchBusyTimes()
-    }
-  }, [selectedCalendars, calendarToken])
-
-  // Function to fetch busy times
-  const fetchBusyTimes = async () => {
-    if (selectedCalendars.length === 0 || !calendarToken || !user?.id || calendarConnectionState === 'auth_error') {
+    if (currentCalendars.length === 0 || !user?.id || calendarConnectionState === 'auth_error') {
       setInitialCalendarLoad(false)
       if (calendarConnectionState === 'auth_error') {
         toast.error("Calendar connection needs refresh. Please try refreshing or check settings.")
@@ -280,8 +226,9 @@ export default function CoachCalendarPage() {
     setIsLoadingBusyTimes(true)
     
     try {
-      // Get the first calendar as an example (you might want to fetch for all calendars)
-      const calendar = selectedCalendars[0]
+      // Use the first available calendar for the query
+      // TODO: Potentially handle multiple calendars if API supports it
+      const calendar = currentCalendars[0];
       
       if (!calendar.credentialId || !calendar.externalId) {
         console.error('[FETCH_BUSY_TIMES_ERROR] Missing calendar data', calendar)
@@ -295,24 +242,22 @@ export default function CoachCalendarPage() {
       
       const queryParams = new URLSearchParams({
         'loggedInUsersTz': timeZone,
-        'coachUlid': coachDbId || '',
+        'coachUlid': coachDbId || '', // Backend needs coachUlid to get the token
         'calendarsToLoad[0][credentialId]': calendar.credentialId.toString(),
         'calendarsToLoad[0][externalId]': calendar.externalId.toString()
       })
       
-      // Call the busy times API
-      const response = await fetch(`/api/cal/calendars/get-busy-times?${queryParams.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${calendarToken}`
-        }
-      })
+      // Call the busy times API - No Authorization header needed from frontend
+      const response = await fetch(`/api/cal/calendars/get-busy-times?${queryParams.toString()}`);
       
+      // Backend handles 401 by trying to refresh token
+      // If it still fails, it will return a non-ok status
       if (response.status === 401) {
-        setCalendarConnectionState('auth_error')
-        setCalendarToken(null)
+        // This case might indicate a deeper auth issue not resolvable by token refresh
+        setCalendarConnectionState('auth_error') 
         setInitialCalendarLoad(false)
         setIsLoadingBusyTimes(false)
-        toast.error("Calendar authentication failed. Please refresh or reconnect.")
+        toast.error("Calendar authentication failed persistently. Please check settings.")
         return
       }
       
@@ -330,6 +275,9 @@ export default function CoachCalendarPage() {
         console.warn('[FETCH_BUSY_TIMES] API returned non-success status or invalid data:', data)
         throw new Error('Failed to get valid busy times data')
       }
+      
+      // Manually trigger fetching calendars again, which will then trigger busy times
+      queryClient.invalidateQueries({ queryKey: ['coach-calendars', coachDbId, user?.id] });
     } catch (error) {
       console.error('[FETCH_BUSY_TIMES_ERROR]', error)
       toast.error('Failed to fetch calendar busy times')
@@ -345,34 +293,10 @@ export default function CoachCalendarPage() {
     if (calendarConnectionState === 'auth_error') {
       toast.info("Authentication with calendar provider may have expired. Trying to refresh...")
       setInitialCalendarLoad(true)
-      fetchToken()
-      .then(() => {
-        setTimeout(() => {
-          if (calendarConnectionState === 'auth_error') {
-            toast.error("Refresh failed. Please reconnect your calendar in Settings.", {
-              action: {
-                label: "Go to Settings",
-                onClick: () => window.location.href = '/settings/calendar',
-              },
-            })
-            setInitialCalendarLoad(false)
-          } else if (calendarConnectionState === 'connected') {
-            fetchBusyTimes()
-          } else {
-            setInitialCalendarLoad(false)
-          }
-        }, 500)
-      })
-      .catch(() => {
-        toast.error("An error occurred trying to refresh calendar connection.")
-        setInitialCalendarLoad(false)
-      })
-      return
-    }
-    
-    if (calendarConnectionState === 'connected' || calendarConnectionState === 'error') {
+      fetchBusyTimes(selectedCalendars)
+    } else if (calendarConnectionState === 'connected' || calendarConnectionState === 'error') {
       setInitialCalendarLoad(true)
-      fetchToken().then(() => fetchBusyTimes())
+      fetchBusyTimes(selectedCalendars)
     } else if (calendarConnectionState === 'not_connected') {
       window.location.href = '/settings/calendar'
     } else {

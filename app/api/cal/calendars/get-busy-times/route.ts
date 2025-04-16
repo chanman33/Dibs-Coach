@@ -97,20 +97,40 @@ export async function GET(request: Request) {
       externalId
     });
     
-    // Function to make the Cal.com API request with correct path
     const apiUrl = `https://api.cal.com/v2/calendars/busy-times?${queryParams.toString()}`;
-    console.log('[CAL_GET_BUSY_TIMES] Cal.com API request URL', { apiUrl });
-    
-    const makeCalRequest = (token: string) => fetch(apiUrl, {
+    const fetchOptions = {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${validatedToken}`
+      }
+    };
+    
+    console.log('[CAL_GET_BUSY_TIMES] Making API request:', {
+      apiUrl,
+      headers: fetchOptions.headers, // Log the headers being sent
+      timestamp: new Date().toISOString()
+    });
+    
+    // Function to make the Cal.com API request with correct path
+    // const apiUrl = `https://api.cal.com/v2/calendars/busy-times?${queryParams.toString()}`;
+    // console.log('[CAL_GET_BUSY_TIMES] Cal.com API request URL', { apiUrl });
+    
+    const makeCalRequest = (token: string) => fetch(apiUrl, {
+      // method: 'GET',
+      // headers: {
+      //   'Content-Type': 'application/json',
+      //   'Authorization': `Bearer ${token}`
+      // }
+      ...fetchOptions,
+      headers: {
+        ...fetchOptions.headers,
+        'Authorization': `Bearer ${token}` // Ensure token is updated on retry
       }
     });
     
     // Make the initial request with our validated token
-    console.log('[CAL_GET_BUSY_TIMES] Making API request with validated token and managedUserId');
+    // console.log('[CAL_GET_BUSY_TIMES] Making API request with validated token and managedUserId');
     let response = await makeCalRequest(validatedToken);
     
     // Handle token expiration and retry if needed
@@ -118,7 +138,8 @@ export async function GET(request: Request) {
     
     console.log('[CAL_GET_BUSY_TIMES] API response status', {
       status: response.status,
-      ok: response.ok
+      ok: response.ok,
+      headers: Object.fromEntries(response.headers.entries()) // Log response headers
     });
     
     // Check if the response is OK
@@ -126,7 +147,7 @@ export async function GET(request: Request) {
       const errorText = await response.text();
       console.error('[CAL_GET_BUSY_TIMES_ERROR] Non-OK response', {
         status: response.status,
-        error: errorText,
+        error: errorText.substring(0, 1000), // Log more of the error text
         timestamp: new Date().toISOString()
       });
       
@@ -142,7 +163,8 @@ export async function GET(request: Request) {
       const responseText = await response.text();
       console.error('[CAL_GET_BUSY_TIMES_ERROR] Unexpected Content-Type', {
         contentType: contentType,
-        body: responseText.substring(0, 500), // Log first 500 chars
+        body: responseText.substring(0, 1000), // Log more of the body
+        status: response.status, // Log status code here too
         timestamp: new Date().toISOString()
       });
       return NextResponse.json({ 
