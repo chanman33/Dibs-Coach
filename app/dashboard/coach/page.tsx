@@ -290,6 +290,18 @@ export default function CoachDashboard() {
   };
 
   useEffect(() => {
+    // Prevent data fetching if user is not authenticated
+    if (!userUlid) {
+      // Optionally clear state or set loading to false if needed
+      // setIsLoading(false);
+      // setIsLoadingSessions(false);
+      // ... etc. ...
+      // setDashboardStats(null);
+      // setUpcomingSessions([]);
+      // ... etc. ...
+      return; 
+    }
+
     const loadDashboardStats = async () => {
       try {
         setIsLoading(true)

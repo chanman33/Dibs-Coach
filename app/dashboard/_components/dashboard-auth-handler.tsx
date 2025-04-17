@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { FullPageLoading } from '@/components/loading';
+import { useCentralizedAuth } from '@/app/provider';
 
 function getCookie(name: string): string | null {
   const value = `; ${document.cookie}`;
@@ -14,20 +15,20 @@ function getCookie(name: string): string | null {
 }
 
 export default function DashboardAuthHandler({ children }: { children: React.ReactNode }) {
-  const [isReady, setIsReady] = useState(false);
+  const { authData, isLoggingOut, isLoading, isInitialized } = useCentralizedAuth();
   
-  useEffect(() => {
-    // No delay needed
-    setIsReady(true);
-  }, []);
-  
-  if (!isReady) {
+  if ((isLoading && !isInitialized) || isLoggingOut) {
     return (
       <FullPageLoading 
-        message="Loading your dashboard..."
+        message={isLoggingOut ? "Signing out..." : "Loading your dashboard..."}
         minHeight="min-h-[calc(100vh-4rem)]"
       />
     );
+  }
+
+  if (isInitialized && !isLoading && !authData && !isLoggingOut) {
+    console.error("[AuthHandler] Auth data missing unexpectedly after initialization.");
+    return null;
   }
   
   return <>{children}</>;

@@ -14,7 +14,7 @@ import {
     DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu"
 import config from "@/config"
-import { SignOutButton, useUser } from "@clerk/nextjs"
+import { SignOutButton, useUser, useClerk } from "@clerk/nextjs"
 import {
     CreditCard,
     LogOut,
@@ -66,6 +66,7 @@ const MOCK_USER = {
 
 export function UserProfile() {
     const router = useRouter()
+    const { signOut } = useClerk();
     const pathname = usePathname()
     const [imgError, setImgError] = useState(false)
     const organizationContext = useOrganization();
@@ -174,12 +175,10 @@ export function UserProfile() {
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 {config.auth.enabled ? (
-                    <SignOutButton>
-                        <DropdownMenuItem>
-                            <LogOut className="mr-2 h-4 w-4" />
-                            <span>Log out</span>
-                        </DropdownMenuItem>
-                    </SignOutButton>
+                    <DropdownMenuItem onClick={() => signOut(() => router.push('/'))}>
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Log out</span>
+                    </DropdownMenuItem>
                 ) : (
                     <DropdownMenuItem onClick={() => router.push('/sign-in')}>
                         <LogOut className="mr-2 h-4 w-4" />

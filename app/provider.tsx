@@ -1,7 +1,7 @@
 "use client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { ReactNode, useState, createContext, useContext, useMemo, useEffect, useCallback } from "react";
+import { ReactNode, useState, createContext, useContext, useMemo, useEffect, useCallback, useRef } from "react";
 import { OrganizationProvider } from "@/utils/auth/OrganizationContext";
 import { useAuth } from '@clerk/nextjs';
 import type { AuthContext } from '@/utils/types/auth';
@@ -11,11 +11,13 @@ const CentralizedAuthContext = createContext<{
   authData: AuthContext | null;
   isLoading: boolean;
   isInitialized: boolean;
+  isLoggingOut: boolean;
   refreshAuthData: () => Promise<void>;
 }>({
   authData: null,
   isLoading: true,
   isInitialized: false,
+  isLoggingOut: false,
   refreshAuthData: async () => {},
 });
 
@@ -45,16 +47,21 @@ function CentralizedAuthProvider({
   const [authData, setAuthData] = useState<AuthContext | null>(null);
   const [isFetchingAuthData, setIsFetchingAuthData] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const previousUserIdRef = useRef<string | null | undefined>(userId);
 
   const fetchAuthData = useCallback(async () => {
     if (!userId) {
       console.log('[AUTH_PROVIDER] No Clerk user ID, clearing auth data.');
       setAuthData(null);
       setIsFetchingAuthData(false);
-      setIsInitialized(true);
       return;
     }
 
+    if (isLoggingOut) {
+      setIsLoggingOut(false);
+    }
+    
     console.log('[AUTH_PROVIDER] Clerk user found, fetching full auth context...');
     setIsFetchingAuthData(true);
     try {
@@ -84,16 +91,26 @@ function CentralizedAuthProvider({
       setIsInitialized(true);
       console.log('[AUTH_PROVIDER] Auth context fetch attempt complete.');
     }
-  }, [userId]);
+  }, [userId, isLoggingOut]);
 
   useEffect(() => {
-    if (isClerkLoaded) {
+    const previousUserId = previousUserIdRef.current;
+    if (isClerkLoaded && previousUserId && !userId) {
+        console.log('[AUTH_PROVIDER] Logout detected, setting isLoggingOut flag.');
+        setIsLoggingOut(true);
+        setAuthData(null);
+        setIsFetchingAuthData(false);
+        setIsInitialized(true);
+    }
+    previousUserIdRef.current = userId;
+
+    if (isClerkLoaded && !isLoggingOut) {
       fetchAuthData();
-    } else {
+    } else if (!isClerkLoaded) {
       setIsFetchingAuthData(true);
       setIsInitialized(false);
     }
-  }, [isClerkLoaded, userId, fetchAuthData]);
+  }, [isClerkLoaded, userId, fetchAuthData, isLoggingOut]);
 
   const refreshAuthData = useCallback(async () => {
     console.log('[AUTH_PROVIDER] Refreshing auth data explicitly...');
@@ -104,8 +121,9 @@ function CentralizedAuthProvider({
     authData,
     isLoading: !isClerkLoaded || isFetchingAuthData,
     isInitialized,
+    isLoggingOut,
     refreshAuthData
-  }), [authData, isClerkLoaded, isFetchingAuthData, isInitialized, refreshAuthData]);
+  }), [authData, isClerkLoaded, isFetchingAuthData, isInitialized, isLoggingOut, refreshAuthData]);
 
   if (contextValue.isLoading && !isInitialized) {
      return <AuthLoadingSpinner />;
