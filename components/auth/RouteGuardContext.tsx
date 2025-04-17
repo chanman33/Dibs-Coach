@@ -7,6 +7,7 @@ import { useOrganization } from '@/utils/auth/OrganizationContext';
 import { permissionService } from '@/utils/auth';
 import { ContainerLoading } from '@/components/loading/container';
 import { OrgRole } from '@/utils/roles/roles';
+import { OrganizationMember } from '@/utils/auth/OrganizationContext';
 
 // Define authorization levels that can be checked
 export type AuthorizationLevel = 
@@ -54,7 +55,7 @@ export function RouteGuardProvider({
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { authData: authContext } = useCentralizedAuth();
-  const { organizationRole, isLoading: isOrgLoading, organizations, organizationUlid } = useOrganization();
+  const orgContext = useOrganization();
   const router = useRouter();
   
   // Flag to track if we've already initiated a redirect
@@ -62,9 +63,17 @@ export function RouteGuardProvider({
   
   // Check if the user has the required permission
   const checkAuthorization = (level: AuthorizationLevel): boolean => {
-    // Skip check if organization data is still loading or auth context not ready
-    if (isOrgLoading || !authContext) {
-      console.log('[ROUTE_GUARD] Still loading data, deferring permission check');
+    // Defer check if OrganizationContext or authContext not ready
+    if (!orgContext || !authContext) { 
+      console.log('[ROUTE_GUARD] Context not ready, deferring permission check');
+      return false; 
+    }
+    
+    const { organizationRole, isLoading: isOrgLoading, organizations, organizationUlid } = orgContext;
+
+    // Skip check if organization data is still loading
+    if (isOrgLoading) {
+      console.log('[ROUTE_GUARD] Still loading organization data, deferring permission check');
       return false;
     }
     
@@ -73,7 +82,7 @@ export function RouteGuardProvider({
       ...authContext,
       orgRole: organizationRole as OrgRole | undefined,
       organizationUlid: organizationUlid || undefined,
-      organizationName: organizations.find(org => 
+      organizationName: organizations.find((org: OrganizationMember) =>
         org.organizationUlid === organizationUlid
       )?.organization.name
     };
@@ -116,13 +125,18 @@ export function RouteGuardProvider({
 
   // Wait for organization data to load before making authorization decisions
   useEffect(() => {
-    if (!authContext) {
-      console.log('[ROUTE_GUARD] Waiting for auth context to load');
+    // Wait for auth context and org context
+    if (!authContext || !orgContext) {
+      console.log('[ROUTE_GUARD] Waiting for auth or org context to load');
+      setIsLoading(true); // Ensure loading state is true if contexts aren't ready
       return;
     }
+
+    const { organizationRole, isLoading: isOrgLoading, organizations, organizationUlid } = orgContext;
     
     if (isOrgLoading) {
       console.log('[ROUTE_GUARD] Waiting for organization data to load');
+      setIsLoading(true); // Ensure loading state is true if org data is loading
       return;
     }
     
@@ -146,27 +160,6 @@ export function RouteGuardProvider({
         timestamp: new Date().toISOString()
       });
 
-      // Set the user context on the permission service with organization info
-      const userWithOrg = {
-        ...authContext,
-        orgRole: organizationRole as OrgRole | undefined,
-        organizationUlid: organizationUlid || undefined,
-        organizationName: organizations.find(org => 
-          org.organizationUlid === organizationUlid
-        )?.organization.name
-      };
-
-      console.log('[ROUTE_GUARD] Setting complete permission context:', {
-        userId: userWithOrg.userId,
-        orgRole: userWithOrg.orgRole || 'none',
-        organizationUlid: userWithOrg.organizationUlid || 'none',
-        organizationName: userWithOrg.organizationName || 'none',
-        level: required,
-        timestamp: new Date().toISOString()
-      });
-      
-      permissionService.setUser(userWithOrg);
-      
       const authorized = checkAuthorization(required);
       setIsAuthorized(authorized);
       
@@ -209,15 +202,18 @@ export function RouteGuardProvider({
       setIsAuthorized(true);
       setIsLoading(false);
     }
-  }, [required, authContext, organizationRole, isOrgLoading, redirectTo, router, organizationUlid, organizations, isRedirecting]);
+  }, [required, authContext, orgContext, redirectTo, router, isRedirecting]);
 
   // Show enhanced loading state with better messaging based on what we're waiting for
-  if (isLoading) {
+  // Check orgContext existence first
+  if (!orgContext || orgContext.isLoading || isLoading) { 
     let loadingMessage = "Verifying permissions...";
     
-    if (isOrgLoading) {
+    if (!orgContext) {
+      loadingMessage = "Initializing organization context...";
+    } else if (orgContext.isLoading) {
       loadingMessage = "Loading organization data...";
-    } else if (organizationUlid && !organizationRole && organizations.length > 0) {
+    } else if (orgContext.organizationUlid && !orgContext.organizationRole && orgContext.organizations.length > 0) {
       loadingMessage = "Finalizing organization context...";
     }
     
@@ -231,7 +227,8 @@ export function RouteGuardProvider({
   }
   
   // Don't render children if not authorized (will redirect via useEffect)
-  if (!isAuthorized) {
+  // Check isAuthorized after loading is confirmed false
+  if (isAuthorized === false) { 
     return (
       <ContainerLoading
         message="Redirecting..."
@@ -240,10 +237,22 @@ export function RouteGuardProvider({
       />
     );
   }
-
+  
+  // Only render children if loading is complete AND authorized is true
+  if (isAuthorized === true) {
+    return (
+      <RouteGuardContext.Provider value={{ isAuthorized: true, isLoading: false, checkAuthorization }}>
+        {children}
+      </RouteGuardContext.Provider>
+    );
+  }
+  
+  // Fallback loading state if somehow authorization state is still null after loading checks
   return (
-    <RouteGuardContext.Provider value={{ isAuthorized: !!isAuthorized, isLoading, checkAuthorization }}>
-      {children}
-    </RouteGuardContext.Provider>
+      <ContainerLoading
+        message="Verifying authorization..."
+        spinnerSize="md"
+        minHeight="h-full"
+      />
   );
 } 

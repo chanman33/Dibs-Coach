@@ -43,7 +43,7 @@ interface OverviewData {
 }
 
 export function OrganizationPortal() {
-  const { organizationName, organizationRole, isLoading } = useOrganization()
+  const orgContext = useOrganization(); // Get full context
   const router = useRouter()
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [overviewData, setOverviewData] = useState<OverviewData>({
@@ -58,14 +58,14 @@ export function OrganizationPortal() {
   })
 
   useEffect(() => {
-    // Redirect if not in an organization
-    if (!isLoading && !organizationName) {
+    // Redirect if context is loaded but there is no organization name
+    if (orgContext && !orgContext.isLoading && !orgContext.organizationName) {
       router.push('/dashboard')
       return
     }
 
     // Mock fetching data - would be replaced with real API call
-    if (organizationName) {
+    if (orgContext?.organizationName) {
       // Simulate API call
       setTimeout(() => {
         setOverviewData({
@@ -121,9 +121,10 @@ export function OrganizationPortal() {
         setIsLoadingData(false)
       }, 1000)
     }
-  }, [organizationName, isLoading, router])
+  }, [orgContext, router]) // Depend on the whole orgContext
 
-  if (isLoading) {
+  // Loading state for organization context itself
+  if (!orgContext || orgContext.isLoading) {
     return (
       <ContainerLoading
         message="Loading organization..."
@@ -133,6 +134,10 @@ export function OrganizationPortal() {
     )
   }
 
+  // Destructure after context is loaded
+  const { organizationName } = orgContext;
+
+  // Loading state for component-specific data
   if (isLoadingData) {
     return (
       <ContainerLoading

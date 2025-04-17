@@ -25,6 +25,7 @@ import { CalConnectedStatus, useCalIntegrationStatus } from '@/components/cal/Ca
 import { SiGooglecalendar } from 'react-icons/si'
 import { BsCalendar2Week } from 'react-icons/bs'
 import { createAuthClient } from '@/utils/auth'
+import { OrganizationMember } from '@/utils/auth/OrganizationContext'
 
 // Map organization types to icons and colors
 const orgTypeConfig: Record<string, { icon: any, color: string }> = {
@@ -185,7 +186,7 @@ export default function Settings() {
   const [oauthDebugUrl, setOauthDebugUrl] = useState<string | null>(null)
   const isCoach = userCapabilities.includes('COACH')
   const [activeTab, setActiveTab] = useState("account")
-  const { organizations, organizationUlid, setOrganizationUlid, isLoading: isLoadingOrgs } = useOrganization();
+  const orgContext = useOrganization();
   const searchParams = useSearchParams();
   const hasSuccessParam = searchParams.get('success') === 'true';
   const hasErrorParam = searchParams.get('error') === 'true';
@@ -383,8 +384,24 @@ export default function Settings() {
     timestamp: new Date().toISOString()
   });
 
-  if (loadingCapabilities) {
-    console.log('[SETTINGS_PAGE_DEBUG] Loading capabilities');
+  // Check if Organization context is loading
+  if (!orgContext) {
+    console.log('[SETTINGS_PAGE_DEBUG] Waiting for organization context...');
+    return (
+      <div className="container mx-auto py-6 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p>Initializing settings...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  // Destructure after confirming context is available
+  const { organizations, organizationUlid, setOrganizationUlid, isLoading: isLoadingOrgs } = orgContext;
+
+  if (loadingCapabilities || isLoadingOrgs) { // Check both capability and org loading
+    console.log('[SETTINGS_PAGE_DEBUG] Loading capabilities or organizations');
     // Return a more informative loading state
     return (
       <div className="container mx-auto py-6 flex items-center justify-center">
@@ -445,7 +462,7 @@ export default function Settings() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 gap-6">
-            {organizations.map((org) => {
+            {organizations.map((org: OrganizationMember) => {
               const OrgIcon = orgTypeConfig[org.organization.type]?.icon || Building;
               const typeColor = orgTypeConfig[org.organization.type]?.color || '';
               const roleConfig_ = roleConfig[org.role] || { label: org.role, color: '' };

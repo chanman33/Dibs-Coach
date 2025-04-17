@@ -39,8 +39,12 @@ export function CoachSidebar() {
   const [isOrgExpanded, setIsOrgExpanded] = useState(true)
   const { authData: authContext } = useCentralizedAuth()
   const [hasRealtorDomain, setHasRealtorDomain] = useState(false)
-  const { organizationName, organizationRole, organizations } = useOrganization()
-  const hasOrganization = !!organizationName && organizations.length > 0
+  const orgContext = useOrganization()
+
+  // Derivations (handle undefined context)
+  const isLoadingOrg = !orgContext || orgContext.isLoading;
+  const organizationName = orgContext?.organizationName;
+  const hasOrganization = !isLoadingOrg && !!organizationName && orgContext.organizations.length > 0;
 
   useEffect(() => {
     const getUserDomains = async () => {

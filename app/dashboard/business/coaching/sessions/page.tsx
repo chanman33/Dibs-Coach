@@ -64,9 +64,10 @@ import { CoachingStatsCards } from "../_components/coaching-stats-cards"
 import { fetchOrganizationCoachingSessions, CoachingSession } from "@/utils/actions/business-portal/coaching-sessions"
 import { useOrganization } from "@/utils/auth/OrganizationContext"
 import { RecentSessionNotes } from "../_components/recent-session-notes"
+import { ContainerLoading } from "@/components/loading"
 
 export default function CoachingSessionsPage() {
-  const { organizationUlid, isLoading: isOrgLoading } = useOrganization()
+  const orgContext = useOrganization()
   const [sessions, setSessions] = useState<CoachingSession[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -101,6 +102,10 @@ export default function CoachingSessionsPage() {
 
   // Fetch sessions on component mount
   useEffect(() => {
+    // Destructure context values *inside* useEffect or check context existence
+    const organizationUlid = orgContext?.organizationUlid;
+    const isOrgLoading = !orgContext || orgContext.isLoading;
+    
     const fetchSessions = async () => {
       try {
         setIsLoading(true)
@@ -144,10 +149,34 @@ export default function CoachingSessionsPage() {
       }
     }
 
+    // Only fetch if the org context is loaded and we have a ULID
     if (!isOrgLoading && organizationUlid) {
       fetchSessions()
+    } else if (!isOrgLoading && !organizationUlid) {
+      // Handle case where org context is loaded but no org is selected
+      setError('No organization selected');
+      setIsLoading(false);
+      setSessions([]);
+      setStats({
+        totalSessions: 0,
+        completedSessions: 0,
+        upcomingSessions: 0,
+        totalHours: 0,
+        completionRate: 0
+      });
     }
-  }, [organizationUlid, isOrgLoading])
+  }, [orgContext]) // Depend on the whole orgContext
+
+  // Show loading if org context or sessions are loading
+  if (!orgContext || orgContext.isLoading || isLoading) {
+    return (
+      <ContainerLoading 
+        message={!orgContext || orgContext.isLoading ? "Loading organization..." : "Loading sessions..."} 
+        spinnerSize="lg" 
+        minHeight="h-full"
+      />
+    );
+  }
   
   // Filter sessions based on search query and status filter
   const filteredSessions = sessions

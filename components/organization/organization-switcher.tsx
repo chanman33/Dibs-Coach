@@ -24,6 +24,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { OrganizationMember } from "@/utils/auth/OrganizationContext";
 
 // Map organization types to icons
 const orgTypeIcons: Record<string, LucideIcon> = {
@@ -45,21 +46,21 @@ const roleDisplayNames: Record<string, string> = {
 };
 
 export function OrganizationSwitcher() {
+  const orgContext = useOrganization();
+  const router = useRouter();
+
+  if (!orgContext || orgContext.isLoading) {
+    return <OrganizationSwitcherSkeleton />;
+  }
+
   const { 
     organizationUlid, 
     setOrganizationUlid, 
     organizationName, 
     organizationRole,
-    organizations,
-    isLoading 
-  } = useOrganization();
-  const router = useRouter();
+    organizations
+  } = orgContext;
 
-  if (isLoading) {
-    return <OrganizationSwitcherSkeleton />;
-  }
-
-  // Display a message or guidance instead of returning null when no organizations
   if (!organizations || organizations.length === 0) {
     return (
       <div className="w-full">
@@ -84,8 +85,7 @@ export function OrganizationSwitcher() {
     setOrganizationUlid(orgId);
   };
 
-  // Get the current organization's type
-  const currentOrgType = organizations.find(org => org.organizationUlid === organizationUlid)?.organization.type || 'BUSINESS';
+  const currentOrgType = organizations.find((org: OrganizationMember) => org.organizationUlid === organizationUlid)?.organization.type || 'BUSINESS';
   const OrgIcon = orgTypeIcons[currentOrgType] || Building;
 
   return (
@@ -110,7 +110,7 @@ export function OrganizationSwitcher() {
         <DropdownMenuLabel>My Organizations</DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup className="max-h-[300px] overflow-y-auto">
-          {organizations.map((org) => {
+          {organizations.map((org: OrganizationMember) => {
             const OrgTypeIcon = orgTypeIcons[org.organization.type] || Building;
             return (
               <DropdownMenuItem

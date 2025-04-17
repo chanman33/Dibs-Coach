@@ -51,18 +51,20 @@ export function useAuth(): UseAuthReturn {
   const { authData, isLoading: isAuthLoading } = useCentralizedAuth();
   
   // 3. Organization context
-  const { 
-    organizationUlid, 
-    organizationName, 
-    organizationRole, 
-    isLoading: isOrgLoading 
-  } = useOrganization();
+  const orgContext = useOrganization(); // Get full context
   
+  // Default values for org context when not loaded
+  const organizationUlid = orgContext?.organizationUlid ?? null;
+  const organizationName = orgContext?.organizationName ?? null;
+  const organizationRole = orgContext?.organizationRole ?? null;
+  const isOrgLoading = !orgContext || orgContext.isLoading;
+
   // Calculate fully loaded state - ensures we've verified all three levels
+  // Now includes the check for orgContext itself
   const isFullyLoaded = isClerkLoaded && !isAuthLoading && !isOrgLoading;
   
   // Only set the auth context in the permission service when everything is loaded
-  if (authData && isSignedIn && isFullyLoaded) {
+  if (authData && isSignedIn && isFullyLoaded && orgContext) { // Ensure orgContext is available
     try {
       // Set the complete context including organization data
       permissionService.setUser({
@@ -102,7 +104,7 @@ export function useAuth(): UseAuthReturn {
     systemRole: authData?.systemRole || 'USER',
     capabilities: authData?.capabilities || [],
     
-    // Organization context
+    // Organization context (using derived values)
     organizationUlid,
     organizationName,
     organizationRole,

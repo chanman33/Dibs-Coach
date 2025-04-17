@@ -8,10 +8,19 @@ import { useOrganization } from "@/utils/auth/OrganizationContext";
  * for cases when there are no organizations or when it's loading
  */
 export function SidebarOrganizationSection() {
-  const { organizations, isLoading } = useOrganization();
+  const orgContext = useOrganization(); // Get full context
   
-  // Don't render anything if there are no organizations and not loading
-  if (!isLoading && (!organizations || organizations.length === 0)) {
+  // Handle loading or undefined context
+  if (!orgContext || orgContext.isLoading) {
+    // Optional: Render a skeleton/loading state here if desired
+    return null; // Or return a loading placeholder
+  }
+  
+  // Destructure after checks
+  const { organizations } = orgContext;
+  
+  // Don't render anything if there are no organizations
+  if (!organizations || organizations.length === 0) {
     return null;
   }
   
