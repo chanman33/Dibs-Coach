@@ -19,6 +19,7 @@ interface ProfileCompletionProps {
   missingRequiredFields: string[]
   optionalMissingFields: string[]
   validationMessages: Record<string, string>
+  updateCompletionStatus: (data: any) => void;
 }
 
 interface Step {
@@ -79,6 +80,7 @@ export function ProfileCompletion({
   missingRequiredFields,
   optionalMissingFields,
   validationMessages,
+  updateCompletionStatus,
 }: ProfileCompletionProps) {
   const [isUpdating, setIsUpdating] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -452,7 +454,11 @@ export function ProfileCompletion({
         toast.error(result.error.message || 'Failed to publish profile');
         return;
       }
-      toast.success('Profile published successfully');
+      // Update client state immediately on success
+      if (result.data) {
+        updateCompletionStatus({ profileStatus: result.data.profileStatus });
+        toast.success('Profile published successfully');
+      }
     } catch (error) {
       console.error('[PUBLISH_PROFILE_ERROR]', error);
       toast.error('Failed to publish profile');

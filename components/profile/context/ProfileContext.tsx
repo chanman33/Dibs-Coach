@@ -128,6 +128,9 @@ interface ProfileContextType {
   onSubmitListing: (data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null }>;
   onUpdateListing: (ulid: string, data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null }>;
   
+  // Function to update completion status locally
+  updateCompletionStatus: (data: any) => void;
+  
   // Clerk user data
   clerkUser: any | null;
   isClerkLoaded: boolean;
@@ -1163,7 +1166,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     onSubmitListing,
     onUpdateListing,
     clerkUser: clerkUser || null,
-    isClerkLoaded
+    isClerkLoaded,
+    updateCompletionStatus
   };
   
   return (

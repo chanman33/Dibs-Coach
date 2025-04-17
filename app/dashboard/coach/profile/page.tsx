@@ -85,6 +85,7 @@ function ProfilePageContent() {
     updateCommercialData,
     privateCreditData,
     updatePrivateCreditData,
+    updateCompletionStatus,
   } = useProfileContext();
 
   // Get Clerk user data for profile image
@@ -302,6 +303,7 @@ function ProfilePageContent() {
           canPublish={extendedCoachData.canPublish}
           onSkillsChange={onSkillsChange}
           saveSkills={saveSkills}
+          updateCompletionStatus={updateCompletionStatus}
           userInfo={{
             firstName: generalData?.displayName?.split(' ')[0] || undefined,
             lastName: generalData?.displayName?.split(' ').slice(1).join(' ') || undefined,

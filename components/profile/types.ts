@@ -110,10 +110,14 @@ export interface CoachProfileFormProps {
   profileStatus?: ProfileStatus;
   completionPercentage?: number;
   missingFields?: string[];
+  missingRequiredFields?: string[];
+  optionalMissingFields?: string[];
+  validationMessages?: Record<string, string>;
   canPublish?: boolean;
   userInfo?: UserInfo;
-  onSpecialtiesChange: (specialties: Specialty[]) => void;
-  saveSpecialties: (selectedSpecialties: Specialty[]) => Promise<boolean>;
+  onSkillsChange: (skills: string[]) => void;
+  saveSkills: (skills: string[]) => Promise<boolean>;
+  updateCompletionStatus: (data: any) => void;
 }
 
 export interface CoachProfileResponse {

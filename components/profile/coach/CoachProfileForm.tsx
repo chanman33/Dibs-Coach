@@ -148,6 +148,7 @@ export interface CoachProfileFormProps {
   saveSkills: (selectedSkills: string[]) => Promise<boolean>;
   onSpecialtiesChange?: (specialties: string[]) => void;
   saveSpecialties?: (specialties: string[]) => Promise<void>;
+  updateCompletionStatus: (data: any) => void;
 }
 
 export function CoachProfileForm({
@@ -166,6 +167,7 @@ export function CoachProfileForm({
   saveSkills,
   onSpecialtiesChange,
   saveSpecialties,
+  updateCompletionStatus,
 }: CoachProfileFormProps) {
   console.log("[COACH_FORM_INIT]", {
     initialDataProvided: {
@@ -475,6 +477,7 @@ export function CoachProfileForm({
             missingRequiredFields={missingRequiredFields}
             optionalMissingFields={optionalMissingFields}
             validationMessages={validationMessages}
+            updateCompletionStatus={updateCompletionStatus}
           />
 
           {/* Coach Profile Card */}
