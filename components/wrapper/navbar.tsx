@@ -8,17 +8,12 @@ import { SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "../ui/sheet
 import { UserProfile } from "../user-profile";
 import ModeToggle from "../mode-toggle";
 import { NavigationMenu, NavigationMenuList, NavigationMenuItem } from "@/components/ui/navigation-menu";
-import config from "@/config";
-import { useAuth } from "@clerk/nextjs";
+import { useCentralizedAuth } from "@/app/provider";
 import { Dialog, DialogClose } from "@radix-ui/react-dialog";
 
 export default function NavBar() {
-    const { isLoaded, userId } = config?.auth?.enabled ? useAuth() : { isLoaded: true, userId: null };
-
-    // Don't render anything until auth is loaded
-    if (!isLoaded) {
-        return null;
-    }
+    const { authData, isLoading } = useCentralizedAuth();
+    const userId = authData?.userId;
 
     return (
         <div className="flex min-w-full fixed justify-between p-2 border-b z-10 dark:bg-black dark:bg-opacity-50 bg-white">
@@ -41,7 +36,7 @@ export default function NavBar() {
                                     </Button>
                                 </Link>
                             </DialogClose>
-                            {!userId && (
+                            {(isLoading || !userId) && (
                                 <>
                                     <DialogClose asChild>
                                         <Link href="/sign-up">
@@ -88,7 +83,7 @@ export default function NavBar() {
                 </NavigationMenuList>
             </NavigationMenu>
             <div className="flex items-center gap-2 max-[825px]:hidden">
-                {userId ? (
+                {!isLoading && userId ? (
                     <UserProfile />
                 ) : (
                     <>

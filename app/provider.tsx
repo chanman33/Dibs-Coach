@@ -5,6 +5,7 @@ import { ReactNode, useState, createContext, useContext, useMemo, useEffect, use
 import { OrganizationProvider } from "@/utils/auth/OrganizationContext";
 import { useAuth } from '@clerk/nextjs';
 import type { AuthContext } from '@/utils/types/auth';
+import { FullPageLoading } from "@/components/loading";
 
 // Create a centralized auth context to prevent redundant checks
 const CentralizedAuthContext = createContext<{
@@ -26,14 +27,13 @@ export function useCentralizedAuth() {
   return useContext(CentralizedAuthContext);
 }
 
-// Loading spinner component for auth loading states
+// Modified loading spinner component for auth loading states
 function AuthLoadingSpinner() {
   return (
-    <div className="flex items-center justify-center min-h-[100px]">
-      <div className="text-center">
-        <p className="text-sm text-muted-foreground">Initializing session...</p>
-      </div>
-    </div>
+    <FullPageLoading
+      showLogo={true}
+      spinnerSize="lg"
+    />
   );
 }
 
@@ -125,6 +125,7 @@ function CentralizedAuthProvider({
     refreshAuthData
   }), [authData, isClerkLoaded, isFetchingAuthData, isInitialized, isLoggingOut, refreshAuthData]);
 
+  // Re-added: Show loading spinner until auth is initialized
   if (contextValue.isLoading && !isInitialized) {
      return <AuthLoadingSpinner />;
   }

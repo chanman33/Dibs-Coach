@@ -35,9 +35,7 @@ export default function Home() {
       <div className="flex my-[2rem] flex-col p-2 w-full justify-center items-center">
         <MarketingCards />
       </div>
-      {/* <div className="max-w-[1200px] p-8 mt-[2rem] lg:mt-[6rem] lg:mb-[5rem]">
-        <CoachCarousel />
-      </div> */}
+      {/* <div className="max-w-[1200px] p-8 mt-[2rem] lg:mt-[6rem] lg:mb-[5rem]">\n        <CoachCarousel />\n      </div> */}
       <div className="flex my-[2rem] w-full justify-center items-center">
         <CoachingBenefits />
       </div>
@@ -52,4 +50,4 @@ export default function Home() {
       </div>
     </PageWrapper>
   );
-}
+} 
