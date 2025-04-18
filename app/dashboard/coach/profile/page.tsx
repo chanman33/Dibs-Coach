@@ -269,8 +269,8 @@ function ProfilePageContent() {
           bio: generalData?.bio,
           totalYearsRE: generalData?.totalYearsRE,
           primaryMarket: generalData?.primaryMarket,
-          realEstateDomains: coachData?.coachRealEstateDomains || [],
-          primaryDomain: coachData?.coachPrimaryDomain || null
+          realEstateDomains: generalData?.realEstateDomains || [],
+          primaryDomain: generalData?.primaryDomain || null
         }}
         onSubmitGeneral={handleGeneralSubmit}
         onSubmitCoach={handleProfileSubmit}

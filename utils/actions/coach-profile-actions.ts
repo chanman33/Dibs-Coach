@@ -368,6 +368,8 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           eventTypeUrl: formData.eventTypeUrl,
           slogan: formData.slogan,
           profileSlug: formData.profileSlug,
+          coachRealEstateDomains: formData.coachRealEstateDomains,
+          coachPrimaryDomain: formData.coachPrimaryDomain
         },
         timestamp: new Date().toISOString()
       });
@@ -484,10 +486,12 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
       });
 
       // Get the coach's primary domain
-      const coachPrimaryDomain = coachProfileData?.coachPrimaryDomain || null;
+      const coachPrimaryDomain = formData.coachPrimaryDomain !== undefined 
+        ? formData.coachPrimaryDomain 
+        : coachProfileData?.coachPrimaryDomain || null;
       
       // Get the coach's domains
-      const coachRealEstateDomains = coachProfileData?.coachRealEstateDomains || [];
+      const coachRealEstateDomains = formData.coachRealEstateDomains || coachProfileData?.coachRealEstateDomains || [];
 
       // Update the coach profile
       const { error: updateError } = await supabase
@@ -503,6 +507,8 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           eventTypeUrl: formData.eventTypeUrl,
           slogan: formData.slogan,
           profileSlug: profileSlug,
+          coachRealEstateDomains: coachRealEstateDomains as any,
+          coachPrimaryDomain: coachPrimaryDomain as any,
           lastSlugUpdateAt: profileSlug !== (coachProfileData as any)?.profileSlug ? lastSlugUpdateAt : undefined,
           completionPercentage: percentage
         })
