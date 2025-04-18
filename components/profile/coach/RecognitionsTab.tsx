@@ -473,367 +473,365 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold">Professional Recognitions</h2>
-          <p className="text-muted-foreground mt-1">
-            Showcase your certifications, awards, and achievements
-          </p>
-        </div>
-      </div>
-
       {/* Recognition Cards */}
-      <div className="space-y-4">
-        {recognitions.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2">
-            {recognitions.map((recognition, index) => {
-              // Choose appropriate icon based on recognition type
-              let icon;
-              switch(recognition.type) {
-                case RecognitionType.AWARD:
-                  icon = <Trophy className="h-4 w-4 text-primary" />;
-                  break;
-                case RecognitionType.CERTIFICATION:
-                case RecognitionType.DESIGNATION:
-                case RecognitionType.LICENSE:
-                  icon = <Award className="h-4 w-4 text-primary" />;
-                  break;
-                case RecognitionType.EDUCATION:
-                  icon = <BookOpen className="h-4 w-4 text-primary" />;
-                  break;
-                case RecognitionType.MEMBERSHIP:
-                  icon = <Building className="h-4 w-4 text-primary" />;
-                  break;
-                case RecognitionType.ACHIEVEMENT:
-                default:
-                  icon = <Trophy className="h-4 w-4 text-primary" />;
-              }
-              
-              const isVisible = recognition.isVisible !== false;
-              const industryType = recognition.industryType;
-              
-              return (
-                <Card 
-                  key={index} 
-                  className={cn(
-                    "transition-all duration-200 hover:shadow-md",
-                    !isVisible && "opacity-60"
-                  )}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-2 max-w-[80%]">
-                        {icon}
-                        <CardTitle className="text-base truncate">{recognition.title}</CardTitle>
-                      </div>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={(e) => {
-                          handleEditRecognition(index);
-                        }}
-                        className="h-8 w-8 p-0 rounded-full"
-                        aria-label="Edit recognition"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    
-                    <div className="flex items-center flex-wrap gap-2 mt-3">
-                      <Badge 
-                        variant={getBadgeVariant(recognition.type)}
-                        className={getBadgeClassName(recognition.type)}
-                      >
-                        {getBadgeLabel(recognition.type)}
-                      </Badge>
-                      {industryType && (
-                        <Badge variant="secondary" className="text-xs">
-                          {getDomainLabel(industryType)}
-                        </Badge>
-                      )}
-                    </div>
-                    
-                    <div className="flex justify-between items-center mt-3">
-                      <div className="text-sm text-muted-foreground flex items-center gap-1">
-                        {recognition.issuer && (
-                          <>
-                            <Building className="h-3.5 w-3.5" />
-                            <span className="font-medium">{recognition.issuer}</span>
-                            <span className="mx-1">•</span>
-                          </>
-                        )}
-                        <Calendar className="h-3.5 w-3.5" />
-                        <span>{formatYear(recognition.issueDate)}</span>
-                      </div>
-                      <Badge variant={isVisible ? "outline" : "secondary"} className="text-xs">
-                        {isVisible ? "Visible" : "Hidden"}
-                      </Badge>
-                    </div>
-                  </CardHeader>
+      <Card>
+        <CardHeader>
+          <CardTitle>Professional Recognitions</CardTitle>
+          <CardDescription>Your certifications, awards, and other professional achievements</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {recognitions.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {recognitions.map((recognition, index) => {
+                  // Choose appropriate icon based on recognition type
+                  let icon;
+                  switch(recognition.type) {
+                    case RecognitionType.AWARD:
+                      icon = <Trophy className="h-4 w-4 text-primary" />;
+                      break;
+                    case RecognitionType.CERTIFICATION:
+                    case RecognitionType.DESIGNATION:
+                    case RecognitionType.LICENSE:
+                      icon = <Award className="h-4 w-4 text-primary" />;
+                      break;
+                    case RecognitionType.EDUCATION:
+                      icon = <BookOpen className="h-4 w-4 text-primary" />;
+                      break;
+                    case RecognitionType.MEMBERSHIP:
+                      icon = <Building className="h-4 w-4 text-primary" />;
+                      break;
+                    case RecognitionType.ACHIEVEMENT:
+                    default:
+                      icon = <Trophy className="h-4 w-4 text-primary" />;
+                  }
                   
-                  {recognition.description && (
-                    <CardContent className="pt-0 pb-3">
-                      <div className={cn(
-                        "relative",
-                        !expandedDescriptions[recognition.ulid || ''] && "line-clamp-2 max-h-[3rem] overflow-hidden"
-                      )}>
-                        <p className="text-sm text-muted-foreground">
-                          {recognition.description}
-                        </p>
-                        {!expandedDescriptions[recognition.ulid || ''] && recognition.description.length > 120 && (
-                          <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-background to-transparent"></div>
-                        )}
-                      </div>
-                      {recognition.description && recognition.description.length > 120 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="p-1 h-auto text-xs mt-1 text-primary hover:text-primary/80 hover:bg-primary/10 font-medium"
-                          onClick={(e) => toggleDescriptionExpand(e, recognition.ulid || '')}
-                        >
-                          {expandedDescriptions[recognition.ulid || ''] ? "Show less" : "Show more"}
-                        </Button>
+                  const isVisible = recognition.isVisible !== false;
+                  const industryType = recognition.industryType;
+                  
+                  return (
+                    <Card 
+                      key={index} 
+                      className={cn(
+                        "transition-all duration-200 hover:shadow-md",
+                        !isVisible && "opacity-60"
                       )}
-                    </CardContent>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-12 border rounded-lg bg-muted/10">
-            <Award className="h-12 w-12 mx-auto mb-3 opacity-20" />
-            <p className="text-lg font-medium">No professional recognitions found</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Add your certifications, awards, and achievements to showcase your expertise
-            </p>
-          </div>
-        )}
-
-        {/* Add Recognition Button */}
-        <div className="flex justify-between items-center mt-6">
-          <div className="flex gap-2">
-            <Button 
-              variant={showForm ? "outline" : "default"}
-              onClick={() => setShowForm(!showForm)}
-              className="gap-2"
-              disabled={isSaving || isSubmitting}
-            >
-              {showForm ? (
-                <>Cancel</>
-              ) : (
-                <>
-                  <PlusCircle className="h-4 w-4" />
-                  Add Recognition
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Add/Edit Form */}
-        {showForm && (
-          <Card className="mt-6 border-primary/20 shadow-sm">
-            <CardHeader className="pb-2 border-b">
-              <CardTitle className="text-lg">
-                {editIndex !== null ? "Edit Recognition" : "Add New Recognition"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-5">
-                <div>
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Title
-                  </label>
-                  <Input 
-                    value={recognitionValues.title}
-                    onChange={(e) => setRecognitionValues({
-                      ...recognitionValues,
-                      title: e.target.value
-                    })}
-                    placeholder="e.g., Top Producer Award"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Type
-                    </label>
-                    <Select 
-                      value={recognitionValues.type}
-                      onValueChange={(value) => setRecognitionValues({
-                        ...recognitionValues,
-                        type: value as RecognitionTypeValues
-                      })}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={RecognitionType.AWARD}>Award</SelectItem>
-                        <SelectItem value={RecognitionType.ACHIEVEMENT}>Achievement</SelectItem>
-                        <SelectItem value={RecognitionType.CERTIFICATION}>Certification</SelectItem>
-                        <SelectItem value={RecognitionType.DESIGNATION}>Designation</SelectItem>
-                        <SelectItem value={RecognitionType.LICENSE}>License</SelectItem>
-                        <SelectItem value={RecognitionType.EDUCATION}>Education</SelectItem>
-                        <SelectItem value={RecognitionType.MEMBERSHIP}>Membership</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Issuer
-                    </label>
-                    <Input 
-                      value={recognitionValues.issuer}
-                      onChange={(e) => setRecognitionValues({
-                        ...recognitionValues,
-                        issuer: e.target.value
-                      })}
-                      placeholder="e.g., National Association of Realtors"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Issue Date
-                    </label>
-                    <Input 
-                      type="date"
-                      value={recognitionValues.issueDate}
-                      onChange={(e) => setRecognitionValues({
-                        ...recognitionValues,
-                        issueDate: e.target.value
-                      })}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                      Expiry Date (Optional)
-                    </label>
-                    <Input 
-                      type="date"
-                      value={recognitionValues.expiryDate || ""}
-                      onChange={(e) => setRecognitionValues({
-                        ...recognitionValues,
-                        expiryDate: e.target.value || null
-                      })}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Industry Type
-                  </label>
-                  <Select
-                    value={recognitionValues.industryType || "none_general"}
-                    onValueChange={(value) => {
-                      setRecognitionValues({
-                        ...recognitionValues,
-                        industryType: value === "none_general" ? null : value
-                      });
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select industry (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none_general">None (General)</SelectItem>
-                      {domainOptions.map((domain) => (
-                        <SelectItem key={domain} value={domain}>
-                          {getDomainLabel(domain)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Categorize this recognition by industry to help organize your profile.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Description
-                  </label>
-                  <Textarea 
-                    value={recognitionValues.description || ""}
-                    onChange={(e) => setRecognitionValues({
-                      ...recognitionValues,
-                      description: e.target.value || null
-                    })}
-                    placeholder="Briefly describe this recognition and what it represents (optional)"
-                    rows={3}
-                  />
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter className="border-t pt-4 flex justify-between gap-3">
-              <div className="flex gap-2">
-                {editIndex !== null && (
-                  <>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={handleToggleVisibilityInForm}
-                      disabled={isSaving || isSubmitting}
-                      className="gap-1"
-                    >
-                      {recognitionValues.isVisible ? (
-                        <>
-                          <EyeOff className="h-4 w-4" />
-                          <span>Hide</span>
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="h-4 w-4" />
-                          <span>Show</span>
-                        </>
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-2 max-w-[80%]">
+                            {icon}
+                            <CardTitle className="text-base truncate">{recognition.title}</CardTitle>
+                          </div>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={(e) => {
+                              handleEditRecognition(index);
+                            }}
+                            className="h-8 w-8 p-0 rounded-full"
+                            aria-label="Edit recognition"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        <div className="flex items-center flex-wrap gap-2 mt-3">
+                          <Badge 
+                            variant={getBadgeVariant(recognition.type)}
+                            className={getBadgeClassName(recognition.type)}
+                          >
+                            {getBadgeLabel(recognition.type)}
+                          </Badge>
+                          {industryType && (
+                            <Badge variant="secondary" className="text-xs">
+                              {getDomainLabel(industryType)}
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <div className="flex justify-between items-center mt-3">
+                          <div className="text-sm text-muted-foreground flex items-center gap-1">
+                            {recognition.issuer && (
+                              <>
+                                <Building className="h-3.5 w-3.5" />
+                                <span className="font-medium">{recognition.issuer}</span>
+                                <span className="mx-1">•</span>
+                              </>
+                            )}
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>{formatYear(recognition.issueDate)}</span>
+                          </div>
+                          <Badge variant={isVisible ? "outline" : "secondary"} className="text-xs">
+                            {isVisible ? "Visible" : "Hidden"}
+                          </Badge>
+                        </div>
+                      </CardHeader>
+                      
+                      {recognition.description && (
+                        <CardContent className="pt-0 pb-3">
+                          <div className={cn(
+                            "relative",
+                            !expandedDescriptions[recognition.ulid || ''] && "line-clamp-2 max-h-[3rem] overflow-hidden"
+                          )}>
+                            <p className="text-sm text-muted-foreground">
+                              {recognition.description}
+                            </p>
+                            {!expandedDescriptions[recognition.ulid || ''] && recognition.description.length > 120 && (
+                              <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-background to-transparent"></div>
+                            )}
+                          </div>
+                          {recognition.description && recognition.description.length > 120 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="p-1 h-auto text-xs mt-1 text-primary hover:text-primary/80 hover:bg-primary/10 font-medium"
+                              onClick={(e) => toggleDescriptionExpand(e, recognition.ulid || '')}
+                            >
+                              {expandedDescriptions[recognition.ulid || ''] ? "Show less" : "Show more"}
+                            </Button>
+                          )}
+                        </CardContent>
                       )}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => {
-                        if (editIndex !== null) {
-                          handleDeleteRecognition(editIndex);
-                        }
-                      }}
-                      disabled={isSaving || isSubmitting}
-                      className="text-destructive gap-1"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span>Delete</span>
-                    </Button>
-                  </>
-                )}
+                    </Card>
+                  );
+                })}
               </div>
+            ) : (
+              <div className="text-center py-12 border rounded-lg bg-muted/10">
+                <Award className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <p className="text-lg font-medium">No professional recognitions found</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Add your certifications, awards, and achievements to showcase your expertise
+                </p>
+              </div>
+            )}
+
+            {/* Add Recognition Button */}
+            <div className="flex justify-between items-center mt-6">
               <div className="flex gap-2">
                 <Button 
-                  variant="outline" 
-                  onClick={clearForm}
-                  disabled={isSaving}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleSaveRecognition}
+                  variant={showForm ? "outline" : "default"}
+                  onClick={() => setShowForm(!showForm)}
+                  className="gap-2"
                   disabled={isSaving || isSubmitting}
                 >
-                  {isSaving || isSubmitting ? "Saving..." : (editIndex !== null ? "Save Changes" : "Save")}
+                  {showForm ? (
+                    <>Cancel</>
+                  ) : (
+                    <>
+                      <PlusCircle className="h-4 w-4" />
+                      Add Recognition
+                    </>
+                  )}
                 </Button>
               </div>
-            </CardFooter>
-          </Card>
-        )}
-      </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Add/Edit Form */}
+      {showForm && (
+        <Card className="mt-6 border-primary/20 shadow-sm">
+          <CardHeader className="pb-2 border-b">
+            <CardTitle className="text-lg">
+              {editIndex !== null ? "Edit Recognition" : "Add New Recognition"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="space-y-5">
+              <div>
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Title
+                </label>
+                <Input 
+                  value={recognitionValues.title}
+                  onChange={(e) => setRecognitionValues({
+                    ...recognitionValues,
+                    title: e.target.value
+                  })}
+                  placeholder="e.g., Top Producer Award"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Type
+                  </label>
+                  <Select 
+                    value={recognitionValues.type}
+                    onValueChange={(value) => setRecognitionValues({
+                      ...recognitionValues,
+                      type: value as RecognitionTypeValues
+                    })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={RecognitionType.AWARD}>Award</SelectItem>
+                      <SelectItem value={RecognitionType.ACHIEVEMENT}>Achievement</SelectItem>
+                      <SelectItem value={RecognitionType.CERTIFICATION}>Certification</SelectItem>
+                      <SelectItem value={RecognitionType.DESIGNATION}>Designation</SelectItem>
+                      <SelectItem value={RecognitionType.LICENSE}>License</SelectItem>
+                      <SelectItem value={RecognitionType.EDUCATION}>Education</SelectItem>
+                      <SelectItem value={RecognitionType.MEMBERSHIP}>Membership</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Issuer
+                  </label>
+                  <Input 
+                    value={recognitionValues.issuer}
+                    onChange={(e) => setRecognitionValues({
+                      ...recognitionValues,
+                      issuer: e.target.value
+                    })}
+                    placeholder="e.g., National Association of Realtors"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Issue Date
+                  </label>
+                  <Input 
+                    type="date"
+                    value={recognitionValues.issueDate}
+                    onChange={(e) => setRecognitionValues({
+                      ...recognitionValues,
+                      issueDate: e.target.value
+                    })}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Expiry Date (Optional)
+                  </label>
+                  <Input 
+                    type="date"
+                    value={recognitionValues.expiryDate || ""}
+                    onChange={(e) => setRecognitionValues({
+                      ...recognitionValues,
+                      expiryDate: e.target.value || null
+                    })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Industry Type
+                </label>
+                <Select
+                  value={recognitionValues.industryType || "none_general"}
+                  onValueChange={(value) => {
+                    setRecognitionValues({
+                      ...recognitionValues,
+                      industryType: value === "none_general" ? null : value
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select industry (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none_general">None (General)</SelectItem>
+                    {domainOptions.map((domain) => (
+                      <SelectItem key={domain} value={domain}>
+                        {getDomainLabel(domain)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Categorize this recognition by industry to help organize your profile.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Description
+                </label>
+                <Textarea 
+                  value={recognitionValues.description || ""}
+                  onChange={(e) => setRecognitionValues({
+                    ...recognitionValues,
+                    description: e.target.value || null
+                  })}
+                  placeholder="Briefly describe this recognition and what it represents (optional)"
+                  rows={3}
+                />
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter className="border-t pt-4 flex justify-between gap-3">
+            <div className="flex gap-2">
+              {editIndex !== null && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleToggleVisibilityInForm}
+                    disabled={isSaving || isSubmitting}
+                    className="gap-1"
+                  >
+                    {recognitionValues.isVisible ? (
+                      <>
+                        <EyeOff className="h-4 w-4" />
+                        <span>Hide</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="h-4 w-4" />
+                        <span>Show</span>
+                      </>
+                    )}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      if (editIndex !== null) {
+                        handleDeleteRecognition(editIndex);
+                      }
+                    }}
+                    disabled={isSaving || isSubmitting}
+                    className="text-destructive gap-1"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    <span>Delete</span>
+                  </Button>
+                </>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={clearForm}
+                disabled={isSaving}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleSaveRecognition}
+                disabled={isSaving || isSubmitting}
+              >
+                {isSaving || isSubmitting ? "Saving..." : (editIndex !== null ? "Save Changes" : "Save")}
+              </Button>
+            </div>
+          </CardFooter>
+        </Card>
+      )}
     </div>
   );
 } 
