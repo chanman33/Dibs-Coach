@@ -55,6 +55,7 @@ model User {
   paymentsReceived         Payment[]                      @relation("Payee")
   paymentsMade             Payment[]                      @relation("Payer")
   payouts                  Payout[]                       @relation("PayoutPayee")
+  portfolioItems           PortfolioItem[]
   privateCreditProfile     PrivateCreditProfile?
   professionalRecognitions ProfessionalRecognition[]
   propertyManagerProfile   PropertyManagerProfile?
@@ -1815,6 +1816,43 @@ enum ProfileStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+enum PortfolioItemType {
+  PROPERTY_SALE
+  PROPERTY_PURCHASE
+  LOAN_ORIGINATION
+  PROPERTY_MANAGEMENT
+  INSURANCE_POLICY
+  COMMERCIAL_DEAL
+  PRIVATE_LENDING
+  TITLE_SERVICE
+  OTHER
+}
+
+model PortfolioItem {
+  ulid             String            @id @db.Char(26)
+  userUlid         String            @db.Char(26)
+  type             PortfolioItemType
+  title            String
+  description      String?
+  imageUrls        Json?             // Array of image URLs
+  address          String?
+  location         Json?             // {city, state, zip}
+  financialDetails Json?             // {amount, currency, percentAboveAsk, interestRate, term}
+  metrics          Json?             // Flexible field for domain-specific metrics
+  date             DateTime          @db.Timestamptz(6)
+  tags             String[]
+  featured         Boolean           @default(false)
+  isVisible        Boolean           @default(true)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(6)
+  user             User              @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+
+  @@index([userUlid])
+  @@index([type])
+  @@index([featured])
+  @@map("PortfolioItem")
 }
 
 model TrainingResource {

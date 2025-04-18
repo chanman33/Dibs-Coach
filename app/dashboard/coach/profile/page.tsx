@@ -6,29 +6,17 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { useCallback, useEffect } from "react";
 import type { CoachProfileFormValues, CoachProfileInitialData } from "@/components/profile/types";
-import type { ProfileStatus, RealEstateDomain } from "@/utils/types/coach";
+import type { ProfileStatus } from "@/utils/types/coach";
 import { ProfileTabsManager } from "@/components/profile/common/ProfileTabsManager";
-import type { Goal, GoalFormValues } from "@/utils/types/goals";
+import type { Goal } from "@/utils/types/goals";
 import type { GeneralFormData } from "@/utils/actions/user-profile-actions";
-import ListingsForm from "@/components/profile/industry/realtor/ListingsForm";
-import { RealtorProfileForm } from "@/components/profile/industry/realtor/RealtorProfileForm";
-import { PropertyManagerProfileForm } from "@/components/profile/industry/property-manager/PropertyManagerProfileForm";
-import { PropertyManagerListings } from "@/components/profile/industry/property-manager/PropertyManagerListings";
-import { InvestorProfileForm } from "@/components/profile/industry/investor/InvestorProfileForm";
-import { InvestorListings } from "@/components/profile/industry/investor/InvestorListings";
-import { MortgageProfileForm } from "@/components/profile/industry/mortgage/MortgageProfileForm";
-import { TitleEscrowProfileForm } from "@/components/profile/industry/title-escrow/TitleEscrowProfileForm";
-import { InsuranceProfileForm } from "@/components/profile/industry/insurance/InsuranceProfileForm";
-import { CommercialProfileForm } from "@/components/profile/industry/commercial/CommercialProfileForm";
-import { CommercialListings } from "@/components/profile/industry/commercial/CommercialListings";
-import { PrivateCreditProfileForm } from "@/components/profile/industry/private-credit/PrivateCreditProfileForm";
-import { CreditListings } from "@/components/profile/industry/private-credit/CreditListings";
-import { ProfessionalRecognition } from "@/utils/types/recognition";
+import type { ProfessionalRecognition } from "@/utils/types/recognition";
 import { useUser } from "@clerk/nextjs";
 import config from "@/config";
 import { updateProfileCompletion } from "@/utils/actions/update-profile-completion";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { PortfolioPage } from "@/components/profile/coach/PortfolioPage";
 
 // Extended type for coach data that includes profile completion info
 interface ExtendedCoachData extends Omit<CoachProfileInitialData, 'displayName' | 'slogan'> {
@@ -65,26 +53,6 @@ function ProfilePageContent() {
     updateRecognitionsData,
     onSkillsChange,
     saveSkills,
-    activeListings,
-    successfulTransactions,
-    onSubmitListing,
-    onUpdateListing,
-    realtorData,
-    propertyManagerData,
-    updateRealtorData,
-    updatePropertyManagerData,
-    investorData,
-    updateInvestorData,
-    mortgageData,
-    updateMortgageData,
-    titleEscrowData,
-    updateTitleEscrowData,
-    insuranceData,
-    updateInsuranceData,
-    commercialData,
-    updateCommercialData,
-    privateCreditData,
-    updatePrivateCreditData,
     updateCompletionStatus,
   } = useProfileContext();
 
@@ -282,122 +250,59 @@ function ProfilePageContent() {
   });
       
   return (
-    <ProfileTabsManager
-      userCapabilities={userCapabilities}
-      selectedSkills={selectedSkills}
-      realEstateDomains={(coachData?.coachRealEstateDomains || []) as RealEstateDomain[]}
-      generalUserInfo={generalData}
-      onSubmitGeneral={handleGeneralSubmit}
-      onSubmitCoach={handleProfileSubmit}
-      coachFormContent={
-        <CoachProfileForm
-          initialData={extendedCoachData}
-          onSubmit={handleProfileSubmit}
-          isSubmitting={isSubmitting}
-          profileStatus={extendedCoachData.status}
-          completionPercentage={extendedCoachData.completionPercentage}
-          missingFields={extendedCoachData.missingFields}
-          missingRequiredFields={extendedCoachData.missingRequiredFields}
-          optionalMissingFields={extendedCoachData.optionalMissingFields}
-          validationMessages={extendedCoachData.validationMessages}
-          canPublish={extendedCoachData.canPublish}
-          onSkillsChange={onSkillsChange}
-          saveSkills={saveSkills}
-          updateCompletionStatus={updateCompletionStatus}
-          userInfo={{
-            firstName: generalData?.displayName?.split(' ')[0] || undefined,
-            lastName: generalData?.displayName?.split(' ').slice(1).join(' ') || undefined,
-            bio: generalData?.bio || undefined,
-            profileImageUrl: clerkUser?.imageUrl || undefined
-          }}
-        />
-      }
-      realtorFormContent={
-        <RealtorProfileForm
-          initialData={realtorData}
-          onSubmit={updateRealtorData}
-          isSubmitting={isSubmitting}
-        />
-      }
-      realtorListingsContent={
-        <ListingsForm
-          onSubmit={onSubmitListing}
-          onUpdate={onUpdateListing}
-          activeListings={activeListings}
-          successfulTransactions={successfulTransactions}
-          isSubmitting={isSubmitting}
-        />
-      }
-      propertyManagerFormContent={
-        <PropertyManagerProfileForm
-          initialData={propertyManagerData}
-          onSubmit={updatePropertyManagerData}
-          isSubmitting={isSubmitting}
-        />
-      }
-      propertyManagerListingsContent={
-        <PropertyManagerListings
-          isSubmitting={isSubmitting}
-        />
-      }
-      investorFormContent={
-        <InvestorProfileForm
-          initialData={investorData}
-          onSubmit={updateInvestorData}
-          isSubmitting={isSubmitting}
-        />
-      }
-      investorListingsContent={
-        <InvestorListings />
-      }
-      mortgageFormContent={
-        <MortgageProfileForm
-          initialData={mortgageData}
-          onSubmit={updateMortgageData}
-          isSubmitting={isSubmitting}
-        />
-      }
-      titleEscrowFormContent={
-        <TitleEscrowProfileForm
-          initialData={titleEscrowData}
-          onSubmit={updateTitleEscrowData}
-          isSubmitting={isSubmitting}
-        />
-      }
-      insuranceFormContent={
-        <InsuranceProfileForm
-          initialData={insuranceData}
-          onSubmit={updateInsuranceData}
-          isSubmitting={isSubmitting}
-        />
-      }
-      commercialFormContent={
-        <CommercialProfileForm
-          initialData={commercialData}
-          onSubmit={updateCommercialData}
-          isSubmitting={isSubmitting}
-        />
-      }
-      commercialListingsContent={
-        <CommercialListings />
-      }
-      privateCreditFormContent={
-        <PrivateCreditProfileForm
-          initialData={privateCreditData}
-          onSubmit={updatePrivateCreditData}
-          isSubmitting={isSubmitting}
-        />
-      }
-      creditListingsContent={
-        <CreditListings />
-      }
-      initialRecognitions={recognitionsData}
-      onSubmitRecognitions={handleRecognitionsSubmit}
-      initialGoals={goalsData}
-      onSubmitGoals={handleGoalsSubmit}
-      isSubmitting={isSubmitting}
-      saveSkills={saveSkills}
-    />
+    <>
+      {/* Alert Banner for Unpublished Profile */}
+      {coachData && coachData.status !== 'PUBLISHED' && (
+        <Alert className="mb-6 bg-amber-50 text-amber-900 border-amber-300">
+          <AlertTriangle className="h-4 w-4 text-amber-800" />
+          <AlertDescription>
+            Your profile is not published yet. Complete the required fields to publish your profile.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Main Tabs UI */}
+      <ProfileTabsManager
+        userCapabilities={userCapabilities}
+        generalUserInfo={{
+          displayName: generalData?.displayName,
+          bio: generalData?.bio,
+          totalYearsRE: generalData?.totalYearsRE,
+          primaryMarket: generalData?.primaryMarket,
+          realEstateDomains: coachData?.coachRealEstateDomains || [],
+          primaryDomain: coachData?.coachPrimaryDomain || null
+        }}
+        onSubmitGeneral={handleGeneralSubmit}
+        onSubmitCoach={handleProfileSubmit}
+        coachFormContent={
+          <CoachProfileForm
+            initialData={coachData as ExtendedCoachData}
+            onSubmit={handleProfileSubmit}
+            isSubmitting={isSubmitting}
+            profileStatus={coachData?.status}
+            completionPercentage={coachData?.completionPercentage}
+            missingFields={coachData?.missingFields}
+            missingRequiredFields={coachData?.missingRequiredFields}
+            optionalMissingFields={coachData?.optionalMissingFields}
+            validationMessages={coachData?.validationMessages}
+            canPublish={coachData?.canPublish}
+            userInfo={{
+              firstName: clerkUser?.firstName || '',
+              lastName: clerkUser?.lastName || '',
+              bio: generalData?.bio || '',
+              profileImageUrl: clerkUser?.imageUrl || ''
+            }}
+            onSkillsChange={onSkillsChange}
+            saveSkills={saveSkills || (async () => false)}
+            updateCompletionStatus={updateCompletionStatus}
+          />
+        }
+        portfolioContent={<PortfolioPage />}
+        initialRecognitions={recognitionsData}
+        onSubmitRecognitions={handleRecognitionsSubmit}
+        isSubmitting={isSubmitting}
+      />
+    </>
   );
 }
 

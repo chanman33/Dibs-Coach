@@ -25,6 +25,7 @@ export type ApiErrorCode =
   | 'INVALID_INPUT'
   | 'INVALID_STATE'
   | 'AUTH_ERROR'
+  | 'ITEM_NOT_FOUND'
 
 export interface ApiError {
   code: ApiErrorCode;

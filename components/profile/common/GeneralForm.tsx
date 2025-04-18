@@ -114,6 +114,12 @@ export default function GeneralForm({
 
   useEffect(() => {
     if (initialData) {
+      console.log("[GENERAL_FORM_INIT]", {
+        initialRealEstateDomains: initialData.realEstateDomains,
+        initialPrimaryDomain: initialData.primaryDomain,
+        timestamp: new Date().toISOString()
+      });
+      
       setFormData(prev => ({
         ...prev,
         displayName: initialData.displayName || prev.displayName || "",
@@ -130,9 +136,10 @@ export default function GeneralForm({
   }, [initialData])
 
   useEffect(() => {
-    console.log('Form Data Updated:', {
+    console.log('[GENERAL_FORM_DATA_UPDATED]', {
       realEstateDomains: formData.realEstateDomains,
-      primaryDomain: formData.primaryDomain
+      primaryDomain: formData.primaryDomain,
+      timestamp: new Date().toISOString()
     })
   }, [formData.realEstateDomains, formData.primaryDomain])
 
@@ -162,6 +169,14 @@ export default function GeneralForm({
   }
 
   const handleDomainChange = (domain: string, checked: boolean) => {
+    console.log('[GENERAL_FORM_DOMAIN_CHANGE]', {
+      domain,
+      checked,
+      currentRealEstateDomains: formData.realEstateDomains,
+      currentPrimaryDomain: formData.primaryDomain,
+      timestamp: new Date().toISOString()
+    });
+    
     setFormData(prev => {
       let newDomains = [...(prev.realEstateDomains || [])];
       
@@ -174,24 +189,50 @@ export default function GeneralForm({
         // Remove domain
         newDomains = newDomains.filter(d => d !== domain);
         
-        // If removing the primary domain, reset it
+        // If removing the primary domain, reset it to the first available domain or null
         if (prev.primaryDomain === domain) {
+          const newPrimaryDomain = newDomains.length > 0 ? newDomains[0] : null;
+          
+          console.log('[GENERAL_FORM_PRIMARY_DOMAIN_RESET]', {
+            oldPrimaryDomain: prev.primaryDomain,
+            newPrimaryDomain,
+            newDomains,
+            timestamp: new Date().toISOString()
+          });
+          
           return {
             ...prev,
             realEstateDomains: newDomains,
-            primaryDomain: newDomains.length > 0 ? newDomains[0] : null
+            primaryDomain: newPrimaryDomain
           };
         }
       }
       
-      return {
+      const result = {
         ...prev,
         realEstateDomains: newDomains
       };
+      
+      console.log('[GENERAL_FORM_DOMAIN_CHANGE_RESULT]', {
+        newState: {
+          realEstateDomains: result.realEstateDomains,
+          primaryDomain: result.primaryDomain
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      return result;
     });
   }
 
   const handlePrimaryDomainChange = (domain: string) => {
+    console.log('[GENERAL_FORM_PRIMARY_DOMAIN_CHANGE]', {
+      domain,
+      currentRealEstateDomains: formData.realEstateDomains,
+      currentPrimaryDomain: formData.primaryDomain,
+      timestamp: new Date().toISOString()
+    });
+    
     // Ensure the domain is in the selected domains list
     setFormData(prev => {
       let newDomains = [...(prev.realEstateDomains || [])];
@@ -200,11 +241,21 @@ export default function GeneralForm({
         newDomains.push(domain);
       }
       
-      return {
+      const result = {
         ...prev,
         realEstateDomains: newDomains,
         primaryDomain: domain
       };
+      
+      console.log('[GENERAL_FORM_PRIMARY_DOMAIN_CHANGE_RESULT]', {
+        newState: {
+          realEstateDomains: result.realEstateDomains,
+          primaryDomain: result.primaryDomain
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      return result;
     });
   }
 
@@ -216,6 +267,11 @@ export default function GeneralForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    console.log('[GENERAL_FORM_SUBMIT_START]', {
+      formData,
+      timestamp: new Date().toISOString()
+    });
+    
     try {
       // Ensure languages is always an array
       const dataToSubmit = {
@@ -223,12 +279,46 @@ export default function GeneralForm({
         languages: formData.languages || []
       };
       
+      // Handle case when realEstateDomains exists but primaryDomain doesn't
+      if (dataToSubmit.realEstateDomains.length > 0 && !dataToSubmit.primaryDomain) {
+        dataToSubmit.primaryDomain = dataToSubmit.realEstateDomains[0];
+        console.log('[GENERAL_FORM_SUBMIT_FIX_PRIMARY_DOMAIN]', {
+          realEstateDomains: dataToSubmit.realEstateDomains,
+          primaryDomain: dataToSubmit.primaryDomain,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
       const validatedData = generalFormSchema.parse(dataToSubmit)
+      
+      console.log('[GENERAL_FORM_SUBMITTING]', {
+        validatedData,
+        timestamp: new Date().toISOString()
+      });
+      
       const result = await onSubmit(validatedData)
+      
+      console.log('[GENERAL_FORM_SUBMIT_RESULT]', {
+        success: !result?.error,
+        error: result?.error,
+        responseData: result?.data,
+        timestamp: new Date().toISOString()
+      });
 
       if (result?.error) {
         toast.error(result.error.message || 'Failed to save changes')
         return
+      }
+
+      // Update form data with the returned response to keep everything in sync
+      if (result?.data) {
+        setFormData(prevData => ({
+          ...prevData,
+          ...result.data,
+          languages: result.data?.languages || prevData.languages || [],
+          realEstateDomains: result.data?.realEstateDomains || prevData.realEstateDomains || [],
+          primaryDomain: result.data?.primaryDomain || prevData.primaryDomain
+        }));
       }
 
       toast.success('Changes saved successfully')

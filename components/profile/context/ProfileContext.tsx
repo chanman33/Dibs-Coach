@@ -26,6 +26,17 @@ import { type RealEstateDomain } from "@/utils/types/coach";
 import { type ListingWithRealtor, type CreateListing } from "@/utils/types/listing";
 import { useUser } from "@clerk/nextjs";
 import config from "@/config";
+import {
+  PortfolioItem,
+  CreatePortfolioItem,
+  UpdatePortfolioItem
+} from "@/utils/types/portfolio";
+import { 
+  fetchPortfolioItems,
+  createPortfolioItem,
+  updatePortfolioItem,
+  deletePortfolioItem
+} from "@/utils/actions/portfolio-actions";
 
 // Define the shape of the general data
 interface GeneralData {
@@ -57,6 +68,9 @@ interface ProfileContextType {
     coachSkills?: string[];
     profileSlug?: string | null;
   };
+  
+  // Portfolio items
+  portfolioItems: PortfolioItem[];
   
   // Domain-specific data
   realtorData: any;
@@ -119,6 +133,11 @@ interface ProfileContextType {
   updateGoalsData: (data: any) => Promise<void>;
   updateLanguages: (languages: string[]) => Promise<void>;
   
+  // Portfolio functions
+  addPortfolioItem: (data: CreatePortfolioItem) => Promise<{ data?: PortfolioItem | null; error?: string | null }>;
+  updatePortfolioItem: (id: string, data: UpdatePortfolioItem) => Promise<{ data?: PortfolioItem | null; error?: string | null }>;
+  deletePortfolioItem: (id: string) => Promise<{ error?: string | null }>;
+  
   // Skills management
   onSkillsChange: (skills: string[]) => void;
   saveSkills: (skills: string[]) => Promise<boolean>;
@@ -164,6 +183,9 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     coachSkills?: string[];
     profileSlug?: string | null;
   }>({});
+  
+  // Add portfolioItems state
+  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
   
   // Domain-specific data states
   const [realtorData, setRealtorData] = useState<any>(null);
@@ -271,6 +293,22 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         realEstateDomains: userData.realEstateDomains || [],
         primaryDomain: userData.primaryDomain || null
       });
+      
+      // Fetch portfolio items
+      if (capabilities.includes('COACH')) {
+        try {
+          const portfolioResult = await fetchPortfolioItems();
+          if (!portfolioResult.error && portfolioResult.data) {
+            console.log("[PROFILE_PORTFOLIO_LOADED]", {
+              itemCount: portfolioResult.data.length,
+              timestamp: new Date().toISOString()
+            });
+            setPortfolioItems(portfolioResult.data);
+          }
+        } catch (error) {
+          console.error('[FETCH_PORTFOLIO_ERROR]', error);
+        }
+      }
       
       // If user is a coach, fetch coach profile
       if (capabilities.includes('COACH')) {
@@ -1077,6 +1115,81 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Add portfolio item handlers
+  const handleAddPortfolioItem = async (data: CreatePortfolioItem) => {
+    setIsSubmitting(true);
+    try {
+      const result = await createPortfolioItem(data);
+      if (result.error) {
+        toast.error(result.error.message);
+        return { error: result.error.message };
+      }
+      
+      if (result.data) {
+        setPortfolioItems(prevItems => [result.data!, ...prevItems]);
+        toast.success("Portfolio item added successfully");
+      }
+      
+      return { data: result.data };
+    } catch (error) {
+      console.error("[ADD_PORTFOLIO_ERROR]", error);
+      toast.error("Failed to add portfolio item");
+      return { error: "Failed to add portfolio item" };
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdatePortfolioItem = async (id: string, data: UpdatePortfolioItem) => {
+    setIsSubmitting(true);
+    try {
+      const result = await updatePortfolioItem(id, data);
+      if (result.error) {
+        toast.error(result.error.message);
+        return { error: result.error.message };
+      }
+      
+      if (result.data) {
+        setPortfolioItems(prevItems => 
+          prevItems.map(item => item.ulid === id ? result.data! : item)
+        );
+        toast.success("Portfolio item updated successfully");
+      }
+      
+      return { data: result.data };
+    } catch (error) {
+      console.error("[UPDATE_PORTFOLIO_ERROR]", error);
+      toast.error("Failed to update portfolio item");
+      return { error: "Failed to update portfolio item" };
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeletePortfolioItem = async (id: string) => {
+    setIsSubmitting(true);
+    try {
+      const result = await deletePortfolioItem(id);
+      if (result.error) {
+        toast.error(result.error.message);
+        return { error: result.error.message };
+      }
+      
+      setPortfolioItems(prevItems => 
+        prevItems.filter(item => item.ulid !== id)
+      );
+      toast.success("Portfolio item deleted successfully");
+      
+      return {};
+    } catch (error) {
+      console.error("[DELETE_PORTFOLIO_ERROR]", error);
+      toast.error("Failed to delete portfolio item");
+      return { error: "Failed to delete portfolio item" };
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
   // Listings handlers
   const onSubmitListing = useCallback(async (data: CreateListing) => {
     try {
@@ -1119,6 +1232,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const contextValue: ProfileContextType = {
     generalData,
     coachData,
+    portfolioItems,
     realtorData,
     investorData,
     mortgageData,
@@ -1167,7 +1281,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     onUpdateListing,
     clerkUser: clerkUser || null,
     isClerkLoaded,
-    updateCompletionStatus
+    updateCompletionStatus,
+    addPortfolioItem: handleAddPortfolioItem,
+    updatePortfolioItem: handleUpdatePortfolioItem,
+    deletePortfolioItem: handleDeletePortfolioItem
   };
   
   return (
