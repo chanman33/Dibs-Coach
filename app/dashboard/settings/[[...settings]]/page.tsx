@@ -729,7 +729,7 @@ export default function Settings() {
                             }
                             
                             setLoading(true);
-                            fetch('/api/cal/create-managed-user', {
+                            fetch('/api/cal/users/create-managed-user', {
                               method: 'POST',
                               headers: {
                                 'Content-Type': 'application/json'
@@ -740,7 +740,14 @@ export default function Settings() {
                                 timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
                               })
                             })
-                              .then(response => response.json())
+                              .then(response => {
+                                if (!response.ok) {
+                                  return response.json().then(data => {
+                                    throw new Error(data.error || 'Failed to create Cal.com user');
+                                  });
+                                }
+                                return response.json();
+                              })
                               .then(data => {
                                 if (data.error) {
                                   throw new Error(data.error);

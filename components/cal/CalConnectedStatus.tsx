@@ -120,7 +120,7 @@ export function CalConnectedStatus({ className, onStatusChange }: CalConnectedSt
     
     try {
       setReconnecting(true)
-      const response = await fetch('/api/cal/create-managed-user', {
+      const response = await fetch('/api/cal/users/create-managed-user', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -131,6 +131,11 @@ export function CalConnectedStatus({ className, onStatusChange }: CalConnectedSt
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
         })
       })
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create Cal.com user');
+      }
       
       const data = await response.json()
       if (data.error) {
