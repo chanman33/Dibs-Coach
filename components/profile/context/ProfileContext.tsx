@@ -377,6 +377,14 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           
           // Set professional recognitions
           setRecognitionsData(coachProfileData.professionalRecognitions);
+          
+          // Log the status received and set in context
+          console.log("[PROFILE_CONTEXT_STATUS_UPDATE]", {
+            receivedStatus: coachProfileData.profileStatus,
+            timestamp: new Date().toISOString()
+          });
+          // Ensure the status is set AFTER logging
+          setProfileStatus(coachProfileData.profileStatus);
         }
       }
 

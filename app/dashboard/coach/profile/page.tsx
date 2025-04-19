@@ -54,6 +54,7 @@ function ProfilePageContent() {
     onSkillsChange,
     saveSkills,
     updateCompletionStatus,
+    profileStatus,
   } = useProfileContext();
 
   // Get Clerk user data for profile image
@@ -297,7 +298,7 @@ function ProfilePageContent() {
             initialData={coachData as ExtendedCoachData}
             onSubmit={handleProfileSubmit}
             isSubmitting={isSubmitting}
-            profileStatus={coachData?.status}
+            profileStatus={profileStatus}
             completionPercentage={coachData?.completionPercentage}
             missingFields={coachData?.missingFields}
             missingRequiredFields={coachData?.missingRequiredFields}

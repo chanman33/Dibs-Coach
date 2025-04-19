@@ -325,6 +325,13 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         validationMessages: {}
       };
 
+      // Log the exact status being returned
+      console.log("[FETCH_COACH_PROFILE_RETURN]", {
+        returnedStatus: responseData.profileStatus,
+        fetchedStatus: safeCoachProfile?.profileStatus,
+        timestamp: new Date().toISOString()
+      });
+
       return { data: responseData, error: null };
     } catch (error) {
       console.error('[FETCH_COACH_PROFILE_ERROR]', error);

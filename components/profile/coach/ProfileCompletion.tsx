@@ -497,60 +497,73 @@ export function ProfileCompletion({
   }
 
   return (
-    <Card className="w-full bg-white border-gray-200">
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Coach Profile Setup</h3>
-            <p className="text-sm text-gray-600">
-              {profileStatus === PROFILE_STATUS.PUBLISHED
-                ? 'Your profile is visible to potential clients'
-                : 'Complete these steps to publish your profile'}
-            </p>
+    <Card className={`p-4 sm:p-6 ${profileStatus === PROFILE_STATUS.PUBLISHED ? 'pb-4 sm:pb-4' : ''} border shadow-sm`}>
+      {/* Header section - Always visible */}
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
+        <div>
+          <h2 className="text-xl font-semibold">
+            {profileStatus === PROFILE_STATUS.PUBLISHED ? 'Coach Profile Status' : 'Coach Profile Setup'}
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {profileStatus === PROFILE_STATUS.PUBLISHED 
+              ? "Your profile is visible to potential clients"
+              : "Complete your profile to become visible to potential clients"}
+          </p>
+        </div>
+        {renderStatusBadge()}
+      </div>
+
+      {/* Conditional section: Only show if not published */}
+      {profileStatus !== PROFILE_STATUS.PUBLISHED && (
+        <>
+          {/* Overall Progress */}
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-sm font-medium text-muted-foreground">Overall Progress</span>
+              <span className="text-sm font-semibold">{completionPercentage}%</span>
+            </div>
+            <Progress value={completionPercentage} aria-label={`${completionPercentage}% complete`} />
           </div>
-          <div className="flex items-center gap-2">
-            {profileStatus !== PROFILE_STATUS.PUBLISHED && (
+
+          {/* Completion Steps List */}
+          <div className="space-y-4 mt-6">
+            {renderCompletionSteps()}
+          </div>
+
+          {/* Buttons Section */}
+          <div className="mt-6 flex flex-col sm:flex-row justify-end items-center gap-3">
+            {/* Refresh Button */}            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefreshCompletion} 
+              disabled={isRefreshing}
+              aria-label="Refresh profile completion status"
+            >
+              <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="ml-2">Refresh Progress</span>
+            </Button>
+
+            {/* Publish Button */}            
+            {canPublish && (
               <Button 
-                variant="ghost" 
-                size="sm"
-                disabled={isRefreshing}
-                onClick={handleRefreshCompletion}
-                title="Refresh profile completion"
-                className="px-2 py-1 h-auto"
+                onClick={handlePublish} 
+                disabled={isUpdating}
+                className="w-full sm:w-auto"
               >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span className="sr-only">Refresh</span>
+                {isUpdating ? 'Publishing...' : 'Publish Profile'}
               </Button>
             )}
-            {renderStatusBadge()}
           </div>
-        </div>
 
-        <div className="space-y-6">
-          <div>
-            <div className="flex justify-between text-sm mb-2">
-              <span className="text-gray-600">Overall Progress</span>
-              <span className="text-gray-900 font-medium">{completionPercentage}%</span>
+          {/* Message if cannot publish */}          
+          {!canPublish && (
+            <div className="mt-4 text-sm text-muted-foreground text-center">
+              Complete all required steps to publish your profile.
             </div>
-            <Progress 
-              value={completionPercentage} 
-              className="h-2 bg-gray-100 [&>div]:bg-blue-500" 
-            />
-          </div>
-
-          {renderCompletionSteps()}
-
-          {canPublish && profileStatus !== PROFILE_STATUS.PUBLISHED && (
-            <Button
-              className="w-full"
-              disabled={isUpdating}
-              onClick={handlePublish}
-            >
-              Publish Profile
-            </Button>
           )}
-        </div>
-      </div>
+        </>
+      )}
     </Card>
   )
 } 

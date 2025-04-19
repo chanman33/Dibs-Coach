@@ -178,6 +178,12 @@ export function CoachProfileForm({
   saveSpecialties,
   updateCompletionStatus,
 }: CoachProfileFormProps) {
+  // Log the profileStatus prop received by the form
+  console.log("[COACH_PROFILE_FORM_PROPS]", {
+    receivedProfileStatus: profileStatus,
+    timestamp: new Date().toISOString()
+  });
+
   console.log("[COACH_FORM_INIT]", {
     initialDataProvided: {
       slogan: initialData?.slogan,
