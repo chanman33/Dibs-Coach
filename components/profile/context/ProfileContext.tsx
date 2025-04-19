@@ -583,11 +583,29 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     try {
       setIsSubmitting(true);
       
+      // Log incoming data with types for debugging
       console.log("[UPDATE_COACH_DATA_START]", {
-        formData: data,
+        formData: {
+          coachSkills: data.coachSkills,
+          yearsCoaching: {
+            value: data.yearsCoaching,
+            type: typeof data.yearsCoaching
+          },
+          hourlyRate: {
+            value: data.hourlyRate,
+            type: typeof data.hourlyRate
+          },
+          profileSlug: data.profileSlug
+        },
         currentState: {
-          yearsCoaching: coachData.yearsCoaching,
-          hourlyRate: coachData.hourlyRate,
+          yearsCoaching: {
+            value: coachData.yearsCoaching,
+            type: typeof coachData.yearsCoaching
+          },
+          hourlyRate: {
+            value: coachData.hourlyRate,
+            type: typeof coachData.hourlyRate
+          },
           coachSkills: coachData.coachSkills,
           profileSlug: coachData.profileSlug
         },
@@ -603,12 +621,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           isVisible: rec.isVisible !== undefined ? rec.isVisible : true
         })) : [];
       
-      // Create the API data object with the correct type casting
-      // Use type assertion to avoid TypeScript errors
+      // Force numeric values to be properly typed
+      const yearsCoaching = Number(data.yearsCoaching);
+      const hourlyRate = Number(data.hourlyRate);
+      
+      // Create the API data object with explicit number conversion
       const apiData = {
         coachSkills: data.coachSkills || [],
-        yearsCoaching: data.yearsCoaching || 0,
-        hourlyRate: data.hourlyRate || 100,
+        yearsCoaching: yearsCoaching,
+        hourlyRate: hourlyRate,
         defaultDuration: data.defaultDuration || 60,
         minimumDuration: data.minimumDuration || 30,
         maximumDuration: data.maximumDuration || 120,
@@ -617,9 +638,22 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         coachRealEstateDomains: data.coachRealEstateDomains || [],
         coachPrimaryDomain: data.coachPrimaryDomain || null,
         slogan: data.slogan || "",
-        profileSlug: data.profileSlug || null
-      } as any; // Use type assertion to avoid TypeScript errors
+        profileSlug: data.profileSlug || undefined,
+      };
       
+      // Critical: Log the exact apiData sent to the server
+      console.log("[UPDATE_COACH_DATA_API_PAYLOAD]", {
+        yearsCoaching: {
+          value: apiData.yearsCoaching,
+          type: typeof apiData.yearsCoaching
+        },
+        hourlyRate: {
+          value: apiData.hourlyRate,
+          type: typeof apiData.hourlyRate
+        },
+        coachSkills: apiData.coachSkills,
+        timestamp: new Date().toISOString()
+      });
       
       // Call the API to update the coach profile
       const result = await updateCoachProfile(apiData);
@@ -641,37 +675,65 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           slogan: profileData.slogan,
           coachPrimaryDomain: profileData.coachPrimaryDomain,
           profileSlug: profileData.profileSlug,
-          yearsCoaching: profileData.yearsCoaching,
-          hourlyRate: profileData.hourlyRate,
+          yearsCoaching: profileData.yearsCoaching !== undefined ? {
+            value: profileData.yearsCoaching,
+            type: typeof profileData.yearsCoaching
+          } : 'undefined',
+          hourlyRate: profileData.hourlyRate !== undefined ? {
+            value: profileData.hourlyRate,
+            type: typeof profileData.hourlyRate
+          } : 'undefined',
           timestamp: new Date().toISOString()
         });
         
-        // If values are missing in the response but were in the form data,
-        // use the form data values to ensure they're not lost
+        // CRITICAL FIX: Always use submitted form values for these fields
+        // This ensures that even if the response doesn't include them, we preserve the user's input
         const domains = profileData.coachRealEstateDomains || data.coachRealEstateDomains || [];
         const skills = profileData.coachSkills || profileData.coachingSpecialties || data.coachSkills || [];
         const slogan = profileData.slogan !== undefined ? profileData.slogan : data.slogan;
         const primaryDomain = profileData.coachPrimaryDomain !== undefined ? profileData.coachPrimaryDomain : data.coachPrimaryDomain;
         const profileSlug = profileData.profileSlug !== undefined ? profileData.profileSlug : data.profileSlug;
         
-        // IMPORTANT: Explicitly preserve yearsCoaching and hourlyRate from form data if not in response
-        const yearsCoaching = profileData.yearsCoaching !== undefined ? profileData.yearsCoaching : data.yearsCoaching || 0;
-        const hourlyRate = profileData.hourlyRate !== undefined ? profileData.hourlyRate : data.hourlyRate || 100;
+        // CRITICAL FIX: Always use form data for these critical values
+        // This guarantees we preserve the user's input even if the server response omits them
+        // We're using the values we already converted to numbers above to ensure they're properly typed
         
         console.log("[UPDATE_COACH_DATA_PRESERVED_VALUES]", {
-          formYearsCoaching: data.yearsCoaching,
-          formHourlyRate: data.hourlyRate,
+          formYearsCoaching: {
+            value: data.yearsCoaching,
+            type: typeof data.yearsCoaching,
+            convertedValue: yearsCoaching,
+            convertedType: typeof yearsCoaching
+          },
+          formHourlyRate: {
+            value: data.hourlyRate,
+            type: typeof data.hourlyRate,
+            convertedValue: hourlyRate,
+            convertedType: typeof hourlyRate
+          },
           formProfileSlug: data.profileSlug,
-          responseYearsCoaching: profileData.yearsCoaching,
-          responseHourlyRate: profileData.hourlyRate,
+          responseYearsCoaching: profileData.yearsCoaching !== undefined ? {
+            value: profileData.yearsCoaching, 
+            type: typeof profileData.yearsCoaching
+          } : 'undefined',
+          responseHourlyRate: profileData.hourlyRate !== undefined ? {
+            value: profileData.hourlyRate,
+            type: typeof profileData.hourlyRate
+          } : 'undefined',
           responseProfileSlug: profileData.profileSlug,
-          finalYearsCoaching: yearsCoaching,
-          finalHourlyRate: hourlyRate,
+          finalYearsCoaching: {
+            value: yearsCoaching,
+            type: typeof yearsCoaching
+          },
+          finalHourlyRate: {
+            value: hourlyRate,
+            type: typeof hourlyRate
+          },
           finalProfileSlug: profileSlug,
           timestamp: new Date().toISOString()
         });
         
-        // Update coach data with the response, preserving important values
+        // Update coach data with the response, ensuring important values are preserved
         setCoachData({
           ...profileData,
           coachRealEstateDomains: domains,
@@ -694,8 +756,14 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           realEstateDomains: domains,
           slogan: slogan,
           coachPrimaryDomain: primaryDomain,
-          yearsCoaching: yearsCoaching,
-          hourlyRate: hourlyRate,
+          yearsCoaching: {
+            value: yearsCoaching,
+            type: typeof yearsCoaching
+          },
+          hourlyRate: {
+            value: hourlyRate,
+            type: typeof hourlyRate
+          },
           profileSlug: profileSlug,
           timestamp: new Date().toISOString()
         });

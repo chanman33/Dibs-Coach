@@ -356,11 +356,26 @@ interface UpdateCoachProfileResponse {
 export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, CoachProfileFormData>(
   async (formData, { userUlid }) => {
     try {
+      // Ensure numeric values are properly typed before any operations
+      // This is crucial as JavaScript might convert these values to strings during JSON serialization
+      const yearsCoaching = Number(formData.yearsCoaching); 
+      const hourlyRate = Number(formData.hourlyRate);
+      
       console.log("[UPDATE_COACH_PROFILE_START]", {
         formData: {
           coachSkills: formData.coachSkills,
-          yearsCoaching: formData.yearsCoaching,
-          hourlyRate: formData.hourlyRate,
+          yearsCoaching: {
+            originalValue: formData.yearsCoaching,
+            originalType: typeof formData.yearsCoaching,
+            convertedValue: yearsCoaching,
+            convertedType: typeof yearsCoaching
+          },
+          hourlyRate: {
+            originalValue: formData.hourlyRate,
+            originalType: typeof formData.hourlyRate,
+            convertedValue: hourlyRate,
+            convertedType: typeof hourlyRate
+          },
           defaultDuration: formData.defaultDuration,
           minimumDuration: formData.minimumDuration,
           maximumDuration: formData.maximumDuration,
@@ -479,10 +494,12 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         lastSlugUpdateAt = new Date().toISOString();
       }
 
-      // Calculate profile completion percentage
+      // Calculate profile completion percentage with properly typed numeric values
       const { percentage, canPublish, missingFields } = calculateProfileCompletion({
         ...coachProfileData,
-        ...formData
+        ...formData,
+        yearsCoaching,
+        hourlyRate
       });
 
       // Get the coach's primary domain
@@ -493,13 +510,27 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
       // Get the coach's domains
       const coachRealEstateDomains = formData.coachRealEstateDomains || coachProfileData?.coachRealEstateDomains || [];
 
-      // Update the coach profile
-      const { error: updateError } = await supabase
+      // Log pre-update state with detailed type information
+      console.log('[UPDATE_COACH_PROFILE_PRE_UPDATE]', {
+        yearsCoaching: {
+          value: yearsCoaching,
+          type: typeof yearsCoaching
+        },
+        hourlyRate: {
+          value: hourlyRate,
+          type: typeof hourlyRate
+        },
+        coachSkills: formData.coachSkills || [],
+        timestamp: new Date().toISOString()
+      });
+
+      // Update the coach profile with explicitly typed numeric values
+      const { data: updateResult, error: updateError } = await supabase
         .from('CoachProfile')
         .update({
           coachSkills: formData.coachSkills || [],
-          yearsCoaching: formData.yearsCoaching,
-          hourlyRate: formData.hourlyRate,
+          yearsCoaching: yearsCoaching,
+          hourlyRate: hourlyRate,
           defaultDuration: formData.defaultDuration,
           minimumDuration: formData.minimumDuration,
           maximumDuration: formData.maximumDuration,
@@ -512,7 +543,8 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           lastSlugUpdateAt: profileSlug !== (coachProfileData as any)?.profileSlug ? lastSlugUpdateAt : undefined,
           completionPercentage: percentage
         })
-        .eq('userUlid', userUlid);
+        .eq('userUlid', userUlid)
+        .select();
 
       if (updateError) {
         console.error('[UPDATE_COACH_PROFILE_ERROR]', {
@@ -531,6 +563,30 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         };
       }
 
+      // Log successful update with the result returned from the database
+      console.log('[UPDATE_COACH_PROFILE_SUCCESS]', {
+        submittedYearsCoaching: {
+          value: yearsCoaching,
+          type: typeof yearsCoaching
+        },
+        submittedHourlyRate: {
+          value: hourlyRate,
+          type: typeof hourlyRate
+        },
+        updatedData: updateResult?.[0] ? {
+          yearsCoaching: {
+            value: updateResult[0].yearsCoaching,
+            type: typeof updateResult[0].yearsCoaching
+          },
+          hourlyRate: {
+            value: updateResult[0].hourlyRate,
+            type: typeof updateResult[0].hourlyRate
+          }
+        } : 'No updated data returned',
+        coachSkills: formData.coachSkills || [],
+        timestamp: new Date().toISOString()
+      });
+
       // Revalidate the coach profile page
       if (!formData.skipRevalidation) {
         revalidatePath('/dashboard/coach/profile');
@@ -547,7 +603,9 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           profileSlug: profileSlug,
           coachPrimaryDomain,
           coachSkills: formData.coachSkills,
-          coachRealEstateDomains
+          coachRealEstateDomains,
+          yearsCoaching,
+          hourlyRate
         },
         error: null
       };

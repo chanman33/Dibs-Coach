@@ -63,10 +63,28 @@ function ProfilePageContent() {
 
   const handleProfileSubmit = useCallback(async (data: CoachProfileFormValues) => {
     console.log("[HANDLE_PROFILE_SUBMIT]", {
-      data,
+      data: {
+        ...data,
+        yearsCoaching: {
+          value: data.yearsCoaching,
+          type: typeof data.yearsCoaching
+        },
+        hourlyRate: {
+          value: data.hourlyRate,
+          type: typeof data.hourlyRate
+        }
+      },
       timestamp: new Date().toISOString()
     });
-    await updateCoachData(data);
+    
+    // Ensure numeric values are properly typed
+    const processedData = {
+      ...data,
+      yearsCoaching: Number(data.yearsCoaching),
+      hourlyRate: Number(data.hourlyRate)
+    };
+    
+    await updateCoachData(processedData);
   }, [updateCoachData]);
 
   const handleGeneralSubmit = useCallback(async (data: GeneralFormData) => {

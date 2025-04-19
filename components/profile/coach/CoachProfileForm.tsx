@@ -100,12 +100,21 @@ const DOMAIN_OPTIONS = Object.entries(REAL_ESTATE_DOMAINS).map(([key, value]) =>
   label: formatDomainLabel(key)
 }));
 
+// Add debugging to the coachBasicInfoSchema
 const coachBasicInfoSchema = z.object({
   slogan: z.string().optional(),
   coachPrimaryDomain: z.string().nullable().optional(),
   coachRealEstateDomains: z.array(z.string()).optional().default([]),
-  yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater"),
-  hourlyRate: z.number().min(0, "Hourly rate must be 0 or greater"),
+  yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater")
+    .transform((val) => {
+      console.log("[SCHEMA_TRANSFORM_YEARS]", { rawValue: val, asNumber: Number(val) });
+      return Number(val);
+    }),
+  hourlyRate: z.number().min(0, "Hourly rate must be 0 or greater")
+    .transform((val) => {
+      console.log("[SCHEMA_TRANSFORM_RATE]", { rawValue: val, asNumber: Number(val) });
+      return Number(val);
+    }),
   coachSkills: z.array(z.string()).default([]),
   profileSlug: z.string().optional().nullable(),
 });
@@ -193,14 +202,27 @@ export function CoachProfileForm({
     timestamp: new Date().toISOString()
   });
   
+  // Add a debug function to log field values before they're sent
+  function logFieldValue(name: string, value: any) {
+    console.log(`[DEBUG_FIELD_${name.toUpperCase()}]`, {
+      value,
+      type: typeof value,
+      asNumber: Number(value),
+      typeOfNumber: typeof Number(value),
+      isNaN: isNaN(Number(value)),
+      timestamp: new Date().toISOString()
+    });
+    return value;
+  }
+
   const form = useForm<CoachBasicInfoValues>({
     resolver: zodResolver(coachBasicInfoSchema),
     defaultValues: {
       slogan: initialData?.slogan || "",
       coachPrimaryDomain: initialData?.coachPrimaryDomain || null,
       coachRealEstateDomains: initialData?.coachRealEstateDomains || [],
-      yearsCoaching: initialData?.yearsCoaching !== undefined ? initialData.yearsCoaching : 0,
-      hourlyRate: initialData?.hourlyRate !== undefined ? initialData.hourlyRate : 100,
+      yearsCoaching: initialData?.yearsCoaching !== undefined ? Number(initialData.yearsCoaching) : 0,
+      hourlyRate: initialData?.hourlyRate !== undefined ? Number(initialData.hourlyRate) : 100,
       coachSkills: initialData?.coachSkills || [],
       profileSlug: initialData?.profileSlug || null,
     },
@@ -284,9 +306,9 @@ export function CoachProfileForm({
     );
   }, []);
 
-  // Watch skills changes
+  // Update effect to specifically watch numeric fields
   useEffect(() => {
-    const subscription = form.watch(async (value, { name }) => {
+    const subscription = form.watch((value, { name }) => {
       console.log("[COACH_FORM_WATCH]", {
         changedField: name,
         newValue: value[name as keyof typeof value],
@@ -298,6 +320,25 @@ export function CoachProfileForm({
         },
         timestamp: new Date().toISOString()
       });
+
+      // Add specific logging for numeric fields
+      if (name === "yearsCoaching") {
+        console.log("[YEARS_COACHING_WATCH]", {
+          value: value.yearsCoaching,
+          type: typeof value.yearsCoaching,
+          asNumber: Number(value.yearsCoaching),
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      if (name === "hourlyRate") {
+        console.log("[HOURLY_RATE_WATCH]", {
+          value: value.hourlyRate,
+          type: typeof value.hourlyRate,
+          asNumber: Number(value.hourlyRate),
+          timestamp: new Date().toISOString()
+        });
+      }
 
       if (name === "coachSkills" && onSkillsChange) {
         const skills = (value.coachSkills || []).filter((s): s is string => typeof s === 'string');
@@ -329,13 +370,22 @@ export function CoachProfileForm({
 
   const handleSubmit = async (data: CoachBasicInfoValues) => {
     try {
+      // Log all form values at submission time
+      console.log("[COACH_FORM_VALUES_AT_SUBMIT]", form.getValues());
+      
       console.log("[COACH_BASIC_INFO_SUBMIT_START]", {
         submittedData: {
           slogan: data.slogan,
           coachPrimaryDomain: data.coachPrimaryDomain,
           coachRealEstateDomains: data.coachRealEstateDomains,
-          yearsCoaching: data.yearsCoaching,
-          hourlyRate: data.hourlyRate,
+          yearsCoaching: {
+            value: data.yearsCoaching,
+            type: typeof data.yearsCoaching
+          },
+          hourlyRate: {
+            value: data.hourlyRate,
+            type: typeof data.hourlyRate
+          },
           coachSkills: data.coachSkills,
           profileSlug: data.profileSlug,
         },
@@ -343,6 +393,14 @@ export function CoachProfileForm({
           coachSkills: initialData?.coachSkills,
           coachRealEstateDomains: initialData?.coachRealEstateDomains,
           profileSlug: initialData?.profileSlug,
+          yearsCoaching: {
+            value: initialData?.yearsCoaching,
+            type: typeof initialData?.yearsCoaching
+          },
+          hourlyRate: {
+            value: initialData?.hourlyRate,
+            type: typeof initialData?.hourlyRate
+          }
         },
         formState: {
           isDirty: form.formState.isDirty,
@@ -363,21 +421,70 @@ export function CoachProfileForm({
         return;
       }
 
-      // Important: Preserve both coachSkills and coachRealEstateDomains
+      // Force numeric values to be properly typed when sending to the server
+      // NOTE: Always use Number() to force conversion rather than relying on type casting
+      const yearsCoaching = Number(data.yearsCoaching);
+      const hourlyRate = Number(data.hourlyRate);
+      
+      // Validate numeric values - ensure they're not NaN
+      if (isNaN(yearsCoaching)) {
+        console.error("[COACH_BASIC_INFO_NAN_ERROR]", {
+          field: "yearsCoaching",
+          value: data.yearsCoaching,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Years of coaching must be a valid number");
+        return;
+      }
+      
+      if (isNaN(hourlyRate)) {
+        console.error("[COACH_BASIC_INFO_NAN_ERROR]", {
+          field: "hourlyRate",
+          value: data.hourlyRate,
+          timestamp: new Date().toISOString()
+        });
+        toast.error("Hourly rate must be a valid number");
+        return;
+      }
+      
+      console.log("[NUMERIC_VALUES_AFTER_CONVERSION]", {
+        yearsCoachingBefore: {
+          value: data.yearsCoaching,
+          type: typeof data.yearsCoaching
+        },
+        yearsCoachingAfter: {
+          value: yearsCoaching,
+          type: typeof yearsCoaching
+        },
+        hourlyRateBefore: {
+          value: data.hourlyRate,
+          type: typeof data.hourlyRate
+        },
+        hourlyRateAfter: {
+          value: hourlyRate,
+          type: typeof hourlyRate
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      // Important: Create a NEW object with properly typed numeric fields
+      // Do NOT use spreading that might lose types
       const mergedData: ExtendedCoachProfileFormValues = {
-        ...initialData as ExtendedCoachProfileFormValues,
         displayName: initialData?.displayName,
         slogan: data.slogan,
         coachPrimaryDomain: data.coachPrimaryDomain,
-        // Preserve the original coachRealEstateDomains from initialData
         coachRealEstateDomains: initialData?.coachRealEstateDomains || [],
-        yearsCoaching: data.yearsCoaching,
-        hourlyRate: data.hourlyRate,
-        // Use the updated coachSkills from the form
+        yearsCoaching: yearsCoaching,
+        hourlyRate: hourlyRate,
         coachSkills: data.coachSkills || [],
-        // Add the profileSlug
         profileSlug: data.profileSlug,
-        skipRevalidation: true
+        skipRevalidation: true,
+        // Add missing required properties
+        allowCustomDuration: initialData?.allowCustomDuration || false,
+        defaultDuration: initialData?.defaultDuration || 60,
+        maximumDuration: initialData?.maximumDuration || 120,
+        minimumDuration: initialData?.minimumDuration || 30,
+        professionalRecognitions: initialData?.professionalRecognitions || [],
       };
 
       console.log("[COACH_BASIC_INFO_SUBMIT_MERGED]", {
@@ -386,8 +493,14 @@ export function CoachProfileForm({
           coachPrimaryDomain: mergedData.coachPrimaryDomain,
           coachSkills: mergedData.coachSkills,
           coachRealEstateDomains: mergedData.coachRealEstateDomains,
-          yearsCoaching: mergedData.yearsCoaching,
-          hourlyRate: mergedData.hourlyRate
+          yearsCoaching: {
+            value: mergedData.yearsCoaching,
+            type: typeof mergedData.yearsCoaching
+          },
+          hourlyRate: {
+            value: mergedData.hourlyRate,
+            type: typeof mergedData.hourlyRate
+          }
         },
         timestamp: new Date().toISOString()
       });
@@ -409,21 +522,41 @@ export function CoachProfileForm({
         slogan: data.slogan,
         coachPrimaryDomain: data.coachPrimaryDomain,
         coachRealEstateDomains: data.coachRealEstateDomains || [],
-        yearsCoaching: data.yearsCoaching,
-        hourlyRate: data.hourlyRate,
+        yearsCoaching: yearsCoaching,
+        hourlyRate: hourlyRate,
         coachSkills: data.coachSkills || [],
         profileSlug: data.profileSlug,
       };
       
       console.log("[COACH_BASIC_INFO_BEFORE_RESET]", {
-        resetValues,
+        resetValues: {
+          ...resetValues,
+          yearsCoaching: {
+            value: resetValues.yearsCoaching,
+            type: typeof resetValues.yearsCoaching
+          },
+          hourlyRate: {
+            value: resetValues.hourlyRate,
+            type: typeof resetValues.hourlyRate
+          }
+        },
         timestamp: new Date().toISOString()
       });
       
       form.reset(resetValues);
       
       console.log("[COACH_BASIC_INFO_AFTER_RESET]", {
-        formValues: form.getValues(),
+        formValues: {
+          ...form.getValues(),
+          yearsCoaching: {
+            value: form.getValues().yearsCoaching,
+            type: typeof form.getValues().yearsCoaching
+          },
+          hourlyRate: {
+            value: form.getValues().hourlyRate,
+            type: typeof form.getValues().hourlyRate
+          }
+        },
         timestamp: new Date().toISOString()
       });
 
@@ -732,7 +865,25 @@ export function CoachProfileForm({
                           type="number"
                           min={0}
                           {...field}
-                          onChange={(e) => field.onChange(Number(e.target.value))}
+                          // Force a numeric value, defaulting to 0 if empty or NaN
+                          value={isNaN(Number(field.value)) ? 0 : Number(field.value)}
+                          onChange={(e) => {
+                            const numValue = Number(e.target.value);
+                            console.log("[YEARS_COACHING_CHANGE]", {
+                              rawValue: e.target.value,
+                              parsedValue: numValue,
+                              isNaN: isNaN(numValue),
+                              timestamp: new Date().toISOString()
+                            });
+                            field.onChange(isNaN(numValue) ? 0 : numValue);
+                          }}
+                          onBlur={() => {
+                            // Ensure a valid number on blur
+                            if (isNaN(Number(field.value)) || field.value === null || field.value === undefined) {
+                              field.onChange(0);
+                            }
+                            logFieldValue("yearsCoaching", field.value);
+                          }}
                         />
                       </FormControl>
                       <FormDescription>
@@ -752,7 +903,17 @@ export function CoachProfileForm({
                       <FormControl>
                         <Select
                           value={field.value?.toString() || "100"}
-                          onValueChange={(value) => field.onChange(parseInt(value, 10))}
+                          onValueChange={(value) => {
+                            const numValue = parseInt(value, 10);
+                            console.log("[HOURLY_RATE_CHANGE]", {
+                              selectedValue: value,
+                              parsedValue: numValue,
+                              timestamp: new Date().toISOString()
+                            });
+                            const finalValue = isNaN(numValue) ? 100 : numValue;
+                            field.onChange(finalValue);
+                            logFieldValue("hourlyRate", finalValue);
+                          }}
                         >
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="Select hourly rate" />
