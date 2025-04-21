@@ -38,7 +38,6 @@ import {
   deletePortfolioItem
 } from "@/utils/actions/portfolio-actions";
 import type { MarketingInfo } from "@/utils/types/marketing";
-import { updateMarketingInfo } from "@/utils/actions/marketing-actions";
 
 // Define the shape of the general data
 interface GeneralData {
@@ -979,35 +978,17 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const updateMarketingData = async (data: MarketingInfo) => {
     setIsSubmitting(true);
     try {
-      // Ensure testimonials is always an array before sending
-      const dataToSend = {
-          ...data,
-          testimonials: Array.isArray(data.testimonials) ? data.testimonials : [],
-      };
-
-      console.log("[UPDATE_MARKETING_DATA_CONTEXT]", {
-        data: dataToSend,
-        timestamp: new Date().toISOString()
-      });
-
-      const result = await updateMarketingInfo(dataToSend); // Use imported server action
-
-      if (result.error) {
-          console.error("[UPDATE_MARKETING_ERROR]", result.error);
-          toast.error(result.error.message || "Failed to update marketing information");
-          // Optionally return the error or handle it further
-          return; // Stop execution on error
-      }
-
-      // Only update local state if the server action was successful
-      setMarketingData(data); // Update local state with the submitted data
-      toast.success("Marketing information updated successfully");
-
-      // Optional: Re-fetch data to ensure consistency, though optimistic update is often sufficient
-      // await fetchData();
-
-    } catch (error) {
-      console.error("[UPDATE_MARKETING_DATA_ERROR]", error);
+      console.log("Updating marketing info...", data); // Log what's being passed
+      // Replace the placeholder with the actual update logic if needed
+      // For now, just log and update local state
+      // const response = await updateMarketingInfo(data);
+      // if (response.error) {
+      //   throw new Error(response.error.message || 'Failed to update marketing info');
+      // }
+      setMarketingData(data); // Update local state
+      toast.success("Marketing info saved locally (no backend update)");
+    } catch (error: any) {
+      console.error("Error updating marketing data:", error);
       toast.error("Failed to update marketing information");
     } finally {
       setIsSubmitting(false);
