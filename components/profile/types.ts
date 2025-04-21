@@ -32,6 +32,14 @@ export const coachProfileFormSchema = z.object({
     .min(100, "Minimum hourly rate is $100")
     .max(3000, "Maximum hourly rate is $3,000"),
   
+  // Marketing URLs (added)
+  websiteUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  facebookUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  instagramUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  linkedinUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  youtubeUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  tiktokUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  
   // Coach Domain Expertise
   coachRealEstateDomains: z.array(z.string()).optional(),
   coachPrimaryDomain: z.string().nullable().optional(),
@@ -84,6 +92,13 @@ export interface CoachProfileInitialData {
   // Coach Domain Expertise
   coachRealEstateDomains?: string[] | null;
   coachPrimaryDomain?: string | null;
+  // Add Marketing URLs (added)
+  websiteUrl?: string | null;
+  facebookUrl?: string | null;
+  instagramUrl?: string | null;
+  linkedinUrl?: string | null;
+  youtubeUrl?: string | null;
+  tiktokUrl?: string | null;
   // Add completion-related fields
   status?: ProfileStatus;
   completionPercentage?: number;

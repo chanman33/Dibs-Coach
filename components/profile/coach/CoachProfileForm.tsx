@@ -100,23 +100,24 @@ const DOMAIN_OPTIONS = Object.entries(REAL_ESTATE_DOMAINS).map(([key, value]) =>
   label: formatDomainLabel(key)
 }));
 
-// Add debugging to the coachBasicInfoSchema
+// Update the Zod schema to include new URL fields
 const coachBasicInfoSchema = z.object({
   slogan: z.string().optional(),
   coachPrimaryDomain: z.string().nullable().optional(),
   coachRealEstateDomains: z.array(z.string()).optional().default([]),
   yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater")
-    .transform((val) => {
-      console.log("[SCHEMA_TRANSFORM_YEARS]", { rawValue: val, asNumber: Number(val) });
-      return Number(val);
-    }),
+    .transform((val) => Number(val)),
   hourlyRate: z.number().min(0, "Hourly rate must be 0 or greater")
-    .transform((val) => {
-      console.log("[SCHEMA_TRANSFORM_RATE]", { rawValue: val, asNumber: Number(val) });
-      return Number(val);
-    }),
+    .transform((val) => Number(val)),
   coachSkills: z.array(z.string()).default([]),
   profileSlug: z.string().optional().nullable(),
+  // Add URL fields to schema
+  websiteUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  facebookUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  instagramUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  linkedinUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  youtubeUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  tiktokUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
 });
 
 type CoachBasicInfoValues = z.infer<typeof coachBasicInfoSchema>;
@@ -141,6 +142,12 @@ export interface CoachProfileFormProps {
     coachPrimaryDomain?: string | null;
     coachRealEstateDomains?: string[];
     profileSlug?: string | null;
+    websiteUrl?: string;
+    facebookUrl?: string;
+    instagramUrl?: string;
+    linkedinUrl?: string;
+    youtubeUrl?: string;
+    tiktokUrl?: string;
     [key: string]: any;
   };
   onSubmit: (data: ExtendedCoachProfileFormValues) => Promise<void>;
@@ -193,6 +200,12 @@ export function CoachProfileForm({
       hourlyRate: initialData?.hourlyRate,
       coachSkills: initialData?.coachSkills,
       profileSlug: initialData?.profileSlug,
+      websiteUrl: initialData?.websiteUrl,
+      facebookUrl: initialData?.facebookUrl,
+      instagramUrl: initialData?.instagramUrl,
+      linkedinUrl: initialData?.linkedinUrl,
+      youtubeUrl: initialData?.youtubeUrl,
+      tiktokUrl: initialData?.tiktokUrl,
     },
     defaultValues: {
       slogan: initialData?.slogan || "",
@@ -202,6 +215,12 @@ export function CoachProfileForm({
       hourlyRate: initialData?.hourlyRate !== undefined ? initialData.hourlyRate : 100,
       coachSkills: initialData?.coachSkills || [],
       profileSlug: initialData?.profileSlug || null,
+      websiteUrl: initialData?.websiteUrl || "",
+      facebookUrl: initialData?.facebookUrl || "",
+      instagramUrl: initialData?.instagramUrl || "",
+      linkedinUrl: initialData?.linkedinUrl || "",
+      youtubeUrl: initialData?.youtubeUrl || "",
+      tiktokUrl: initialData?.tiktokUrl || "",
     },
     hasYearsCoaching: initialData?.yearsCoaching !== undefined,
     hasHourlyRate: initialData?.hourlyRate !== undefined,
@@ -231,6 +250,12 @@ export function CoachProfileForm({
       hourlyRate: initialData?.hourlyRate !== undefined ? Number(initialData.hourlyRate) : 100,
       coachSkills: initialData?.coachSkills || [],
       profileSlug: initialData?.profileSlug || null,
+      websiteUrl: initialData?.websiteUrl || "",
+      facebookUrl: initialData?.facebookUrl || "",
+      instagramUrl: initialData?.instagramUrl || "",
+      linkedinUrl: initialData?.linkedinUrl || "",
+      youtubeUrl: initialData?.youtubeUrl || "",
+      tiktokUrl: initialData?.tiktokUrl || "",
     },
     mode: "onChange",
   });
@@ -258,12 +283,24 @@ export function CoachProfileForm({
         hourlyRate: initialData?.hourlyRate,
         coachSkills: initialData?.coachSkills,
         profileSlug: initialData?.profileSlug,
+        websiteUrl: initialData?.websiteUrl,
+        facebookUrl: initialData?.facebookUrl,
+        instagramUrl: initialData?.instagramUrl,
+        linkedinUrl: initialData?.linkedinUrl,
+        youtubeUrl: initialData?.youtubeUrl,
+        tiktokUrl: initialData?.tiktokUrl,
       },
       currentFormValues: {
         ...form.getValues(),
         yearsCoaching: form.getValues().yearsCoaching,
         hourlyRate: form.getValues().hourlyRate,
         profileSlug: form.getValues().profileSlug,
+        websiteUrl: form.getValues().websiteUrl,
+        facebookUrl: form.getValues().facebookUrl,
+        instagramUrl: form.getValues().instagramUrl,
+        linkedinUrl: form.getValues().linkedinUrl,
+        youtubeUrl: form.getValues().youtubeUrl,
+        tiktokUrl: form.getValues().tiktokUrl,
       },
       timestamp: new Date().toISOString()
     });
@@ -278,6 +315,12 @@ export function CoachProfileForm({
         hourlyRate: initialData.hourlyRate !== undefined ? initialData.hourlyRate : 100,
         coachSkills: initialData.coachSkills || [],
         profileSlug: initialData.profileSlug || null,
+        websiteUrl: initialData.websiteUrl || "",
+        facebookUrl: initialData.facebookUrl || "",
+        instagramUrl: initialData.instagramUrl || "",
+        linkedinUrl: initialData.linkedinUrl || "",
+        youtubeUrl: initialData.youtubeUrl || "",
+        tiktokUrl: initialData.tiktokUrl || "",
       };
       
       console.log("[COACH_FORM_BEFORE_RESET]", {
@@ -285,6 +328,12 @@ export function CoachProfileForm({
         yearsCoaching: resetValues.yearsCoaching,
         hourlyRate: resetValues.hourlyRate,
         profileSlug: resetValues.profileSlug,
+        websiteUrl: resetValues.websiteUrl,
+        facebookUrl: resetValues.facebookUrl,
+        instagramUrl: resetValues.instagramUrl,
+        linkedinUrl: resetValues.linkedinUrl,
+        youtubeUrl: resetValues.youtubeUrl,
+        tiktokUrl: resetValues.tiktokUrl,
         timestamp: new Date().toISOString()
       });
       
@@ -296,6 +345,12 @@ export function CoachProfileForm({
         yearsCoaching: form.getValues().yearsCoaching,
         hourlyRate: form.getValues().hourlyRate,
         profileSlug: form.getValues().profileSlug,
+        websiteUrl: form.getValues().websiteUrl,
+        facebookUrl: form.getValues().facebookUrl,
+        instagramUrl: form.getValues().instagramUrl,
+        linkedinUrl: form.getValues().linkedinUrl,
+        youtubeUrl: form.getValues().youtubeUrl,
+        tiktokUrl: form.getValues().tiktokUrl,
         timestamp: new Date().toISOString()
       });
     }
@@ -394,6 +449,12 @@ export function CoachProfileForm({
           },
           coachSkills: data.coachSkills,
           profileSlug: data.profileSlug,
+          websiteUrl: data.websiteUrl,
+          facebookUrl: data.facebookUrl,
+          instagramUrl: data.instagramUrl,
+          linkedinUrl: data.linkedinUrl,
+          youtubeUrl: data.youtubeUrl,
+          tiktokUrl: data.tiktokUrl,
         },
         initialData: {
           coachSkills: initialData?.coachSkills,
@@ -406,7 +467,13 @@ export function CoachProfileForm({
           hourlyRate: {
             value: initialData?.hourlyRate,
             type: typeof initialData?.hourlyRate
-          }
+          },
+          websiteUrl: initialData?.websiteUrl,
+          facebookUrl: initialData?.facebookUrl,
+          instagramUrl: initialData?.instagramUrl,
+          linkedinUrl: initialData?.linkedinUrl,
+          youtubeUrl: initialData?.youtubeUrl,
+          tiktokUrl: initialData?.tiktokUrl,
         },
         formState: {
           isDirty: form.formState.isDirty,
@@ -491,6 +558,12 @@ export function CoachProfileForm({
         maximumDuration: initialData?.maximumDuration || 120,
         minimumDuration: initialData?.minimumDuration || 30,
         professionalRecognitions: initialData?.professionalRecognitions || [],
+        websiteUrl: data.websiteUrl,
+        facebookUrl: data.facebookUrl,
+        instagramUrl: data.instagramUrl,
+        linkedinUrl: data.linkedinUrl,
+        youtubeUrl: data.youtubeUrl,
+        tiktokUrl: data.tiktokUrl,
       };
 
       console.log("[COACH_BASIC_INFO_SUBMIT_MERGED]", {
@@ -506,7 +579,13 @@ export function CoachProfileForm({
           hourlyRate: {
             value: mergedData.hourlyRate,
             type: typeof mergedData.hourlyRate
-          }
+          },
+          websiteUrl: mergedData.websiteUrl,
+          facebookUrl: mergedData.facebookUrl,
+          instagramUrl: mergedData.instagramUrl,
+          linkedinUrl: mergedData.linkedinUrl,
+          youtubeUrl: mergedData.youtubeUrl,
+          tiktokUrl: mergedData.tiktokUrl,
         },
         timestamp: new Date().toISOString()
       });
@@ -532,6 +611,12 @@ export function CoachProfileForm({
         hourlyRate: hourlyRate,
         coachSkills: data.coachSkills || [],
         profileSlug: data.profileSlug,
+        websiteUrl: data.websiteUrl,
+        facebookUrl: data.facebookUrl,
+        instagramUrl: data.instagramUrl,
+        linkedinUrl: data.linkedinUrl,
+        youtubeUrl: data.youtubeUrl,
+        tiktokUrl: data.tiktokUrl,
       };
       
       console.log("[COACH_BASIC_INFO_BEFORE_RESET]", {
@@ -544,7 +629,13 @@ export function CoachProfileForm({
           hourlyRate: {
             value: resetValues.hourlyRate,
             type: typeof resetValues.hourlyRate
-          }
+          },
+          websiteUrl: resetValues.websiteUrl,
+          facebookUrl: resetValues.facebookUrl,
+          instagramUrl: resetValues.instagramUrl,
+          linkedinUrl: resetValues.linkedinUrl,
+          youtubeUrl: resetValues.youtubeUrl,
+          tiktokUrl: resetValues.tiktokUrl,
         },
         timestamp: new Date().toISOString()
       });
@@ -561,7 +652,13 @@ export function CoachProfileForm({
           hourlyRate: {
             value: form.getValues().hourlyRate,
             type: typeof form.getValues().hourlyRate
-          }
+          },
+          websiteUrl: form.getValues().websiteUrl,
+          facebookUrl: form.getValues().facebookUrl,
+          instagramUrl: form.getValues().instagramUrl,
+          linkedinUrl: form.getValues().linkedinUrl,
+          youtubeUrl: form.getValues().youtubeUrl,
+          tiktokUrl: form.getValues().tiktokUrl,
         },
         timestamp: new Date().toISOString()
       });
@@ -581,6 +678,12 @@ export function CoachProfileForm({
           hourlyRate: data.hourlyRate,
           coachSkills: data.coachSkills,
           profileSlug: data.profileSlug,
+          websiteUrl: data.websiteUrl,
+          facebookUrl: data.facebookUrl,
+          instagramUrl: data.instagramUrl,
+          linkedinUrl: data.linkedinUrl,
+          youtubeUrl: data.youtubeUrl,
+          tiktokUrl: data.tiktokUrl,
         },
         timestamp: new Date().toISOString()
       });
@@ -1007,6 +1110,168 @@ export function CoachProfileForm({
                   );
                 }}
               />
+            </div>
+          </Card>
+
+          {/* Marketing URLs Card */}
+          <Card className="p-4 sm:p-6 border shadow-sm">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <FormSectionHeader
+                  title="Marketing & Social URLs"
+                  tooltip="Add your social media profiles to enhance your online presence."
+                />
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  These URLs will be displayed on your public profile.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="websiteUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Website URL</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="https://yourwebsite.com" 
+                          {...field} 
+                          value={field.value || ''} 
+                          onChange={(e) => {
+                            let value = e.target.value;
+                            if (value && value.trim() !== '' && !value.startsWith('http://') && !value.startsWith('https://')) {
+                              value = `https://${value}`;
+                            }
+                            field.onChange(value);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="linkedinUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>LinkedIn URL</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="https://linkedin.com/in/yourprofile" 
+                          {...field} 
+                          value={field.value || ''} 
+                          onChange={(e) => {
+                            let value = e.target.value;
+                            if (value && value.trim() !== '' && !value.startsWith('http://') && !value.startsWith('https://')) {
+                              value = `https://${value}`;
+                            }
+                            field.onChange(value);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="facebookUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Facebook URL</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="https://facebook.com/yourpage" 
+                          {...field} 
+                          value={field.value || ''} 
+                          onChange={(e) => {
+                            let value = e.target.value;
+                            if (value && value.trim() !== '' && !value.startsWith('http://') && !value.startsWith('https://')) {
+                              value = `https://${value}`;
+                            }
+                            field.onChange(value);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="instagramUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Instagram URL</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="https://instagram.com/yourprofile" 
+                          {...field} 
+                          value={field.value || ''} 
+                          onChange={(e) => {
+                            let value = e.target.value;
+                            if (value && value.trim() !== '' && !value.startsWith('http://') && !value.startsWith('https://')) {
+                              value = `https://${value}`;
+                            }
+                            field.onChange(value);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="youtubeUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>YouTube URL</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="https://youtube.com/c/yourchannel" 
+                          {...field} 
+                          value={field.value || ''} 
+                          onChange={(e) => {
+                            let value = e.target.value;
+                            if (value && value.trim() !== '' && !value.startsWith('http://') && !value.startsWith('https://')) {
+                              value = `https://${value}`;
+                            }
+                            field.onChange(value);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="tiktokUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>TikTok URL</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="https://tiktok.com/@yourprofile" 
+                          {...field} 
+                          value={field.value || ''} 
+                          onChange={(e) => {
+                            let value = e.target.value;
+                            if (value && value.trim() !== '' && !value.startsWith('http://') && !value.startsWith('https://')) {
+                              value = `https://${value}`;
+                            }
+                            field.onChange(value);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
           </Card>
 

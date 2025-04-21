@@ -139,6 +139,15 @@ model CoachProfile {
   slogan                   String?
   lastSlugUpdateAt         DateTime?                 @db.Timestamptz(6)
   profileSlug              String?                   @unique
+  
+  // Marketing URLs moved here
+  websiteUrl               String?                   @db.VarChar(2048) // Added
+  facebookUrl              String?                   @db.VarChar(2048) // Added
+  instagramUrl             String?                   @db.VarChar(2048) // Added
+  linkedinUrl              String?                   @db.VarChar(2048) // Added
+  youtubeUrl               String?                   @db.VarChar(2048) // Added
+  tiktokUrl                String?                   @db.VarChar(2048) // Added
+  
   user                     User                      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
   professionalRecognitions ProfessionalRecognition[]
 

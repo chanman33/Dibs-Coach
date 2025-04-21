@@ -30,6 +30,12 @@ export interface CoachProfileFormData {
   displayName?: string;
   slogan?: string;
   profileSlug?: string;
+  websiteUrl?: string;
+  facebookUrl?: string;
+  instagramUrl?: string;
+  linkedinUrl?: string;
+  youtubeUrl?: string;
+  tiktokUrl?: string;
 }
 
 interface CoachProfileResponse {
@@ -62,6 +68,12 @@ interface CoachProfileResponse {
   missingRequiredFields: string[];
   optionalMissingFields: string[];
   validationMessages: Record<string, string>;
+  websiteUrl?: string | null;
+  facebookUrl?: string | null;
+  instagramUrl?: string | null;
+  linkedinUrl?: string | null;
+  youtubeUrl?: string | null;
+  tiktokUrl?: string | null;
 }
 
 interface ProfessionalRecognitionData {
@@ -139,6 +151,12 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           slogan,
           profileSlug,
           lastSlugUpdateAt,
+          websiteUrl,
+          facebookUrl,
+          instagramUrl,
+          linkedinUrl,
+          youtubeUrl,
+          tiktokUrl,
           createdAt,
           updatedAt
         `)
@@ -288,7 +306,8 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         hasAvailabilitySchedule: availabilitySchedules && availabilitySchedules.length > 0,
         coachRealEstateDomains: safeCoachProfile?.coachRealEstateDomains || [],
         coachPrimaryDomain: safeCoachProfile?.coachPrimaryDomain || null,
-        profileSlug: safeCoachProfile?.profileSlug || null
+        profileSlug: safeCoachProfile?.profileSlug || null,
+        websiteUrl: safeCoachProfile?.websiteUrl || null,
       };
       
       const { percentage, missingFields, canPublish } = calculateProfileCompletion(profileData);
@@ -322,7 +341,13 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
         missingFields,
         missingRequiredFields: [],
         optionalMissingFields: [],
-        validationMessages: {}
+        validationMessages: {},
+        websiteUrl: safeCoachProfile?.websiteUrl || null,
+        facebookUrl: safeCoachProfile?.facebookUrl || null,
+        instagramUrl: safeCoachProfile?.instagramUrl || null,
+        linkedinUrl: safeCoachProfile?.linkedinUrl || null,
+        youtubeUrl: safeCoachProfile?.youtubeUrl || null,
+        tiktokUrl: safeCoachProfile?.tiktokUrl || null,
       };
 
       // Log the exact status being returned
@@ -358,6 +383,12 @@ interface UpdateCoachProfileResponse {
   coachPrimaryDomain?: string | null;
   coachSkills?: string[];
   coachRealEstateDomains?: string[];
+  websiteUrl?: string | null;
+  facebookUrl?: string | null;
+  instagramUrl?: string | null;
+  linkedinUrl?: string | null;
+  youtubeUrl?: string | null;
+  tiktokUrl?: string | null;
 }
 
 export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, CoachProfileFormData>(
@@ -391,7 +422,13 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           slogan: formData.slogan,
           profileSlug: formData.profileSlug,
           coachRealEstateDomains: formData.coachRealEstateDomains,
-          coachPrimaryDomain: formData.coachPrimaryDomain
+          coachPrimaryDomain: formData.coachPrimaryDomain,
+          websiteUrl: formData.websiteUrl,
+          facebookUrl: formData.facebookUrl,
+          instagramUrl: formData.instagramUrl,
+          linkedinUrl: formData.linkedinUrl,
+          youtubeUrl: formData.youtubeUrl,
+          tiktokUrl: formData.tiktokUrl,
         },
         timestamp: new Date().toISOString()
       });
@@ -506,7 +543,8 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
         ...coachProfileData,
         ...formData,
         yearsCoaching,
-        hourlyRate
+        hourlyRate,
+        websiteUrl: formData.websiteUrl,
       });
 
       // Get the coach's primary domain
@@ -548,7 +586,13 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           coachRealEstateDomains: coachRealEstateDomains as any,
           coachPrimaryDomain: coachPrimaryDomain as any,
           lastSlugUpdateAt: profileSlug !== (coachProfileData as any)?.profileSlug ? lastSlugUpdateAt : undefined,
-          completionPercentage: percentage
+          completionPercentage: percentage,
+          websiteUrl: formData.websiteUrl,
+          facebookUrl: formData.facebookUrl,
+          instagramUrl: formData.instagramUrl,
+          linkedinUrl: formData.linkedinUrl,
+          youtubeUrl: formData.youtubeUrl,
+          tiktokUrl: formData.tiktokUrl,
         })
         .eq('userUlid', userUlid)
         .select();
@@ -612,7 +656,13 @@ export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, C
           coachSkills: formData.coachSkills,
           coachRealEstateDomains,
           yearsCoaching,
-          hourlyRate
+          hourlyRate,
+          websiteUrl: formData.websiteUrl,
+          facebookUrl: formData.facebookUrl,
+          instagramUrl: formData.instagramUrl,
+          linkedinUrl: formData.linkedinUrl,
+          youtubeUrl: formData.youtubeUrl,
+          tiktokUrl: formData.tiktokUrl,
         },
         error: null
       };

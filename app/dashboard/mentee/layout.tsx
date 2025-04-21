@@ -9,7 +9,6 @@ import { ContainerLoading } from "@/components/loading/container"
 import { useAuth } from "@clerk/nextjs"
 import { useEffect, useState } from "react"
 import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/sonner"
 
 export default function MenteeLayout({
   children,
@@ -57,7 +56,6 @@ export default function MenteeLayout({
             {children}
           </main>
         </div>
-        <Toaster position="top-center" richColors />
       </ThemeProvider>
     </RouteGuardProvider>
   )

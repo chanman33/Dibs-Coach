@@ -26,8 +26,8 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { useToast } from '@/components/ui/use-toast'
-import { Toaster } from '@/components/ui/toaster'
+import { toast } from 'sonner'
+
 
 export function BusinessStats() {
   const [stats, setStats] = useState<any>(null)
@@ -38,7 +38,8 @@ export function BusinessStats() {
   const [showBudgetDetailsDialog, setShowBudgetDetailsDialog] = useState(false)
   const [budgetAmount, setBudgetAmount] = useState('5000')
   const [savingBudget, setSavingBudget] = useState(false)
-  const { toast } = useToast()
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedClient, setSelectedClient] = useState(null)
 
   // Function to refresh stats without changing retry count
   const refreshStats = async () => {
@@ -118,10 +119,8 @@ export function BusinessStats() {
       // Validate budget amount
       const amount = parseInt(budgetAmount, 10);
       if (isNaN(amount) || amount <= 0) {
-        toast({
-          title: "Invalid budget amount",
+        toast.error("Invalid budget amount", {
           description: "Please enter a valid positive number for the budget",
-          variant: "destructive",
         });
         setSavingBudget(false);
         return;
@@ -133,8 +132,7 @@ export function BusinessStats() {
       const result = await saveCoachingBudget(amount);
       
       if (!result.error) {
-        toast({
-          title: stats.isBudgetSet ? "Budget updated" : "Budget set",
+        toast.success(stats.isBudgetSet ? "Budget updated" : "Budget set", {
           description: `Your team's monthly coaching budget has been ${stats.isBudgetSet ? 'updated' : 'set'} to $${amount.toLocaleString()}`,
         });
         
@@ -148,18 +146,14 @@ export function BusinessStats() {
           ? result.error 
           : result.error?.message || "Failed to save the budget. Please try again.";
           
-        toast({
-          title: "Error saving budget",
+        toast.error("Error saving budget", {
           description: errorMessage,
-          variant: "destructive",
         });
       }
     } catch (error) {
       console.error("Error saving budget:", error);
-      toast({
-        title: "Unexpected error",
+      toast.error("Unexpected error", {
         description: "Something went wrong while saving your budget. Please try again.",
-        variant: "destructive",
       });
     } finally {
       setSavingBudget(false);
@@ -194,6 +188,10 @@ export function BusinessStats() {
   const handleOpenBudgetDetails = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent triggering the edit dialog
     setShowBudgetDetailsDialog(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
   };
 
   if (loading) {
@@ -471,7 +469,8 @@ export function BusinessStats() {
         </DialogContent>
       </Dialog>
       
-      <Toaster />
+      {/* Comment out the usage of the missing component */}
+      {/* <ClientProfileModal isOpen={isModalOpen} onClose={handleCloseModal} client={selectedClient} /> */}
     </>
   )
 } 

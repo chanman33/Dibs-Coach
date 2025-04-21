@@ -271,7 +271,7 @@ function ProfilePageContent() {
   return (
     <>
       {/* Alert Banner for Unpublished Profile */}
-      {coachData && coachData.status !== 'PUBLISHED' && (
+      {profileStatus && profileStatus !== 'PUBLISHED' && (
         <Alert className="mb-6 bg-amber-50 text-amber-900 border-amber-300">
           <AlertTriangle className="h-4 w-4 text-amber-800" />
           <AlertDescription>
@@ -295,7 +295,16 @@ function ProfilePageContent() {
         onSubmitCoach={handleProfileSubmit}
         coachFormContent={
           <CoachProfileForm
-            initialData={coachData as ExtendedCoachData}
+            initialData={{
+              ...coachData,
+              // Convert null URL values to undefined to match form prop type
+              websiteUrl: coachData.websiteUrl ?? undefined,
+              facebookUrl: coachData.facebookUrl ?? undefined,
+              instagramUrl: coachData.instagramUrl ?? undefined,
+              linkedinUrl: coachData.linkedinUrl ?? undefined,
+              youtubeUrl: coachData.youtubeUrl ?? undefined,
+              tiktokUrl: coachData.tiktokUrl ?? undefined,
+            }}
             onSubmit={handleProfileSubmit}
             isSubmitting={isSubmitting}
             profileStatus={profileStatus}

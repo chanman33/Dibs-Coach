@@ -4,6 +4,8 @@ import { createAuthClient } from "@/utils/auth"
 import { marketingInfoSchema, type UpdateMarketingInfo, type Testimonial } from "@/utils/types/marketing"
 import { withServerAction } from "@/utils/middleware/withServerAction"
 import { revalidatePath } from "next/cache"
+import { generateUlid } from "@/utils/ulid"
+import { z } from "zod"
 
 export const removeTestimonial = withServerAction<{ success: true, data: any[] }, { index: number }>(
   async ({ index }, { userUlid }) => {
@@ -102,52 +104,75 @@ export const updateMarketingInfo = withServerAction<{ success: true }, UpdateMar
       // Get supabase client
       const supabase = await createAuthClient()
 
-      // Get marketing profile ID
-      const { data: profileData, error: profileError } = await supabase
+      // Check if marketing profile exists
+      const { data: existingProfile, error: fetchError } = await supabase
         .from("MarketingProfile")
         .select("ulid")
         .eq("userUlid", userUlid)
-        .single()
+        .maybeSingle() // Use maybeSingle to handle 0 or 1 result
 
-      if (profileError || !profileData) {
-        console.error("[MARKETING_PROFILE_ERROR]", { userUlid, error: profileError })
+      if (fetchError) {
+        console.error("[MARKETING_FETCH_ERROR]", { userUlid, error: fetchError })
         return {
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Marketing profile not found'
+            message: 'Error checking for existing marketing profile'
           }
         }
       }
+      
+      const marketingDataToSave = {
+        websiteUrl: validatedData.websiteUrl,
+        facebookUrl: validatedData.facebookUrl,
+        instagramUrl: validatedData.instagramUrl,
+        linkedinUrl: validatedData.linkedinUrl,
+        youtubeUrl: validatedData.youtubeUrl,
+        marketingAreas: Array.isArray(validatedData.marketingAreas) ? validatedData.marketingAreas : [],
+        // Ensure testimonials are handled correctly, avoiding nested JSON strings if possible
+        testimonials: Array.isArray(validatedData.testimonials) ? validatedData.testimonials : [],
+        updatedAt: new Date().toISOString(),
+      };
 
-      // Update marketing information
-      const { error: updateError } = await supabase
-        .from("MarketingProfile")
-        .update({
-          websiteUrl: data.websiteUrl,
-          facebookUrl: data.facebookUrl,
-          instagramUrl: data.instagramUrl,
-          linkedinUrl: data.linkedinUrl,
-          youtubeUrl: data.youtubeUrl,
-          marketingAreas: Array.isArray(data.marketingAreas) ? data.marketingAreas : [],
-          testimonials: Array.isArray(data.testimonials) ? data.testimonials : [],
-          updatedAt: new Date().toISOString(),
-        })
-        .eq("ulid", profileData.ulid)
+      let operationError = null;
 
-      if (updateError) {
-        console.error("[MARKETING_UPDATE_ERROR]", { userUlid, error: updateError })
+      if (existingProfile) {
+        // Update existing profile
+        console.log("[MARKETING_INFO] Updating existing profile:", existingProfile.ulid);
+        const { error: updateError } = await supabase
+          .from("MarketingProfile")
+          .update(marketingDataToSave)
+          .eq("ulid", existingProfile.ulid);
+        operationError = updateError;
+      } else {
+        // Insert new profile
+        const newUlid = generateUlid();
+        console.log("[MARKETING_INFO] Inserting new profile with ULID:", newUlid);
+        const { error: insertError } = await supabase
+          .from("MarketingProfile")
+          .insert({
+            ...marketingDataToSave,
+            ulid: newUlid,
+            userUlid: userUlid,
+            socialMediaLinks: {}, // Default empty object if not provided
+            createdAt: new Date().toISOString(),
+          });
+        operationError = insertError;
+      }
+
+      if (operationError) {
+        console.error("[MARKETING_UPSERT_ERROR]", { userUlid, error: operationError })
         return {
           data: null,
           error: {
             code: 'DATABASE_ERROR',
-            message: 'Failed to update marketing information'
+            message: 'Failed to save marketing information'
           }
         }
       }
 
-      // Revalidate the profile page
-      revalidatePath("/dashboard/profile")
+      // Revalidate the profile page (adjust path if needed)
+      revalidatePath("/dashboard/coach/profile") // Updated path
 
       return { 
         data: { success: true },
@@ -155,6 +180,17 @@ export const updateMarketingInfo = withServerAction<{ success: true }, UpdateMar
       }
     } catch (error) {
       console.error("[MARKETING_ERROR]", error)
+      // Handle potential Zod validation errors
+      if (error instanceof z.ZodError) {
+        return {
+          data: null,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid marketing data format.',
+            details: error.flatten()
+          }
+        }
+      }
       return {
         data: null,
         error: {

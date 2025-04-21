@@ -5,9 +5,9 @@ import { Analytics } from "@vercel/analytics/react"
 import { GeistSans } from 'geist/font/sans'
 import type { Metadata } from 'next'
 import './globals.css'
-
-// Use proper import for Clerk
+import { cn } from "@/lib/utils"
 import { ClerkProvider } from '@clerk/nextjs'
+import config from "@/config"
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.FRONTEND_URL || "https://dibs.coach"),
@@ -65,40 +65,38 @@ export default function RootLayout({
   // Auth context will be handled by specific layouts/pages and client providers
 
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <link
-          rel="preload"
-          href="https://utfs.io/f/31dba2ff-6c3b-4927-99cd-b928eaa54d5f-5w20ij.png"
-          as="image"
-        />
-        <link
-          rel="preload"
-          href="https://utfs.io/f/69a12ab1-4d57-4913-90f9-38c6aca6c373-1txg2.png"
-          as="image"
-        />
-      </head>
-      <body className={GeistSans.className}>
-        <ClerkProvider
-          appearance={{
-            variables: { colorPrimary: '#4f46e5' }
-          }}
-        >
-          {/* initialAuthState prop is no longer needed */}
+    <ClerkProvider appearance={{
+      variables: { 
+        colorPrimary: config.auth.clerkPrimaryColor 
+      }
+    }}>
+      <html lang="en" suppressHydrationWarning>
+        <head>
+          <link
+            rel="preload"
+            href="https://utfs.io/f/31dba2ff-6c3b-4927-99cd-b928eaa54d5f-5w20ij.png"
+            as="image"
+          />
+          <link
+            rel="preload"
+            href="https://utfs.io/f/69a12ab1-4d57-4913-90f9-38c6aca6c373-1txg2.png"
+            as="image"
+          />
+        </head>
+        <body className={cn("min-h-screen bg-background font-sans antialiased", GeistSans.variable)}>
           <Provider>
             <ThemeProvider
               attribute="class"
               defaultTheme="system"
               enableSystem
-              disableTransitionOnChange
             >
               {children}
-              <Toaster />
+              <Toaster position="top-center" richColors />
+              <Analytics />
             </ThemeProvider>
           </Provider>
-        </ClerkProvider>
-        <Analytics />
-      </body>
-    </html>
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }

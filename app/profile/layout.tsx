@@ -1,9 +1,9 @@
 import Provider from '@/app/provider'
 import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "@/components/ui/sonner"
 import NavBar from '@/components/wrapper/navbar'
 import { CoachesFooter } from '@/components/coaching/public/CoachesFooter'
 import type { Metadata } from 'next'
+import { ProfileProvider } from '@/components/profile/context/ProfileContext'
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://dibs.coach"),
@@ -35,10 +35,13 @@ export default function ProfileLayout({
         <div className="flex min-h-screen flex-col bg-background">
           <NavBar />
           <main className="flex-1 w-full pt-16">
-            {children}
+            <ProfileProvider>
+              <div className="container py-6 space-y-6 max-w-5xl">
+                {children}
+              </div>
+            </ProfileProvider>
           </main>
           <CoachesFooter />
-          <Toaster />
         </div>
       </ThemeProvider>
     </Provider>

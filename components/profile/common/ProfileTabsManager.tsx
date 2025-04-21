@@ -38,8 +38,6 @@ interface ProfileTabsManagerProps {
   portfolioContent?: React.ReactNode;
   initialRecognitions?: ProfessionalRecognition[];
   onSubmitRecognitions?: (recognitions: ProfessionalRecognition[]) => Promise<void>;
-  initialMarketingInfo?: MarketingInfoType;
-  onSubmitMarketingInfo?: (data: MarketingInfoType) => Promise<void>;
   isSubmitting?: boolean;
 }
 
@@ -52,8 +50,6 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
   portfolioContent,
   initialRecognitions = [],
   onSubmitRecognitions,
-  initialMarketingInfo,
-  onSubmitMarketingInfo,
   isSubmitting = false,
 }) => {
   // Memoize state to prevent unnecessary re-renders
@@ -101,19 +97,6 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
       ),
       requiredCapabilities: ["COACH"],
     },
-    {
-      id: "marketing",
-      label: "Marketing Info",
-      icon: <Globe className="h-4 w-4" />,
-      content: (
-        <MarketingInfo
-          initialData={initialMarketingInfo}
-          onSubmit={onSubmitMarketingInfo}
-          isSubmitting={isSubmitting}
-        />
-      ),
-      requiredCapabilities: ["COACH"],
-    }
   ],
   [
     generalUserInfo,
@@ -122,8 +105,6 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
     portfolioContent,
     initialRecognitions,
     onSubmitRecognitions,
-    initialMarketingInfo,
-    onSubmitMarketingInfo,
     isSubmitting
   ]);
 

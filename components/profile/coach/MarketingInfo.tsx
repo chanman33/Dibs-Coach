@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -8,25 +8,39 @@ import type { MarketingInfo as MarketingInfoType } from "@/utils/types/marketing
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 interface MarketingInformationProps {
-  initialData?: MarketingInfoType;
-  onSubmit?: (data: MarketingInfoType) => Promise<void>;
+  initialData?: MarketingInfoType | null;
+  onSubmit: (data: MarketingInfoType) => Promise<void>;
   isSubmitting?: boolean;
 }
 
 export default function MarketingInformation({ 
   initialData,
-  onSubmit: externalSubmit,
+  onSubmit,
   isSubmitting = false 
 }: MarketingInformationProps) {
   const [formData, setFormData] = useState<MarketingInfoType>({
-    websiteUrl: initialData?.websiteUrl ?? "",
-    facebookUrl: initialData?.facebookUrl ?? "",
-    instagramUrl: initialData?.instagramUrl ?? "",
-    linkedinUrl: initialData?.linkedinUrl ?? "",
-    youtubeUrl: initialData?.youtubeUrl ?? "",
-    marketingAreas: initialData?.marketingAreas ?? [],
+    websiteUrl: "",
+    facebookUrl: "",
+    instagramUrl: "",
+    linkedinUrl: "",
+    youtubeUrl: "",
+    marketingAreas: [],
     testimonials: [],
   })
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        websiteUrl: initialData.websiteUrl ?? "",
+        facebookUrl: initialData.facebookUrl ?? "",
+        instagramUrl: initialData.instagramUrl ?? "",
+        linkedinUrl: initialData.linkedinUrl ?? "",
+        youtubeUrl: initialData.youtubeUrl ?? "",
+        marketingAreas: initialData.marketingAreas ?? [],
+        testimonials: initialData.testimonials ?? [],
+      })
+    }
+  }, [initialData])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -44,21 +58,7 @@ export default function MarketingInformation({
     e.preventDefault()
     
     try {
-      const dataToSubmit = {
-        ...formData,
-        testimonials: []
-      }
-
-      if (externalSubmit) {
-        await externalSubmit(dataToSubmit)
-      } else {
-        const result = await updateMarketingInfo(dataToSubmit)
-        if (result.error) {
-          toast.error(result.error.message)
-          return
-        }
-        toast.success("Marketing information updated successfully")
-      }
+      await onSubmit(formData)
     } catch (error) {
       toast.error("Failed to update marketing information")
       console.error("[FORM_ERROR]", error)
