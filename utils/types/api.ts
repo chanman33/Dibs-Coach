@@ -26,6 +26,9 @@ export type ApiErrorCode =
   | 'INVALID_STATE'
   | 'AUTH_ERROR'
   | 'ITEM_NOT_FOUND'
+  | 'INVALID_FILE_TYPE'
+  | 'FILE_TOO_LARGE'
+  | 'UPLOAD_FAILED'
 
 export interface ApiError {
   code: ApiErrorCode;

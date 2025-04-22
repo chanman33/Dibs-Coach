@@ -14,15 +14,39 @@ export function PortfolioPage() {
   const handleAddItem = async (data: CreatePortfolioItem) => {
     setIsSubmitting(true);
     try {
+      console.log("[PORTFOLIO_ADD_START]", {
+        data: {
+          type: data.type,
+          title: data.title,
+          hasImage: !!data.imageUrls?.length,
+          imageUrls: data.imageUrls
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      // No need to process image upload since it's already done in the form
       const result = await addPortfolioItem(data);
+      
+      console.log("[PORTFOLIO_ADD_RESULT]", {
+        success: !result.error,
+        error: result.error,
+        data: result.data ? 'exists' : 'null',
+        timestamp: new Date().toISOString()
+      });
+      
       if (result.error) {
         return { error: result.error };
       }
       
       return { data: result.data };
     } catch (error) {
-      console.error("[ADD_PORTFOLIO_ERROR]", error);
-      return { error: "Failed to add portfolio item" };
+      console.error("[ADD_PORTFOLIO_ERROR]", {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        message: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString()
+      });
+      return { error: error instanceof Error ? error.message : "Failed to add portfolio item" };
     } finally {
       setIsSubmitting(false);
     }
@@ -32,15 +56,33 @@ export function PortfolioPage() {
   const handleUpdateItem = async (id: string, data: UpdatePortfolioItem) => {
     setIsSubmitting(true);
     try {
+      console.log("[PORTFOLIO_UPDATE_START]", {
+        id,
+        data: {
+          type: data.type,
+          title: data.title,
+          hasImage: !!data.imageUrls?.length,
+          imageUrls: data.imageUrls
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      // No need to process image upload since it's already done in the form
       const result = await updatePortfolioItem(id, data);
+      
       if (result.error) {
         return { error: result.error };
       }
       
       return { data: result.data };
     } catch (error) {
-      console.error("[UPDATE_PORTFOLIO_ERROR]", error);
-      return { error: "Failed to update portfolio item" };
+      console.error("[UPDATE_PORTFOLIO_ERROR]", {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+        message: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString()
+      });
+      return { error: error instanceof Error ? error.message : "Failed to update portfolio item" };
     } finally {
       setIsSubmitting(false);
     }

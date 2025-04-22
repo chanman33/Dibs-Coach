@@ -44,7 +44,11 @@ export const portfolioItemSchema = z.object({
   location: locationSchema,
   financialDetails: financialDetailsSchema,
   metrics: z.record(z.string(), z.any()).optional(),
-  date: z.union([z.string().datetime(), z.date()]),
+  date: z.union([
+    z.string().datetime(), // Full ISO datetime string
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format"), // YYYY-MM-DD format
+    z.date() // Date object
+  ]),
   tags: z.array(z.string()).default([]),
   featured: z.boolean().default(false),
   isVisible: z.boolean().default(true)

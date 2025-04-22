@@ -13,7 +13,8 @@ import {
   Plus, 
   Tag, 
   Trash2,
-  Trophy 
+  Trophy,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,12 +69,16 @@ import {
   CreatePortfolioItem,
   UpdatePortfolioItem,
   createPortfolioItemSchema,
+  updatePortfolioItemSchema,
   PORTFOLIO_ITEM_TYPE_LABELS,
   PORTFOLIO_ITEM_TYPE_COLORS,
   PortfolioItemTypeEnum,
 } from "@/utils/types/portfolio";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ImageUpload } from "@/components/ui/image-upload";
+import { uploadPortfolioImage } from "@/utils/actions/portfolio-actions";
+import { useUser } from "@clerk/nextjs";
 
 // Mock currency formatter
 const formatCurrency = (amount: number, currency = "USD") => {
@@ -100,19 +105,30 @@ interface PortfolioFormProps {
   isSubmitting?: boolean;
 }
 
+// Define the possible actions for the image
+type ImageAction = 'keep' | 'replace' | 'clear';
+
 export function PortfolioForm({
   portfolioItems = [],
   onAddItem,
   onUpdateItem,
   onDeleteItem,
-  isSubmitting = false,
+  isSubmitting: parentIsSubmitting = false, // Renamed prop to avoid conflict
 }: PortfolioFormProps) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PortfolioItem | null>(null);
+  const [localIsSubmitting, setLocalIsSubmitting] = useState(false); // Local submitting state for image upload
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imageAction, setImageAction] = useState<ImageAction>('keep');
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null); // For local file preview
+  const [tagInputString, setTagInputString] = useState(''); 
+  const { user } = useUser();
+  
+  const isFormSubmitting = parentIsSubmitting || localIsSubmitting; // Combined submitting state
   
   // Create form
   const form = useForm<CreatePortfolioItem>({
-    resolver: zodResolver(createPortfolioItemSchema),
+    resolver: zodResolver(editingItem ? updatePortfolioItemSchema : createPortfolioItemSchema),
     defaultValues: {
       type: "PROPERTY_SALE",
       title: "",
@@ -123,78 +139,289 @@ export function PortfolioForm({
       featured: false,
       isVisible: true,
     },
+    mode: editingItem ? "onSubmit" : "onChange"
   });
 
-  // Reset form when editing item changes
+  // Debug log for form state
+  useEffect(() => {
+    const formState = form.formState;
+    console.log("[FORM_STATE]", {
+      isDirty: formState.isDirty,
+      isValid: formState.isValid,
+      errors: Object.entries(formState.errors).reduce((acc, [key, value]) => {
+        if (value) {
+          acc[key] = {
+            type: String(value.type || ''),
+            message: String(value.message || '')
+          };
+        }
+        return acc;
+      }, {} as Record<string, { type: string; message: string }>),
+      values: form.getValues(),
+      timestamp: new Date().toISOString()
+    });
+  }, [form, form.formState]);
+
+  // Also log when editing item changes
   useEffect(() => {
     if (editingItem) {
-      const date = typeof editingItem.date === 'string' 
-        ? new Date(editingItem.date).toISOString().split("T")[0]
-        : new Date(editingItem.date).toISOString().split("T")[0];
-      
-      form.reset({
-        ...editingItem,
-        date
+      console.log("[EDITING_ITEM_CHANGED]", {
+        item: editingItem,
+        timestamp: new Date().toISOString()
       });
+    }
+  }, [editingItem]);
+
+  // Cleanup local object URL
+  useEffect(() => {
+    return () => {
+      if (localPreviewUrl) {
+        URL.revokeObjectURL(localPreviewUrl);
+        console.log("[IMAGE_UPLOAD_CLEANUP]", { preview: localPreviewUrl, timestamp: new Date().toISOString() });
+      }
+    };
+  }, [localPreviewUrl]);
+
+  // Reset form and image state when editing item changes or dialog closes
+  useEffect(() => {
+    if (isAddDialogOpen) {
+      if (editingItem) {
+        const date = typeof editingItem.date === 'string' 
+          ? new Date(editingItem.date).toISOString().split("T")[0]
+          : new Date(editingItem.date).toISOString().split("T")[0];
+        
+        form.reset({
+          ...editingItem,
+          date,
+          tags: Array.isArray(editingItem.tags) ? editingItem.tags : [], 
+        });
+        setImageAction('keep');
+        setSelectedFile(null);
+        setLocalPreviewUrl(null); // Clear local preview when starting edit
+        setTagInputString(Array.isArray(editingItem.tags) ? editingItem.tags.join(', ') : '');
+      } else {
+        form.reset({
+          type: "PROPERTY_SALE",
+          title: "",
+          description: "",
+          date: new Date().toISOString().split("T")[0],
+          imageUrls: [],
+          tags: [], // Reset tags to empty array
+          featured: false,
+          isVisible: true,
+        });
+        setImageAction('keep'); // Or 'clear' if we want no image by default
+        setSelectedFile(null);
+        setLocalPreviewUrl(null);
+        setTagInputString('');
+      }
     } else {
-      form.reset({
+      // Reset fully when dialog closes
+      setEditingItem(null);
+      setSelectedFile(null);
+      setImageAction('keep');
+      if (localPreviewUrl) {
+        URL.revokeObjectURL(localPreviewUrl);
+      }
+      setLocalPreviewUrl(null);
+      form.reset({ // Reset form to defaults
         type: "PROPERTY_SALE",
         title: "",
         description: "",
         date: new Date().toISOString().split("T")[0],
         imageUrls: [],
-        tags: [],
+        tags: [], // Reset tags to empty array
         featured: false,
         isVisible: true,
       });
+      setTagInputString('');
     }
-  }, [editingItem, form]);
+  }, [editingItem, form, isAddDialogOpen]);
 
-  // Handle form submission
-  const handleSubmit = async (data: CreatePortfolioItem) => {
-    try {
-      // Process tags as array
-      let processedTags = data.tags;
-      if (typeof data.tags === 'string') {
-        processedTags = (data.tags as string).split(',').map(t => t.trim());
-      }
+  // Handle file selection from ImageUpload
+  const handleFileSelected = (file: File | null) => {
+    setSelectedFile(file);
+    setImageAction(file ? 'replace' : 'clear'); // Set action based on file presence
 
-      const submissionData = {
-        ...data,
-        tags: processedTags as string[],
-      };
-
-      if (editingItem) {
-        const result = await onUpdateItem(editingItem.ulid, submissionData);
-        if (result.error) {
-          toast.error(result.error);
-          return;
-        }
-        toast.success("Portfolio item updated successfully");
-      } else {
-        const result = await onAddItem(submissionData);
-        if (result.error) {
-          toast.error(result.error);
-          return;
-        }
-        toast.success("Portfolio item added successfully");
-      }
-
-      setIsAddDialogOpen(false);
-      setEditingItem(null);
-    } catch (error) {
-      console.error("[PORTFOLIO_SUBMIT_ERROR]", error);
-      toast.error("Failed to save portfolio item");
+    // Manage local preview URL
+    if (localPreviewUrl) {
+      URL.revokeObjectURL(localPreviewUrl); // Clean up previous local preview
+      setLocalPreviewUrl(null);
+    }
+    if (file) {
+      const objectUrl = URL.createObjectURL(file);
+      setLocalPreviewUrl(objectUrl);
+    } else {
+       // If file is null (cleared), ensure form value is also cleared
+      form.setValue('imageUrls', []);
     }
   };
 
+  // Handle clearing the image
+  const handleClearImage = () => {
+    setSelectedFile(null);
+    setImageAction('clear');
+    form.setValue('imageUrls', []); // Clear image URL in form state
+    if (localPreviewUrl) {
+      URL.revokeObjectURL(localPreviewUrl); // Clean up local preview
+    }
+    setLocalPreviewUrl(null);
+  };
+
+  // Actual submission handler
+  const handleFormSubmission = async (data: CreatePortfolioItem) => {
+    console.log("[HANDLE_SUBMIT_CALLED] Form submission started.", { 
+      // Log the data directly from RHF (tags should be string[] here)
+      data: { ...data, tags: data.tags }, 
+      timestamp: new Date().toISOString() 
+    });
+
+    if (!user?.id) {
+      toast.error("Authentication error. Please log in again.");
+      return;
+    }
+
+    // Log form validity state before submitting
+    console.log("[FORM_SUBMIT_VALIDITY]", {
+      isValid: form.formState.isValid,
+      isDirty: form.formState.isDirty,
+      errors: Object.entries(form.formState.errors).reduce((acc, [key, value]) => {
+        if (value) {
+          acc[key] = {
+            type: String(value.type || ''),
+            message: String(value.message || '')
+          };
+        }
+        return acc;
+      }, {} as Record<string, { type: string; message: string }>)
+    });
+
+    setLocalIsSubmitting(true); // Start submitting state
+
+    try {
+      let finalImageUrls: string[] = form.getValues('imageUrls') || []; // Default to current form value
+
+      // --- Image Upload Logic ---
+      if (imageAction === 'replace' && selectedFile) {
+        console.log("[PORTFOLIO_FORM_UPLOAD_START] Uploading image before submit...", {
+          fileName: selectedFile.name,
+          fileType: selectedFile.type,
+          userId: user.id,
+          timestamp: new Date().toISOString()
+        });
+
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('userId', user.id); // Pass userId for storage path
+
+        const uploadResult = await uploadPortfolioImage(formData);
+
+        if (uploadResult.error || !uploadResult.data) {
+          console.error("[PORTFOLIO_FORM_UPLOAD_ERROR]", {
+            error: uploadResult.error,
+            timestamp: new Date().toISOString()
+          });
+          toast.error(`Image upload failed: ${uploadResult.error?.message || 'Unknown error'}`);
+          setLocalIsSubmitting(false); // Stop submitting on upload error
+          return; // Stop submission
+        }
+
+        finalImageUrls = [uploadResult.data]; // Set the uploaded URL
+        console.log("[PORTFOLIO_FORM_UPLOAD_SUCCESS]", {
+          imageUrl: uploadResult.data,
+          timestamp: new Date().toISOString()
+        });
+        
+      } else if (imageAction === 'clear') {
+        finalImageUrls = []; // Explicitly clear URLs
+      }
+
+      console.log("[PORTFOLIO_FORM_SUBMIT]", {
+        // Log data *before* processing tags (tags should be string[] from RHF)
+        formData: { ...data, imageUrls: finalImageUrls }, 
+        imageAction,
+        hasSelectedFile: !!selectedFile,
+        timestamp: new Date().toISOString()
+      });
+
+      // --- Prepare Submission Data (Tags should already be correct array type) ---
+      // RHF state is managed by the input's onChange, so data.tags is already string[]
+      const submissionData = {
+        ...data,
+        // tags: Array.isArray(data.tags) ? data.tags : [], // No conversion needed
+        imageUrls: finalImageUrls, 
+      };
+
+      console.log("[PORTFOLIO_FORM_PROCESSED]", {
+        submissionData: {
+          type: submissionData.type,
+          title: submissionData.title,
+          hasImageData: !!submissionData.imageUrls?.length,
+          imageUrls: submissionData.imageUrls,
+          tags: submissionData.tags // Log the tags being submitted
+        },
+        timestamp: new Date().toISOString()
+      });
+
+      // --- Call Add or Update Action ---
+      if (editingItem) {
+        const result = await onUpdateItem(editingItem.ulid, submissionData);
+        if (result.error) {
+          toast.error(`Failed to update: ${result.error}`);
+        } else {
+          toast.success("Portfolio item updated successfully");
+          setIsAddDialogOpen(false); // Close dialog on success
+        }
+      } else {
+        const result = await onAddItem(submissionData);
+        if (result.error) {
+          toast.error(`Failed to add: ${result.error}`);
+        } else {
+          toast.success("Portfolio item added successfully");
+          setIsAddDialogOpen(false); // Close dialog on success
+        }
+      }
+      
+      // Reset image state *after* successful submission is handled
+      // Dialog close useEffect will handle the rest of the reset
+      setSelectedFile(null);
+      setImageAction('keep');
+      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+      setLocalPreviewUrl(null);
+      // Reset local tag input string
+      setTagInputString(''); 
+
+    } catch (error) {
+      console.error("[PORTFOLIO_SUBMIT_ERROR]", error);
+      toast.error("An unexpected error occurred while saving.");
+    } finally {
+      setLocalIsSubmitting(false); // End submitting state
+    }
+  };
+
+  // Create a direct submission handler for edit mode
+  const submitDirectly = () => {
+    if (editingItem) {
+      const formData = form.getValues(); // RHF values (tags should be string[])
+      console.log("[DIRECT_SUBMISSION]", { 
+        formData, 
+        timestamp: new Date().toISOString() 
+      });
+      handleFormSubmission(formData);
+    }
+  };
+
+  // Regular form submission handler (uses validation)
+  const onSubmit = form.handleSubmit(handleFormSubmission);
+
   // Handle delete
   const handleDelete = async (item: PortfolioItem) => {
+    // Consider adding loading state for delete
     if (confirm(`Are you sure you want to delete "${item.title}"?`)) {
       try {
         const result = await onDeleteItem(item.ulid);
         if (result.error) {
-          toast.error(result.error);
+          toast.error(`Delete failed: ${result.error}`);
           return;
         }
         toast.success("Portfolio item deleted successfully");
@@ -202,7 +429,7 @@ export function PortfolioForm({
         // Close dialog if deleting the current editing item
         if (editingItem?.ulid === item.ulid) {
           setIsAddDialogOpen(false);
-          setEditingItem(null);
+          // State reset handled by useEffect watching isAddDialogOpen
         }
       } catch (error) {
         console.error("[PORTFOLIO_DELETE_ERROR]", error);
@@ -228,6 +455,23 @@ export function PortfolioForm({
     return colorMap[PORTFOLIO_ITEM_TYPE_COLORS[type]] || colorMap.gray;
   };
 
+  // Determine the preview URL for ImageUpload
+  const getPreviewUrl = () => {
+    // If a local file is selected, show its preview
+    if (localPreviewUrl) {
+      return localPreviewUrl;
+    }
+    // If editing and image action is 'keep', show the existing image from form state
+    if (editingItem && imageAction === 'keep') {
+        const currentImageUrls = form.getValues('imageUrls');
+      return Array.isArray(currentImageUrls) && currentImageUrls.length > 0 && typeof currentImageUrls[0] === 'string' 
+        ? currentImageUrls[0] 
+        : undefined;
+    }
+    // Otherwise, no preview
+    return undefined;
+  };
+
   return (
     <Card className="border shadow-sm">
       <CardHeader className="pb-4">
@@ -240,13 +484,14 @@ export function PortfolioForm({
           </div>
           <Button 
             onClick={() => {
-              setEditingItem(null);
+              // Reset handled by useEffect watching isAddDialogOpen
+              setEditingItem(null); 
               setIsAddDialogOpen(true);
             }}
             className="flex items-center gap-2"
           >
             <Plus className="h-4 w-4" />
-            Add Achievement
+            New
           </Button>
         </div>
       </CardHeader>
@@ -261,6 +506,7 @@ export function PortfolioForm({
             </p>
             <Button 
               onClick={() => {
+                // Reset handled by useEffect watching isAddDialogOpen
                 setEditingItem(null);
                 setIsAddDialogOpen(true);
               }}
@@ -273,10 +519,11 @@ export function PortfolioForm({
             {portfolioItems.map((item) => (
               <Card key={item.ulid} className="overflow-hidden group hover:shadow-md transition-all">
                 <div className="relative">
-                  {item.imageUrls && item.imageUrls.length > 0 ? (
+                  {/* Display Image: Use item.imageUrls directly from the fetched data */}
+                  {Array.isArray(item.imageUrls) && item.imageUrls.length > 0 ? (
                     <div className="h-48 overflow-hidden bg-muted">
                       <img
-                        src={Array.isArray(item.imageUrls) ? item.imageUrls[0] : ''}
+                        src={item.imageUrls[0]} // Assuming first image is the primary one
                         alt={item.title}
                         className="w-full h-full object-cover transition-transform group-hover:scale-105"
                       />
@@ -286,6 +533,7 @@ export function PortfolioForm({
                       <Building2 className="h-16 w-16 text-muted-foreground/30" />
                     </div>
                   )}
+                  {/* Actions Dropdown */}
                   <div className="absolute top-2 right-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -298,6 +546,7 @@ export function PortfolioForm({
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
                           onClick={() => {
+                             // Reset handled by useEffect watching isAddDialogOpen
                             setEditingItem(item);
                             setIsAddDialogOpen(true);
                           }}
@@ -313,6 +562,7 @@ export function PortfolioForm({
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
+                  {/* Featured Badge */}
                   {item.featured && (
                     <div className="absolute top-2 left-2">
                       <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
@@ -322,11 +572,12 @@ export function PortfolioForm({
                   )}
                 </div>
                 <CardContent className="p-6">
-                  <div className="mb-3 flex items-center gap-2">
+                   {/* Type Badge and Tags */}
+                  <div className="mb-3 flex items-center gap-2 flex-wrap">
                     <Badge className={cn("", getTypeColor(item.type))}>
                       {PORTFOLIO_ITEM_TYPE_LABELS[item.type]}
                     </Badge>
-                    {item.tags && item.tags.length > 0 && (
+                    {Array.isArray(item.tags) && item.tags.length > 0 && (
                       <div className="flex gap-1 flex-wrap">
                         {item.tags.slice(0, 2).map((tag) => (
                           <Badge key={tag} variant="outline" className="text-xs">
@@ -341,10 +592,12 @@ export function PortfolioForm({
                       </div>
                     )}
                   </div>
+                   {/* Title and Description */}
                   <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
                   <p className="text-muted-foreground text-sm line-clamp-2 mb-4">
                     {item.description}
                   </p>
+                   {/* Details: Amount, Location, Date */}
                   <div className="flex items-center gap-4 text-sm">
                     {item.financialDetails?.amount && (
                       <div className="flex items-center gap-1">
@@ -383,7 +636,21 @@ export function PortfolioForm({
           </DialogHeader>
           
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+            <form 
+              onSubmit={(e) => {
+                console.log("[FORM_SUBMIT_EVENT]", { timestamp: new Date().toISOString() });
+                
+                // If editing an existing item, we want to bypass validation
+                if (editingItem) {
+                  e.preventDefault();
+                  submitDirectly();
+                } else {
+                  // Normal validation flow for new items
+                  onSubmit(e);
+                }
+              }} 
+              className="space-y-6"
+            >
               {/* Type */}
               <FormField
                 control={form.control}
@@ -393,11 +660,12 @@ export function PortfolioForm({
                     <FormLabel>Type</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
-                      defaultValue={field.value as string}
-                      value={field.value as string}
+                      // Use form state value, ensure it's a string for Select
+                      value={String(field.value)} 
                     >
                       <FormControl>
                         <SelectTrigger>
+                           {/* Use form state value here too */}
                           <SelectValue placeholder="Select type" />
                         </SelectTrigger>
                       </FormControl>
@@ -443,11 +711,14 @@ export function PortfolioForm({
                         <Input 
                           type="date" 
                           {...field} 
+                           // Consistent date handling based on form value type
                           value={typeof field.value === 'string' 
-                            ? field.value 
+                            ? field.value.split('T')[0] // Handle potential ISO string from DB
                             : field.value instanceof Date 
                               ? field.value.toISOString().split('T')[0] 
                               : ''}
+                          // Ensure onChange provides YYYY-MM-DD string
+                          onChange={(e) => field.onChange(e.target.value)} 
                         />
                       </FormControl>
                       <FormMessage />
@@ -468,7 +739,7 @@ export function PortfolioForm({
                         placeholder="Describe this achievement or transaction..." 
                         className="min-h-[100px]"
                         {...field}
-                        value={field.value || ""}
+                        value={field.value || ""} // Handle potential null/undefined
                       />
                     </FormControl>
                     <FormMessage />
@@ -537,8 +808,9 @@ export function PortfolioForm({
                             type="number" 
                             className="pl-8" 
                             {...field}
+                             // Ensure value passed to onChange is number or undefined
                             onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                            value={field.value || ""}
+                            value={field.value || ""} // Handle potential undefined for controlled input
                           />
                         </div>
                       </FormControl>
@@ -547,10 +819,11 @@ export function PortfolioForm({
                   )}
                 />
 
+                {/* Tags Field */}
                 <FormField
                   control={form.control}
-                  name="tags"
-                  render={({ field }) => (
+                  name="tags" // RHF state is string[]
+                  render={({ field }) => ( // field.value is string[], field.onChange expects string[]
                     <FormItem>
                       <FormLabel>Tags</FormLabel>
                       <FormControl>
@@ -559,11 +832,22 @@ export function PortfolioForm({
                           <Input 
                             placeholder="luxury, investment, record-sale" 
                             className="pl-8" 
-                            {...field}
-                            value={Array.isArray(field.value) ? field.value.join(", ") : field.value || ""}
+                            // Use local state for the input value
+                            value={tagInputString} 
+                            // Update local state AND process+update RHF state on change
                             onChange={(e) => {
-                              const tags = e.target.value.split(",").map(tag => tag.trim());
-                              field.onChange(tags);
+                              const currentInputString = e.target.value;
+                              // 1. Update local state for immediate input feedback
+                              setTagInputString(currentInputString); 
+                              
+                              // 2. Process string into array for RHF state
+                              const tagsArray = currentInputString
+                                .split(",")
+                                .map(tag => tag.trim())
+                                .filter(tag => tag !== ""); 
+                                
+                              // 3. Update RHF state with the processed array
+                              field.onChange(tagsArray); 
                             }}
                           />
                         </div>
@@ -577,37 +861,34 @@ export function PortfolioForm({
                 />
               </div>
 
-              {/* Image URL */}
-              <FormField
-                control={form.control}
-                name="imageUrls"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Image URL</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <ImagePlus className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                          placeholder="https://example.com/image.jpg" 
-                          className="pl-8" 
-                          value={Array.isArray(field.value) && field.value.length > 0 ? field.value[0] : ""}
-                          onChange={(e) => {
-                            if (e.target.value) {
-                              field.onChange([e.target.value]);
-                            } else {
-                              field.onChange([]);
-                            }
-                          }}
-                        />
+              {/* Image Upload - Simplified, no longer directly controlling form value */}
+               {/* We control the File object and action separately */}
+              <FormItem>
+                <FormLabel>Image</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <ImageUpload
+                      id="portfolio-image"
+                      previewUrl={getPreviewUrl()} // Use the dynamic preview URL
+                      onFileSelect={handleFileSelected} // Pass the handler for File object
+                      onClear={handleClearImage} // Pass the handler for clearing
+                    />
+                    {/* Show loader only during the final submission phase if needed */}
+                    {localIsSubmitting && imageAction === 'replace' && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        <span className="ml-2 text-sm text-primary font-medium">Uploading...</span>
                       </div>
-                    </FormControl>
-                    <FormDescription>
-                      URL to an image representing this achievement
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                    )}
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  Upload an image representing this achievement (Max 5MB).
+                </FormDescription>
+                {/* Display form-level validation errors if needed, separate from ImageUpload's internal errors */}
+                <FormMessage />
+              </FormItem>
+
 
               {/* Featured Flag */}
               <FormField
@@ -632,28 +913,50 @@ export function PortfolioForm({
               />
 
               <DialogFooter className="gap-2 sm:gap-0">
+                 {/* Delete Button */}
                 {editingItem && (
                   <Button
                     type="button"
                     variant="destructive"
                     onClick={() => handleDelete(editingItem)}
-                    disabled={isSubmitting}
+                    disabled={isFormSubmitting} // Disable during submission
                   >
+                    {/* Consider adding a loading state for delete? */}
                     Delete
                   </Button>
                 )}
+                 {/* Cancel and Submit Buttons */}
                 <div className="flex gap-2 ml-auto">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => {
                       setIsAddDialogOpen(false);
-                      setEditingItem(null);
+                       // State reset handled by useEffect watching isAddDialogOpen
                     }}
+                     // Disable cancel button during submission as well
+                    disabled={isFormSubmitting}
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={isSubmitting}>
+                  <Button 
+                    type="submit"
+                    disabled={isFormSubmitting}
+                    onClick={(e) => {
+                      console.log("[SUBMIT_BUTTON_CLICKED]", { 
+                        isEditing: !!editingItem,
+                        action: editingItem ? "update" : "add",
+                        formState: {
+                          isDirty: form.formState.isDirty,
+                          isValid: form.formState.isValid,
+                          isSubmitting: form.formState.isSubmitting
+                        },
+                        timestamp: new Date().toISOString() 
+                      });
+                    }}
+                  >
+                     {/* Show loading indicator on submit button */}
+                    {isFormSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {editingItem ? "Update" : "Add"} Achievement
                   </Button>
                 </div>
