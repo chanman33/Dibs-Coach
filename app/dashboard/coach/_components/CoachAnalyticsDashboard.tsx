@@ -118,82 +118,70 @@ export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="container px-6 py-8 max-w-7xl mx-auto space-y-8">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Finance & Analytics Dashboard</h2>
         <p className="text-muted-foreground">Track your earnings, sessions, and financial metrics</p>
       </div>
       
-      {/* Balance Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Balance</CardTitle>
-            <PiggyBank className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(analytics.pendingBalance)}</div>
-            <p className="text-xs text-muted-foreground">
-              From booked, upcoming sessions
-            </p>
-          </CardContent>
-        </Card>
+      {/* Earnings and Transactions Tabs */}
+      <Tabs defaultValue="earnings" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="earnings">Earnings</TabsTrigger>
+          <TabsTrigger value="transactions">Transactions</TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(analytics.availableBalance)}</div>
-            <div className="flex flex-col gap-2">
-              <p className="text-xs text-muted-foreground">
-                From completed sessions
-              </p>
-              {analytics.availableBalance > 0 && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleEarlyPayout}
-                  disabled={isRequestingPayout}
-                  className="w-full"
-                >
-                  {isRequestingPayout ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Requesting...
-                    </>
-                  ) : (
-                    'Request Early Payout'
-                  )}
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <TabsContent value="earnings" className="space-y-6 pt-2">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Available Balance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(analytics.availableBalance)}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Ready for next payout
+                </p>
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Next Payout</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(analytics.nextPayoutAmount)}</div>
-            <div className="flex flex-col gap-1">
-              <p className="text-xs text-muted-foreground">
-                Scheduled for {format(new Date(analytics.nextPayoutDate), 'EEEE, MMM d')}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Bi-weekly payouts every other Friday
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle>Pending Balance</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {formatCurrency(analytics.pendingBalance)}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  From upcoming sessions
+                </p>
+                {analytics.pendingBalance > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {analytics.nextPayoutDate ? 
+                      `Expected payout on ${format(new Date(analytics.nextPayoutDate), 'MMMM d')} if all sessions complete` : 
+                      'Will be included in your next scheduled payout after completion'}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
+        <TabsContent value="transactions">
+          <TransactionHistory
+            transactions={transactions}
+            userRole="COACH"
+            isLoading={isLoadingTransactions}
+          />
+        </TabsContent>
+      </Tabs>
+      
       {/* Performance Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
             <CalendarIcon className="h-4 w-4 text-muted-foreground" />
@@ -206,7 +194,7 @@ export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -220,7 +208,7 @@ export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Unique Mentees</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
@@ -233,7 +221,7 @@ export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Avg. Session Value</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
@@ -252,8 +240,8 @@ export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
       </div>
 
       {/* Payment History */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Recent Payouts</CardTitle>
           </CardHeader>
@@ -286,7 +274,7 @@ export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle>Upcoming Sessions</CardTitle>
           </CardHeader>
@@ -319,54 +307,6 @@ export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
           </CardContent>
         </Card>
       </div>
-
-      <Tabs defaultValue="earnings" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="earnings">Earnings</TabsTrigger>
-          <TabsTrigger value="transactions">Transactions</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="earnings" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Available Balance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {formatCurrency(analytics.availableBalance)}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Ready for next payout
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Pending Balance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {formatCurrency(analytics.pendingBalance)}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  From upcoming sessions
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="transactions">
-          <TransactionHistory
-            transactions={transactions}
-            userRole="COACH"
-            isLoading={isLoadingTransactions}
-          />
-        </TabsContent>
-
-      </Tabs>
     </div>
   );
 } 
