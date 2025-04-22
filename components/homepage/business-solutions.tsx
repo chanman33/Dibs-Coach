@@ -20,20 +20,15 @@ export default function BusinessSolutions() {
       description: "Track progress and ROI with detailed reporting on coaching effectiveness and agent growth.",
     },
     {
-      icon: Shield,
-      title: "White-Labeled Platform",
-      description: "Custom-branded coaching portal that reflects your brokerage's identity and values.",
-    },
-    {
       icon: Briefcase,
       title: "Volume-Based Pricing",
       description: "Cost-effective solutions that scale with your team size and coaching needs.",
     },
-    {
-      icon: Layers,
-      title: "Custom Integration",
-      description: "Seamlessly integrate with your existing tools and workflows for maximum efficiency.",
-    },
+    // {
+    //   icon: Layers,
+    //   title: "Custom Integration",
+    //   description: "Seamlessly integrate with your existing tools and workflows for maximum efficiency.",
+    // },
   ]
 
   return (
@@ -78,22 +73,22 @@ export default function BusinessSolutions() {
             <Link href="/business-solutions">
               <Button size="lg">Learn More</Button>
             </Link>
-            <Link href="/case-studies">
+            {/* <Link href="/case-studies">
               <Button variant="outline" size="lg">
                 View Case Studies
               </Button>
-            </Link>
+            </Link> */}
           </div>
         </div>
 
         <div className="relative">
           <div className="absolute -z-10 inset-0 bg-gradient-to-tr from-blue-500/10 via-transparent to-transparent rounded-2xl" />
           <Image
-            src="/placeholder.svg"
+            src="/goal-mngt-dashboard-wip.png"
             alt="Team coaching dashboard"
             width={600}
             height={600}
-            unoptimized={true}
+            priority={true}
             className="rounded-xl shadow-lg border border-gray-200 dark:border-gray-800"
           />
           <div className="absolute -top-4 -right-4 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl -z-20" />
