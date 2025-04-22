@@ -6,39 +6,34 @@
  */
 
 import { createAuthClient } from '@/utils/auth'
-import { auth } from '@clerk/nextjs/server'
 import { env } from '@/lib/env'
 import { NextResponse } from 'next/server'
-import { createUserIfNotExists } from '@/utils/auth/user-management'
 import { generateUlid } from '@/utils/ulid'
 import { 
   createCalManagedUserPayloadSchema, 
   type CreateCalManagedUserPayload
 } from '@/utils/types/cal-managed-user'
+import { getAuthenticatedUserUlid } from '@/utils/auth'
 
 export async function POST(req: Request) {
   const supabase = createAuthClient()
   let createdCalUserId: number | null = null
 
   try {
-    // 1. Authenticate User using Clerk directly
-    const { userId } = auth()
-    if (!userId) {
-      console.error('[CREATE_MANAGED_USER_CLERK_AUTH_ERROR]', { error: 'Clerk userId not found' })
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+    // 1. Authenticate User using the centralized helper
+    const authResult = await getAuthenticatedUserUlid();
+    if (authResult.error || !authResult.data) {
+      console.error('[CREATE_MANAGED_USER_AUTH_ERROR]', authResult.error);
+      return NextResponse.json(
+        { error: authResult.error?.message || 'Authentication failed' },
+        { status: authResult.error?.code === 'UNAUTHORIZED' ? 401 : 500 }
+      );
     }
-    console.log('[CREATE_MANAGED_USER_CLERK_AUTH_SUCCESS]', { userId })
 
-    // 2. Ensure User Exists in DB & Get ULID (using Clerk userId)
-    const userContext = await createUserIfNotExists(userId)
-    if (!userContext?.userUlid) {
-      console.error('[CREATE_MANAGED_USER_DB_USER_ERROR]', { userId: userId, error: 'Failed to get or create user context' })
-      return NextResponse.json({ error: 'Failed to verify or create user in database' }, { status: 500 })
-    }
-    const userUlid = userContext.userUlid
-    console.log('[CREATE_MANAGED_USER_DB_USER_CONFIRMED]', { userUlid, isNewUser: userContext.isNewUser })
+    const userUlid = authResult.data.userUlid;
+    console.log('[CREATE_MANAGED_USER_AUTH_SUCCESS]', { userUlid });
 
-    // 3. Parse and Validate Request Body
+    // 2. Parse and Validate Request Body
     let body
     try {
       body = await req.json()
@@ -59,7 +54,7 @@ export async function POST(req: Request) {
     const validatedPayload: CreateCalManagedUserPayload = validationResult.data
     console.log('[CREATE_MANAGED_USER_PAYLOAD]', { ...validatedPayload, userUlid })
 
-    // 4. Check for Existing Integration
+    // 3. Check for Existing Integration
     const { data: existingIntegration, error: checkError } = await supabase
       .from('CalendarIntegration')
       .select('ulid, calManagedUserId, calUsername')
@@ -94,7 +89,7 @@ export async function POST(req: Request) {
       })
     }
 
-    // 5. Create Cal.com Managed User using direct API
+    // 4. Create Cal.com Managed User using direct API
     const clientId = env.NEXT_PUBLIC_CAL_CLIENT_ID
     const clientSecret = env.CAL_CLIENT_SECRET
     
@@ -221,7 +216,7 @@ export async function POST(req: Request) {
         calUsername
       })
 
-      // 6. Insert into Supabase CalendarIntegration Table
+      // 5. Insert into Supabase CalendarIntegration Table
       const integrationUlid = generateUlid();
       
       // Extract response data from Cal.com response
@@ -295,7 +290,6 @@ export async function POST(req: Request) {
       }
 
       console.log('[CREATE_MANAGED_USER_FINAL_SUCCESS]', { 
-        userId: userId, 
         userUlid, 
         calIntegrationUlid: integrationUlid,
         calManagedUserId: createdCalUserId,

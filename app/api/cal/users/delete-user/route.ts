@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server'
 import { makeCalApiRequest } from '@/utils/cal/cal-api-utils'
 import { env } from '@/lib/env'
+import { getAuthenticatedUserUlid } from '@/utils/auth'
 
 export async function DELETE(request: Request) {
   try {
@@ -27,6 +28,15 @@ export async function DELETE(request: Request) {
         { error: 'userId parameter is required' },
         { status: 400 }
       )
+    }
+    
+    // Authenticate the user using the centralized helper
+    const authResult = await getAuthenticatedUserUlid();
+    if (authResult.error || !authResult.data) {
+      return NextResponse.json(
+        { error: authResult.error?.message || 'Authentication failed' },
+        { status: authResult.error?.code === 'UNAUTHORIZED' ? 401 : 500 }
+      );
     }
 
     const result = await makeCalApiRequest({

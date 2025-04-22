@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server'
 import { makeCalApiRequest } from '@/utils/cal/cal-api-utils'
 import { env } from '@/lib/env'
+import { getAuthenticatedUserUlid } from '@/utils/auth'
 
 export async function GET(request: Request) {
   try {
@@ -20,6 +21,15 @@ export async function GET(request: Request) {
         { error: 'CAL_CLIENT_ID is not configured' },
         { status: 400 }
       )
+    }
+    
+    // Authenticate the user using the centralized helper
+    const authResult = await getAuthenticatedUserUlid();
+    if (authResult.error || !authResult.data) {
+      return NextResponse.json(
+        { error: authResult.error?.message || 'Authentication failed' },
+        { status: authResult.error?.code === 'UNAUTHORIZED' ? 401 : 500 }
+      );
     }
 
     // If directFetch is true, bypass makeCalApiRequest and use fetch directly
