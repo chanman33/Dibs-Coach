@@ -89,6 +89,7 @@ export default function BusinessSolutions() {
             width={600}
             height={600}
             priority={true}
+            unoptimized={true}
             className="rounded-xl shadow-lg border border-gray-200 dark:border-gray-800"
           />
           <div className="absolute -top-4 -right-4 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl -z-20" />
