@@ -166,10 +166,12 @@ export async function POST(req: Request) {
       try {
         calUserResponse = JSON.parse(responseText);
         console.log('[CREATE_MANAGED_USER_RESPONSE_PARSED]', {
-          hasUser: !!calUserResponse?.user,
-          userId: calUserResponse?.user?.id,
-          hasToken: !!calUserResponse?.accessToken,
-          fields: calUserResponse ? Object.keys(calUserResponse) : []
+          hasData: !!calUserResponse?.data,
+          hasUserInData: !!calUserResponse?.data?.user,
+          userIdInData: calUserResponse?.data?.user?.id,
+          hasTokenInData: !!calUserResponse?.data?.accessToken,
+          fields: calUserResponse ? Object.keys(calUserResponse) : [],
+          dataFields: calUserResponse?.data ? Object.keys(calUserResponse.data) : []
         });
       } catch (parseError) {
         console.error('[CREATE_MANAGED_USER_RESPONSE_PARSE_ERROR]', {
@@ -182,9 +184,9 @@ export async function POST(req: Request) {
         }, { status: 500 });
       }
 
-      if (!calUserResponse?.user?.id) {
+      if (!calUserResponse?.data?.user?.id) {
         console.error('[CREATE_MANAGED_USER_INVALID_RESPONSE]', { 
-          error: 'Invalid response format from Cal.com API', 
+          error: 'Invalid response format from Cal.com API (missing data.user.id)', 
           response: calUserResponse 
         });
         return NextResponse.json({ 
@@ -193,11 +195,12 @@ export async function POST(req: Request) {
         }, { status: 500 });
       }
 
-      // Check for error response from Cal.com
-      if (!response.ok || calUserResponse.error) {
+      // Check for application-level errors within the Cal.com response
+      if (!response.ok || calUserResponse.status === 'error') {
         console.error('[CREATE_MANAGED_USER_ERROR_RESPONSE]', {
           status: response.status,
-          errorMessage: calUserResponse.error || 'Unknown error',
+          calStatus: calUserResponse.status,
+          errorMessage: calUserResponse.message || 'Unknown Cal.com error',
           response: calUserResponse
         });
         
@@ -207,8 +210,11 @@ export async function POST(req: Request) {
         }, { status: response.status || 500 });
       }
       
-      createdCalUserId = calUserResponse.user.id;
-      const calUsername = calUserResponse.user.username || 'cal-user';
+      // Extract data from the successful response's 'data' object
+      const responseData = calUserResponse.data;
+      
+      createdCalUserId = responseData.user.id;
+      const calUsername = responseData.user.username || 'cal-user';
       
       console.log('[CREATE_MANAGED_USER_CAL_SUCCESS]', { 
         calUserId: createdCalUserId,
@@ -226,10 +232,10 @@ export async function POST(req: Request) {
         provider: 'CAL',
         calManagedUserId: createdCalUserId as number,
         calUsername: calUsername,
-        calAccessToken: calUserResponse.accessToken || '',
-        calRefreshToken: calUserResponse.refreshToken || '',
-        calAccessTokenExpiresAt: calUserResponse.accessTokenExpiresAt 
-          ? new Date(calUserResponse.accessTokenExpiresAt).toISOString()
+        calAccessToken: responseData.accessToken || '',
+        calRefreshToken: responseData.refreshToken || '',
+        calAccessTokenExpiresAt: responseData.accessTokenExpiresAt 
+          ? new Date(responseData.accessTokenExpiresAt).toISOString()
           : new Date(Date.now() + 86400000).toISOString(), // Default to 24hr expiry
         timeZone: validatedPayload.timeZone,
         locale: validatedPayload.locale || 'en',
