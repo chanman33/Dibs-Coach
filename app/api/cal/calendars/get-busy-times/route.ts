@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/utils/auth'
 import { ensureValidCalToken, handleCalApiResponse } from '@/utils/cal/token-util'
+import { getCalendarIntegration } from '@/utils/auth'
+import { CalTokenService } from '@/lib/cal/cal-service'
 
 /**
  * API endpoint to get busy times for a managed user from Cal.com
@@ -44,10 +46,28 @@ export async function GET(request: Request) {
       externalId
     });
 
-    // Get a valid Cal.com token for the coach using our utility
-    const tokenResult = await ensureValidCalToken(coachUlid);
+    // Get calendar integration for the coach using our helper
+    const integrationResult = await getCalendarIntegration(coachUlid, {
+      calManagedUserId: true
+    });
     
-    if (!tokenResult.success || !tokenResult.tokenInfo?.accessToken) {
+    if (integrationResult.error || !integrationResult.data) {
+      console.error('[CAL_GET_BUSY_TIMES_ERROR] Failed to get calendar integration', {
+        coachUlid,
+        error: integrationResult.error,
+        timestamp: new Date().toISOString()
+      });
+      
+      return NextResponse.json({ 
+        success: false, 
+        error: integrationResult.error?.message || 'Failed to get calendar integration' 
+      }, { status: integrationResult.error?.code === 'NOT_FOUND' ? 404 : 500 });
+    }
+    
+    // Get a valid Cal.com token
+    const tokenResult = await CalTokenService.ensureValidToken(coachUlid);
+    
+    if (!tokenResult.success) {
       console.error('[CAL_GET_BUSY_TIMES_ERROR] Failed to get valid token', {
         coachUlid,
         error: tokenResult.error,
@@ -61,13 +81,13 @@ export async function GET(request: Request) {
     }
     
     // Use the validated token and the managed user ID
-    const validatedToken = tokenResult.tokenInfo.accessToken;
-    const calManagedUserId = tokenResult.tokenInfo.managedUserId; // Use the correct field name
+    const validatedToken = tokenResult.accessToken;
+    const calManagedUserId = integrationResult.data.calManagedUserId; 
 
     if (!calManagedUserId) {
-      console.error('[CAL_GET_BUSY_TIMES_ERROR] Missing Cal.com managedUserId from token info', {
+      console.error('[CAL_GET_BUSY_TIMES_ERROR] Missing Cal.com managedUserId from integration', {
         coachUlid,
-        tokenInfoKeys: Object.keys(tokenResult.tokenInfo),
+        integrationData: integrationResult.data,
         timestamp: new Date().toISOString()
       });
       return NextResponse.json({ 

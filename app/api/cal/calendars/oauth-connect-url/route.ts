@@ -1,24 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/utils/auth'
-import { auth } from '@clerk/nextjs'
-import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens'
+import { getAuthenticatedCalUser } from '@/utils/auth'
+import { CalTokenService } from '@/lib/cal/cal-service'
 
 // Define a simple interface just for what we need
 interface CalendarIntegration {
   calAccessToken: string;
-  calUserId?: number; // This doesn't exist in our schema
-  calManagedUserId: number; // This is the correct field
-  calAccessTokenExpiresAt?: string | null; // Ensure this is included
+  calManagedUserId: number;
+  calAccessTokenExpiresAt?: string | null;
 }
 
 export async function GET(request: Request) {
   try {
-    // Authenticate the user
-    const { userId } = auth()
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     // Extract calendar type from query parameters
     const url = new URL(request.url)
     const searchParams = url.searchParams
@@ -37,123 +30,37 @@ export async function GET(request: Request) {
     
     const finalUiCallbackUrl = new URL(finalUiCallbackPath, baseUrl).toString();
     
-    // Get the Supabase client from auth utilities
-    const supabase = createAuthClient()
-    
-    // Get the user's ULID from the User table
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single()
-    
-    if (userError || !userData) {
-      console.error('[CAL_OAUTH_URL_ERROR]', { 
-        error: userError || 'User not found', 
-        userId,
-        timestamp: new Date().toISOString() 
-      });
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    // Authenticate and get Cal integration data using centralized helper
+    const authResult = await getAuthenticatedCalUser({ calManagedUserId: true });
+    if (authResult.error || !authResult.data) {
+      console.error('[CAL_OAUTH_URL_ERROR] Authentication failed:', authResult.error);
+      return NextResponse.json(
+        { error: authResult.error?.message || 'Authentication failed' },
+        { status: authResult.error?.code === 'UNAUTHORIZED' ? 401 : 500 }
+      );
     }
     
-    // Get the user's Cal.com information from our database
-    const { data: calData, error: calError } = await supabase
-      .from('CalendarIntegration')
-      .select('calAccessToken, calManagedUserId, calAccessTokenExpiresAt') // Ensure expiresAt is selected
-      .eq('userUlid', userData.ulid)
-      .single<CalendarIntegration>() // Use the defined interface
+    const { userUlid, calManagedUserId } = authResult.data;
     
-    if (calError || !calData?.calAccessToken) {
-      console.error('[CAL_OAUTH_URL_ERROR]', { 
-        error: calError || 'No Cal access token found',
-        userUlid: userData.ulid,
-        timestamp: new Date().toISOString() 
-      });
-      // Allow proceeding even without a token if the integration record exists,
-      // as the user might be trying to connect for the first time.
-      // BUT, we need the managedUserId.
-      if (!calData?.calManagedUserId) {
-         return NextResponse.json({ error: 'Cal.com integration incomplete (missing managed user ID)' }, { status: 404 })
-      }
-      // If token is missing but record exists, proceed but log it.
-      console.warn('[CAL_OAUTH_URL_WARN] Cal access token missing, proceeding with connect flow.');
-      // Set a placeholder or handle null token downstream if needed.
-      calData.calAccessToken = '' // Or handle null appropriately
+    if (!calManagedUserId) {
+      console.error('[CAL_OAUTH_URL_ERROR] Missing Cal.com managed user ID', { userUlid });
+      return NextResponse.json(
+        { error: 'Cal.com integration not complete. Missing managed user ID.' },
+        { status: 400 }
+      );
     }
     
-    // Check if the token might be expired and refresh if needed (only if token exists)
-    let calAccessToken = calData.calAccessToken || ''; // Use fetched token or empty string
-    let tokenRefreshed = false;
-    
-    if (calAccessToken && calData.calAccessTokenExpiresAt) { 
-        const tokenExpiresAt = new Date(calData.calAccessTokenExpiresAt || '');
-        const now = new Date();
-        const tokenExpired = !isNaN(tokenExpiresAt.getTime()) && tokenExpiresAt <= now;
-        
-        const bufferTime = 5 * 60 * 1000; // 5 minutes in milliseconds
-        const tokenExpiringImminent = !isNaN(tokenExpiresAt.getTime()) && 
-                                    (tokenExpiresAt.getTime() - now.getTime() < bufferTime);
-        
-        if (tokenExpired || tokenExpiringImminent) {
-          console.log('[CAL_OAUTH_URL_DEBUG] Token needs refresh:', {
-            expired: tokenExpired,
-            expiringImminent: tokenExpiringImminent,
-            expiresAt: calData.calAccessTokenExpiresAt,
-            timestamp: new Date().toISOString()
-          });
-          
-          try {
-            // Use the server action for token refresh
-            const refreshResult = await refreshUserCalTokens(userData.ulid, true);
-            
-            if (!refreshResult.success) {
-              console.error('[CAL_OAUTH_URL_ERROR]', {
-                context: 'TOKEN_REFRESH',
-                error: refreshResult.error,
-                userUlid: userData.ulid,
-                timestamp: new Date().toISOString()
-              });
-              
-              return NextResponse.json({ 
-                error: 'Failed to refresh Cal.com token. Please refresh your integration on the settings page first.'
-              }, { status: 403 });
-            }
-            
-            // Get the refreshed token
-            const { data: refreshedData, error: refreshError } = await supabase
-              .from('CalendarIntegration')
-              .select('calAccessToken')
-              .eq('userUlid', userData.ulid)
-              .single<{ calAccessToken: string }>();
-            
-            if (refreshError || !refreshedData?.calAccessToken) {
-              console.error('[CAL_OAUTH_URL_ERROR]', {
-                context: 'FETCH_REFRESHED_TOKEN',
-                error: refreshError || 'No refreshed token found',
-                userUlid: userData.ulid,
-                timestamp: new Date().toISOString()
-              });
-              
-              return NextResponse.json({
-                error: 'Failed to get refreshed token after refresh. Please try again.'
-              }, { status: 500 });
-            }
-            
-            calAccessToken = refreshedData.calAccessToken;
-            tokenRefreshed = true;
-            console.log('[CAL_OAUTH_URL_DEBUG] Token refreshed successfully');
-          } catch (refreshError) {
-            console.error('[CAL_OAUTH_URL_ERROR] Unhandled exception during token refresh:', {
-              error: refreshError,
-              userUlid: userData.ulid,
-              timestamp: new Date().toISOString()
-            });
-            return NextResponse.json({ 
-              error: 'An error occurred refreshing your Cal.com token. Please try again later.'
-            }, { status: 500 });
-          }
-        }
+    // Get valid Cal.com access token
+    const tokenResult = await CalTokenService.ensureValidToken(userUlid);
+    if (!tokenResult.success) {
+      console.error('[CAL_OAUTH_URL_ERROR] Failed to get valid token:', tokenResult.error);
+      return NextResponse.json(
+        { error: 'Failed to get valid Cal.com token. Please reconnect in settings.' },
+        { status: 401 }
+      );
     }
+    
+    const calAccessToken = tokenResult.accessToken;
     
     // --- Construct Cal.com API URL --- 
     // Only include the `redir` parameter pointing to our final UI callback page.
@@ -167,7 +74,6 @@ export async function GET(request: Request) {
       endpoint: endpoint,
       calendarType,
       finalUiCallbackUrl: finalUiCallbackUrl,
-      tokenRefreshed,
       timestamp: new Date().toISOString()
     });
     
@@ -176,7 +82,6 @@ export async function GET(request: Request) {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        // IMPORTANT: Use the potentially refreshed access token
         'Authorization': `Bearer ${calAccessToken}`,
         'x-cal-client-id': process.env.NEXT_PUBLIC_CAL_CLIENT_ID || '',
         'x-cal-secret-key': process.env.CAL_CLIENT_SECRET || ''
@@ -198,51 +103,104 @@ export async function GET(request: Request) {
           endpointCalled: endpoint,
           timestamp: new Date().toISOString()
         });
-      } catch {
+      } catch (err) {
+        // If we can't parse JSON, use the response text
         errorDetail = await response.text();
-        console.error('[CAL_OAUTH_URL_ERROR] Cal.com API Error (non-JSON):', {
+        console.error('[CAL_OAUTH_URL_ERROR] Cal.com API Response (non-JSON):', {
           status: response.status,
           statusText: response.statusText,
-          responseText: errorDetail,
+          error: errorDetail,
           endpointCalled: endpoint,
           timestamp: new Date().toISOString()
         });
       }
-      return NextResponse.json({
-        error: errorDetail ? `${errorMessage}: ${errorDetail}` : errorMessage
-      }, { status: response.status === 401 ? 401 : 500 });
+      
+      // Check if this is a token issue and try refreshing
+      if (response.status === 401 || response.status === 498) {
+        console.log('[CAL_OAUTH_URL_DEBUG] Token appears invalid, attempting force refresh');
+        
+        // Force refresh token
+        const refreshResult = await CalTokenService.refreshTokens(userUlid, true);
+        if (!refreshResult.success) {
+          console.error('[CAL_OAUTH_URL_ERROR] Token refresh failed:', refreshResult.error);
+          return NextResponse.json({ 
+            error: 'Your Cal.com token could not be refreshed. Please reconnect in settings.' 
+          }, { status: 401 });
+        }
+        
+        // Get new access token
+        const newTokenResult = await CalTokenService.ensureValidToken(userUlid);
+        if (!newTokenResult.success) {
+          console.error('[CAL_OAUTH_URL_ERROR] Failed to get token after refresh:', newTokenResult.error);
+          return NextResponse.json({ 
+            error: 'Failed to get new token after refresh. Please try again.' 
+          }, { status: 500 });
+        }
+        
+        // Retry with new token
+        const retryResponse = await fetch(endpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${newTokenResult.accessToken}`,
+            'x-cal-client-id': process.env.NEXT_PUBLIC_CAL_CLIENT_ID || '',
+            'x-cal-secret-key': process.env.CAL_CLIENT_SECRET || ''
+          },
+          cache: 'no-store'
+        });
+        
+        if (!retryResponse.ok) {
+          console.error('[CAL_OAUTH_URL_ERROR] Retry with refreshed token failed:', {
+            status: retryResponse.status,
+            error: await retryResponse.text(),
+            timestamp: new Date().toISOString()
+          });
+          
+          return NextResponse.json({ 
+            error: 'Failed to get authorization URL even after token refresh. Please try again later.' 
+          }, { status: 500 });
+        }
+        
+        // Use the retry response for the rest of the function
+        const retryData = await retryResponse.json();
+        console.log('[CAL_OAUTH_URL_DEBUG] Token refresh and retry successful');
+        
+        // Check the structure
+        if (!retryData?.data?.authUrl) {
+          console.error('[CAL_OAUTH_URL_ERROR] Missing authUrl in response after retry:', retryData);
+          return NextResponse.json({ 
+            error: 'Invalid response from Cal.com API (missing authUrl)' 
+          }, { status: 500 });
+        }
+        
+        // Return the authorization URL
+        return NextResponse.json({ url: retryData.data.authUrl });
+      }
+      
+      // For non-token errors or if refresh wasn't attempted
+      return NextResponse.json({ 
+        error: errorMessage,
+        details: errorDetail
+      }, { status: response.status === 404 ? 404 : 500 });
     }
     
-    // Parse the response from Cal.com
-    const responseData = await response.json();
-    const authUrl = responseData.data?.authUrl; // This is the URL for the user's browser
-
-    if (!authUrl) {
-      console.error('[CAL_OAUTH_URL_ERROR] No authUrl in response from Cal.com:', responseData);
-      return NextResponse.json({ error: 'Invalid response from Cal.com: Missing authUrl' }, { status: 500 });
+    // Process successful response
+    const data = await response.json();
+    
+    // Validate the response
+    if (!data?.data?.authUrl) {
+      console.error('[CAL_OAUTH_URL_ERROR] Missing authUrl in response:', data);
+      return NextResponse.json({ 
+        error: 'Invalid response from Cal.com API (missing authUrl)' 
+      }, { status: 500 });
     }
-
-    console.log(`[CAL_OAUTH_URL_DEBUG] Received ${calendarType} authUrl from Cal.com:`, authUrl);
-
-    // Send the Auth URL back to the frontend
-    const transformedResponse = {
-      success: true,
-      data: {
-        authUrl: authUrl, // The URL the frontend should redirect the user to
-        provider: calendarType,
-      }
-    };
-
-    return NextResponse.json(transformedResponse);
+    
+    // Return the authorization URL
+    return NextResponse.json({ url: data.data.authUrl });
   } catch (error) {
-    console.error('[CAL_OAUTH_URL_ERROR] Unhandled exception in GET handler:', { 
-      error,
-      stack: error instanceof Error ? error.stack : undefined,
-      timestamp: new Date().toISOString()
-    });
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'An unexpected error occurred'
+    console.error('[CAL_OAUTH_URL_ERROR] Unhandled exception:', error);
+    return NextResponse.json({ 
+      error: 'An error occurred getting the Cal.com authorization URL' 
     }, { status: 500 });
   }
 }

@@ -1,36 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuthClient } from '@/utils/auth';
-import { auth } from '@clerk/nextjs/server';
 import { calWebhookService } from '@/lib/cal/cal-webhook';
 import { CalTokenService } from '@/lib/cal/cal-service';
 import { env } from '@/lib/env';
+import { getAuthenticatedUserUlid, getAuthenticatedCalUser } from '@/utils/auth';
 
 /**
  * GET - List all webhooks for the current user
  */
 export async function GET(request: NextRequest) {
   try {
-    // Authenticate the request
-    const { userId } = auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate the request using our helper
+    const authResult = await getAuthenticatedCalUser();
+    if (authResult.error || !authResult.data) {
+      console.error('[LIST_WEBHOOKS_ERROR] Authentication failed:', authResult.error);
+      return NextResponse.json(
+        { error: authResult.error?.message || 'Authentication failed' },
+        { status: authResult.error?.code === 'UNAUTHORIZED' ? 401 : 500 }
+      );
     }
-
-    // Get the current user's ULID
-    const supabase = createAuthClient();
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single();
     
-    if (userError) {
-      console.error('[LIST_WEBHOOKS_ERROR] Failed to get user ULID:', userError);
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
+    const { userUlid, calManagedUserId } = authResult.data;
     
     // Get the user's access token using the token service
-    const tokenResult = await CalTokenService.ensureValidToken(userData.ulid);
+    const tokenResult = await CalTokenService.ensureValidToken(userUlid);
     
     if (!tokenResult.success) {
       console.error('[LIST_WEBHOOKS_ERROR] Failed to get valid token:', tokenResult.error);
@@ -55,11 +48,17 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate the request
-    const { userId } = auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate the request using our helper
+    const authResult = await getAuthenticatedUserUlid();
+    if (authResult.error || !authResult.data) {
+      console.error('[REGISTER_WEBHOOK_ERROR] Authentication failed:', authResult.error);
+      return NextResponse.json(
+        { error: authResult.error?.message || 'Authentication failed' },
+        { status: authResult.error?.code === 'UNAUTHORIZED' ? 401 : 500 }
+      );
     }
+    
+    const userUlid = authResult.data.userUlid;
     
     // Get the request body
     const body = await request.json();
@@ -72,21 +71,8 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Get the current user's ULID
-    const supabase = createAuthClient();
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single();
-    
-    if (userError) {
-      console.error('[REGISTER_WEBHOOK_ERROR] Failed to get user ULID:', userError);
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-    
     // Get the user's access token using the token service
-    const tokenResult = await CalTokenService.ensureValidToken(userData.ulid);
+    const tokenResult = await CalTokenService.ensureValidToken(userUlid);
     
     if (!tokenResult.success) {
       console.error('[REGISTER_WEBHOOK_ERROR] Failed to get valid token:', tokenResult.error);
@@ -115,11 +101,17 @@ export async function POST(request: NextRequest) {
  */
 export async function PUT(request: NextRequest) {
   try {
-    // Authenticate the request
-    const { userId } = auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate the request using our helper
+    const authResult = await getAuthenticatedUserUlid();
+    if (authResult.error || !authResult.data) {
+      console.error('[ENSURE_WEBHOOK_ERROR] Authentication failed:', authResult.error);
+      return NextResponse.json(
+        { error: authResult.error?.message || 'Authentication failed' },
+        { status: authResult.error?.code === 'UNAUTHORIZED' ? 401 : 500 }
+      );
     }
+    
+    const userUlid = authResult.data.userUlid;
     
     // Get the request body or use default settings
     let subscriberUrl: string;
@@ -134,21 +126,8 @@ export async function PUT(request: NextRequest) {
       subscriberUrl = calWebhookService.getWebhookUrl();
     }
     
-    // Get the current user's ULID
-    const supabase = createAuthClient();
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single();
-    
-    if (userError) {
-      console.error('[ENSURE_WEBHOOK_ERROR] Failed to get user ULID:', userError);
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-    
     // Get the user's access token using the token service
-    const tokenResult = await CalTokenService.ensureValidToken(userData.ulid);
+    const tokenResult = await CalTokenService.ensureValidToken(userUlid);
     
     if (!tokenResult.success) {
       console.error('[ENSURE_WEBHOOK_ERROR] Failed to get valid token:', tokenResult.error);
@@ -181,11 +160,17 @@ export async function PUT(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
-    // Authenticate the request
-    const { userId } = auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Authenticate the request using our helper
+    const authResult = await getAuthenticatedUserUlid();
+    if (authResult.error || !authResult.data) {
+      console.error('[DELETE_WEBHOOK_ERROR] Authentication failed:', authResult.error);
+      return NextResponse.json(
+        { error: authResult.error?.message || 'Authentication failed' },
+        { status: authResult.error?.code === 'UNAUTHORIZED' ? 401 : 500 }
+      );
     }
+    
+    const userUlid = authResult.data.userUlid;
     
     // Get the webhook ID from the query params
     const { searchParams } = new URL(request.url);
@@ -198,21 +183,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
     
-    // Get the current user's ULID
-    const supabase = createAuthClient();
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single();
-    
-    if (userError) {
-      console.error('[DELETE_WEBHOOK_ERROR] Failed to get user ULID:', userError);
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-    
     // Get the user's access token using the token service
-    const tokenResult = await CalTokenService.ensureValidToken(userData.ulid);
+    const tokenResult = await CalTokenService.ensureValidToken(userUlid);
     
     if (!tokenResult.success) {
       console.error('[DELETE_WEBHOOK_ERROR] Failed to get valid token:', tokenResult.error);

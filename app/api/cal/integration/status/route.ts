@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/utils/auth'
-import { auth } from '@clerk/nextjs'
 import type { CalendarIntegrationRecord } from '@/utils/types/cal-managed-user'
+import { getAuthenticatedUserUlid } from '@/utils/auth'
 
 /**
  * API endpoint to check calendar connection flags in CalendarIntegration table
@@ -9,50 +9,28 @@ import type { CalendarIntegrationRecord } from '@/utils/types/cal-managed-user'
  */
 export async function GET() {
   try {
-    // Get the user's ID from auth
-    const { userId } = auth()
-    if (!userId) {
+    console.log('[CAL_INTEGRATION_STATUS_DEBUG] Checking calendar flags');
+    
+    // Get authenticated user using the centralized helper
+    const authResult = await getAuthenticatedUserUlid();
+    if (authResult.error || !authResult.data) {
       return NextResponse.json({ 
         success: false, 
-        error: 'User not authenticated' 
-      }, { status: 401 })
+        error: authResult.error?.message || 'Authentication failed' 
+      }, { status: authResult.error?.code === 'UNAUTHORIZED' ? 401 : 500 });
     }
 
-    console.log('[CAL_INTEGRATION_STATUS_DEBUG] Checking calendar flags for user:', userId);
+    const userUlid = authResult.data.userUlid;
+    console.log('[CAL_INTEGRATION_STATUS_DEBUG] Found user ULID:', { userUlid });
 
-    // Get the user's ULID and calendar integration status from the database
-    const supabase = createAuthClient()
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single()
-
-    if (userError) {
-      console.error('[CAL_INTEGRATION_STATUS_ERROR]', {
-        error: userError,
-        userId,
-        timestamp: new Date().toISOString()
-      })
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Failed to find user in database' 
-      }, { status: 500 })
-    }
-
-    // If user not found (edge case after auth check?)
-    if (!userData) {
-      console.error('[CAL_INTEGRATION_STATUS_ERROR] User data not found after successful auth lookup', { userId });
-      return NextResponse.json({ success: false, error: 'User data not found' }, { status: 404 });
-    }
-
-    console.log('[CAL_INTEGRATION_STATUS_DEBUG] Found user ULID:', { userUlid: userData.ulid });
-
+    // Initialize Supabase client
+    const supabase = createAuthClient();
+    
     // Get calendar integration status - Use maybeSingle()
     const { data: integrationData, error: integrationError } = await supabase
       .from('CalendarIntegration')
       .select('googleCalendarConnected, office365CalendarConnected')
-      .eq('userUlid', userData.ulid)
+      .eq('userUlid', userUlid)
       .maybeSingle()
 
     // Explicitly type the result
@@ -62,7 +40,7 @@ export async function GET() {
       // Log the error but don't necessarily fail if it's "No rows found"
       // PGRST116 indicates no rows found, which is valid if not integrated yet
       if (integrationError.code === 'PGRST116') {
-         console.log('[CAL_INTEGRATION_STATUS_DEBUG] No integration record found for user:', { userUlid: userData.ulid });
+         console.log('[CAL_INTEGRATION_STATUS_DEBUG] No integration record found for user:', { userUlid });
          // Return success: false, but with data indicating no connection
          return NextResponse.json({
            success: true, // Request succeeded, but integration doesn't exist
@@ -76,7 +54,7 @@ export async function GET() {
         // Handle other potential database errors
         console.error('[CAL_INTEGRATION_STATUS_DB_ERROR]', {
           error: integrationError,
-          userUlid: userData.ulid,
+          userUlid,
           timestamp: new Date().toISOString()
         });
         return NextResponse.json({ 
@@ -88,7 +66,7 @@ export async function GET() {
     
     // If maybeSingle() returns null data (no record found)
     if (!integration) {
-      console.log('[CAL_INTEGRATION_STATUS_DEBUG] No integration record found (null data) for user:', { userUlid: userData.ulid });
+      console.log('[CAL_INTEGRATION_STATUS_DEBUG] No integration record found (null data) for user:', { userUlid });
       return NextResponse.json({
         success: true,
         data: {
@@ -101,7 +79,7 @@ export async function GET() {
 
     // Integration record exists - Use the typed object, no need for 'as any'
     console.log('[CAL_INTEGRATION_STATUS_DEBUG] Calendar integration flags:', {
-      userUlid: userData.ulid,
+      userUlid,
       isConnected: true,
       googleCalendarConnected: integration.googleCalendarConnected || false,
       office365CalendarConnected: integration.office365CalendarConnected || false,

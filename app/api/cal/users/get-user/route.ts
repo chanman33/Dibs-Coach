@@ -8,6 +8,7 @@
 import { NextResponse } from 'next/server'
 import { makeCalApiRequest } from '@/utils/cal/cal-api-utils'
 import { env } from '@/lib/env'
+import { getAuthenticatedUserUlid } from '@/utils/auth'
 
 export async function GET(request: Request) {
   try {
@@ -26,6 +27,15 @@ export async function GET(request: Request) {
       return NextResponse.json(
         { error: 'userId parameter is required' },
         { status: 400 }
+      )
+    }
+
+    // Authenticate the user using the centralized helper
+    const authResult = await getAuthenticatedUserUlid()
+    if (authResult.error) {
+      return NextResponse.json(
+        { error: authResult.error.message },
+        { status: authResult.error.code === 'UNAUTHORIZED' ? 401 : 500 }
       )
     }
 
