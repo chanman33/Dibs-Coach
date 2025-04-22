@@ -23,4 +23,11 @@ export {
 export type { AuthResult, AuthorizationResult } from './auth-utils'
 
 // Auth Permission Service for centralized permission logic
-export { permissionService } from './permission-service' 
+export { permissionService } from './permission-service'
+
+// Cal.com authentication helpers
+export {
+  getAuthenticatedUserUlid,
+  getCalendarIntegration,
+  getAuthenticatedCalUser
+} from './cal-auth-helpers' 

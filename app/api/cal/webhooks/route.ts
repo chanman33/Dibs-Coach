@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuthClient } from '@/utils/auth';
 import { auth } from '@clerk/nextjs/server';
-import { calService } from '@/lib/cal/cal-service';
 import { calWebhookService } from '@/lib/cal/cal-webhook';
+import { CalTokenService } from '@/lib/cal/cal-service';
 import { env } from '@/lib/env';
 
 /**
@@ -29,11 +29,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
-    // Get the user's access token
-    const accessToken = await calService.checkAndRefreshToken(userData.ulid);
+    // Get the user's access token using the token service
+    const tokenResult = await CalTokenService.ensureValidToken(userData.ulid);
+    
+    if (!tokenResult.success) {
+      console.error('[LIST_WEBHOOKS_ERROR] Failed to get valid token:', tokenResult.error);
+      return NextResponse.json({ error: 'Failed to get valid token' }, { status: 401 });
+    }
     
     // List all webhooks
-    const webhooks = await calWebhookService.listWebhooks(accessToken);
+    const webhooks = await calWebhookService.listWebhooks(tokenResult.accessToken);
     
     return NextResponse.json({ webhooks });
   } catch (error) {
@@ -80,12 +85,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
-    // Get the user's access token
-    const accessToken = await calService.checkAndRefreshToken(userData.ulid);
+    // Get the user's access token using the token service
+    const tokenResult = await CalTokenService.ensureValidToken(userData.ulid);
+    
+    if (!tokenResult.success) {
+      console.error('[REGISTER_WEBHOOK_ERROR] Failed to get valid token:', tokenResult.error);
+      return NextResponse.json({ error: 'Failed to get valid token' }, { status: 401 });
+    }
     
     // Register the webhook
     const webhook = await calWebhookService.registerWebhook(
-      accessToken,
+      tokenResult.accessToken,
       subscriberUrl,
       eventTriggers
     );
@@ -137,12 +147,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
-    // Get the user's access token
-    const accessToken = await calService.checkAndRefreshToken(userData.ulid);
+    // Get the user's access token using the token service
+    const tokenResult = await CalTokenService.ensureValidToken(userData.ulid);
+    
+    if (!tokenResult.success) {
+      console.error('[ENSURE_WEBHOOK_ERROR] Failed to get valid token:', tokenResult.error);
+      return NextResponse.json({ error: 'Failed to get valid token' }, { status: 401 });
+    }
     
     // Ensure the webhook exists
     const webhook = await calWebhookService.ensureWebhookExists(
-      accessToken,
+      tokenResult.accessToken,
       subscriberUrl,
       eventTriggers
     );
@@ -196,11 +211,16 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
     
-    // Get the user's access token
-    const accessToken = await calService.checkAndRefreshToken(userData.ulid);
+    // Get the user's access token using the token service
+    const tokenResult = await CalTokenService.ensureValidToken(userData.ulid);
+    
+    if (!tokenResult.success) {
+      console.error('[DELETE_WEBHOOK_ERROR] Failed to get valid token:', tokenResult.error);
+      return NextResponse.json({ error: 'Failed to get valid token' }, { status: 401 });
+    }
     
     // Delete the webhook
-    const success = await calWebhookService.deleteWebhook(accessToken, parseInt(webhookId));
+    const success = await calWebhookService.deleteWebhook(tokenResult.accessToken, parseInt(webhookId));
     
     if (!success) {
       return NextResponse.json(

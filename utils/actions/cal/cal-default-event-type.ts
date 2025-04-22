@@ -12,6 +12,7 @@ import {
   generateSlug
 } from '@/utils/types/cal-event-types';
 import { syncCalEventTypesWithDb } from '@/utils/actions/cal/cal-event-type-sync';
+import { getCalendarIntegration } from '@/utils/auth';
 
 /**
  * Create default event types for a coach user
@@ -42,70 +43,36 @@ export async function createDefaultEventTypes(
       };
     }
 
-    // Initialize Supabase client
-    const supabase = createAuthClient();
-
-    // Check if calendar integration exists for the user
-    const { data: calendarIntegration, error: calendarError } = await supabase
-      .from('CalendarIntegration')
-      .select('ulid, calManagedUserId, calUsername')
-      .eq('userUlid', userUlid)
-      .maybeSingle();
-
-    if (calendarError) {
+    // Use the calendar integration helper to get integration details
+    const integrationResult = await getCalendarIntegration(userUlid, { 
+      calManagedUserId: true,
+      calUsername: true
+    });
+    
+    if (integrationResult.error || !integrationResult.data) {
       console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Calendar Integration lookup', { 
-        error: calendarError, 
+        error: integrationResult.error, 
         userUlid 
       });
       return {
         data: { success: false },
-        error: { 
+        error: integrationResult.error || { 
           code: 'DATABASE_ERROR', 
           message: 'Failed to fetch calendar integration' 
         }
       };
     }
 
-    if (!calendarIntegration) {
-      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] No Cal.com integration found', { userUlid });
-      return {
-        data: { success: false },
-        error: { 
-          code: 'NOT_FOUND', 
-          message: 'No Cal.com integration found for this user' 
-        }
-      };
-    }
-
-    // Ensure we have a managed user ID, otherwise we can't create event types
-    if (!calendarIntegration.calManagedUserId) {
-      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] No managed user ID found', { userUlid });
-      return {
-        data: { success: false },
-        error: { 
-          code: 'INVALID_STATE', 
-          message: 'No Cal.com managed user found for this user. Please reconnect Cal.com in settings.' 
-        }
-      };
-    }
+    const { integrationUlid, calManagedUserId, calUsername } = integrationResult.data;
     
-    // Ensure we have a username
-    if (!calendarIntegration.calUsername) {
-      console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] No Cal.com username found', { userUlid });
-      return {
-        data: { success: false },
-        error: { 
-          code: 'INVALID_STATE', 
-          message: 'No Cal.com username found for this user. Please reconnect Cal.com in settings.' 
-        }
-      };
-    }
+    // Initialize Supabase client
+    const supabase = createAuthClient();
 
     // IDEMPOTENCY CHECK: First check if default event types already exist in the local database
     const { data: existingDefaultEventTypes, error: defaultCheckError } = await supabase
       .from('CalEventType')
       .select('*')
-      .eq('calendarIntegrationUlid', calendarIntegration.ulid)
+      .eq('calendarIntegrationUlid', integrationUlid)
       .eq('isDefault', true)
       .eq('isActive', true);
 
@@ -113,7 +80,7 @@ export async function createDefaultEventTypes(
       console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Failed to check for existing default event types', { 
         error: defaultCheckError, 
         userUlid,
-        calendarIntegrationUlid: calendarIntegration.ulid 
+        calendarIntegrationUlid: integrationUlid
       });
       // Continue execution - this is non-fatal
     } else if (existingDefaultEventTypes && existingDefaultEventTypes.length > 0) {
@@ -161,11 +128,11 @@ export async function createDefaultEventTypes(
 
     // Try to sync event types from Cal.com first (might already exist there)
     try {
-      console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Syncing with Cal.com', { username: calendarIntegration.calUsername });
+      console.log('[CREATE_DEFAULT_EVENT_TYPES_INFO] Syncing with Cal.com', { username: calUsername });
       
       // Use our new makeCalApiRequest function that handles token validation internally
       const calEventTypesResult = await makeCalApiRequest(
-        `event-types?username=${encodeURIComponent(calendarIntegration.calUsername)}`,
+        `event-types?username=${encodeURIComponent(calUsername || '')}`,
         'GET',
         undefined,
         userUlid
@@ -174,13 +141,13 @@ export async function createDefaultEventTypes(
       // Sync with our database
       if (calEventTypesResult && calEventTypesResult.data) {
         const calEventTypesFromApi = calEventTypesResult.data;
-        await syncCalEventTypesWithDb(userUlid, calendarIntegration.ulid, calEventTypesFromApi);
+        await syncCalEventTypesWithDb(userUlid, integrationUlid, calEventTypesFromApi);
         
         // Recheck for default event types after sync (they might have been pulled from Cal.com)
         const { data: defaultsAfterSync } = await supabase
           .from('CalEventType')
           .select('*')
-          .eq('calendarIntegrationUlid', calendarIntegration.ulid)
+          .eq('calendarIntegrationUlid', integrationUlid)
           .eq('isDefault', true)
           .eq('isActive', true);
         
@@ -265,7 +232,7 @@ export async function createDefaultEventTypes(
     let totalCreatedCount = 0;
     let allCreationFailed = true;
     
-    const calUserId = calendarIntegration.calManagedUserId;
+    const calUserId = calManagedUserId;
 
     // Create each event type
     for (const eventType of defaultEventTypes) {
@@ -319,6 +286,13 @@ export async function createDefaultEventTypes(
           userUlid
         );
         
+        console.log('[CREATE_DEFAULT_EVENT_TYPES_DEBUG] Cal.com API response:', {
+          response: calEventTypeResult,
+          hasId: calEventTypeResult?.id !== undefined,
+          id: calEventTypeResult?.id,
+          timestamp: new Date().toISOString()
+        });
+        
         if (!calEventTypeResult) {
           console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Failed to create Cal.com event type', {
             eventType: eventType.name,
@@ -330,13 +304,26 @@ export async function createDefaultEventTypes(
         
         const calEventType = calEventTypeResult;
         
+        if (!calEventType.id) {
+          console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Cal.com response missing ID', {
+            response: calEventType,
+            eventType: eventType.name,
+            userUlid,
+            timestamp: new Date().toISOString()
+          });
+          continue;
+        }
+        
+        // Convert ID to number if it's not already (API might return as string)
+        const calEventTypeId = typeof calEventType.id === 'string' ? parseInt(calEventType.id, 10) : calEventType.id;
+        
         // Create in our database
         const { data: dbEventType, error: insertError } = await supabase
           .from('CalEventType')
           .insert({
             ulid: generateUlid(),
-            calendarIntegrationUlid: calendarIntegration.ulid,
-            calEventTypeId: calEventType.id,
+            calendarIntegrationUlid: integrationUlid,
+            calEventTypeId: calEventTypeId, // Use the processed ID
             name: eventType.name,
             description: eventType.description,
             lengthInMinutes: eventType.duration,

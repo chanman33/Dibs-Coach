@@ -8,7 +8,7 @@ import {
   saveCoachEventTypes, 
   createCoachDefaultEventTypes,
   toggleEventTypeActive
-} from '@/utils/actions/cal/coach-event-type-actions'
+} from '@/utils/actions/cal/cal-event-type-actions'
 import { Loader2, Calendar, RefreshCw, AlertCircle, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery } from '@tanstack/react-query'

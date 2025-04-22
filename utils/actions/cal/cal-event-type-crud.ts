@@ -13,6 +13,7 @@ import {
   generateSlug
 } from '@/utils/types/cal-event-types';
 import { Database } from '@/types/supabase';
+import { getAuthenticatedCalUser } from '@/utils/auth';
 
 // type DbCalEventType = Database['public']['Tables']['CalEventType']['Row'];
 
@@ -26,82 +27,20 @@ export async function createEventType(
   eventType: Omit<EventType, 'id'>
 ): Promise<ApiResponse<{ id: string }>> {
   try {
-    // Get authenticated user
-    const { userId } = auth();
-    if (!userId) {
+    // Use the new authentication helper to get userUlid and calendar integration
+    const authResult = await getAuthenticatedCalUser({ calManagedUserId: true });
+    if (authResult.error || !authResult.data) {
       return {
         data: null,
-        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' }
+        error: authResult.error || { code: 'INTERNAL_ERROR', message: 'Authentication failed' }
       };
     }
+
+    // Extract data from authentication result
+    const { userUlid, integrationUlid, calManagedUserId } = authResult.data;
 
     // Initialize Supabase client
     const supabase = createAuthClient();
-
-    // Get the user's ULID
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single();
-
-    if (userError) {
-      console.error('[CREATE_EVENT_TYPE_ERROR] User lookup', { 
-        error: userError, 
-        userId,
-        timestamp: new Date().toISOString()
-      });
-      return {
-        data: null,
-        error: { code: 'DATABASE_ERROR', message: 'Failed to find user in database' }
-      };
-    }
-
-    const userUlid = userData.ulid;
-
-    // Get calendar integration for the user
-    const { data: calendarIntegration, error: calendarError } = await supabase
-      .from('CalendarIntegration')
-      .select('ulid, calManagedUserId')
-      .eq('userUlid', userUlid)
-      .maybeSingle();
-
-    if (calendarError) {
-      console.error('[CREATE_EVENT_TYPE_ERROR] Calendar integration lookup', { 
-        error: calendarError, 
-        userUlid,
-        timestamp: new Date().toISOString()
-      });
-      return {
-        data: null,
-        error: { code: 'DATABASE_ERROR', message: 'Failed to fetch calendar integration' }
-      };
-    }
-
-    if (!calendarIntegration) {
-      console.error('[CREATE_EVENT_TYPE_ERROR] No calendar integration found', { 
-        userUlid,
-        timestamp: new Date().toISOString()
-      });
-      return {
-        data: null,
-        error: { code: 'NOT_FOUND', message: 'No calendar integration found for this user' }
-      };
-    }
-
-    if (!calendarIntegration.calManagedUserId) {
-      console.error('[CREATE_EVENT_TYPE_ERROR] No Cal.com managed user ID found', { 
-        userUlid,
-        timestamp: new Date().toISOString()
-      });
-      return {
-        data: null,
-        error: { 
-          code: 'INVALID_STATE', 
-          message: 'No Cal.com managed user found for this user. Please reconnect Cal.com in settings.'
-        }
-      };
-    }
 
     // Generate new ULID for the event type
     const newUlid = generateUlid();
@@ -156,6 +95,13 @@ export async function createEventType(
         userUlid
       );
 
+      console.log('[CREATE_EVENT_TYPE_DEBUG] Cal.com API response:', {
+        response: calResponse,
+        hasId: calResponse?.id !== undefined,
+        id: calResponse?.id,
+        timestamp: new Date().toISOString()
+      });
+
       if (!calResponse || !calResponse.id) {
         console.error('[CREATE_EVENT_TYPE_ERROR] Invalid Cal.com response', {
           response: calResponse,
@@ -168,10 +114,13 @@ export async function createEventType(
         };
       }
 
+      // Convert ID to number if it's not already (API might return as string)
+      const calEventTypeId = typeof calResponse.id === 'string' ? parseInt(calResponse.id, 10) : calResponse.id;
+
       // Prepare database fields
       const dbFields = {
-        ...eventTypeToDbFields(completeEventType, calendarIntegration.ulid),
-        calEventTypeId: calResponse.id,
+        ...eventTypeToDbFields(completeEventType, integrationUlid),
+        calEventTypeId: calEventTypeId, // Use the processed ID
         ulid: newUlid,
         slug: calResponse.slug || generateSlug(eventType.name),
         createdAt: new Date().toISOString(),
@@ -245,38 +194,20 @@ export async function updateEventType(
   eventType: EventType
 ): Promise<ApiResponse<{ success: boolean }>> {
   try {
-    // Get authenticated user
-    const { userId } = auth();
-    if (!userId) {
+    // Use the new authentication helper to get userUlid and calendar integration
+    const authResult = await getAuthenticatedCalUser({ calManagedUserId: true });
+    if (authResult.error || !authResult.data) {
       return {
         data: null,
-        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' }
+        error: authResult.error || { code: 'INTERNAL_ERROR', message: 'Authentication failed' }
       };
     }
+
+    // Extract data from authentication result
+    const { userUlid } = authResult.data;
 
     // Initialize Supabase client
     const supabase = createAuthClient();
-
-    // Get the user's ULID
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single();
-
-    if (userError) {
-      console.error('[UPDATE_EVENT_TYPE_ERROR] User lookup', { 
-        error: userError, 
-        userId,
-        timestamp: new Date().toISOString()
-      });
-      return {
-        data: null,
-        error: { code: 'DATABASE_ERROR', message: 'Failed to find user in database' }
-      };
-    }
-
-    const userUlid = userData.ulid;
 
     // Get the event type details
     const { data: existingEventType, error: eventTypeError } = await supabase
@@ -441,38 +372,20 @@ export async function deleteEventType(
   eventTypeId: string
 ): Promise<ApiResponse<{ success: boolean }>> {
   try {
-    // Get authenticated user
-    const { userId } = auth();
-    if (!userId) {
+    // Use the new authentication helper to get userUlid and calendar integration
+    const authResult = await getAuthenticatedCalUser();
+    if (authResult.error || !authResult.data) {
       return {
         data: null,
-        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' }
+        error: authResult.error || { code: 'INTERNAL_ERROR', message: 'Authentication failed' }
       };
     }
+
+    // Extract data from authentication result
+    const { userUlid } = authResult.data;
 
     // Initialize Supabase client
     const supabase = createAuthClient();
-
-    // Get the user's ULID
-    const { data: userData, error: userError } = await supabase
-      .from('User')
-      .select('ulid')
-      .eq('userId', userId)
-      .single();
-
-    if (userError) {
-      console.error('[DELETE_EVENT_TYPE_ERROR] User lookup', { 
-        error: userError, 
-        userId,
-        timestamp: new Date().toISOString()
-      });
-      return {
-        data: null,
-        error: { code: 'DATABASE_ERROR', message: 'Failed to find user in database' }
-      };
-    }
-
-    const userUlid = userData.ulid;
 
     // Get the event type details
     const { data: existingEventType, error: eventTypeError } = await supabase
