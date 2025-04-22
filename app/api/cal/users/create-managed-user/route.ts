@@ -6,6 +6,7 @@
  */
 
 import { createAuthClient } from '@/utils/auth'
+import { auth } from '@clerk/nextjs/server'
 import { env } from '@/lib/env'
 import { NextResponse } from 'next/server'
 import { createUserIfNotExists } from '@/utils/auth/user-management'
@@ -20,19 +21,18 @@ export async function POST(req: Request) {
   let createdCalUserId: number | null = null
 
   try {
-    // 1. Authenticate User
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError || !session) {
-      console.error('[CREATE_MANAGED_USER_AUTH_ERROR]', { error: sessionError })
+    // 1. Authenticate User using Clerk directly
+    const { userId } = auth()
+    if (!userId) {
+      console.error('[CREATE_MANAGED_USER_CLERK_AUTH_ERROR]', { error: 'Clerk userId not found' })
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
     }
-    const user = session.user
-    console.log('[CREATE_MANAGED_USER_START]', { userId: user.id, email: user.email })
+    console.log('[CREATE_MANAGED_USER_CLERK_AUTH_SUCCESS]', { userId })
 
-    // 2. Ensure User Exists in DB & Get ULID
-    const userContext = await createUserIfNotExists(user.id)
+    // 2. Ensure User Exists in DB & Get ULID (using Clerk userId)
+    const userContext = await createUserIfNotExists(userId)
     if (!userContext?.userUlid) {
-      console.error('[CREATE_MANAGED_USER_DB_USER_ERROR]', { userId: user.id, error: 'Failed to get or create user context' })
+      console.error('[CREATE_MANAGED_USER_DB_USER_ERROR]', { userId: userId, error: 'Failed to get or create user context' })
       return NextResponse.json({ error: 'Failed to verify or create user in database' }, { status: 500 })
     }
     const userUlid = userContext.userUlid
@@ -289,7 +289,7 @@ export async function POST(req: Request) {
       }
 
       console.log('[CREATE_MANAGED_USER_FINAL_SUCCESS]', { 
-        userId: user.id, 
+        userId: userId, 
         userUlid, 
         calIntegrationUlid: integrationUlid,
         calManagedUserId: createdCalUserId,

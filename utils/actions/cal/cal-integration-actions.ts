@@ -70,9 +70,9 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
       .single()
 
     if (userError) {
-      console.error('[FETCH_CAL_STATUS_ERROR]', {
-        error: userError,
+      console.error('[CAL_ERROR] Failed to fetch user ULID:', {
         userId,
+        error: userError.message,
         timestamp: new Date().toISOString()
       })
       return {
@@ -91,9 +91,9 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
       .maybeSingle()
 
     if (integrationError) {
-      console.error('[FETCH_CAL_STATUS_ERROR]', {
-        error: integrationError,
+      console.error('[CAL_ERROR] Failed to fetch integration data:', {
         userUlid: userData.ulid,
+        error: integrationError.message,
         timestamp: new Date().toISOString()
       })
       return {
@@ -159,11 +159,14 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
             // If the response indicates an expired token, override our check
             if (!verificationResponse.ok) {
               const errorData = await verificationResponse.text();
-              
+              console.warn(`[CAL_WARN] Token verification API call failed with status ${verificationResponse.status} ${verificationResponse.statusText}`); // Log status
+
               try {
                 const parsedError = JSON.parse(errorData);
+                console.log('[CAL_DEBUG] Parsed Cal.com verification error:', parsedError); // Log parsed error for context
+
                 if (
-                  verificationResponse.status === 498 || 
+                  verificationResponse.status === 498 ||
                   parsedError?.error?.code === 'TokenExpiredException' ||
                   parsedError?.error?.message === 'ACCESS_TOKEN_IS_EXPIRED'
                 ) {
@@ -172,14 +175,20 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
                 }
               } catch (e) {
                 // If we can't parse the error, assume token might be expired
-                console.error('[CAL_DEBUG] Could not parse verification error, assuming token needs refresh:', e);
+                const parseError = e instanceof Error ? e.message : String(e);
+                // Log the raw text response when JSON parsing fails
+                console.error('[CAL_ERROR] Could not parse Cal.com verification error response, assuming token needs refresh:', { 
+                  error: parseError, 
+                  rawResponse: errorData 
+                });
                 isTokenExpired = true;
               }
             } else {
               console.log('[CAL_DEBUG] Token verification succeeded - token is still valid');
             }
           } catch (verificationError) {
-            console.error('[CAL_DEBUG] Error during token verification:', verificationError);
+            const errorMsg = verificationError instanceof Error ? verificationError.message : String(verificationError);
+            console.error('[CAL_ERROR] Error during Cal.com token verification API call:', { error: errorMsg });
             // On error, assume we might need to refresh to be safe
             isTokenExpired = true;
           }
@@ -204,13 +213,15 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
         const refreshResult = await refreshUserCalTokens(userData.ulid, isManagedUser);
         
         if (!refreshResult.success) {
-          console.error('[CAL_DEBUG] Token refresh failed:', refreshResult.error);
+          console.error('[CAL_ERROR] Token refresh failed:', { 
+            error: refreshResult.error || 'Unknown refresh error'
+          });
           
           // Check if managed user still exists before returning failure
           const managedUserExists = await verifyManagedUser(integration.calManagedUserId);
           
           if (!managedUserExists) {
-            console.error('[CAL_DEBUG] Managed user no longer exists on Cal.com');
+            console.error('[CAL_ERROR] Managed user no longer exists on Cal.com during failed token refresh check.');
             return {
               data: { 
                 isConnected: false,
@@ -258,8 +269,11 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
         }
       }
     } catch (error) {
-      console.error('[CAL_DEBUG] Error during token expiry check or refresh:', error);
-      // Continue with the existing token even if expiry check fails
+      // Catch errors during the token check/refresh process
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('[CAL_ERROR] Unexpected error during token expiry check or refresh:', { error: errorMsg });
+      // Indicate connection but with potential token issue
+      tokenStatus = 'expired'; // Assume worst case on unexpected error
     }
     
     // Step 3: Verify that the managed user still exists via Cal.com API
@@ -305,8 +319,9 @@ export async function fetchCalIntegrationStatus(): Promise<ApiResponse<CalIntegr
       error: null
     };
   } catch (error: any) {
-    console.error('[FETCH_CAL_STATUS_ERROR]', {
-      error,
+    // Use CAL_ERROR prefix and log specific message
+    console.error('[CAL_ERROR] Unexpected error in fetchCalIntegrationStatus:', {
+      error: error instanceof Error ? error.message : String(error),
       timestamp: new Date().toISOString()
     })
     return {
@@ -323,69 +338,83 @@ async function verifyManagedUser(calManagedUserId: number): Promise<boolean> {
   if (!calManagedUserId) return false;
   
   try {
-    const calApiUrl = `/oauth-clients/${env.NEXT_PUBLIC_CAL_CLIENT_ID}/users/${calManagedUserId}`;
+    // Use NEXT_PUBLIC_CAL_CLIENT_ID here as CAL_CLIENT_ID might not be in the schema
+    const calApiUrl = `https://api.cal.com/v2/oauth-clients/${env.NEXT_PUBLIC_CAL_CLIENT_ID}/users/${calManagedUserId}`;
     console.log('[CAL_DEBUG] Verifying managed user with Cal.com API:', calApiUrl);
     
-    // Use the utility function that handles token authentication properly
-    const responseData = await makeCalApiRequest({
-      endpoint: calApiUrl,
-      headers: getCalOAuthHeaders()
+    // Use app-level auth first
+    const headers = getCalAuthHeaders(calApiUrl); // Pass URL argument
+    
+    const response = await fetch(calApiUrl, {
+      method: 'GET',
+      headers: headers
     });
     
-    console.log('[CAL_DEBUG] Cal.com API response:', responseData);
-    return true;
-  } catch (error: any) {
-    console.error('[CAL_MANAGED_USER_VERIFICATION_ERROR]', {
-      error: error?.message || error,
-      calManagedUserId,
-      timestamp: new Date().toISOString()
-    });
-    
-    // If 404, the user was deleted or doesn't exist on Cal.com
-    if (error?.message?.includes('404')) {
+    if (response.ok) {
+      // Don't log the full response object here, potentially sensitive
+      console.log('[CAL_DEBUG] Managed user verification successful via app auth.');
+      return true; // User found
+    } else if (response.status === 404) {
       console.log('[CAL_DEBUG] User not found on Cal.com (404 error)');
-      return false;
-    }
-    
-    // For auth errors (401, 403), try using client secret directly
-    if (error?.message?.includes('401') || error?.message?.includes('403')) {
+      return false; // User not found
+    } else if (response.status === 401 || response.status === 403) {
+      // Auth error - might happen if app creds are invalid
+      console.log('[CAL_DEBUG] App auth failed during user verification, attempting direct verification with client secret');
+      
+      // Fallback: Try direct verification using client credentials
+      const clientId = env.NEXT_PUBLIC_CAL_CLIENT_ID; // Correct env var
+      const clientSecret = env.CAL_CLIENT_SECRET;
+      
+      if (!clientId || !clientSecret) {
+        console.error('[CAL_ERROR] Missing Cal.com client credentials for direct verification fallback.');
+        return false; // Cannot verify without credentials
+      }
+      
       try {
-        console.log('[CAL_DEBUG] Auth error, attempting direct verification with client secret');
-        // Direct API call using client secret
-        const clientId = env.NEXT_PUBLIC_CAL_CLIENT_ID;
-        const clientSecret = env.CAL_CLIENT_SECRET;
+        // Use direct client credentials for the fallback API call
+        const directHeaders = getCalOAuthHeaders(); // No arguments needed
         
-        if (!clientId || !clientSecret) {
-          console.error('[CAL_DEBUG] Missing client credentials');
+        const directResponse = await fetch(calApiUrl, {
+          method: 'GET',
+          headers: {
+            ...directHeaders, // Spread the auth header
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (directResponse.ok) {
+          console.log('[CAL_DEBUG] Direct verification successful after initial auth error');
+          return true;
+        } else {
+          // Log status, statusText, and attempt to log the response body
+          let errorBody = '';
+          try {
+            errorBody = await directResponse.text();
+          } catch (e) {
+            errorBody = 'Failed to read response body';
+          }
+          console.error('[CAL_ERROR] Direct verification failed:', {
+            status: directResponse.status,
+            statusText: directResponse.statusText,
+            responseBody: errorBody // Add response body logging
+          });
           return false;
         }
-        
-        const directResponse = await fetch(
-          `https://api.cal.com/v2/oauth-clients/${clientId}/users/${calManagedUserId}`, 
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-cal-secret-key': clientSecret
-            }
-          }
-        );
-        
-        if (directResponse.ok) {
-          console.log('[CAL_DEBUG] Direct verification successful');
-          return true;
-        }
-        
-        console.error('[CAL_DEBUG] Direct verification failed:', directResponse.status);
-        return false;
       } catch (directError) {
-        console.error('[CAL_DEBUG] Direct verification error:', directError);
+        const errorMsg = directError instanceof Error ? directError.message : String(directError);
+        console.error('[CAL_ERROR] Error during direct verification API call:', { error: errorMsg });
         return false;
       }
+    } else {
+      // Log unexpected status from initial check
+      console.error('[CAL_ERROR] Unexpected status during initial managed user verification:', { status: response.status, statusText: response.statusText });
+      return false; // Assume failure on other errors
     }
-    
-    // For other errors, we can't be sure, so assume false
-    return false;
+  } catch (error) {
+    // Log error from the initial fetch call
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[CAL_ERROR] Failed to verify managed user existence with Cal.com API:', { error: errorMsg });
+    return false; // Assume failure on network/request error
   }
 }
 
@@ -541,11 +570,27 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
     });
 
     if (!calResponse.ok) {
-      const errorData = await calResponse.json();
+      let errorDetails = 'Unknown error structure';
+      try {
+        // Try to parse JSON error first
+        const errorData = await calResponse.json();
+        errorDetails = JSON.stringify(errorData);
+        console.log('[CAL_DEBUG] Parsed Cal.com fetch schedules error:', errorData);
+      } catch (parseError) {
+        // If JSON parsing fails, get the raw text
+        console.warn('[CAL_WARN] Failed to parse JSON error response from Cal.com fetch schedules. Reading as text.');
+        try {
+          errorDetails = await calResponse.text();
+        } catch (textError) {
+          errorDetails = `Failed to read error response body: ${textError instanceof Error ? textError.message : String(textError)}`;
+        }
+      }
+
       console.error('[SYNC_CAL_SCHEDULES]', {
         error: 'Failed to fetch schedules from Cal.com',
         status: calResponse.status,
-        response: errorData,
+        statusText: calResponse.statusText,
+        responseBody: errorDetails, // Log parsed JSON or raw text
         userUlid: userData.ulid,
         timestamp: new Date().toISOString()
       });
@@ -815,9 +860,30 @@ export async function syncCalendarSchedules(): Promise<ApiResponse<SyncResult>> 
               }
             }
           } else {
+            // Log error response from Cal.com schedule creation
+            let errorDetails = 'Unknown error structure';
+            try {
+              const errorData = await createResponse.json();
+              errorDetails = JSON.stringify(errorData);
+              console.log('[CAL_DEBUG] Parsed Cal.com create schedule error:', errorData);
+            } catch (parseError) {
+              console.warn('[CAL_WARN] Failed to parse JSON error response from Cal.com create schedule. Reading as text.');
+              try {
+                // Attempt to read as text if JSON parsing fails
+                errorDetails = await createResponse.text(); // Need to re-read the stream
+              } catch (textError) {
+                 // Handle cases where reading the body fails after JSON parse attempt
+                 // Note: This might be tricky if the stream was already consumed by .json()
+                 // We might need to clone the response earlier if robust text fallback is critical
+                 // For now, log that we couldn't get the body.
+                 errorDetails = `Failed to read response body after JSON parse attempt: ${textError instanceof Error ? textError.message : String(textError)}`;
+              }
+            }
             console.error('[SYNC_CAL_SCHEDULES]', {
-              error: await createResponse.text(),
-              step: 'Failed to create schedule in Cal.com',
+              error: 'Failed to create schedule in Cal.com',
+              status: createResponse.status,
+              statusText: createResponse.statusText,
+              responseBody: errorDetails, // Log parsed or raw error
               dbScheduleUlid: dbSchedule.ulid,
               timestamp: new Date().toISOString()
             });

@@ -51,7 +51,7 @@ export async function GET() {
     // Get calendar integration status - Use maybeSingle()
     const { data: integrationData, error: integrationError } = await supabase
       .from('CalendarIntegration')
-      .select('googleCalendarConnected, office365CalendarConnected, isManagedUser')
+      .select('googleCalendarConnected, office365CalendarConnected')
       .eq('userUlid', userData.ulid)
       .maybeSingle()
 
@@ -102,7 +102,7 @@ export async function GET() {
     // Integration record exists - Use the typed object, no need for 'as any'
     console.log('[CAL_INTEGRATION_STATUS_DEBUG] Calendar integration flags:', {
       userUlid: userData.ulid,
-      isConnected: integration.isManagedUser || false, 
+      isConnected: true,
       googleCalendarConnected: integration.googleCalendarConnected || false,
       office365CalendarConnected: integration.office365CalendarConnected || false,
       timestamp: new Date().toISOString()
@@ -111,7 +111,7 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       data: {
-        isConnected: integration.isManagedUser || false, 
+        isConnected: true,
         googleCalendarConnected: integration.googleCalendarConnected || false,
         office365CalendarConnected: integration.office365CalendarConnected || false
       }

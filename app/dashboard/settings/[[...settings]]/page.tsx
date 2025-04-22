@@ -335,7 +335,7 @@ export default function Settings() {
         try {
           // Add timeout protection to prevent infinite waiting
           const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Capabilities fetch timeout')), 5000)
+            setTimeout(() => reject(new Error('Capabilities fetch timeout')), 15000)
           );
           
           const fetchPromise = fetchUserCapabilities();
