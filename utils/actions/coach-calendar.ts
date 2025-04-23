@@ -47,7 +47,7 @@ export const getCoachBusyTimes = withServerAction(
       
       // Fetch calendars using the centralized API request method
       const calData = await makeCalApiRequest(
-        '/v2/calendars',
+        '/calendars',
         'GET',
         undefined,
         coachId
@@ -122,7 +122,7 @@ export const getCoachBusyTimes = withServerAction(
       
       // Use the centralized API request for busy times
       const busyTimesData = await makeCalApiRequest(
-        `/v2/calendars/busy-times?${queryParams.toString()}`,
+        `/calendars/busy-times?${queryParams.toString()}`,
         'GET',
         undefined,
         coachId
