@@ -592,7 +592,8 @@ export default function Settings() {
           // Use the static method directly to check if token is expired or expiring soon
           needsTokenRefresh = CalTokenService.isTokenExpired(
             integration.calAccessTokenExpiresAt,
-            5 // Use 5 minutes buffer
+            5, // Use 5 minutes buffer
+            true // Force the check to handle Cal.com's token validation
           );
           
           console.log('[CAL_CONNECT_DEBUG] Token status check:', {

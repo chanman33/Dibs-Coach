@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchCoachSessions } from '@/utils/actions/sessions'
 import { fetchUserDbId } from '@/utils/actions/user-profile-actions'
+import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens'
 import { CoachingCalendar } from '@/components/coaching/CoachingCalendar'
 import { useEffect, useState } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
@@ -158,12 +159,19 @@ export default function CoachCalendarPage() {
       try {
         const response = await fetch('/api/cal/calendars/get-all-calendars')
         
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 498) {
           setCalendarConnectionState('auth_error')
           return null
         }
         
         if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          // Check for specific token errors in response
+          if (errorData?.data?.tokenError || errorData?.data?.tokenRefreshFailed) {
+            console.log('[CoachCalendarPage] Token error detected in response:', errorData);
+            setCalendarConnectionState('auth_error');
+            return null;
+          }
           throw new Error('Failed to fetch calendars')
         }
         
@@ -179,7 +187,7 @@ export default function CoachCalendarPage() {
     enabled: !!coachDbId && !!user?.id && isUserLoaded,
     retry: (failureCount, error: any) => {
       if (calendarConnectionState === 'auth_error') return false
-      if (error?.message?.includes('401') || error?.status === 401) return false
+      if (error?.message?.includes('401') || error?.status === 401 || error?.status === 498) return false
       return failureCount < 2
     },
     staleTime: 1000 * 60 * 5 // 5 minutes - consider data fresh for this long
@@ -252,17 +260,25 @@ export default function CoachCalendarPage() {
       
       // Backend handles 401 by trying to refresh token
       // If it still fails, it will return a non-ok status
-      if (response.status === 401) {
+      if (response.status === 401 || response.status === 498) {
         // This case might indicate a deeper auth issue not resolvable by token refresh
+        console.error('[FETCH_BUSY_TIMES_ERROR] Authentication failed with status:', response.status)
         setCalendarConnectionState('auth_error') 
         setInitialCalendarLoad(false)
         setIsLoadingBusyTimes(false)
-        toast.error("Calendar authentication failed persistently. Please check settings.")
+        
+        // Try to get more detailed error info
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || "Calendar authentication failed. Please check settings.";
+        
+        toast.error(errorMessage)
         return
       }
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch busy times: ${response.status}`)
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData?.error || `Failed to fetch busy times: ${response.status}`;
+        throw new Error(errorMessage)
       }
       
       const data = await response.json()
@@ -280,7 +296,7 @@ export default function CoachCalendarPage() {
       queryClient.invalidateQueries({ queryKey: ['coach-calendars', coachDbId, user?.id] });
     } catch (error) {
       console.error('[FETCH_BUSY_TIMES_ERROR]', error)
-      toast.error('Failed to fetch calendar busy times')
+      toast.error(error instanceof Error ? error.message : 'Failed to fetch calendar busy times')
       setCalendarConnectionState('error')
     } finally {
       setIsLoadingBusyTimes(false)
@@ -289,16 +305,37 @@ export default function CoachCalendarPage() {
   }
 
   // Handle manual refresh of busy times or connect calendar
-  const handleCalendarAction = () => {
+  const handleCalendarAction = async () => {
     if (calendarConnectionState === 'auth_error') {
       toast.info("Authentication with calendar provider may have expired. Trying to refresh...")
       setInitialCalendarLoad(true)
+      
+      if (coachDbId) {
+        // First try to refresh Cal.com tokens before fetching data
+        try {
+          const refreshResult = await refreshUserCalTokens(coachDbId, true);
+          if (refreshResult.success) {
+            toast.success("Calendar tokens refreshed successfully");
+            // Invalidate existing queries
+            queryClient.invalidateQueries({ queryKey: ['coach-calendars', coachDbId, user?.id] });
+            // Reset the calendar connection state
+            setCalendarConnectionState('loading');
+          } else {
+            // If token refresh fails, still try to fetch data normally
+            toast.warning("Token refresh failed, trying direct connection");
+          }
+        } catch (error) {
+          console.error('[CAL_TOKEN_REFRESH_ERROR]', error);
+          toast.error("Token refresh failed, trying direct connection");
+        }
+      }
+      
       fetchBusyTimes(selectedCalendars)
     } else if (calendarConnectionState === 'connected' || calendarConnectionState === 'error') {
       setInitialCalendarLoad(true)
       fetchBusyTimes(selectedCalendars)
     } else if (calendarConnectionState === 'not_connected') {
-      window.location.href = '/settings/calendar'
+      window.location.href = '/dashboard/settings?tab=integrations'
     } else {
       console.log("Calendar action called while in state:", calendarConnectionState)
     }

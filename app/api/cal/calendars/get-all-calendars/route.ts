@@ -103,55 +103,107 @@ export async function GET() {
         timestamp: new Date().toISOString()
       });
       
-      // We might need to refresh the token if it's invalid
+      // If we get a token error, try refreshing and retry
       if (response.status === 401 || response.status === 498) {
-        console.log('[CAL_GET_CALENDARS] Token appears invalid, trying to force-refresh');
-        
-        // Force refresh and retry
-        const refreshResult = await CalTokenService.refreshTokens(userUlid);
-        if (!refreshResult.success) {
-          console.error('[CAL_GET_CALENDARS_ERROR] Failed to refresh token:', refreshResult.error);
+        try {
+          // Try to parse the error response to check for specific error codes
+          const errorData = await response.json().catch(() => ({}));
+          
+          // Log the detailed error
+          console.error('[CAL_GET_CALENDARS_ERROR]', {
+            status: response.status,
+            error: JSON.stringify(errorData),
+            timestamp: new Date().toISOString()
+          });
+          
+          // Check for token expiration error codes from Cal.com
+          const isTokenExpired = errorData?.error?.code === 'TokenExpiredException' || 
+                              errorData?.error?.message === 'ACCESS_TOKEN_IS_EXPIRED';
+          
+          console.log('[CAL_GET_CALENDARS] Token appears invalid, trying to force-refresh', {
+            isTokenExpired,
+            forceRefresh: true,
+            errorDetails: errorData?.error
+          });
+          
+          // Force refresh tokens using the token service - with forceRefresh=true
+          const tokenRefreshResult = await CalTokenService.refreshTokens(userUlid, true);
+          
+          if (!tokenRefreshResult.success) {
+            console.error('[CAL_GET_CALENDARS_ERROR] Failed to refresh token:', tokenRefreshResult.error);
+            return NextResponse.json({ 
+              success: true, 
+              data: { 
+                hasConnectedCalendars: hasGoogleCalendar || hasOffice365Calendar,
+                calendars: [],
+                apiError: true,
+                tokenRefreshFailed: true
+              } 
+            });
+          }
+          
+          // Get a new valid token after refresh
+          const newTokenResult = await CalTokenService.ensureValidToken(userUlid);
+          if (!newTokenResult.success) {
+            console.error('[CAL_GET_CALENDARS_ERROR] Failed to get token after refresh:', newTokenResult.error);
+            return NextResponse.json({
+              success: true,
+              data: {
+                hasConnectedCalendars: hasGoogleCalendar || hasOffice365Calendar,
+                calendars: [],
+                apiError: true,
+                tokenRefreshFailed: true
+              }
+            });
+          }
+          
+          // Retry with new token
+          const retryResponse = await fetch('https://api.cal.com/v2/calendars', {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${newTokenResult.accessToken}`
+            },
+            cache: 'no-store'
+          });
+          
+          if (!retryResponse.ok) {
+            console.error('[CAL_GET_CALENDARS_ERROR] Retry after token refresh failed:', {
+              status: retryResponse.status,
+              error: await retryResponse.text()
+            });
+            return NextResponse.json({ 
+              success: true, 
+              data: { 
+                hasConnectedCalendars: hasGoogleCalendar || hasOffice365Calendar,
+                calendars: [],
+                apiError: true,
+                retryFailed: true
+              } 
+            });
+          }
+          
+          // Continue with the retried response
+          const calendarData = await retryResponse.json();
+          const connectedCalendars = calendarData?.data?.connectedCalendars || [];
+          const hasConnectedCalendars = connectedCalendars.length > 0;
+          const processedCalendars = processCalendars(connectedCalendars);
+          
+          console.log('[CAL_GET_CALENDARS] Retry successful', {
+            calendarCount: processedCalendars.length,
+            hasConnectedCalendars
+          });
+          
           return NextResponse.json({ 
             success: true, 
             data: { 
-              hasConnectedCalendars: hasGoogleCalendar || hasOffice365Calendar,
-              calendars: [],
-              apiError: true,
-              tokenRefreshFailed: true
+              hasConnectedCalendars,
+              calendars: processedCalendars,
+              tokenRefreshed: true
             } 
           });
-        }
-        
-        // Get a new valid token after refresh
-        const newTokenResult = await CalTokenService.ensureValidToken(userUlid);
-        if (!newTokenResult.success) {
-          console.error('[CAL_GET_CALENDARS_ERROR] Failed to get token after refresh:', newTokenResult.error);
-          return NextResponse.json({
-            success: true,
-            data: {
-              hasConnectedCalendars: hasGoogleCalendar || hasOffice365Calendar,
-              calendars: [],
-              apiError: true,
-              tokenRefreshFailed: true
-            }
-          });
-        }
-        
-        // Retry with new token
-        const retryResponse = await fetch('https://api.cal.com/v2/calendars', {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${newTokenResult.accessToken}`
-          },
-          cache: 'no-store'
-        });
-        
-        if (!retryResponse.ok) {
-          console.error('[CAL_GET_CALENDARS_ERROR] Retry after token refresh failed:', {
-            status: retryResponse.status,
-            error: await retryResponse.text()
-          });
+        } catch (error) {
+          console.error('[CAL_GET_CALENDARS_ERROR] Error parsing error response:', error);
           return NextResponse.json({ 
             success: true, 
             data: { 
@@ -162,26 +214,6 @@ export async function GET() {
             } 
           });
         }
-        
-        // Continue with the retried response
-        const calendarData = await retryResponse.json();
-        const connectedCalendars = calendarData?.data?.connectedCalendars || [];
-        const hasConnectedCalendars = connectedCalendars.length > 0;
-        const processedCalendars = processCalendars(connectedCalendars);
-        
-        console.log('[CAL_GET_CALENDARS] Retry successful', {
-          calendarCount: processedCalendars.length,
-          hasConnectedCalendars
-        });
-        
-        return NextResponse.json({ 
-          success: true, 
-          data: { 
-            hasConnectedCalendars,
-            calendars: processedCalendars,
-            tokenRefreshed: true
-          } 
-        });
       }
       
       return NextResponse.json({ 
@@ -196,11 +228,11 @@ export async function GET() {
     }
 
     // Parse the response based on the exact structure from Cal.com docs
-    const calendarData = await response.json();
+    const responseData = await response.json();
     
     // Check for connectedCalendars in the response data structure
     // According to docs: data.connectedCalendars[] is the array we want
-    const connectedCalendars = calendarData?.data?.connectedCalendars || [];
+    const connectedCalendars = responseData?.data?.connectedCalendars || [];
     const hasConnectedCalendars = connectedCalendars.length > 0;
     
     // Process the calendar data

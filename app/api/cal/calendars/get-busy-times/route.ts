@@ -1,8 +1,40 @@
 import { NextResponse } from 'next/server'
 import { createAuthClient } from '@/utils/auth'
-import { ensureValidCalToken, handleCalApiResponse } from '@/utils/cal/token-util'
+import { ensureValidCalToken } from '@/utils/actions/cal/cal-tokens'
 import { getCalendarIntegration } from '@/utils/auth'
 import { CalTokenService } from '@/lib/cal/cal-service'
+
+// Helper function to handle Cal.com API responses, with token refresh if needed
+async function handleCalApiResponse(
+  response: Response, 
+  makeRequest: (token: string) => Promise<Response>,
+  userUlid: string
+): Promise<Response> {
+  // If response is ok, return it
+  if (response.ok) {
+    return response;
+  }
+
+  // Check if it's a token error (401 or 498)
+  if (response.status === 401 || response.status === 498) {
+    console.log('[CAL_API_HELPER] Token appears expired, refreshing...');
+    
+    // Force refresh the token with API reported flag
+    const refreshResult = await ensureValidCalToken(userUlid, true, true);
+    
+    if (!refreshResult.success) {
+      console.error('[CAL_API_HELPER] Failed to refresh token:', refreshResult.error);
+      return response; // Return original error response
+    }
+    
+    // Retry with new token
+    console.log('[CAL_API_HELPER] Token refreshed, retrying request');
+    return makeRequest(refreshResult.accessToken);
+  }
+  
+  // Not a token error, return original response
+  return response;
+}
 
 /**
  * API endpoint to get busy times for a managed user from Cal.com
@@ -65,7 +97,7 @@ export async function GET(request: Request) {
     }
     
     // Get a valid Cal.com token
-    const tokenResult = await CalTokenService.ensureValidToken(coachUlid);
+    const tokenResult = await ensureValidCalToken(coachUlid);
     
     if (!tokenResult.success) {
       console.error('[CAL_GET_BUSY_TIMES_ERROR] Failed to get valid token', {
