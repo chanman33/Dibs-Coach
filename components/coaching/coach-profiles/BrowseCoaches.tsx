@@ -88,7 +88,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
     );
   }
 
-  const renderCoaches = (coaches: BrowseCoachData[], isBooked: boolean = false) => (
+  const renderCoaches = (coaches: BrowseCoachData[]) => (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
       {coaches.map(coach => (
         <CoachCard
@@ -107,14 +107,14 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
           coachSkills={coach.coachSkills || []}
           coachRealEstateDomains={coach.coachRealEstateDomains || []}
           coachPrimaryDomain={coach.coachPrimaryDomain}
-          isBooked={isBooked}
+          isBooked={false}
           onProfileClick={() => handleCoachClick(coach)}
           sessionConfig={{
             durations: [
               coach.minimumDuration,
               coach.defaultDuration,
               coach.maximumDuration
-            ].filter(Boolean), // Filter out any falsy values
+            ].filter(Boolean),
             rates: {
               [coach.minimumDuration]: (coach.hourlyRate || 0) * (coach.minimumDuration / 60),
               [coach.defaultDuration]: (coach.hourlyRate || 0) * (coach.defaultDuration / 60),
@@ -129,33 +129,27 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
           }}
           profileSlug={coach.profileSlug}
           isPublic={false}
-          showBookButton={!isBooked}
+          showBookButton={true}
         />
       ))}
     </div>
   );
 
-  // Helper function to get top recommended coaches
   const getTopRecommendedCoaches = (coaches: BrowseCoachData[], count: number = 10): BrowseCoachData[] => {
-    // Filter out coaches that are already booked
     const availableCoaches = coaches.filter(coach => 
       !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid) &&
       coach.coachSkills && 
       coach.coachSkills.length > 0
     );
     
-    // Sort by a combination of factors to get the best recommendations
     return availableCoaches
       .sort((a, b) => {
-        // First prioritize by rating
         const ratingDiff = (b.averageRating || 0) - (a.averageRating || 0);
         if (ratingDiff !== 0) return ratingDiff;
         
-        // Then by experience
         const experienceDiff = (b.yearsCoaching || 0) - (a.yearsCoaching || 0);
         if (experienceDiff !== 0) return experienceDiff;
         
-        // Then by total sessions
         return (b.totalSessions || 0) - (a.totalSessions || 0);
       })
       .slice(0, count);
@@ -163,29 +157,6 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
 
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
-      {/* Your Coaches Section */}
-      <Card className="shadow-sm">
-        <CardHeader className="pb-2">
-          <h2 className="text-2xl font-bold tracking-tight">Your Coaches</h2>
-        </CardHeader>
-        <CardContent className="pt-4">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-48">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : filteredBookedCoaches.length > 0 ? (
-            renderCoaches(filteredBookedCoaches, true)
-          ) : (
-            <p className="text-center text-muted-foreground py-12">
-              {role === USER_CAPABILITIES.MENTEE 
-                ? "You haven't booked any coaches yet. Browse our recommended coaches below!"
-                : "You haven't connected with any other coaches yet. Browse our recommended coaches below!"}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Global Search Bar */}
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
           <h2 className="text-lg font-semibold">Search Coaches</h2>
@@ -199,9 +170,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
         </CardContent>
       </Card>
 
-      {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Sidebar with Filters and Categories */}
         <div className="lg:col-span-1 space-y-6">
           <Card className="shadow-sm">
             <CardHeader className="pb-2">
@@ -221,7 +190,6 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
           <Categories onCategoryClick={(category) => handleFilter(category)} />
         </div>
         
-        {/* Main Content Area */}
         <div className="lg:col-span-3">
           <Card className="shadow-sm h-full">
             <CardHeader className="pb-2">
@@ -234,13 +202,13 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
                 </div>
               ) : filteredRecommendedCoaches.length > 0 ? (
                 <div className="w-full">
-                  {renderCoaches(filteredRecommendedCoaches
+                  {renderCoaches(filteredRecommendedCoaches 
                     .filter(coach => 
                       !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid)
                     )
-                    .map(coach => ({
+                    .map(coach => ({ 
                       ...coach,
-                      specialty: coach.coachSkills?.[0] || 'General Coach'
+                      specialty: coach.coachSkills?.[0] || 'General Coach' 
                     }))
                   )}
                 </div>
@@ -254,7 +222,6 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
         </div>
       </div>
 
-      {/* Recommended Coaches Section */}
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
           <h2 className="text-2xl font-bold tracking-tight">Recommended Coaches</h2>

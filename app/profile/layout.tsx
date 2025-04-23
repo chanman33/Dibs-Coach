@@ -1,7 +1,7 @@
 import Provider from '@/app/provider'
 import { ThemeProvider } from "@/components/theme-provider"
 import NavBar from '@/components/wrapper/navbar'
-import { CoachesFooter } from '@/components/coaching/public/CoachesFooter'
+import { CoachesFooter } from '@/components/coaching/coach-profiles/CoachesFooter'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {

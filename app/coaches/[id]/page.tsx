@@ -7,22 +7,23 @@ export default function CoachProfilePage() {
   const params = useParams();
   const id = params.id as string;
   const router = useRouter();
-  const [isRedirecting, setIsRedirecting] = useState(true);
+  // const [isRedirecting, setIsRedirecting] = useState(true); // Temporarily commented out
   
-  useEffect(() => {
-    // Use a small timeout to ensure the client is ready for redirection
-    const redirectTimer = setTimeout(() => {
-      // Redirect to the new URL structure
-      router.replace(`/profile/${id}`);
-    }, 100);
+  // useEffect(() => { // Temporarily commented out
+  //   // Use a small timeout to ensure the client is ready for redirection
+  //   const redirectTimer = setTimeout(() => {
+  //     // Redirect to the new URL structure
+  //     router.replace(`/profile/${id}`);
+  //   }, 100);
     
-    return () => clearTimeout(redirectTimer);
-  }, [id, router]);
+  //   return () => clearTimeout(redirectTimer);
+  // }, [id, router]);
   
   // Return a loading state while redirecting
   return (
     <div className="flex justify-center items-center min-h-[60vh]">
-      <p>Redirecting...</p>
+      {/* Updated message for testing */}
+      <p>Testing component rendering... ID: {id}</p> 
     </div>
   );
 } 

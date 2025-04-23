@@ -4,7 +4,7 @@ import { Analytics } from "@vercel/analytics/react"
 import { GeistSans } from 'geist/font/sans'
 import type { Metadata } from 'next'
 import '@/app/globals.css'
-import { CoachesFooter } from '../../components/coaching/public/CoachesFooter'
+import { CoachesFooter } from '../../components/coaching/coach-profiles/CoachesFooter'
 import NavBar from '@/components/wrapper/navbar'
 
 export const metadata: Metadata = {

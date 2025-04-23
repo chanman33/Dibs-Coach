@@ -17,7 +17,7 @@ import { currentUser } from '@clerk/nextjs/server'
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { fetchUserCapabilities } from '@/utils/actions/user-profile-actions'
 import { fetchPublicCoachProfileBySlug, PublicCoachProfile } from '@/utils/actions/public-coach-profile-actions'
-import { SimilarCoaches } from '@/components/coaching/public/SimilarCoaches'
+import { SimilarCoaches } from '@/components/coaching/coach-profiles/SimilarCoaches'
 // import { ProfessionalRecognitionCard } from '@/components/coaching/shared/recognitions/ProfessionalRecognitionCard'
 // import { SocialLinks } from '@/components/shared/SocialLinks'
 
