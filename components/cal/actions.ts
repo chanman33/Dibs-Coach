@@ -3,6 +3,7 @@
 import { createAuthClient } from '@/utils/auth';
 import { calService } from '@/lib/cal/cal-service';
 import { revalidatePath } from 'next/cache';
+import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens';
 
 /**
  * Refreshes a user's Cal.com token
@@ -10,21 +11,17 @@ import { revalidatePath } from 'next/cache';
  */
 export async function refreshCalAccessToken(userUlid: string) {
   try {
-    const response = await fetch(`${process.env.FRONTEND_URL}/api/cal/refresh-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userUlid }),
-    });
-    
-    const data = await response.json();
+    // Use the server action directly instead of making an API call
+    const result = await refreshUserCalTokens(userUlid, true);
     
     // Revalidate related paths
     revalidatePath('/dashboard/settings');
     revalidatePath('/app/test/cal-webhook-test');
     
-    return data;
+    return {
+      success: result.success,
+      error: result.error
+    };
   } catch (error) {
     console.error('[SERVER_ACTION_ERROR]', {
       context: 'REFRESH_CAL_TOKEN',
@@ -140,8 +137,23 @@ export async function getUserDbBookings(userUlid: string) {
  */
 export async function validateUserBookings(userUlid: string) {
   try {
-    // Get bookings from Cal.com
-    const calResult = await calService.fetchUserCalBookings(userUlid);
+    // Get bookings from Cal.com using API endpoint instead of a non-existent service method
+    const response = await fetch(`/api/cal/test/fetch-bookings?userUlid=${encodeURIComponent(userUlid)}`);
+    
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `Failed to fetch Cal.com bookings: Status ${response.status}`,
+        calBookings: [],
+        dbBookings: [],
+        mismatches: {
+          calOnly: [],
+          dbOnly: []
+        }
+      };
+    }
+    
+    const calResult = await response.json();
     
     if (!calResult.success) {
       return {
@@ -157,7 +169,7 @@ export async function validateUserBookings(userUlid: string) {
     }
     
     // Extract the bookings from the data property
-    const calBookings = calResult.data?.bookings || [];
+    const calBookings = calResult.bookings || [];
     
     // Get bookings from database
     const dbResult = await getUserDbBookings(userUlid);

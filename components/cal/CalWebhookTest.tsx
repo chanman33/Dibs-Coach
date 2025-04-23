@@ -13,6 +13,8 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { format } from 'date-fns';
 import { validateBookings, BookingValidationResult, CalBooking, DbBooking } from './validateBookings';
 import { toast } from '@/components/ui/use-toast';
+import { useToast } from '@/components/ui/use-toast';
+import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens';
 
 export interface CalendarIntegration {
   id: string;
@@ -551,12 +553,15 @@ export default function CalWebhookTest({ initialIntegration }: CalWebhookTestPro
         const errorData = await calResponse.json();
         
         if (calResponse.status === 498 && errorData.error === 'TOKEN_EXPIRED') {
-          const refreshResponse = await fetch('/api/cal/refresh-token', {
-            method: 'POST',
-          });
-          const refreshData = await refreshResponse.json();
+          // Use server action directly instead of API endpoint
+          const userUlid = calendarIntegration?.userUlid;
+          if (!userUlid) {
+            throw new Error('User ID not available for token refresh');
+          }
           
-          if (refreshData.success) {
+          const refreshResult = await refreshUserCalTokens(userUlid, true);
+          
+          if (refreshResult.success) {
             return validateBookingsHandler();
           } else {
             throw new Error('Failed to refresh expired token. Please try refreshing manually.');
@@ -625,28 +630,16 @@ export default function CalWebhookTest({ initialIntegration }: CalWebhookTestPro
       // Clear any previous error state
       setActionResult(null);
       
-      const res = await fetch('/api/cal/refresh-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!res.ok) {
-        // Handle HTTP errors
-        let errorMessage = 'Failed to refresh token';
-        try {
-          const errorData = await res.json();
-          errorMessage = errorData.error || errorMessage;
-        } catch (e) {
-          // Ignore JSON parse errors
-        }
-        
-        throw new Error(errorMessage);
+      // Get user ULID from calendar integration
+      const userUlid = calendarIntegration?.userUlid;
+      if (!userUlid) {
+        throw new Error('User ID not available for token refresh');
       }
       
-      const data = await res.json();
-      if (data.success) {
+      // Use server action directly instead of API endpoint
+      const refreshResult = await refreshUserCalTokens(userUlid, true);
+      
+      if (refreshResult.success) {
         toast({
           title: 'Success',
           description: 'Cal.com token refreshed successfully',
@@ -659,7 +652,7 @@ export default function CalWebhookTest({ initialIntegration }: CalWebhookTestPro
           fetchEventTypes();
         }, 1000);
       } else {
-        throw new Error(data.error || 'Failed to refresh token');
+        throw new Error(refreshResult.error || 'Failed to refresh token');
       }
     } catch (error: any) {
       console.error('Error refreshing token:', error);

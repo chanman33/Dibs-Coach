@@ -26,6 +26,8 @@ import { SiGooglecalendar } from 'react-icons/si'
 import { BsCalendar2Week } from 'react-icons/bs'
 import { createAuthClient } from '@/utils/auth'
 import { OrganizationMember } from '@/utils/auth/OrganizationContext'
+import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens'
+import { CalTokenService } from '@/lib/cal/cal-service'
 
 // Map organization types to icons and colors
 const orgTypeConfig: Record<string, { icon: any, color: string }> = {
@@ -542,24 +544,50 @@ export default function Settings() {
       const loadingToast = toast.loading(`Preparing ${calendarType === 'google' ? 'Google' : 'Office 365'} Calendar connection...`);
       setOauthDebugUrl(null);
       
-      // First check if Cal.com tokens need refreshing
-      // Only refresh tokens if there's an issue with the current token or if explicitly needed
+      // Get user ULID by making a request to fetch integration data
+      const supabase = createAuthClient();
+      const { data: userData, error: userError } = await supabase
+        .from('User')
+        .select('ulid')
+        .eq('userId', user?.id)
+        .single();
+        
+      if (userError || !userData?.ulid) {
+        toast.dismiss(loadingToast);
+        toast.error('User information not available. Please try refreshing the page.');
+        return;
+      }
+      
+      const userUlid = userData.ulid;
+      
+      // Get calendar integration details
+      const { data: integration, error: integrationError } = await supabase
+        .from('CalendarIntegration')
+        .select('calAccessTokenExpiresAt')
+        .eq('userUlid', userUlid)
+        .maybeSingle();
+      
+      // Check if token is expired using CalTokenService directly
       let needsTokenRefresh = false;
       
       try {
-        // Get current status to check token expiration
-        const statusCheck = await fetch('/api/cal/check-token-status');
-        const statusData = await statusCheck.json();
-        
-        // Only refresh if tokens are expired or will expire soon
-        needsTokenRefresh = statusData.expired || statusData.expiringImminent;
-        
-        console.log('[CAL_CONNECT_DEBUG] Token status check:', {
-          needsTokenRefresh,
-          expired: statusData.expired,
-          expiringImminent: statusData.expiringImminent,
-          timestamp: new Date().toISOString()
-        });
+        // Get current token expiration info from database
+        if (integration?.calAccessTokenExpiresAt) {
+          // Use the static method directly to check if token is expired or expiring soon
+          needsTokenRefresh = CalTokenService.isTokenExpired(
+            integration.calAccessTokenExpiresAt,
+            5 // Use 5 minutes buffer
+          );
+          
+          console.log('[CAL_CONNECT_DEBUG] Token status check:', {
+            needsTokenRefresh,
+            expiresAt: integration.calAccessTokenExpiresAt,
+            timestamp: new Date().toISOString()
+          });
+        } else {
+          // If we don't have expiration info, assume we need a refresh
+          needsTokenRefresh = true;
+        }
       } catch (e) {
         // If we can't check status, assume we need a refresh as fallback
         console.warn('[CAL_CONNECT_DEBUG] Failed to check token status, will refresh as precaution');
@@ -569,20 +597,18 @@ export default function Settings() {
       // Only refresh tokens if needed
       if (needsTokenRefresh) {
         console.log('[CAL_CONNECT_DEBUG] Refreshing tokens before OAuth flow');
-        await fetch('/api/cal/refresh-managed-user-token', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ 
-            forceRefresh: true,
-            isManagedUser: true
-          })
-        });
+        
+        // We already verified userUlid exists above, so this is safe
+        const refreshResult = await refreshUserCalTokens(userUlid, true);
+        
+        if (!refreshResult.success) {
+          toast.dismiss(loadingToast);
+          toast.error('Failed to refresh Cal.com tokens. Please try again.');
+          return;
+        }
       }
       
       // Get the OAuth authorization URL from Cal.com
-      // Include the calendar type in the request to get the correct URL
       console.log(`[CAL_CONNECT_DEBUG] Getting ${calendarType} OAuth URL`);
       const response = await fetch(`/api/cal/calendars/oauth-connect-url?type=${calendarType}`);
       const result = await response.json();
@@ -591,7 +617,7 @@ export default function Settings() {
       toast.dismiss(loadingToast);
       
       // Handle errors
-      if (!response.ok || !result.success) {
+      if (!response.ok) {
         const errorMessage = result.error || 'Failed to prepare calendar connection';
         console.error(`[CAL_CONNECT_DEBUG] ${calendarType} OAuth URL error:`, errorMessage);
         toast.error(errorMessage);
@@ -599,7 +625,7 @@ export default function Settings() {
       }
       
       // Get the authorization URL
-      const authUrl = result.data?.authUrl;
+      const authUrl = result.url;
       if (!authUrl) {
         console.error(`[CAL_CONNECT_DEBUG] No ${calendarType} authUrl in response:`, result);
         toast.error('Failed to get authorization URL');
