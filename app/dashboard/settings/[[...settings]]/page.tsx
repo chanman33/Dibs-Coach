@@ -28,6 +28,7 @@ import { createAuthClient } from '@/utils/auth'
 import { OrganizationMember } from '@/utils/auth/OrganizationContext'
 import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens'
 import { CalTokenService } from '@/lib/cal/cal-service'
+import { getAuthenticatedUserUlid } from '@/utils/auth/cal-auth-helpers'
 
 // Map organization types to icons and colors
 const orgTypeConfig: Record<string, { icon: any, color: string }> = {
@@ -91,6 +92,16 @@ function useCalendarsConnected() {
       setIsLoading(true);
       setApiError(null);
       console.log('[CALENDAR_CHECK_DEBUG] Starting calendar connection check');
+      
+      // Use the helper function to get authenticated user ULID
+      const authResult = await getAuthenticatedUserUlid();
+      
+      if (authResult.error) {
+        console.error('[CALENDAR_CHECK_DEBUG] Authentication error:', authResult.error);
+        setApiError('Authentication error: ' + authResult.error.message);
+        setIsLoading(false);
+        return;
+      }
 
       // First check the CalendarIntegration table for connection flags
       const integrationResponse = await fetch('/api/cal/integration/status');
@@ -229,6 +240,15 @@ export default function Settings() {
           try {
             // Show loading toast
             const loadingToast = toast.loading('Validating calendar connection...');
+            
+            // Get the authenticated user's ULID to validate the connection is working
+            const authResult = await getAuthenticatedUserUlid();
+            
+            if (authResult.error) {
+              toast.dismiss(loadingToast);
+              toast.error('Authentication error: ' + authResult.error.message);
+              return;
+            }
             
             // Wait a moment to ensure Cal.com has processed the connection
             await new Promise(resolve => setTimeout(resolve, 2000));
@@ -544,23 +564,19 @@ export default function Settings() {
       const loadingToast = toast.loading(`Preparing ${calendarType === 'google' ? 'Google' : 'Office 365'} Calendar connection...`);
       setOauthDebugUrl(null);
       
-      // Get user ULID by making a request to fetch integration data
-      const supabase = createAuthClient();
-      const { data: userData, error: userError } = await supabase
-        .from('User')
-        .select('ulid')
-        .eq('userId', user?.id)
-        .single();
-        
-      if (userError || !userData?.ulid) {
+      // Use the helper function to get authenticated user's ULID
+      const authResult = await getAuthenticatedUserUlid();
+      
+      if (authResult.error || !authResult.data) {
         toast.dismiss(loadingToast);
-        toast.error('User information not available. Please try refreshing the page.');
+        toast.error('Authentication error: ' + (authResult.error?.message || 'Unknown error'));
         return;
       }
       
-      const userUlid = userData.ulid;
+      const userUlid = authResult.data.userUlid;
       
       // Get calendar integration details
+      const supabase = createAuthClient();
       const { data: integration, error: integrationError } = await supabase
         .from('CalendarIntegration')
         .select('calAccessTokenExpiresAt')
@@ -598,7 +614,7 @@ export default function Settings() {
       if (needsTokenRefresh) {
         console.log('[CAL_CONNECT_DEBUG] Refreshing tokens before OAuth flow');
         
-        // We already verified userUlid exists above, so this is safe
+        // We now have a properly typed userUlid string from the helper function
         const refreshResult = await refreshUserCalTokens(userUlid, true);
         
         if (!refreshResult.success) {
