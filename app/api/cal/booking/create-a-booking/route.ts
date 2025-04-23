@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAuthClient } from '@/utils/auth';
 import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
-import { ensureValidCalToken } from '@/utils/cal/token-util';
+import { ensureValidCalToken } from '@/utils/actions/cal/cal-tokens';
 import { generateUlid } from '@/utils/ulid';
 
 // Schema for validating request body
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
     
     // Ensure valid Cal.com token
     const tokenResult = await ensureValidCalToken(coachUlid);
-    if (!tokenResult.success || !tokenResult.tokenInfo?.accessToken) {
+    if (!tokenResult.success || !tokenResult.accessToken) {
       console.error('[CREATE_BOOKING_ERROR] Failed to get valid Cal.com token', {
         error: tokenResult.error,
         coachUlid
@@ -107,7 +107,7 @@ export async function POST(request: Request) {
       }, { status: 500 });
     }
     
-    const accessToken = tokenResult.tokenInfo.accessToken;
+    const accessToken = tokenResult.accessToken;
     
     // Build redirect URLs
     const bookingSuccessUrl = `${process.env.NEXT_PUBLIC_APP_URL}/booking/booking-success`;

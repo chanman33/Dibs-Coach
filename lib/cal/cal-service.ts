@@ -184,11 +184,13 @@ export class CalTokenService {
    * 
    * @param accessTokenExpiresAt The token expiration time
    * @param bufferMinutes Optional buffer time in minutes (default: 5)
+   * @param forceCheck Optional flag to force expiry check even if timestamp suggests validity
    * @returns True if the token is expired or will expire within the buffer time
    */
   static isTokenExpired(
     accessTokenExpiresAt: string | number | Date, 
-    bufferMinutes = 5
+    bufferMinutes = 5,
+    forceCheck = false
   ): boolean {
     try {
       if (!accessTokenExpiresAt) {
@@ -204,7 +206,14 @@ export class CalTokenService {
       const bufferTime = bufferMinutes * 60 * 1000;
       
       // Check if token is expired or will expire within buffer time
-      return Date.now() + bufferTime >= expiryDate.getTime();
+      const isExpiredByTimestamp = Date.now() + bufferTime >= expiryDate.getTime();
+      
+      // If explicitly checking or token is expired by timestamp, return true
+      if (forceCheck || isExpiredByTimestamp) {
+        return true;
+      }
+      
+      return false;
     } catch (error) {
       console.error('[CAL_TOKEN_SERVICE_ERROR]', {
         context: 'CHECK_EXPIRY',
@@ -345,18 +354,20 @@ export class CalTokenService {
         return { success: false, error: 'Missing required environment variables' };
       }
 
-      // Determine if we should use managed user refresh
+      // Determine the refresh strategy
       const isManagedUser = !!integration.calManagedUserId;
-      // Use force-refresh ONLY if explicitly requested AND the user is managed.
-      const shouldUseForceRefresh = isManagedUser && forceRefresh;
+      // Use force-refresh ONLY if explicitly requested by the caller AND the user is managed.
+      const useForceRefreshDirectly = isManagedUser && forceRefresh;
 
       let response;
-      if (shouldUseForceRefresh) {
-        // Use force-refresh endpoint ONLY for managed users when explicitly forced
-        console.log('[CAL_TOKEN_SERVICE] Using managed user force refresh endpoint', {
+      let responseJSON: any;
+      let initialRefreshError: string | null = null;
+
+      if (useForceRefreshDirectly) {
+        // --- Direct Force Refresh (Caller explicitly requested) ---
+        console.log('[CAL_TOKEN_SERVICE] Using managed user force refresh endpoint (explicitly requested)', {
           managedUserId: integration.calManagedUserId
         });
-        
         response = await fetch(
           `https://api.cal.com/v2/oauth-clients/${clientId}/users/${integration.calManagedUserId}/force-refresh`,
           {
@@ -369,11 +380,8 @@ export class CalTokenService {
           }
         );
       } else {
-        // Use standard OAuth refresh flow for:
-        // 1. Non-managed users
-        // 2. Managed users when only the access token needs refreshing (forceRefresh = false)
-        console.log('[CAL_TOKEN_SERVICE] Using standard OAuth refresh flow');
-        
+        // --- Standard OAuth Refresh Attempt ---
+        console.log('[CAL_TOKEN_SERVICE] Using standard OAuth refresh flow (attempt 1)');
         response = await fetch('https://api.cal.com/v2/oauth/token', {
           method: 'POST',
           headers: {
@@ -386,103 +394,137 @@ export class CalTokenService {
             refresh_token: integration.calRefreshToken
           })
         });
+
+        // --- Fallback to Force Refresh if Standard Failed (for Managed Users) ---
+        if (!response.ok && isManagedUser) {
+          let errorDetail = '';
+          try { errorDetail = (await response.json())?.error?.message || ''; } catch {}
+          initialRefreshError = `Standard refresh failed (status ${response.status}${errorDetail ? ': ' + errorDetail : ''}).`;
+          
+          console.warn(`[CAL_TOKEN_SERVICE] ${initialRefreshError} Attempting force refresh as fallback for managed user.`, {
+            userUlid,
+            managedUserId: integration.calManagedUserId
+          });
+
+          response = await fetch(
+            `https://api.cal.com/v2/oauth-clients/${clientId}/users/${integration.calManagedUserId}/force-refresh`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-cal-client-id': clientId,
+                'x-cal-secret-key': clientSecret
+              }
+            }
+          );
+        }
       }
 
+      // --- Process Final Response ---
       if (!response.ok) {
-        // Attempt to parse the error response
         let errorDetail = '';
         try {
           const errorData = await response.json();
           errorDetail = errorData?.error?.message || errorData?.message || '';
-        } catch {
-          // Unable to parse error response, continue with status code only
-        }
+        } catch { /* Ignore parsing error */ }
         
         tracker.inProgress = false; // release lock
+        const finalErrorContext = initialRefreshError ? 'CAL_API_FORCE_REFRESH_FALLBACK_ERROR' : 'CAL_API_ERROR';
+        const finalErrorMessage = initialRefreshError 
+            ? `Standard refresh failed and fallback force refresh also failed (status ${response.status}${errorDetail ? ': ' + errorDetail : ''}).`
+            : `Token refresh failed with status ${response.status}${errorDetail ? ': ' + errorDetail : ''}`;
+            
         console.error('[CAL_TOKEN_SERVICE_ERROR]', {
-          context: 'CAL_API_ERROR',
+          context: finalErrorContext,
           status: response.status,
           statusText: response.statusText,
           errorDetail,
+          initialError: initialRefreshError, // Log the initial error if fallback occurred
           userUlid,
           timestamp: new Date().toISOString()
         });
         
-        return { 
-          success: false, 
-          error: `Token refresh failed with status ${response.status}${errorDetail ? ': ' + errorDetail : ''}` 
-        };
+        return { success: false, error: finalErrorMessage };
       }
 
-      // Parse the response and handle different response formats
-      const responseJSON = await response.json();
+      // Parse the successful response
+      responseJSON = await response.json();
       
       let tokens;
-      if (shouldUseForceRefresh) {
-        // For managed users, the response structure is different
-        const tokenResult = responseJSON?.data;
+      let updatedTokens: CalTokenData;
+      
+      // Determine structure based on which endpoint succeeded
+      const forceRefreshSucceeded = (useForceRefreshDirectly || initialRefreshError) && responseJSON?.data?.accessToken;
+      const standardRefreshSucceeded = !forceRefreshSucceeded && responseJSON?.access_token;
+
+      if (forceRefreshSucceeded) {
+        // --- Successful Force Refresh (Direct or Fallback) ---
+        const tokenResult = responseJSON.data;
+        console.log('[CAL_TOKEN_SERVICE] Force refresh successful', { userUlid });
         
-        if (!tokenResult?.accessToken) {
-          tracker.inProgress = false; // release lock
-          console.error('[CAL_TOKEN_SERVICE_ERROR]', {
-            context: 'INVALID_MANAGED_USER_RESPONSE',
-            response: responseJSON,
-            userUlid,
-            timestamp: new Date().toISOString()
-          });
-          return { success: false, error: 'Invalid token response for managed user' };
-        }
-        
-        // Map the managed user response to our standard format
         tokens = {
           access_token: tokenResult.accessToken,
-          refresh_token: tokenResult.refreshToken || integration.calRefreshToken,
+          refresh_token: tokenResult.refreshToken || integration.calRefreshToken, // Use new if provided
           expires_in: Math.floor((new Date(tokenResult.accessTokenExpiresAt).getTime() - Date.now()) / 1000)
         };
         
-        // Store the new tokens in the database
-        const updatedTokens = {
+        updatedTokens = {
           accessToken: tokenResult.accessToken,
           refreshToken: tokenResult.refreshToken || integration.calRefreshToken,
           accessTokenExpiresAt: tokenResult.accessTokenExpiresAt
         };
         
-        await this.updateTokens(userUlid, updatedTokens);
-      } else {
-        // Standard OAuth flow response
-        if (!responseJSON.access_token) {
-          tracker.inProgress = false; // release lock
-          console.error('[CAL_TOKEN_SERVICE_ERROR]', {
-            context: 'INVALID_TOKEN_RESPONSE',
-            response: responseJSON,
-            userUlid,
-            timestamp: new Date().toISOString()
-          });
-          return { success: false, error: 'Invalid token response' };
-        }
+      } else if (standardRefreshSucceeded) {
+        // --- Successful Standard Refresh ---
+        console.log('[CAL_TOKEN_SERVICE] Standard refresh successful', { userUlid });
         
         tokens = {
           access_token: responseJSON.access_token,
-          refresh_token: responseJSON.refresh_token || integration.calRefreshToken,
+          // IMPORTANT: Use the new refresh token if provided (rotation)
+          refresh_token: responseJSON.refresh_token || integration.calRefreshToken, 
           expires_in: responseJSON.expires_in
         };
         
-        // Store the new tokens in the database
         const expiresAt = new Date(Date.now() + (responseJSON.expires_in * 1000));
-        const updatedTokens = {
+        updatedTokens = {
           accessToken: responseJSON.access_token,
           refreshToken: responseJSON.refresh_token || integration.calRefreshToken,
           accessTokenExpiresAt: expiresAt.toISOString()
         };
         
-        await this.updateTokens(userUlid, updatedTokens);
+      } else {
+        // --- Invalid/Unexpected Response ---
+        tracker.inProgress = false; // release lock
+        console.error('[CAL_TOKEN_SERVICE_ERROR]', {
+          context: 'INVALID_TOKEN_RESPONSE',
+          response: responseJSON,
+          userUlid,
+          timestamp: new Date().toISOString()
+        });
+        return { success: false, error: 'Invalid token response structure after refresh' };
+      }
+
+      // Store the successfully refreshed tokens in the database
+      const updateResult = await this.updateTokens(userUlid, updatedTokens);
+      if (!updateResult.success) {
+          // Handle potential DB update failure after successful API call
+          tracker.inProgress = false;
+          console.error('[CAL_TOKEN_SERVICE_ERROR]', {
+            context: 'DB_UPDATE_AFTER_REFRESH',
+            error: updateResult.error,
+            userUlid,
+            timestamp: new Date().toISOString()
+          });
+          // Even though API refresh worked, we failed to save, return error
+          return { success: false, error: `Token refresh API succeeded, but failed to save new tokens: ${updateResult.error}` };
       }
 
       // Release lock
       tracker.inProgress = false;
       
-      console.log('[CAL_TOKEN_SERVICE] Token refresh successful', {
+      console.log('[CAL_TOKEN_SERVICE] Token refresh process completed successfully', {
         userUlid,
+        methodUsed: forceRefreshSucceeded ? 'Force Refresh' : 'Standard Refresh',
         timestamp: new Date().toISOString()
       });
       
@@ -528,9 +570,14 @@ export class CalTokenService {
    * 
    * @param userUlid The user's ULID
    * @param forceRefresh Whether to force refresh even if not expired
+   * @param apiReported Whether an API call already reported the token as invalid
    * @returns The valid access token or an error
    */
-  static async ensureValidToken(userUlid: string, forceRefresh = false): Promise<{
+  static async ensureValidToken(
+    userUlid: string, 
+    forceRefresh = false,
+    apiReported = false
+  ): Promise<{
     accessToken: string;
     success: boolean;
     error?: string;
@@ -539,6 +586,7 @@ export class CalTokenService {
       console.log('[CAL_TOKEN_SERVICE] Ensuring valid token', {
         userUlid,
         forceRefresh,
+        apiReported,
         timestamp: new Date().toISOString()
       });
 
@@ -585,22 +633,23 @@ export class CalTokenService {
         };
       }
 
-      // Check if token is expired or if forceRefresh is requested
-      const needsRefresh = forceRefresh || (integration.calAccessTokenExpiresAt && 
-          this.isTokenExpired(integration.calAccessTokenExpiresAt));
+      // Check if token is expired, considering API reports
+      const needsRefresh = forceRefresh || 
+                         apiReported || 
+                         (integration.calAccessTokenExpiresAt && 
+                          this.isTokenExpired(integration.calAccessTokenExpiresAt, 5, apiReported));
 
       if (needsRefresh) {
         console.log('[CAL_TOKEN_SERVICE] Token needs refresh', {
           userUlid,
-          reason: forceRefresh ? 'Forced refresh' : 'Token expired based on DB',
+          reason: apiReported ? 'API reported invalid token' :
+                 forceRefresh ? 'Forced refresh' : 
+                 'Token expired based on DB',
           expiresAt: integration.calAccessTokenExpiresAt
         });
         
-        // Refresh token. IMPORTANT: Pass forceRefresh=true here.
-        // This ensures the refresh proceeds even if the isTokenExpired check
-        // inside refreshTokens might return false due to stale DB data.
-        // The decision to refresh has already been made here.
-        const refreshResult = await this.refreshTokens(userUlid, true); 
+        // Refresh token. Pass forceRefresh=true if API reported token is invalid.
+        const refreshResult = await this.refreshTokens(userUlid, forceRefresh || apiReported);
         
         if (!refreshResult.success) {
           return { 

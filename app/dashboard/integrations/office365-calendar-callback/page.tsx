@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ensureValidCalToken } from '@/utils/cal/token-util'
 import { createAuthClient } from '@/utils/auth'
 import { useAuth } from '@clerk/nextjs'
 

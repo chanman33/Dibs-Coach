@@ -135,9 +135,14 @@ export async function refreshUserCalTokens(userUlid: string, forceRefresh = fals
  * 
  * @param userUlid The user's ULID
  * @param forceRefresh (Optional) Force token refresh even if not expired
+ * @param apiReported (Optional) Indicates the token was rejected by the API
  * @returns The valid token or an error
  */
-export async function ensureValidCalToken(userUlid: string, forceRefresh = false): Promise<{
+export async function ensureValidCalToken(
+  userUlid: string, 
+  forceRefresh = false,
+  apiReported = false
+): Promise<{
   accessToken: string;
   success: boolean;
   error?: string;
@@ -146,11 +151,12 @@ export async function ensureValidCalToken(userUlid: string, forceRefresh = false
     console.log('[CAL_TOKENS_ENSURE]', {
       userUlid,
       forceRefresh,
+      apiReported,
       timestamp: new Date().toISOString()
     });
 
-    // Call the centralized service to ensure a valid token, passing forceRefresh
-    return await CalTokenService.ensureValidToken(userUlid, forceRefresh);
+    // Call the centralized service to ensure a valid token, passing all parameters
+    return await CalTokenService.ensureValidToken(userUlid, forceRefresh, apiReported);
   } catch (error) {
     console.error('[CAL_TOKENS_ENSURE_ERROR]', {
       context: 'SERVER_ACTION',

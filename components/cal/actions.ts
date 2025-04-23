@@ -6,37 +6,6 @@ import { revalidatePath } from 'next/cache';
 import { refreshUserCalTokens } from '@/utils/actions/cal/cal-tokens';
 
 /**
- * Refreshes a user's Cal.com token
- * @param userUlid The user's ULID
- */
-export async function refreshCalAccessToken(userUlid: string) {
-  try {
-    // Use the server action directly instead of making an API call
-    const result = await refreshUserCalTokens(userUlid, true);
-    
-    // Revalidate related paths
-    revalidatePath('/dashboard/settings');
-    revalidatePath('/app/test/cal-webhook-test');
-    
-    return {
-      success: result.success,
-      error: result.error
-    };
-  } catch (error) {
-    console.error('[SERVER_ACTION_ERROR]', {
-      context: 'REFRESH_CAL_TOKEN',
-      error,
-      timestamp: new Date().toISOString()
-    });
-    
-    return {
-      success: false,
-      error: 'Failed to refresh token'
-    };
-  }
-}
-
-/**
  * Gets a user's Cal.com integration
  * @param userUlid The user's ULID
  */
