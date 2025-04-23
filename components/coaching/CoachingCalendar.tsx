@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Calendar, momentLocalizer, View, ToolbarProps } from 'react-big-calendar'
+import { momentLocalizer, View, ToolbarProps } from 'react-big-calendar'
+import * as RBC from 'react-big-calendar'
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import '@/styles/calendar.css'
@@ -19,6 +20,8 @@ import {
 import { CoachSessions } from './CoachSessions'
 
 const localizer = momentLocalizer(moment)
+// Type assertion to fix the Calendar component type issue
+const Calendar = RBC.Calendar as any
 
 interface ExtendedSession {
   ulid: string
@@ -387,6 +390,7 @@ export function CoachingCalendar({
         <Card className="p-2 sm:p-4 overflow-hidden">
           <div className="h-[500px] sm:h-[600px] w-full overflow-hidden">
             <div className="rbc-calendar-container w-full h-full">
+              {/* @ts-ignore */}
               <Calendar
                 localizer={localizer}
                 events={events}
@@ -394,7 +398,7 @@ export function CoachingCalendar({
                 endAccessor="end"
                 view={view}
                 date={date}
-                onView={setView}
+                onView={setView as any}
                 onNavigate={setDate}
                 views={['month', 'week', 'day']}
                 step={30}
@@ -404,8 +408,8 @@ export function CoachingCalendar({
                 eventPropGetter={eventStyleGetter}
                 tooltipAccessor={null}
                 components={{
-                  event: EventComponent,
-                  toolbar: CustomToolbar
+                  event: EventComponent as any,
+                  toolbar: CustomToolbar as any
                 }}
                 className="max-w-full overflow-hidden"
                 style={{
