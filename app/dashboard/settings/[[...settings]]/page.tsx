@@ -360,7 +360,7 @@ export default function Settings() {
             setTimeout(() => reject(new Error('Capabilities fetch timeout')), 15000)
           );
           
-          const fetchPromise = fetchUserCapabilities();
+          const fetchPromise = fetchUserCapabilities({});
           
           // Race between the fetch and the timeout
           const result = await Promise.race([fetchPromise, timeoutPromise]) as ApiResponse<UserCapabilitiesResponse>;

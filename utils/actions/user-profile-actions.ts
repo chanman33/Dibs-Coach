@@ -404,8 +404,8 @@ type CapabilitiesCache = {
 const capabilitiesCache: CapabilitiesCache = {};
 const CAPABILITIES_CACHE_TTL = 10000; // 10 seconds
 
-export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, void>(
-  async (_, { userUlid }): Promise<ApiResponse<UserCapabilitiesResponse>> => {
+export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, { skipProfileCheck?: boolean }>(
+  async ({ skipProfileCheck = false } = {}, { userUlid }): Promise<ApiResponse<UserCapabilitiesResponse>> => {
     try {
       const now = Date.now();
       
@@ -431,6 +431,7 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
       if (process.env.NODE_ENV === 'development') {
         console.log("[FETCH_USER_CAPABILITIES_START]", {
           userUlid,
+          skipProfileCheck,
           timestamp: new Date().toISOString(),
           source: 'server'
         });
