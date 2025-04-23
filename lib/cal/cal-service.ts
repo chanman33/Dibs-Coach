@@ -347,11 +347,12 @@ export class CalTokenService {
 
       // Determine if we should use managed user refresh
       const isManagedUser = !!integration.calManagedUserId;
-      const shouldUseForceRefresh = (isManagedUser || forceRefresh) && integration.calManagedUserId;
+      // Use force-refresh ONLY if explicitly requested AND the user is managed.
+      const shouldUseForceRefresh = isManagedUser && forceRefresh;
 
       let response;
       if (shouldUseForceRefresh) {
-        // Use force-refresh endpoint for managed users
+        // Use force-refresh endpoint ONLY for managed users when explicitly forced
         console.log('[CAL_TOKEN_SERVICE] Using managed user force refresh endpoint', {
           managedUserId: integration.calManagedUserId
         });
@@ -368,7 +369,9 @@ export class CalTokenService {
           }
         );
       } else {
-        // Use standard OAuth refresh flow
+        // Use standard OAuth refresh flow for:
+        // 1. Non-managed users
+        // 2. Managed users when only the access token needs refreshing (forceRefresh = false)
         console.log('[CAL_TOKEN_SERVICE] Using standard OAuth refresh flow');
         
         response = await fetch('https://api.cal.com/v2/oauth/token', {
@@ -589,13 +592,15 @@ export class CalTokenService {
       if (needsRefresh) {
         console.log('[CAL_TOKEN_SERVICE] Token needs refresh', {
           userUlid,
-          reason: forceRefresh ? 'Forced refresh' : 'Token expired',
+          reason: forceRefresh ? 'Forced refresh' : 'Token expired based on DB',
           expiresAt: integration.calAccessTokenExpiresAt
         });
         
-        // Refresh token, passing forceRefresh flag
-        // Note: refreshTokens internally handles the logic for managed vs. non-managed based on DB data
-        const refreshResult = await this.refreshTokens(userUlid, forceRefresh);
+        // Refresh token. IMPORTANT: Pass forceRefresh=true here.
+        // This ensures the refresh proceeds even if the isTokenExpired check
+        // inside refreshTokens might return false due to stale DB data.
+        // The decision to refresh has already been made here.
+        const refreshResult = await this.refreshTokens(userUlid, true); 
         
         if (!refreshResult.success) {
           return { 

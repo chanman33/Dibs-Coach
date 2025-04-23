@@ -153,22 +153,24 @@ export default function Office365CalendarCallback() {
         // Adding timestamp to prevent caching issues
         try {
           // First try to prefetch the organization data to warm cache
-          fetch('/api/user/organizations').then(() => {
-            console.log('[OFFICE365_CALLBACK_UI] Prefetched organization data before redirect');
+          // fetch('/api/user/organizations').then(() => {
+          //   console.log('[OFFICE365_CALLBACK_UI] Prefetched organization data before redirect');
             
-            // Add specific settings tab and a timestamp to prevent caching
-            router.replace(`/dashboard/settings?tab=integrations&success=office365_connected&t=${Date.now()}`);
-          }).catch((err) => {
-            // If prefetch fails, still redirect but log the error
-            console.error('[OFFICE365_CALLBACK_UI] Error prefetching organization data:', err);
-            router.replace(`/dashboard/settings?tab=integrations&success=office365_connected&t=${Date.now()}`);
-          });
+          //   // Add specific settings tab and a timestamp to prevent caching
+          //   router.replace(`/dashboard/settings?tab=integrations&success=office365_connected&t=${Date.now()}`);
+          // }).catch((err) => {
+          //   // If prefetch fails, still redirect but log the error
+          //   console.error('[OFFICE365_CALLBACK_UI] Error prefetching organization data:', err);
+          //   router.replace(`/dashboard/settings?tab=integrations&success=office365_connected&t=${Date.now()}`);
+          // });
+          console.log('[OFFICE365_CALLBACK_UI] Redirecting to settings after successful connection.');
+          router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
         } catch (err) {
           // Fallback in case of any errors
           console.error('[OFFICE365_CALLBACK_UI] Error during redirect preparation:', err);
-          router.replace(`/dashboard/settings?tab=integrations&success=office365_connected&t=${Date.now()}`);
+          router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
         }
-      }, 5000);
+      }, 5000); // Keeping the delay for user feedback
       
     } catch (error: any) {
       console.error('[OFFICE365_CALLBACK_UI] Error during finalization call:', error);
