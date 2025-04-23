@@ -4,17 +4,22 @@ import { createAuthClient } from '@/utils/auth';
 import { withServerAction, type ServerActionContext } from '@/utils/middleware/withServerAction';
 import { ApiResponse, ApiError } from '@/utils/types/api';
 
+// Add type definition
+interface GetCoachBusyTimesInput {
+  coachId: string;
+  date: string;
+  days?: number;
+}
+
 /**
  * Get coach calendar busy times from Cal.com for a date range
  * 
  * This server action retrieves the coach's busy times for multiple days
  * via the Cal.com API to reduce the number of API calls.
  */
-export const getCoachBusyTimes = withServerAction<any, { coachId: string, date: string, days?: number }>(
-  async (params: { coachId: string, date: string, days?: number }, context: ServerActionContext) => {
+export const getCoachBusyTimes = withServerAction(
+  async ({ coachId, date, days = 1 }: GetCoachBusyTimesInput) => {
     try {
-      const { coachId, date, days = 31 } = params; // Fetch a full month by default
-      
       if (!coachId) {
         console.error('[GET_COACH_BUSY_TIMES_ERROR] No coach ID provided');
         return {
@@ -26,7 +31,6 @@ export const getCoachBusyTimes = withServerAction<any, { coachId: string, date: 
         };
       }
       
-      // Get the selected date and create a date range
       const selectedDate = new Date(date);
       
       // Get date in YYYY-MM-DD format for logs
@@ -38,68 +42,19 @@ export const getCoachBusyTimes = withServerAction<any, { coachId: string, date: 
         days
       });
       
-      // Get valid Cal.com token using the utility function
-      const { ensureValidCalToken } = await import('@/utils/cal/token-util');
-      const tokenResult = await ensureValidCalToken(coachId);
+      // Import the centralized Cal API request system
+      const { makeCalApiRequest } = await import('@/lib/cal/cal-api');
       
-      if (!tokenResult.success || !tokenResult.tokenInfo?.accessToken) {
-        console.error('[GET_COACH_BUSY_TIMES_ERROR] Failed to get valid Cal.com token', {
-          coachId,
-          error: tokenResult.error,
-          timestamp: new Date().toISOString()
-        });
-        
-        return {
-          data: [],
-          error: { 
-            code: 'UNAUTHORIZED', 
-            message: 'Failed to get valid coach calendar token' 
-          }
-        };
-      }
+      // Fetch calendars using the centralized API request method
+      const calData = await makeCalApiRequest(
+        '/v2/calendars',
+        'GET',
+        undefined,
+        coachId
+      );
       
-      // Use the valid access token
-      const accessToken = tokenResult.tokenInfo.accessToken;
-      
-      const supabase = createAuthClient();
-      
-      // Get the coach's calendars using the token
-      // We'll create a function to retry requests with fresh tokens if needed
-      const makeCalRequest = (token: string) => fetch('https://api.cal.com/v2/calendars', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      // Use the token handling utility to handle potential 498 responses
-      const { handleCalApiResponse } = await import('@/utils/cal/token-util');
-      let calResponse = await makeCalRequest(accessToken);
-      
-      // This will automatically handle token expiration and retry if needed
-      calResponse = await handleCalApiResponse(calResponse, makeCalRequest, coachId);
-      
-      if (!calResponse.ok) {
-        console.error('[GET_COACH_BUSY_TIMES_ERROR] Failed to fetch calendars', {
-          coachId,
-          status: calResponse.status,
-          error: await calResponse.text(),
-          timestamp: new Date().toISOString()
-        });
-        
-        return {
-          data: [],
-          error: { 
-            code: 'FETCH_ERROR', 
-            message: 'Failed to fetch calendars from Cal.com' 
-          }
-        };
-      }
-      
-      const calData = await calResponse.json();
       const connectedCalendars = calData?.data?.connectedCalendars || [];
-      
+    
       if (connectedCalendars.length === 0) {
         console.warn('[GET_COACH_BUSY_TIMES_WARNING] No calendars found', {
           coachId,
@@ -111,7 +66,7 @@ export const getCoachBusyTimes = withServerAction<any, { coachId: string, date: 
           error: null
         };
       }
-      
+    
       // Get first calendar for busy times
       const firstCalendar = connectedCalendars[0];
       const firstCalendarCredential = firstCalendar.calendars && firstCalendar.calendars[0];
@@ -165,40 +120,14 @@ export const getCoachBusyTimes = withServerAction<any, { coachId: string, date: 
         }
       });
       
-      // Create function for busy times request that can be retried with a new token if needed
-      const makeBusyTimesRequest = (token: string) => fetch(
-        `https://api.cal.com/v2/calendars/busy-times?${queryParams.toString()}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        }
+      // Use the centralized API request for busy times
+      const busyTimesData = await makeCalApiRequest(
+        `/v2/calendars/busy-times?${queryParams.toString()}`,
+        'GET',
+        undefined,
+        coachId
       );
       
-      // Use the token handling utility to handle potential token expiration
-      let busyTimesResponse = await makeBusyTimesRequest(accessToken);
-      busyTimesResponse = await handleCalApiResponse(busyTimesResponse, makeBusyTimesRequest, coachId);
-      
-      if (!busyTimesResponse.ok) {
-        console.error('[GET_COACH_BUSY_TIMES_ERROR] Failed to fetch busy times', {
-          coachId,
-          status: busyTimesResponse.status,
-          error: await busyTimesResponse.text(),
-          timestamp: new Date().toISOString()
-        });
-        
-        return {
-          data: [],
-          error: { 
-            code: 'FETCH_ERROR', 
-            message: 'Failed to fetch busy times from Cal.com' 
-          }
-        };
-      }
-      
-      const busyTimesData = await busyTimesResponse.json();
       const busyTimes = busyTimesData?.data || [];
       
       console.log('[GET_COACH_BUSY_TIMES] Successfully fetched busy times for date range', {
@@ -224,7 +153,7 @@ export const getCoachBusyTimes = withServerAction<any, { coachId: string, date: 
         data: [],
         error: { 
           code: 'INTERNAL_ERROR', 
-          message: 'An unexpected error occurred' 
+          message: error instanceof Error ? error.message : 'An unexpected error occurred' 
         }
       };
     }

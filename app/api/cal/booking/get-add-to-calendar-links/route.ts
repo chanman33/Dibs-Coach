@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAuthClient } from '@/utils/auth';
 import { auth } from '@clerk/nextjs/server';
-import { ensureValidCalToken } from '@/utils/cal/token-util';
+import { ensureValidCalToken } from '@/utils/actions/cal/cal-tokens';
 
 interface CalendarLink {
   label: string;
@@ -100,7 +100,7 @@ export async function GET(
     
     // Ensure valid Cal.com token
     const tokenResult = await ensureValidCalToken(coachUlid);
-    if (!tokenResult.success || !tokenResult.tokenInfo?.accessToken) {
+    if (!tokenResult.success || !tokenResult.accessToken) {
       console.error('[GET_CALENDAR_LINKS_ERROR] Failed to get valid Cal.com token', {
         error: tokenResult.error,
         coachUlid
@@ -111,7 +111,7 @@ export async function GET(
       }, { status: 500 });
     }
     
-    const accessToken = tokenResult.tokenInfo.accessToken;
+    const accessToken = tokenResult.accessToken;
     
     // Get calendar links from Cal.com API
     const calResponse = await fetch(`https://api.cal.com/v2/bookings/${bookingUid}/calendar-links`, {
