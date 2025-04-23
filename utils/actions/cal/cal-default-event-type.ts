@@ -302,11 +302,12 @@ export async function createDefaultEventTypes(
           continue;
         }
         
-        const calEventType = calEventTypeResult;
+        // Access the event type data from the 'data' field in the response
+        const calEventType = calEventTypeResult.data;
         
-        if (!calEventType.id) {
+        if (!calEventType || !calEventType.id) {
           console.error('[CREATE_DEFAULT_EVENT_TYPES_ERROR] Cal.com response missing ID', {
-            response: calEventType,
+            response: calEventTypeResult, // Log the original full response for context
             eventType: eventType.name,
             userUlid,
             timestamp: new Date().toISOString()
