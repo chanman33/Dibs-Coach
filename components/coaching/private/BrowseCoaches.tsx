@@ -258,19 +258,63 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
           <h2 className="text-2xl font-bold tracking-tight">Recommended Coaches</h2>
-          {role === USER_CAPABILITIES.COACH && (
-            <p className="text-xs text-muted-foreground">
-              Note: Only coaches with published profiles are visible to mentees.
-            </p>
-          )}
         </CardHeader>
-        <CardContent className="pt-4">
+        <CardContent className="pt-4 overflow-hidden">
           {isLoading ? (
             <div className="flex justify-center items-center h-48">
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : filteredRecommendedCoaches.length > 0 ? (
-            renderCoaches(getTopRecommendedCoaches(filteredRecommendedCoaches))
+            <div className="relative">
+              <div className="overflow-x-auto pb-4 -mx-4 px-4" 
+                   style={{ scrollbarWidth: 'thin' }}>
+                <div className="flex gap-6">
+                  {getTopRecommendedCoaches(filteredRecommendedCoaches).map(coach => (
+                    <div key={coach.ulid} className="flex-shrink-0 w-[320px]">
+                      <CoachCard
+                        id={coach.ulid}
+                        userId={coach.userId}
+                        name={`${coach.firstName} ${coach.lastName}`}
+                        imageUrl={coach.profileImageUrl || ''}
+                        specialty={coach.coachSkills?.[0] || 'General Coach'}
+                        bio={coach.bio || ''}
+                        experience={coach.yearsCoaching 
+                          ? `${coach.yearsCoaching} years of coaching experience` 
+                          : null}
+                        availability={coach.isActive ? "Available" : "Unavailable"}
+                        sessionLength={`${coach.defaultDuration} minutes`}
+                        coachSkills={coach.coachSkills || []}
+                        coachRealEstateDomains={coach.coachRealEstateDomains || []}
+                        coachPrimaryDomain={coach.coachPrimaryDomain}
+                        isBooked={false}
+                        onProfileClick={() => handleCoachClick(coach)}
+                        sessionConfig={{
+                          durations: [
+                            coach.minimumDuration,
+                            coach.defaultDuration,
+                            coach.maximumDuration
+                          ].filter(Boolean),
+                          rates: {
+                            [coach.minimumDuration]: (coach.hourlyRate || 0) * (coach.minimumDuration / 60),
+                            [coach.defaultDuration]: (coach.hourlyRate || 0) * (coach.defaultDuration / 60),
+                            [coach.maximumDuration]: (coach.hourlyRate || 0) * (coach.maximumDuration / 60)
+                          },
+                          currency: 'USD',
+                          defaultDuration: coach.defaultDuration || 60,
+                          allowCustomDuration: coach.allowCustomDuration || false,
+                          minimumDuration: coach.minimumDuration || 30,
+                          maximumDuration: coach.maximumDuration || 90,
+                          isActive: coach.isActive
+                        }}
+                        profileSlug={coach.profileSlug}
+                        isPublic={false}
+                        showBookButton={true}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           ) : (
             <p className="text-center text-muted-foreground py-12">
               No recommended coaches available at the moment.
@@ -281,42 +325,28 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
 
       {selectedCoach && (
         <CoachProfileModal
-          isOpen={isModalOpen}
+          open={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           coach={{
-            id: selectedCoach.ulid,
-            userId: selectedCoach.userId,
-            name: `${selectedCoach.firstName} ${selectedCoach.lastName}`,
-            imageUrl: selectedCoach.profileImageUrl || '',
-            specialty: selectedCoach.coachSkills?.[0] || 'General Coach',
+            ulid: selectedCoach.ulid,
+            userUlid: selectedCoach.ulid,
+            firstName: selectedCoach.firstName,
+            lastName: selectedCoach.lastName,
+            profileImageUrl: selectedCoach.profileImageUrl || '',
             bio: selectedCoach.bio || '',
-            experience: selectedCoach.yearsCoaching 
-              ? `${selectedCoach.yearsCoaching} years of coaching experience` 
-              : null,
-            certifications: [],
-            availability: selectedCoach.isActive ? "Available" : "Unavailable",
-            sessionLength: `${selectedCoach.defaultDuration} minutes`,
             coachSkills: selectedCoach.coachSkills || [],
             coachRealEstateDomains: selectedCoach.coachRealEstateDomains || [],
             coachPrimaryDomain: selectedCoach.coachPrimaryDomain,
             profileSlug: selectedCoach.profileSlug,
+            hourlyRate: selectedCoach.hourlyRate || undefined,
+            yearsCoaching: selectedCoach.yearsCoaching || undefined,
+            totalSessions: selectedCoach.totalSessions || undefined,
+            averageRating: selectedCoach.averageRating || undefined,
             sessionConfig: {
-              durations: [
-                selectedCoach.minimumDuration,
-                selectedCoach.defaultDuration,
-                selectedCoach.maximumDuration
-              ],
-              rates: {
-                [selectedCoach.minimumDuration]: (selectedCoach.hourlyRate || 0) * (selectedCoach.minimumDuration / 60),
-                [selectedCoach.defaultDuration]: (selectedCoach.hourlyRate || 0) * (selectedCoach.defaultDuration / 60),
-                [selectedCoach.maximumDuration]: (selectedCoach.hourlyRate || 0) * (selectedCoach.maximumDuration / 60)
-              },
-              currency: 'USD',
               defaultDuration: selectedCoach.defaultDuration,
-              allowCustomDuration: selectedCoach.allowCustomDuration,
               minimumDuration: selectedCoach.minimumDuration,
               maximumDuration: selectedCoach.maximumDuration,
-              isActive: selectedCoach.isActive
+              allowCustomDuration: selectedCoach.allowCustomDuration
             }
           }}
         />
