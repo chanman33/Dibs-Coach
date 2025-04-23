@@ -229,7 +229,7 @@ export default function CoachDashboard() {
   }
 
   // Function to handle sharing coaching service
-  const handleShareCoachingService = async () => {
+  const handleShareCoachingService = async (platform: string) => {
     try {
       if (!coachProfileId) {
         // If we don't have the coach profile ID yet, fetch it
@@ -248,9 +248,42 @@ export default function CoachDashboard() {
         
         setCoachProfileId(data.ulid)
       }
+
+      // Fetch profile slug if available or use the ID
+      const supabase = createClient()
+      const { data: profileData } = await supabase
+        .from('CoachProfile')
+        .select('profileSlug, ulid')
+        .eq('userUlid', userUlid || '')
+        .single()
+        
+      // Use slug if available, otherwise use the ulid
+      const profilePath = profileData?.profileSlug || profileData?.ulid || coachProfileId
       
-      // Open the share dialog
-      setIsShareDialogOpen(true)
+      // Update the shareUrl to use the new URL structure
+      const shareUrl = `${window.location.origin}/profile/${profilePath}`;
+      
+      // Set up share text
+      const shareText = 'Check out my coaching services!'
+      let shareLink = ''
+      
+      // Set up the share link based on platform
+      if (platform === 'twitter') {
+        shareLink = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+        window.open(shareLink, '_blank');
+      } else if (platform === 'facebook') {
+        shareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
+        window.open(shareLink, '_blank');
+      } else if (platform === 'linkedin') {
+        shareLink = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}&title=${encodeURIComponent('My Coaching Service on Dibs')}&summary=${encodeURIComponent(shareText)}`;
+        window.open(shareLink, '_blank');
+      } else if (platform === 'copy') {
+        navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+        toast.success('Link copied to clipboard!');
+      }
+      
+      // Close dialog after sharing
+      setIsShareDialogOpen(false);
     } catch (error) {
       console.error('[SHARE_ERROR]', error)
       toast.error('Unable to share your profile. Please try again.')
@@ -264,7 +297,7 @@ export default function CoachDashboard() {
     const shareText = "I'm offering coaching services on Dibs! Check out my profile and book a session with me.";
     // Use the custom slug if available, otherwise use the profile ID
     const profilePath = dashboardStats?.profileSlug || coachProfileId;
-    const shareUrl = `${window.location.origin}/coaches/${profilePath}`;
+    const shareUrl = `${window.location.origin}/profile/${profilePath}`;
     let shareLink = '';
     
     switch (platform) {
@@ -574,7 +607,7 @@ export default function CoachDashboard() {
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-4">
-          <Button onClick={handleShareCoachingService}>
+          <Button onClick={() => handleShareCoachingService('twitter')}>
             <Share2 className="mr-2 h-4 w-4" />
             Share Your Coaching Service
           </Button>
@@ -808,7 +841,7 @@ export default function CoachDashboard() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Share your coaching service to attract new mentees
                   </p>
-                  <Button className="mt-4" size="sm" onClick={handleShareCoachingService}>
+                  <Button className="mt-4" size="sm" onClick={() => handleShareCoachingService('twitter')}>
                     <Share2 className="mr-2 h-4 w-4" />
                     Share Your Coaching Service
                   </Button>
