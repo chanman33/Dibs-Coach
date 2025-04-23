@@ -5,11 +5,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import CalAvailabilityTest from './CalAvailabilityTest'
 import { fetchCalIntegrationStatus } from '@/utils/actions/cal/cal-integration-actions'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
-import CalManagedUserTest from './CalManagedUserTest'
 
 // Loading skeleton component
 const LoadingSkeleton = () => (
@@ -92,12 +90,14 @@ export default function CalAvailabilityPage() {
             <CardHeader>
               <CardTitle>Database Availability Management</CardTitle>
               <CardDescription>
-                Test creating, editing, and deleting availability schedules in our local database.
+                Create, edit, and delete availability schedules in our local database.
                 These schedules are stored in our database, separate from Cal.com.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <CalAvailabilityTest />
+              <div className="text-center py-8 text-gray-500">
+                Functionality to be implemented
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -114,7 +114,9 @@ export default function CalAvailabilityPage() {
             </CardHeader>
             <CardContent>
               {isConnected ? (
-                <CalManagedUserTest />
+                <div className="text-center py-8 text-gray-500">
+                  Cal.com API integration to be implemented
+                </div>
               ) : (
                 <Alert>
                   <AlertTitle>Connect Cal.com First</AlertTitle>
@@ -129,4 +131,4 @@ export default function CalAvailabilityPage() {
       </Tabs>
     </div>
   )
-} 
+}
