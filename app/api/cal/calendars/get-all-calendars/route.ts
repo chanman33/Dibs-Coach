@@ -269,8 +269,11 @@ function processCalendars(connectedCalendars: any[] = []) {
   interface CalendarItem {
     integration: {
       type: string;
+      slug?: string;
       email?: string;
       credentialId?: string | number;
+      name?: string;
+      title?: string;
     };
     credentialId?: number;
     primary?: {
@@ -291,12 +294,21 @@ function processCalendars(connectedCalendars: any[] = []) {
   const processedCalendars = [];
   
   for (const calendar of connectedCalendars as CalendarItem[]) {
-    // Extract integration info
+    // Extract integration info - preserve type and slug which are critical for UI identification
     const integrationInfo = {
       type: calendar.integration.type,
+      slug: calendar.integration.slug || null,
       email: calendar.integration.email || null,
-      credentialId: calendar.credentialId || calendar.integration.credentialId || null
+      credentialId: calendar.credentialId || calendar.integration.credentialId || null,
+      name: calendar.integration.name || calendar.integration.title || null
     }
+    
+    // Log the integration info for debugging
+    console.log('[CAL_PROCESS_CALENDARS] Processing calendar integration:', {
+      type: integrationInfo.type,
+      slug: integrationInfo.slug,
+      name: integrationInfo.name
+    });
     
     // Add each calendar with its integration info
     for (const cal of calendar.calendars || []) {
@@ -305,12 +317,26 @@ function processCalendars(connectedCalendars: any[] = []) {
         name: cal.name,
         primary: cal.primary || false,
         externalId: cal.externalId || null,
-        integration: integrationInfo.type,
+        // Store full integration object structure needed by UI
+        integration: {
+          type: integrationInfo.type,
+          slug: integrationInfo.slug,
+          name: integrationInfo.name
+        },
         email: integrationInfo.email,
         credentialId: integrationInfo.credentialId,
         isSelected: cal.isSelected || false
       });
     }
+  }
+  
+  // Log the first processed calendar for debugging
+  if (processedCalendars.length > 0) {
+    console.log('[CAL_PROCESS_CALENDARS] First processed calendar:', {
+      name: processedCalendars[0].name,
+      integrationType: processedCalendars[0].integration?.type,
+      integrationSlug: processedCalendars[0].integration?.slug
+    });
   }
   
   return processedCalendars;

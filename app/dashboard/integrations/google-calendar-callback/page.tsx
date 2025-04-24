@@ -163,13 +163,14 @@ export default function GoogleCalendarCallback() {
           //   router.replace(`/dashboard/settings?tab=integrations&success=true&t=${Date.now()}`);
           // });
           console.log('[GOOGLE_CALLBACK_UI] Redirecting to settings after successful connection.');
+          // Redirect with a specific success parameter for calendar connection
           router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
         } catch (err) {
           // Fallback in case of any errors
           console.error('[GOOGLE_CALLBACK_UI] Error during redirect preparation:', err);
           router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
         }
-      }, 5000); // Keeping the delay for user feedback
+      }, 2500); // Shortened delay for user feedback before redirect
       
     } catch (error: any) {
       console.error('[GOOGLE_CALLBACK_UI] Error during finalization call:', error);

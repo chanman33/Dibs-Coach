@@ -137,6 +137,15 @@ export default function Office365CalendarCallback() {
 
       if (!response.ok || !result.success) {
         console.error('[OFFICE365_CALLBACK_UI] Finalize API call failed:', result);
+        
+        // Handle validation failure specifically
+        if (response.status === 409 || (result.validated === false && result.error === 'calendar_validation_failed_not_found')) {
+          setStatus('error');
+          setMessage('Office 365 Calendar connection was established but validation failed.');
+          setErrorDetails('The connection was created on Cal.com, but we couldn\'t detect the Office 365 Calendar. This might be a temporary issue. Please try again or check your Office 365 account settings.');
+          return;
+        }
+        
         throw new Error(result.error || 'Backend finalization failed.');
       }
 
@@ -148,20 +157,7 @@ export default function Office365CalendarCallback() {
       
       // Redirect to the settings page with tab and success parameters
       setTimeout(() => {
-        // Add prefetch to ensure organization context is loaded before redirect
-        // Adding timestamp to prevent caching issues
         try {
-          // First try to prefetch the organization data to warm cache
-          // fetch('/api/user/organizations').then(() => {
-          //   console.log('[OFFICE365_CALLBACK_UI] Prefetched organization data before redirect');
-            
-          //   // Add specific settings tab and a timestamp to prevent caching
-          //   router.replace(`/dashboard/settings?tab=integrations&success=office365_connected&t=${Date.now()}`);
-          // }).catch((err) => {
-          //   // If prefetch fails, still redirect but log the error
-          //   console.error('[OFFICE365_CALLBACK_UI] Error prefetching organization data:', err);
-          //   router.replace(`/dashboard/settings?tab=integrations&success=office365_connected&t=${Date.now()}`);
-          // });
           console.log('[OFFICE365_CALLBACK_UI] Redirecting to settings after successful connection.');
           router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
         } catch (err) {
@@ -169,7 +165,7 @@ export default function Office365CalendarCallback() {
           console.error('[OFFICE365_CALLBACK_UI] Error during redirect preparation:', err);
           router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
         }
-      }, 5000); // Keeping the delay for user feedback
+      }, 2500); // Shortened delay for user feedback before redirect
       
     } catch (error: any) {
       console.error('[OFFICE365_CALLBACK_UI] Error during finalization call:', error);
