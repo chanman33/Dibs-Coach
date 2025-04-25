@@ -875,12 +875,14 @@ export default function Settings() {
           >
             Organizations
           </TabsTrigger>
-          <TabsTrigger
-            value="integrations"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
-          >
-            Calendar Integrations
-          </TabsTrigger>
+          {userCapabilities.includes(USER_CAPABILITIES.COACH) && (
+            <TabsTrigger
+              value="integrations"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
+            >
+              Calendar Integrations
+            </TabsTrigger>
+          )}
           <TabsTrigger
             value="notifications"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
@@ -930,318 +932,322 @@ export default function Settings() {
             </div>
           </div>
         </TabsContent>
-
-        <TabsContent value="integrations" className="mt-0">
-          <div className="border rounded-lg p-6 bg-background">
-            <div className="space-y-8">
-              {/* Dibs Scheduling Section */}
-              <div className="space-y-4">
-                <div className="flex items-start space-x-4">
-                  <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M8 2V5" stroke="#3E63DD" strokeWidth="1.5" strokeLinecap="round" />
-                      <path d="M16 2V5" stroke="#3E63DD" strokeWidth="1.5" strokeLinecap="round" />
-                      <path d="M3 9H21" stroke="#3E63DD" strokeWidth="1.5" strokeLinecap="round" />
-                      <path d="M19 4H5C3.89543 4 3 4.89543 3 6V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V6C21 4.89543 20.1046 4 19 4Z" stroke="#3E63DD" strokeWidth="1.5" />
-                      <path d="M12 12H9V15H12V12Z" fill="#3E63DD" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-2xl font-semibold tracking-tight">Dibs Scheduling</h2>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Enable online booking for your coaching sessions
-                    </p>
-                  </div>
-                  <div>
-                    {!isConnected && !isCalStatusLoading && (
-                      <Button
-                        variant="default"
-                        onClick={() => {
-                          if (!user?.emailAddresses?.[0]?.emailAddress) {
-                            toast.error("Email is required to enable scheduling");
-                            return;
-                          }
-
-                          setLoading(true);
-                          fetch('/api/cal/users/create-managed-user', {
-                            method: 'POST',
-                            headers: {
-                              'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({
-                              email: user.emailAddresses[0].emailAddress,
-                              name: user.fullName || 'Coach',
-                              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-                            })
-                          })
-                            .then(response => {
-                              if (!response.ok) {
-                                return response.json().then(data => {
-                                  throw new Error(data.error || 'Failed to create Cal.com user');
-                                });
-                              }
-                              return response.json();
-                            })
-                            .then(data => {
-                              if (data.error) {
-                                throw new Error(data.error);
-                              }
-                              // Refresh the Cal integration status
-                              refreshCalStatus();
-                              // Navigate to the success route
-                              router.push('/dashboard/settings?tab=integrations&success=true');
-                            })
-                            .catch(error => {
-                              console.error('Scheduling integration error:', error);
-                              router.push('/dashboard/settings?tab=integrations&error=true');
-                            })
-                            .finally(() => {
-                              setLoading(false);
-                            });
-                        }}
-                        disabled={loading}
-                      >
-                        {loading ? <LoadingSpinner size="sm" /> : 'Enable Scheduling'}
-                      </Button>
-                    )}
-
-                    {isCalStatusLoading && (
-                      <Button variant="outline" disabled>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Checking status...
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Success/Error Alerts */}
-                {hasSuccessParam && !isConnected && (
-                  <Alert className="bg-green-50 border-green-200">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertTitle>Successfully enabled!</AlertTitle>
-                    <AlertDescription>
-                      Online scheduling has been successfully enabled for your account.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {hasErrorParam && !isConnected && (
-                  <Alert className="bg-red-50 border-red-200" variant="destructive">
-                    <XCircle className="h-4 w-4" />
-                    <AlertTitle>Setup failed</AlertTitle>
-                    <AlertDescription>
-                      There was an error enabling scheduling. Please try again.
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {isConnected && (
-                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      <span className="font-medium">Scheduling Enabled</span>
-                      <span className="mx-2 text-gray-400">•</span>
-                      <span className="text-sm text-muted-foreground">Account active</span>
-                      <span className="mx-2 text-gray-400">•</span>
-                      <span className="text-sm text-muted-foreground">
-                        Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
-                      </span>
-                      <span className="mx-2 text-gray-400">•</span>
-                      <span className="text-sm text-muted-foreground">
-                        Token: valid
-                      </span>
-                      <button
-                        className="ml-auto rounded-full p-1 text-muted-foreground hover:bg-blue-100"
-                        onClick={() => refreshCalStatus()}
-                        aria-label="Refresh status"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
-                          <path d="M21.1679 8C19.6247 4.46819 16.1006 2 11.9999 2C6.81459 2 2.55104 5.94668 2.04932 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                          <path d="M17 8H21.4C21.7314 8 22 7.73137 22 7.4V3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                          <path d="M2.88146 16C4.42458 19.5318 7.94874 22 12.0494 22C17.2347 22 21.4983 18.0533 22 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                          <path d="M7.04932 16H2.64932C2.31795 16 2.04932 16.2686 2.04932 16.6V21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
-                        </svg>
-                      </button>
+        
+        {/* Calendar Integrations Section */}
+        {/* Might need to move this to it's own page  */}
+        {userCapabilities.includes(USER_CAPABILITIES.COACH) && (
+          <TabsContent value="integrations" className="mt-0">
+            <div className="border rounded-lg p-6 bg-background">
+              <div className="space-y-8">
+                {/* Dibs Scheduling Section */}
+                <div className="space-y-4">
+                  <div className="flex items-start space-x-4">
+                    <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 2V5" stroke="#3E63DD" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M16 2V5" stroke="#3E63DD" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 9H21" stroke="#3E63DD" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M19 4H5C3.89543 4 3 4.89543 3 6V19C3 20.1046 3.89543 21 5 21H19C20.1046 21 21 20.1046 21 19V6C21 4.89543 20.1046 4 19 4Z" stroke="#3E63DD" strokeWidth="1.5" />
+                        <path d="M12 12H9V15H12V12Z" fill="#3E63DD" />
+                      </svg>
                     </div>
-                  </div>
-                )}
-
-                {/* Calendar Connection Section */}
-                {isConnected && (
-                  <div className="space-y-6 mt-8">
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Connect Calendar</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Connect your primary calendar to sync events and manage availability. This helps prevent double-bookings.
+                    <div className="flex-1">
+                      <h2 className="text-2xl font-semibold tracking-tight">Dibs Scheduling</h2>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Enable online booking for your coaching sessions
                       </p>
                     </div>
+                    <div>
+                      {!isConnected && !isCalStatusLoading && (
+                        <Button
+                          variant="default"
+                          onClick={() => {
+                            if (!user?.emailAddresses?.[0]?.emailAddress) {
+                              toast.error("Email is required to enable scheduling");
+                              return;
+                            }
 
-                    {apiError && (
-                      <Alert className="bg-amber-50 border-amber-200">
-                        <AlertTriangle className="h-4 w-4 text-amber-600" />
-                        <AlertTitle>Calendar Verification Issue</AlertTitle>
-                        <AlertDescription className="text-amber-700">
-                          {apiError}
-                          <div className="mt-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-xs mt-1"
-                              onClick={() => refreshCalendarStatus()}
-                            >
-                              Retry Verification
-                            </Button>
-                          </div>
-                        </AlertDescription>
-                      </Alert>
-                    )}
+                            setLoading(true);
+                            fetch('/api/cal/users/create-managed-user', {
+                              method: 'POST',
+                              headers: {
+                                'Content-Type': 'application/json'
+                              },
+                              body: JSON.stringify({
+                                email: user.emailAddresses[0].emailAddress,
+                                name: user.fullName || 'Coach',
+                                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                              })
+                            })
+                              .then(response => {
+                                if (!response.ok) {
+                                  return response.json().then(data => {
+                                    throw new Error(data.error || 'Failed to create Cal.com user');
+                                  });
+                                }
+                                return response.json();
+                              })
+                              .then(data => {
+                                if (data.error) {
+                                  throw new Error(data.error);
+                                }
+                                // Refresh the Cal integration status
+                                refreshCalStatus();
+                                // Navigate to the success route
+                                router.push('/dashboard/settings?tab=integrations&success=true');
+                              })
+                              .catch(error => {
+                                console.error('Scheduling integration error:', error);
+                                router.push('/dashboard/settings?tab=integrations&error=true');
+                              })
+                              .finally(() => {
+                                setLoading(false);
+                              });
+                          }}
+                          disabled={loading}
+                        >
+                          {loading ? <LoadingSpinner size="sm" /> : 'Enable Scheduling'}
+                        </Button>
+                      )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Google Calendar Card */}
-                      <div className={`rounded-lg p-6 border hover:border-primary transition-colors ${
-                        (googleConnectedInDB || connectedCalendars.some(entry =>
-                          (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
-                          entry?.integration === 'google_calendar')
-                        ) ? 'bg-green-50 border-green-200' : ''}`}>
-                        <div className="flex items-center space-x-3">
-                          <div className={`h-10 w-10 rounded-full ${(googleConnectedInDB || connectedCalendars.some(entry =>
+                      {isCalStatusLoading && (
+                        <Button variant="outline" disabled>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Checking status...
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Success/Error Alerts */}
+                  {hasSuccessParam && !isConnected && (
+                    <Alert className="bg-green-50 border-green-200">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <AlertTitle>Successfully enabled!</AlertTitle>
+                      <AlertDescription>
+                        Online scheduling has been successfully enabled for your account.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {hasErrorParam && !isConnected && (
+                    <Alert className="bg-red-50 border-red-200" variant="destructive">
+                      <XCircle className="h-4 w-4" />
+                      <AlertTitle>Setup failed</AlertTitle>
+                      <AlertDescription>
+                        There was an error enabling scheduling. Please try again.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  {isConnected && (
+                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <span className="font-medium">Scheduling Enabled</span>
+                        <span className="mx-2 text-gray-400">•</span>
+                        <span className="text-sm text-muted-foreground">Account active</span>
+                        <span className="mx-2 text-gray-400">•</span>
+                        <span className="text-sm text-muted-foreground">
+                          Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                        </span>
+                        <span className="mx-2 text-gray-400">•</span>
+                        <span className="text-sm text-muted-foreground">
+                          Token: valid
+                        </span>
+                        <button
+                          className="ml-auto rounded-full p-1 text-muted-foreground hover:bg-blue-100"
+                          onClick={() => refreshCalStatus()}
+                          aria-label="Refresh status"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4">
+                            <path d="M21.1679 8C19.6247 4.46819 16.1006 2 11.9999 2C6.81459 2 2.55104 5.94668 2.04932 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                            <path d="M17 8H21.4C21.7314 8 22 7.73137 22 7.4V3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                            <path d="M2.88146 16C4.42458 19.5318 7.94874 22 12.0494 22C17.2347 22 21.4983 18.0533 22 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                            <path d="M7.04932 16H2.64932C2.31795 16 2.04932 16.2686 2.04932 16.6V21" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"></path>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Calendar Connection Section */}
+                  {isConnected && (
+                    <div className="space-y-6 mt-8">
+                      <div>
+                        <h3 className="text-lg font-medium mb-2">Connect Calendar</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Connect your primary calendar to sync events and manage availability. This helps prevent double-bookings.
+                        </p>
+                      </div>
+
+                      {apiError && (
+                        <Alert className="bg-amber-50 border-amber-200">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          <AlertTitle>Calendar Verification Issue</AlertTitle>
+                          <AlertDescription className="text-amber-700">
+                            {apiError}
+                            <div className="mt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs mt-1"
+                                onClick={() => refreshCalendarStatus()}
+                              >
+                                Retry Verification
+                              </Button>
+                            </div>
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Google Calendar Card */}
+                        <div className={`rounded-lg p-6 border hover:border-primary transition-colors ${
+                          (googleConnectedInDB || connectedCalendars.some(entry =>
                             (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
                             entry?.integration === 'google_calendar')
-                            ) ? 'bg-green-100' : 'bg-blue-50'} flex items-center justify-center`}>
-                            <SiGooglecalendar className={`h-5 w-5 ${(googleConnectedInDB || connectedCalendars.some(entry =>
+                          ) ? 'bg-green-50 border-green-200' : ''}`}>
+                          <div className="flex items-center space-x-3">
+                            <div className={`h-10 w-10 rounded-full ${(googleConnectedInDB || connectedCalendars.some(entry =>
                               (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
                               entry?.integration === 'google_calendar')
-                              ) ? 'text-green-600' : 'text-[#4285F4]'}`} />
-                          </div>
-                          <div>
-                            <h4 className="font-medium">Google Calendar</h4>
-                            {isCalendarCheckLoading ? (
-                              <div className="text-xs text-muted-foreground mt-1 flex items-center">
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Checking status...
-                              </div>
-                            ) : (googleConnectedInDB || connectedCalendars.some(entry =>
-                              (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
-                              entry?.integration === 'google_calendar')
-                            ) ? (
-                              <div className="text-xs text-green-600 mt-1">
-                                Connected
-                              </div>
-                            ) : (
-                              <div className="text-xs text-muted-foreground mt-1">Not Connected</div>
-                            )}
-                          </div>
-                        </div>
-
-                        {(googleConnectedInDB || connectedCalendars.some(entry =>
-                          (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
-                          entry?.integration === 'google_calendar')
-                        ) ? (
-                          <div className="mt-4">
-                            <div className="text-sm text-green-700 rounded-md">
-                              <p className="flex items-center">
-                                <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" /> Google Calendar connected successfully! Your calendar events will now sync automatically.
-                              </p>
+                              ) ? 'bg-green-100' : 'bg-blue-50'} flex items-center justify-center`}>
+                              <SiGooglecalendar className={`h-5 w-5 ${(googleConnectedInDB || connectedCalendars.some(entry =>
+                                (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
+                                entry?.integration === 'google_calendar')
+                                ) ? 'text-green-600' : 'text-[#4285F4]'}`} />
+                            </div>
+                            <div>
+                              <h4 className="font-medium">Google Calendar</h4>
+                              {isCalendarCheckLoading ? (
+                                <div className="text-xs text-muted-foreground mt-1 flex items-center">
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Checking status...
+                                </div>
+                              ) : (googleConnectedInDB || connectedCalendars.some(entry =>
+                                (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
+                                entry?.integration === 'google_calendar')
+                              ) ? (
+                                <div className="text-xs text-green-600 mt-1">
+                                  Connected
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground mt-1">Not Connected</div>
+                              )}
                             </div>
                           </div>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            className="w-full mt-4"
-                            onClick={() => handleCalendarConnect('google')}
-                          >
-                            Connect Google Calendar
-                          </Button>
-                        )}
-                      </div>
 
-                      {/* Office 365 Calendar Card */}
-                      <div className={`rounded-lg p-6 border hover:border-primary transition-colors ${connectedCalendars.some(entry => entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ? 'bg-green-50 border-green-200' : ''}`}>
-                        <div className="flex items-center space-x-3">
-                          <div className={`h-10 w-10 rounded-full ${connectedCalendars.some(entry => entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ? 'bg-green-100' : 'bg-blue-50'} flex items-center justify-center`}>
-                            <BsCalendar2Week className={`h-5 w-5 ${connectedCalendars.some(entry => entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ? 'text-green-600' : 'text-[#00A4EF]'}`} />
-                          </div>
-                          <div>
-                            <h4 className="font-medium">Office 365 Calendar</h4>
-                            {isCalendarCheckLoading ? (
-                              <div className="text-xs text-muted-foreground mt-1 flex items-center">
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Checking status...
+                          {(googleConnectedInDB || connectedCalendars.some(entry =>
+                            (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
+                            entry?.integration === 'google_calendar')
+                          ) ? (
+                            <div className="mt-4">
+                              <div className="text-sm text-green-700 rounded-md">
+                                <p className="flex items-center">
+                                  <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" /> Google Calendar connected successfully! Your calendar events will now sync automatically.
+                                </p>
                               </div>
-                            ) : connectedCalendars.some(entry => entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ? (
-                              <div className="text-xs text-green-600 mt-1">
-                                Connected
-                              </div>
-                            ) : (
-                              <div className="text-xs text-muted-foreground mt-1">Not Connected</div>
-                            )}
-                          </div>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              className="w-full mt-4"
+                              onClick={() => handleCalendarConnect('google')}
+                            >
+                              Connect Google Calendar
+                            </Button>
+                          )}
                         </div>
 
-                        {connectedCalendars.some(entry => entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ? (
-                          <div className="mt-4">
-                            <div className="text-sm text-green-700 rounded-md">
-                              <p className="flex items-center">
-                                <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" /> Office 365 Calendar connected successfully! Your calendar events will now sync automatically.
-                              </p>
+                        {/* Office 365 Calendar Card */}
+                        <div className={`rounded-lg p-6 border hover:border-primary transition-colors ${connectedCalendars.some(entry => entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ? 'bg-green-50 border-green-200' : ''}`}>
+                          <div className="flex items-center space-x-3">
+                            <div className={`h-10 w-10 rounded-full ${connectedCalendars.some(entry => entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ? 'bg-green-100' : 'bg-blue-50'} flex items-center justify-center`}>
+                              <BsCalendar2Week className={`h-5 w-5 ${connectedCalendars.some(entry => entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ? 'text-green-600' : 'text-[#00A4EF]'}`} />
+                            </div>
+                            <div>
+                              <h4 className="font-medium">Office 365 Calendar</h4>
+                              {isCalendarCheckLoading ? (
+                                <div className="text-xs text-muted-foreground mt-1 flex items-center">
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" /> Checking status...
+                                </div>
+                              ) : connectedCalendars.some(entry => entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ? (
+                                <div className="text-xs text-green-600 mt-1">
+                                  Connected
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground mt-1">Not Connected</div>
+                              )}
                             </div>
                           </div>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            className="w-full mt-4"
-                            onClick={() => handleCalendarConnect('office365')}
-                          >
-                            Connect Office 365 Calendar
-                          </Button>
-                        )}
+
+                          {connectedCalendars.some(entry => entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ? (
+                            <div className="mt-4">
+                              <div className="text-sm text-green-700 rounded-md">
+                                <p className="flex items-center">
+                                  <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" /> Office 365 Calendar connected successfully! Your calendar events will now sync automatically.
+                                </p>
+                              </div>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              className="w-full mt-4"
+                              onClick={() => handleCalendarConnect('office365')}
+                            >
+                              Connect Office 365 Calendar
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* Availability Management Section */}
-                {isConnected && (
-                  <div className="space-y-4 mt-8">
-                    {!canManageAvailability && !isCalendarCheckLoading && (
-                      <Alert className="bg-amber-50 border-amber-200">
-                        <AlertTriangle className="h-4 w-4 text-amber-600" />
-                        <AlertTitle>Calendar Connection Required</AlertTitle>
-                        <AlertDescription>
-                          You need to connect a third-party calendar (like Google Calendar or Office 365) before you can manage your availability.
-                        </AlertDescription>
-                      </Alert>
-                    )}
+                  {/* Availability Management Section */}
+                  {isConnected && (
+                    <div className="space-y-4 mt-8">
+                      {!canManageAvailability && !isCalendarCheckLoading && (
+                        <Alert className="bg-amber-50 border-amber-200">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                          <AlertTitle>Calendar Connection Required</AlertTitle>
+                          <AlertDescription>
+                            You need to connect a third-party calendar (like Google Calendar or Office 365) before you can manage your availability.
+                          </AlertDescription>
+                        </Alert>
+                      )}
 
-                    {canManageAvailability && !isCalendarCheckLoading && (
-                      <Alert className="bg-green-50 border-green-200">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <AlertTitle>Ready to Manage Availability</AlertTitle>
-                        <AlertDescription>
-                          Your scheduling is enabled and calendar is connected. You can now manage your availability.
-                        </AlertDescription>
-                      </Alert>
-                    )}
+                      {canManageAvailability && !isCalendarCheckLoading && (
+                        <Alert className="bg-green-50 border-green-200">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <AlertTitle>Ready to Manage Availability</AlertTitle>
+                          <AlertDescription>
+                            Your scheduling is enabled and calendar is connected. You can now manage your availability.
+                          </AlertDescription>
+                        </Alert>
+                      )}
 
-                    <div className="flex justify-end">
-                      <Button
-                        variant="default"
-                        className="gap-2"
-                        onClick={() => router.push('/dashboard/coach/availability')}
-                        disabled={!canManageAvailability || isCalendarCheckLoading}
-                      >
-                        {isCalendarCheckLoading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <CalendarDays className="h-4 w-4" />
-                        )}
-                        Manage Availability
-                      </Button>
+                      <div className="flex justify-end">
+                        <Button
+                          variant="default"
+                          className="gap-2"
+                          onClick={() => router.push('/dashboard/coach/availability')}
+                          disabled={!canManageAvailability || isCalendarCheckLoading}
+                        >
+                          {isCalendarCheckLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <CalendarDays className="h-4 w-4" />
+                          )}
+                          Manage Availability
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        </TabsContent>
+          </TabsContent>
+        )}
 
         <TabsContent value="notifications" className="mt-0">
           <div className="border rounded-lg p-6 bg-background">
