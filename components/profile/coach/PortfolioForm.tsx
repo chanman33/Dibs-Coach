@@ -79,6 +79,18 @@ import { cn } from "@/lib/utils";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { uploadPortfolioImage } from "@/utils/actions/portfolio-actions";
 import { useUser } from "@clerk/nextjs";
+import {
+  PropertyType,
+  PropertySubType,
+  CommercialPropertyType,
+  InvestmentStrategy,
+  LoanType,
+  PropertyManagerType,
+  InsuranceType,
+  TitleEscrowType,
+  CommercialDealType,
+  PrivateCreditLoanType,
+} from "@prisma/client";
 
 // Mock currency formatter
 const formatCurrency = (amount: number, currency = "USD") => {
@@ -107,6 +119,75 @@ interface PortfolioFormProps {
 
 // Define the possible actions for the image
 type ImageAction = 'keep' | 'replace' | 'clear';
+
+// Add type definitions for the enhanced metrics
+interface PortfolioMetrics {
+  bedrooms?: number;
+  bathrooms?: number;
+  squareFeet?: number;
+  lotSize?: number;
+  yearBuilt?: number;
+  occupancyRate?: number;
+  capRate?: number;
+  noi?: number;
+  purchasePrice?: number;
+  salePrice?: number;
+  appreciation?: number;
+  roi?: number;
+  loanAmount?: number;
+  interestRate?: number;
+  term?: number;
+  ltv?: number;
+  dscr?: number;
+}
+
+// Add helper function to get relevant fields based on portfolio type
+const getRelevantFields = (type: PortfolioItemType) => {
+  switch (type) {
+    case "PROPERTY_SALE":
+    case "PROPERTY_PURCHASE":
+      return {
+        showPropertyType: true,
+        showPropertySubType: true,
+        showMetrics: ["bedrooms", "bathrooms", "squareFeet", "lotSize", "yearBuilt"],
+      };
+    case "LOAN_ORIGINATION":
+      return {
+        showLoanType: true,
+        showMetrics: ["loanAmount", "interestRate", "term", "ltv", "dscr"],
+      };
+    case "PROPERTY_MANAGEMENT":
+      return {
+        showPropertyManagerType: true,
+        showMetrics: ["occupancyRate", "noi", "capRate"],
+      };
+    case "INSURANCE_POLICY":
+      return {
+        showInsuranceType: true,
+        showMetrics: ["premium", "coverage"],
+      };
+    case "COMMERCIAL_DEAL":
+      return {
+        showCommercialPropertyType: true,
+        showCommercialDealType: true,
+        showMetrics: ["squareFeet", "capRate", "noi", "purchasePrice", "salePrice"],
+      };
+    case "PRIVATE_LENDING":
+      return {
+        showPrivateCreditLoanType: true,
+        showMetrics: ["loanAmount", "interestRate", "term", "ltv", "dscr"],
+      };
+    case "TITLE_SERVICE":
+      return {
+        showTitleEscrowType: true,
+        showMetrics: ["transactionAmount"],
+      };
+    default:
+      return {
+        showMetrics: [],
+      };
+  }
+};
 
 export function PortfolioForm({
   portfolioItems = [],
@@ -471,6 +552,10 @@ export function PortfolioForm({
     // Otherwise, no preview
     return undefined;
   };
+
+  // Add state for tracking the selected portfolio type
+  const [selectedType, setSelectedType] = useState<PortfolioItemType>("PROPERTY_SALE");
+  const relevantFields = getRelevantFields(selectedType);
 
   return (
     <Card className="border shadow-sm">
@@ -911,6 +996,117 @@ export function PortfolioForm({
                   </FormItem>
                 )}
               />
+
+              {/* Add Property Type Selection */}
+              {relevantFields.showPropertyType && (
+                <FormField
+                  control={form.control}
+                  name="propertyType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Property Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select property type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.values(PropertyType).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type.replace(/([A-Z])/g, ' $1').trim()}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Add Property Sub Type Selection */}
+              {relevantFields.showPropertySubType && (
+                <FormField
+                  control={form.control}
+                  name="propertySubType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Property Sub Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select property sub type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.values(PropertySubType).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type.replace(/([A-Z])/g, ' $1').trim()}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Add Commercial Property Type Selection */}
+              {relevantFields.showCommercialPropertyType && (
+                <FormField
+                  control={form.control}
+                  name="commercialPropertyType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Commercial Property Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select commercial property type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {Object.values(CommercialPropertyType).map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type.replace(/([A-Z])/g, ' $1').trim()}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* Add Metrics Fields */}
+              {relevantFields.showMetrics.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-medium">Property Metrics</h3>
+                  {relevantFields.showMetrics.map((metric) => (
+                    <FormField
+                      key={metric}
+                      control={form.control}
+                      name={`metrics.${metric}`}
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{metric.replace(/([A-Z])/g, ' $1').trim()}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              {...field}
+                              onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
 
               <DialogFooter className="gap-2 sm:gap-0">
                  {/* Delete Button */}

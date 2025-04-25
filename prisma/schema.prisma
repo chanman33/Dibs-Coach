@@ -32,19 +32,14 @@ model User {
   totalYearsRE             Int                            @default(0)
   languages                Language[]                     @default([en])
   primaryMarket            String?
-  aiThreads                AIThread[]
   adminAuditLogs           AdminAuditLog[]                @relation("AdminAuditLogs")
   applications             CoachApplication[]             @relation("Applicant")
   reviewedApplications     CoachApplication[]             @relation("Reviewer")
   coachProfile             CoachProfile?
   coachingSchedules        CoachingAvailabilitySchedule[]
-  commercialProfile        CommercialProfile?
   assignedLeads            EnterpriseLeads[]              @relation("AssignedLeads")
   goals                    Goal[]
-  insuranceProfile         InsuranceProfile?
-  investorProfile          InvestorProfile?
   invoices                 Invoice[]
-  mortgageProfile          LoanOfficerProfile?
   marketingProfile         MarketingProfile?
   menteeProfile            MenteeProfile?
   messagesReceived         Message[]                      @relation("Recipient")
@@ -56,29 +51,21 @@ model User {
   paymentsMade             Payment[]                      @relation("Payer")
   payouts                  Payout[]                       @relation("PayoutPayee")
   portfolioItems           PortfolioItem[]
-  privateCreditProfile     PrivateCreditProfile?
   professionalRecognitions ProfessionalRecognition[]
-  propertyManagerProfile   PropertyManagerProfile?
-  realtorProfile           RealtorProfile?
   referralsReceived        Referral[]                     @relation("Referee")
   referralsGiven           Referral[]                     @relation("Referrer")
   reminders                Reminder[]
   reviewsReceived          Review[]                       @relation("Reviewee")
   reviewsGiven             Review[]                       @relation("Reviewer")
   coachingSessions         Session[]                      @relation("CoachSessions")
-  sessions                 Session[]                      @relation("UserSessions")
+  menteeSessions          Session[]                      @relation("MenteeSessions")
   setupIntents             SetupIntent[]
   stripeAccount            StripeConnectedAccount?
   paymentMethods           StripePaymentMethod[]
   subscriptions            Subscription[]
   supportTickets           SupportTicket[]                @relation("UserSupportTickets")
-  titleEscrowProfile       TitleEscrowProfile?
   receivedTransactions     Transaction[]                  @relation("TransactionCoach")
   sentTransactions         Transaction[]                  @relation("TransactionPayer")
-  createdResources         TrainingResource[]
-  assignments              ResourceAssignment[]             @relation("UserAssignments")
-  assignedResources        ResourceAssignment[]             @relation("AssignedByUser")
-  featureWaitlists         FeatureWaitlist[]
   calendarIntegration      CalendarIntegration?
   calBookings              CalBooking[]
   seatLicenses             SeatLicense[]                  @relation("licensedUser")
@@ -86,6 +73,7 @@ model User {
   budgetAllocations        BudgetAllocation[]
   orgPaymentMethods        PaymentMethod[]
   billingEvents            BillingEvent[]
+  zoomConfig              CoachZoomConfig?               @relation("UserZoomConfig")
 
   @@index([userId])
   @@index([email])
@@ -181,8 +169,6 @@ model Organization {
   regions           Region[]
   rolePermissions   RolePermission[]
   subscriptions     Subscription[]
-  trainingResources TrainingResource[]
-  featureWaitlists  FeatureWaitlist[]
   goals             Goal[]
   paymentMethods    PaymentMethod[]
   billingEvents     BillingEvent[]
@@ -282,242 +268,103 @@ model MarketingProfile {
   @@map("MarketingProfile")
 }
 
-model RealtorProfile {
-  ulid            String    @id @db.Char(26)
-  userUlid        String    @unique @db.Char(26)
-  yearsExperience Int?
-  propertyTypes   String[]
-  specializations String[]
-  certifications  String[]
-  companyName     String?
-  geographicFocus Json?
-  primaryMarket   String?
-  mlsId           String?   @unique
-  mlsName         String?
-  mlsStatus       String?   @default("ACTIVE")
-  memberKey       String?   @unique
-  memberStatus    String?
-  designations    String[]
-  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime  @updatedAt @db.Timestamptz(6)
-  listings        Listing[]
-  user            User      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("RealtorProfile")
-}
-
-model LoanOfficerProfile {
-  ulid                  String     @id @db.Char(26)
-  userUlid              String     @unique @db.Char(26)
-  yearsExperience       Int?
-  nmls                  String?    @unique
-  lenderName            String?
-  branchLocation        String?
-  loanTypes             LoanType[]
-  specializations       String[]
-  certifications        String[]
-  closedLoansCount      Int?
-  totalLoanVolume       Decimal?   @db.Decimal(12, 2)
-  averageLoanSize       Decimal?   @db.Decimal(12, 2)
-  geographicFocus       Json?
-  primaryMarket         String?
-  licensedStates        String[]
-  minLoanAmount         Decimal?   @db.Decimal(12, 2)
-  maxLoanAmount         Decimal?   @db.Decimal(12, 2)
-  typicalTurnaroundDays Int?
-  createdAt             DateTime   @default(now()) @db.Timestamptz(6)
-  updatedAt             DateTime   @updatedAt @db.Timestamptz(6)
-  user                  User       @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("LoanOfficerProfile")
-}
-
-model InvestorProfile {
-  ulid                   String               @id @db.Char(26)
-  userUlid               String               @unique @db.Char(26)
-  yearsExperience        Int?
-  companyName            String?
-  investmentStrategies   InvestmentStrategy[]
-  specializations        String[]
-  certifications         String[]
-  minInvestmentAmount    Decimal?             @db.Decimal(12, 2)
-  maxInvestmentAmount    Decimal?             @db.Decimal(12, 2)
-  targetRoi              Decimal?             @db.Decimal(5, 2)
-  preferredPropertyTypes String[]
-  propertiesOwned        Int?
-  totalPortfolioValue    Decimal?             @db.Decimal(12, 2)
-  completedDeals         Int?
-  geographicFocus        Json?
-  primaryMarket          String?
-  targetMarkets          String[]
-  createdAt              DateTime             @default(now()) @db.Timestamptz(6)
-  updatedAt              DateTime             @updatedAt @db.Timestamptz(6)
-  user                   User                 @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("InvestorProfile")
-}
-
-model PropertyManagerProfile {
-  ulid               String                @id @db.Char(26)
-  userUlid           String                @unique @db.Char(26)
-  yearsExperience    Int?
-  companyName        String?
-  licenseNumber      String?               @unique
-  managerTypes       PropertyManagerType[]
-  specializations    String[]
-  certifications     String[]
-  propertiesManaged  Int?
-  totalUnits         Int?
-  squareFeetManaged  Decimal?              @db.Decimal(12, 2)
-  occupancyRate      Decimal?              @db.Decimal(5, 2)
-  geographicFocus    Json?
-  primaryMarket      String?
-  serviceZips        String[]
-  minimumUnits       Int?
-  propertyTypes      String[]
-  services           String[]
-  managementSoftware String?
-  createdAt          DateTime              @default(now()) @db.Timestamptz(6)
-  updatedAt          DateTime              @updatedAt @db.Timestamptz(6)
-  user               User                  @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("PropertyManagerProfile")
-}
-
-model TitleEscrowProfile {
-  ulid                   String            @id @db.Char(26)
-  userUlid               String            @unique @db.Char(26)
-  yearsExperience        Int?
-  companyName            String?
-  licenseNumber          String?           @unique
-  titleEscrowTypes       TitleEscrowType[]
-  specializations        String[]
-  certifications         String[]
-  closingsCompleted      Int?
-  averageClosingTime     Int?
-  totalTransactionVolume Decimal?          @db.Decimal(12, 2)
-  geographicFocus        Json?
-  primaryMarket          String?
-  licensedStates         String[]
-  createdAt              DateTime          @default(now()) @db.Timestamptz(6)
-  updatedAt              DateTime          @updatedAt @db.Timestamptz(6)
-  user                   User              @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("TitleEscrowProfile")
-}
-
-model InsuranceProfile {
-  ulid                String          @id @db.Char(26)
-  userUlid            String          @unique @db.Char(26)
-  yearsExperience     Int?
-  companyName         String?
-  licenseNumber       String?         @unique
-  insuranceTypes      InsuranceType[]
-  specializations     String[]
-  certifications      String[]
-  policiesIssued      Int?
-  totalPremiumVolume  Decimal?        @db.Decimal(12, 2)
-  claimProcessingTime Int?
-  geographicFocus     Json?
-  primaryMarket       String?
-  licensedStates      String[]
-  createdAt           DateTime        @default(now()) @db.Timestamptz(6)
-  updatedAt           DateTime        @updatedAt @db.Timestamptz(6)
-  user                User            @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("InsuranceProfile")
-}
-
-model CommercialProfile {
-  ulid                   String                   @id @db.Char(26)
-  userUlid               String                   @unique @db.Char(26)
-  yearsExperience        Int?
-  companyName            String?
-  licenseNumber          String?                  @unique
-  specializations        String[]
-  certifications         String[]
-  propertyTypes          CommercialPropertyType[]
-  dealTypes              CommercialDealType[]
-  typicalDealSize        Decimal?                 @db.Decimal(12, 2)
-  totalTransactionVolume Decimal?                 @db.Decimal(12, 2)
-  completedDeals         Int?
-  averageDealSize        Decimal?                 @db.Decimal(12, 2)
-  geographicFocus        Json?
-  primaryMarket          String?
-  serviceAreas           String[]
-  createdAt              DateTime                 @default(now()) @db.Timestamptz(6)
-  updatedAt              DateTime                 @updatedAt @db.Timestamptz(6)
-  user                   User                     @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("CommercialProfile")
-}
-
-model PrivateCreditProfile {
-  ulid              String                  @id @db.Char(26)
-  userUlid          String                  @unique @db.Char(26)
-  yearsExperience   Int?
-  companyName       String?
-  licenseNumber     String?                 @unique
-  specializations   String[]
-  certifications    String[]
-  minLoanAmount     Decimal?                @db.Decimal(12, 2)
-  maxLoanAmount     Decimal?                @db.Decimal(12, 2)
-  typicalTermLength Int?
-  interestRateRange Json?
-  loanTypes         PrivateCreditLoanType[]
-  totalLoanVolume   Decimal?                @db.Decimal(12, 2)
-  activeLoans       Int?
-  averageLoanSize   Decimal?                @db.Decimal(12, 2)
-  geographicFocus   Json?
-  primaryMarket     String?
-  licensedStates    String[]
-  createdAt         DateTime                @default(now()) @db.Timestamptz(6)
-  updatedAt         DateTime                @updatedAt @db.Timestamptz(6)
-  user              User                    @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("PrivateCreditProfile")
-}
-
 model Session {
-  ulid                  String        @id @db.Char(26)
-  menteeUlid            String        @db.Char(26)
-  coachUlid             String        @db.Char(26)
-  startTime             DateTime      @db.Timestamptz(6)
-  endTime               DateTime      @db.Timestamptz(6)
-  status                SessionStatus @default(SCHEDULED)
-  sessionType           SessionType?
-  sessionNotes          String?
-  zoomMeetingId         String?
-  zoomMeetingUrl        String?
-  priceAmount           Float?
-  currency              String?       @default("usd")
-  platformFeeAmount     Float?
-  coachPayoutAmount     Float?
-  stripePaymentIntentId String?
-  paymentStatus         String?       @default("pending")
-  payoutStatus          String?
-  createdAt             DateTime      @default(now()) @db.Timestamptz(6)
-  updatedAt             DateTime      @updatedAt @db.Timestamptz(6)
-  disputes              Dispute[]     @relation("SessionDisputes")
-  notes                 Note[]
-  payment               Payment?      @relation("SessionPayment")
-  reminders             Reminder[]
-  reviews               Review[]
-  coach                 User          @relation("CoachSessions", fields: [coachUlid], references: [ulid])
-  mentee                User          @relation("UserSessions", fields: [menteeUlid], references: [ulid])
-  transaction           Transaction?
-  zoomSession           ZoomSession?
+  ulid               String    @id @db.Char(26)
+  menteeUlid         String    @db.Char(26)
+  coachUlid          String    @db.Char(26)
+  startTime          DateTime  @db.Timestamptz(6)
+  endTime            DateTime  @db.Timestamptz(6)
+  status             CalBookingStatus @default(CONFIRMED)
+  sessionType        SessionType
+  sessionNotes       String?
+  
+  // Rescheduling Fields
+  originalSessionUlid String?  @db.Char(26)  // Reference to first session in series
+  rescheduledFromUlid String?  @db.Char(26)  // Reference to immediately previous session
+  rescheduledToUlid   String?  @db.Char(26)  // Reference to next session if exists
+  reschedulingHistory Json?    @default("[]") // Array of rescheduling events
+  reschedulingReason  String?  // Reason for rescheduling
+  rescheduledBy       String?  // Email of user who initiated reschedule
+  
+  // Cancellation Fields
+  cancelledAt        DateTime? @db.Timestamptz(6)  // When the session was cancelled
+  cancelledBy        String?   // Email of user who cancelled
+  cancelledByUlid    String?   @db.Char(26)  // ULID of user who cancelled
+  cancellationReason String?   // Reason for cancellation
+  cancellationPolicy String?   // Applied cancellation policy (e.g., "24_HOURS", "48_HOURS")
+  cancellationFee    Decimal?  @db.Decimal(10, 2)  // Fee charged for cancellation
+  cancellationHistory Json?    @default("[]") // Array of cancellation events
+  isRefundable       Boolean   @default(true)  // Whether the session is eligible for refund
+  
+  // Absence Fields
+  absentCoach        Boolean?  @default(false)  // Whether the coach was absent
+  absentCoachMarkedAt DateTime? @db.Timestamptz(6)  // When the coach was marked as absent
+  absentCoachMarkedBy String?  // Email of user who marked coach as absent
+  absentMentee       Boolean?  @default(false)  // Whether the mentee was absent
+  absentMenteeMarkedAt DateTime? @db.Timestamptz(6)  // When the mentee was marked as absent
+  absentMenteeMarkedBy String?  // Email of user who marked mentee as absent
+  absenceHistory     Json?     @default("[]") // Array of absence events
+  
+  // Zoom Meeting Details
+  zoomMeetingId      String?   
+  zoomStartUrl       String?   
+  zoomJoinUrl        String?   
+  zoomMeetingPassword String?  
+  zoomMeetingSettings Json?    
+  zoomMetadata       Json?     
+  
+  // Cal.com Integration
+  calBookingUlid     String?   @unique @db.Char(26)
+  calEventTypeUlid   String?   @db.Char(26)
+  
+  // Payment Details
+  price              Decimal?  @db.Decimal(10, 2)
+  currency           String?   @default("USD")
+  paymentStatus      String?   @default("PENDING")
+  paymentMethod      String?
+  paymentIntentId    String?
+  refundStatus       String?
+  refundAmount       Decimal?  @db.Decimal(10, 2)
+  refundReason       String?
+  
+  // Timestamps
+  createdAt          DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(6)
+  
+  // Relations
+  mentee             User      @relation("MenteeSessions", fields: [menteeUlid], references: [ulid], onDelete: Cascade)
+  coach              User      @relation("CoachSessions", fields: [coachUlid], references: [ulid], onDelete: Cascade)
+  calBooking         CalBooking? @relation("SessionCalBooking", fields: [calBookingUlid], references: [ulid])
+  calEventType       CalEventType? @relation("SessionCalEventType", fields: [calEventTypeUlid], references: [ulid])
+  disputes           Dispute[]    @relation("SessionDisputes")
+  notes              Note[]
+  payments           Payment[]    @relation("SessionPayment")
+  reminders          Reminder[]
+  reviews            Review[]
+  transaction        Transaction? @relation("SessionTransaction")
+  
+  // Self-relations for rescheduling
+  originalSession    Session?     @relation("SessionRescheduling", fields: [originalSessionUlid], references: [ulid])
+  rescheduledSessions Session[]   @relation("SessionRescheduling")
+  rescheduledFrom    Session?     @relation("SessionReschedulingPrevious", fields: [rescheduledFromUlid], references: [ulid])
+  rescheduledTo      Session?     @relation("SessionReschedulingNext", fields: [rescheduledToUlid], references: [ulid])
+  previousSessions   Session[]    @relation("SessionReschedulingPrevious")
+  nextSessions       Session[]    @relation("SessionReschedulingNext")
 
   @@index([menteeUlid])
   @@index([coachUlid])
+  @@index([status])
+  @@index([startTime])
+  @@index([calBookingUlid])
+  @@index([calEventTypeUlid])
+  @@index([zoomMeetingId])
+  @@index([originalSessionUlid])
+  @@index([rescheduledFromUlid])
+  @@index([rescheduledToUlid])
+  @@index([cancelledByUlid])
+  @@index([sessionType])
+  @@index([paymentStatus])
+  @@index([paymentIntentId])
   @@map("Session")
 }
 
@@ -798,7 +645,7 @@ model Transaction {
   updatedAt             DateTime @updatedAt @db.Timestamptz(6)
   coach                 User     @relation("TransactionCoach", fields: [coachUlid], references: [ulid])
   payer                 User     @relation("TransactionPayer", fields: [payerUlid], references: [ulid])
-  session               Session? @relation(fields: [sessionUlid], references: [ulid])
+  session               Session? @relation("SessionTransaction", fields: [sessionUlid], references: [ulid])
 
   @@index([payerUlid])
   @@index([coachUlid])
@@ -895,127 +742,6 @@ model AdminAuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("AdminAuditLog")
-}
-
-model Listing {
-  ulid                  String              @id @db.Char(26)
-  listingKey            String?             @unique
-  parcelNumber          String?             @db.VarChar(50)
-  taxLot                String?             @db.VarChar(50)
-  taxBlock              String?             @db.VarChar(50)
-  taxMapNumber          String?             @db.VarChar(50)
-  taxLegalDescription   String?             @db.VarChar(1000)
-  propertyType          PropertyType
-  propertySubType       PropertySubType?
-  status                ListingStatus       @default(Active)
-  streetNumber          String              @db.VarChar(25)
-  streetName            String              @db.VarChar(50)
-  unitNumber            String?             @db.VarChar(25)
-  city                  String              @db.VarChar(150)
-  stateOrProvince       String              @db.VarChar(50)
-  postalCode            String              @db.VarChar(10)
-  listPrice             Decimal             @db.Decimal(12, 2)
-  originalListPrice     Decimal?            @db.Decimal(12, 2)
-  closePrice            Decimal?            @db.Decimal(12, 2)
-  listingContractDate   DateTime?           @db.Timestamptz(6)
-  closeDate             DateTime?           @db.Timestamptz(6)
-  statusChangeTimestamp DateTime?           @db.Timestamptz(6)
-  priceChangeTimestamp  DateTime?           @db.Timestamptz(6)
-  modificationTimestamp DateTime?           @db.Timestamptz(6)
-  createdAt             DateTime            @default(now()) @db.Timestamptz(6)
-  updatedAt             DateTime            @updatedAt @db.Timestamptz(6)
-  bedroomsTotal         Int?
-  bathroomsTotal        Decimal?            @db.Decimal(3, 1)
-  livingArea            Decimal?            @db.Decimal(12, 2)
-  lotSize               Decimal?            @db.Decimal(12, 2)
-  lotSizeDimensions     String?             @db.VarChar(50)
-  lotDimensionsSource   String?             @db.VarChar(50)
-  yearBuilt             Int?
-  stories               Int?
-  architecturalStyle    ArchitecturalStyle?
-  basement              BasementType?
-  roofType              RoofType?
-  view                  ViewType[]
-  parkingTotal          Decimal?            @db.Decimal(12, 2)
-  garageSpaces          Decimal?            @db.Decimal(12, 2)
-  furnished             FurnishedStatus?
-  appliances            String[]
-  interiorFeatures      String[]
-  exteriorFeatures      String[]
-  heating               String[]
-  cooling               String[]
-  isWaterfront          Boolean             @default(false)
-  hasFireplace          Boolean             @default(false)
-  hasPatio              Boolean             @default(false)
-  hasDeck               Boolean             @default(false)
-  hasPorch              Boolean             @default(false)
-  propertyCondition     PropertyCondition[]
-  listingTerms          ListingTerms[]
-  listingAgreement      ListingAgreement?
-  schoolDistrict        String?             @db.VarChar(100)
-  elementarySchool      String?             @db.VarChar(100)
-  middleSchool          String?             @db.VarChar(100)
-  highSchool            String?             @db.VarChar(100)
-  taxYear               Int?
-  taxAnnualAmount       Decimal?            @db.Decimal(12, 2)
-  hoaName               String?             @db.VarChar(100)
-  hoaFeeAmount          Decimal?            @db.Decimal(12, 2)
-  hoaFeeFrequency       String?             @db.VarChar(50)
-  electricityAvailable  Boolean             @default(true)
-  gasAvailable          Boolean             @default(true)
-  sewerAvailable        Boolean             @default(true)
-  waterAvailable        Boolean             @default(true)
-  zoning                String?             @db.VarChar(25)
-  zoningDescription     String?             @db.VarChar(255)
-  publicRemarks         String?             @db.VarChar(4000)
-  privateRemarks        String?             @db.VarChar(4000)
-  photos                Json?
-  virtualTours          Json?
-  isFeatured            Boolean             @default(false)
-  featuredOrder         Int?
-  mlsLink               String?             @db.VarChar(1000)
-  publicListingUrl      String?             @db.VarChar(1000)
-  source                String              @default("MANUAL")
-  mlsSource             String?
-  mlsId                 String?
-  realtorProfileUlid    String              @db.Char(26)
-  realtorProfile        RealtorProfile      @relation(fields: [realtorProfileUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([realtorProfileUlid])
-  @@index([listingKey])
-  @@index([status])
-  @@index([isFeatured])
-  @@map("Listing")
-}
-
-model AIThread {
-  ulid      String      @id @db.Char(26)
-  userUlid  String      @db.Char(26)
-  title     String
-  category  String
-  status    String      @default("ACTIVE")
-  createdAt DateTime    @default(now()) @db.Timestamptz(6)
-  updatedAt DateTime    @updatedAt @db.Timestamptz(6)
-  messages  AIMessage[]
-  user      User        @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([userUlid])
-  @@map("AIThread")
-}
-
-model AIMessage {
-  ulid       String   @id @db.Char(26)
-  threadUlid String   @db.Char(26)
-  role       String
-  content    String
-  model      String
-  tokens     Int      @default(0)
-  createdAt  DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
-  thread     AIThread @relation(fields: [threadUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([threadUlid])
-  @@map("AIMessage")
 }
 
 model EnterpriseLeads {
@@ -1444,9 +1170,9 @@ enum SessionStatus {
 }
 
 enum SessionType {
-  PEER_TO_PEER
-  MENTORSHIP
-  GROUP
+  MANAGED      // Standard one-on-one session (matches CalSchedulingType.MANAGED)
+  GROUP_SESSION // Group session (matches CalSchedulingType.GROUP_SESSION)
+  OFFICE_HOURS // Office hours session (matches CalSchedulingType.OFFICE_HOURS)
 }
 
 enum PaymentStatus {
@@ -1478,6 +1204,24 @@ enum Currency {
   USD
   EUR
   GBP
+  CAD
+}
+
+enum Language {
+  en
+  es
+  zh
+  tl
+  vi
+  ar
+  fr
+  ko
+  ru
+  de
+  hi
+  pt
+  it
+  ja
 }
 
 enum PlanType {
@@ -1638,73 +1382,6 @@ enum PropertySubType {
   Other
 }
 
-enum FurnishedStatus {
-  Furnished
-  Negotiable
-  Partially
-  Unfurnished
-}
-
-enum PropertyCondition {
-  Excellent
-  Good
-  Fair
-  NeedsWork
-  Renovated
-  Updated
-}
-
-enum ListingTerms {
-  Cash
-  Conventional
-  FHA
-  OwnerFinancing
-  VA
-}
-
-enum ListingAgreement {
-  Exclusive
-  OpenListing
-  PocketListing
-}
-
-enum ArchitecturalStyle {
-  Colonial
-  Contemporary
-  Craftsman
-  Mediterranean
-  Modern
-  Ranch
-  Traditional
-  Victorian
-}
-
-enum BasementType {
-  Finished
-  Partially
-  Unfinished
-  None
-}
-
-enum RoofType {
-  Asphalt
-  Metal
-  Slate
-  Tile
-  Wood
-}
-
-enum ViewType {
-  City
-  Golf
-  Lake
-  Mountain
-  Ocean
-  Park
-  River
-  Woods
-}
-
 enum SocialMediaPlatform {
   FACEBOOK
   INSTAGRAM
@@ -1771,23 +1448,6 @@ enum InsuranceType {
   OTHER
 }
 
-enum Language {
-  en
-  es
-  zh
-  tl
-  vi
-  ar
-  fr
-  ko
-  ru
-  de
-  hi
-  pt
-  it
-  ja
-}
-
 enum CommercialPropertyType {
   OFFICE
   RETAIL
@@ -1849,7 +1509,40 @@ model PortfolioItem {
   address          String?
   location         Json?             // {city, state, zip}
   financialDetails Json?             // {amount, currency, percentAboveAsk, interestRate, term}
-  metrics          Json?             // Flexible field for domain-specific metrics
+  
+  // Property-specific fields
+  propertyType     PropertyType?
+  propertySubType  PropertySubType?
+  commercialPropertyType CommercialPropertyType?
+  investmentStrategy InvestmentStrategy?
+  loanType         LoanType?
+  propertyManagerType PropertyManagerType?
+  insuranceType    InsuranceType?
+  titleEscrowType  TitleEscrowType?
+  commercialDealType CommercialDealType?
+  privateCreditLoanType PrivateCreditLoanType?
+  
+  // Enhanced metrics structure
+  metrics          Json?             // {
+                                    //   bedrooms?: number,
+                                    //   bathrooms?: number,
+                                    //   squareFeet?: number,
+                                    //   lotSize?: number,
+                                    //   yearBuilt?: number,
+                                    //   occupancyRate?: number,
+                                    //   capRate?: number,
+                                    //   noi?: number,
+                                    //   purchasePrice?: number,
+                                    //   salePrice?: number,
+                                    //   appreciation?: number,
+                                    //   roi?: number,
+                                    //   loanAmount?: number,
+                                    //   interestRate?: number,
+                                    //   term?: number,
+                                    //   ltv?: number,
+                                    //   dscr?: number
+                                    // }
+  
   date             DateTime          @db.Timestamptz(6)
   tags             String[]
   featured         Boolean           @default(false)
@@ -1861,89 +1554,11 @@ model PortfolioItem {
   @@index([userUlid])
   @@index([type])
   @@index([featured])
+  @@index([propertyType])
+  @@index([propertySubType])
+  @@index([commercialPropertyType])
+  @@index([investmentStrategy])
   @@map("PortfolioItem")
-}
-
-model TrainingResource {
-  id             String   @id @default(uuid())
-  title          String
-  description    String
-  type           String
-  access         String
-  url            String?
-  thumbnail      String?
-  partner        String?
-  status         String?
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  organizationId String?  @map("organization_id")
-  createdById    String   @map("created_by_id")
-  organization   Organization? @relation(fields: [organizationId], references: [ulid])
-  createdBy      User          @relation(fields: [createdById], references: [ulid])
-  domains        ResourceDomain[]
-  assignments    ResourceAssignment[]
-  sections       CourseSection[]
-
-  @@map("TrainingResource")
-}
-
-model ResourceDomain {
-  id          String           @id @default(uuid())
-  domain      String
-  resourceId  String           @map("resource_id")
-  resource    TrainingResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-
-  @@unique([resourceId, domain])
-  @@map("ResourceDomain")
-}
-
-model ResourceAssignment {
-  id           String           @id @default(uuid())
-  resourceId   String           @map("resource_id")
-  userId       String           @map("user_id")
-  assignedById String           @map("assigned_by_id")
-  assignedAt   DateTime         @default(now()) @map("assigned_at")
-  dueDate      DateTime?        @map("due_date")
-  status       String           @default("assigned")
-  completedAt  DateTime?        @map("completed_at")
-  resource     TrainingResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-  user         User             @relation("UserAssignments", fields: [userId], references: [ulid], onDelete: Cascade)
-  assignedBy   User             @relation("AssignedByUser", fields: [assignedById], references: [ulid])
-
-  @@unique([resourceId, userId])
-  @@map("ResourceAssignment")
-}
-
-model CourseSection {
-  id          String           @id @default(uuid())
-  title       String
-  description String?
-  order       Int
-  resourceId  String           @map("resource_id")
-  content     String?
-  videoUrl    String?          @map("video_url")
-  duration    Int?
-  resource    TrainingResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
-
-  @@map("CourseSection")
-}
-
-model FeatureWaitlist {
-  id             String       @id @default(uuid())
-  email          String
-  feature_id     String
-  user_id        String?      @db.Char(26)
-  organization_id String?     @db.Char(26)
-  created_at     DateTime     @default(now())
-  updated_at     DateTime     @updatedAt
-  user           User?        @relation(fields: [user_id], references: [ulid])
-  organization   Organization? @relation(fields: [organization_id], references: [ulid])
-
-  @@unique([email, feature_id])
-  @@index([organization_id])
-  @@index([feature_id])
-  @@index([user_id])
-  @@map("FeatureWaitlist")
 }
 
 model CalendarIntegration {
@@ -2013,6 +1628,7 @@ model CalEventType {
   createdAt                DateTime            @default(now()) @db.Timestamptz(6)
   updatedAt                DateTime            @updatedAt @db.Timestamptz(6)
   calendarIntegration      CalendarIntegration @relation(fields: [calendarIntegrationUlid], references: [ulid], onDelete: Cascade)
+  sessions                 Session[]  @relation("SessionCalEventType")
 
   @@unique([calendarIntegrationUlid, calEventTypeId])
   @@index([calendarIntegrationUlid])
@@ -2027,10 +1643,19 @@ enum CalSchedulingType {
   GROUP_SESSION
 }
 
+enum CalBookingStatus {
+  CONFIRMED
+  PENDING
+  CANCELLED
+  REJECTED
+  ABSENT
+}
+
 model CalBooking {
   ulid               String    @id @db.Char(26)
   userUlid           String    @db.Char(26)
   calBookingUid      String    @unique
+  calBookingId       Int?      // ID from Cal.com API
   title              String
   description        String?
   startTime          DateTime  @db.Timestamptz(6)
@@ -2038,39 +1663,66 @@ model CalBooking {
   attendeeEmail      String
   attendeeName       String?
   allAttendees       String?
-  status             String    @default("CONFIRMED")
-  cancellationReason String?
+  status             CalBookingStatus @default(CONFIRMED)
+  
+  // Cal.com specific fields
+  duration           Int?      // in minutes
+  eventTypeId        Int?
+  eventTypeSlug      String?
+  meetingUrl         String?
+  location           String?
+  icsUid             String?
+  rating             Int?
+  
+  // Attendee details from Cal.com
+  attendeeTimeZone   String?
+  attendeePhoneNumber String?
+  attendeeLanguage   String?
+  
+  // Host details from Cal.com
+  calHostId          Int?      // Cal.com's host ID
+  hostName           String?
+  hostEmail          String?
+  hostUsername       String?
+  hostTimeZone       String?
+  
+  // Cal.com specific arrays
+  guests             Json?     @default("[]") // Array of guest emails
+  bookingFieldsResponses Json? @default("{}")
+  hosts              Json?     @default("[]") // Array of host details
   metadata           Json?     @default("{}")
+  
   createdAt          DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt          DateTime  @updatedAt @db.Timestamptz(6)
   user               User      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  session            Session?   @relation("SessionCalBooking")
 
   @@index([userUlid])
   @@index([status])
   @@index([startTime])
+  @@index([calBookingId])
+  @@index([eventTypeId])
+  @@index([calBookingUid])
+  @@index([calHostId])
+  @@index([attendeeEmail])
+  @@index([eventTypeSlug])
   @@map("CalBooking")
 }
 
-enum ZoomSessionStatus {
-  SCHEDULED
-  STARTED
-  ENDED
-  CANCELLED
-}
+model CoachZoomConfig {
+  ulid               String    @id @db.Char(26)
+  coachUlid          String    @unique @db.Char(26)
+  zoomApiKey         String
+  zoomApiSecret     String
+  zoomAccountId      String?
+  zoomAccountEmail   String?
+  defaultSettings    Json?     // Store default Zoom meeting settings
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(6)
+  coach              User      @relation("UserZoomConfig", fields: [coachUlid], references: [ulid], onDelete: Cascade)
 
-model ZoomSession {
-  ulid        String   @id @db.Char(26)
-  sessionUlid String   @unique @db.Char(26)
-  sessionName String
-  hostUlid    String   @db.Char(26)
-  startUrl    String?
-  joinUrl     String?
-  status      String   @default("SCHEDULED")
-  metadata    Json?
-  createdAt   DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @db.Timestamptz(6)
-  session     Session  @relation(fields: [sessionUlid], references: [ulid], onDelete: Cascade)
-
-  @@index([sessionUlid])
-  @@map("ZoomSession")
+  @@index([coachUlid])
+  @@index([zoomAccountId])
+  @@map("CoachZoomConfig")
 }

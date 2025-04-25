@@ -51,7 +51,18 @@ export const portfolioItemSchema = z.object({
   ]),
   tags: z.array(z.string()).default([]),
   featured: z.boolean().default(false),
-  isVisible: z.boolean().default(true)
+  isVisible: z.boolean().default(true),
+  // Add property-specific fields
+  propertyType: z.string().optional(),
+  propertySubType: z.string().optional(),
+  commercialPropertyType: z.string().optional(),
+  investmentStrategy: z.string().optional(),
+  loanType: z.string().optional(),
+  propertyManagerType: z.string().optional(),
+  insuranceType: z.string().optional(),
+  titleEscrowType: z.string().optional(),
+  commercialDealType: z.string().optional(),
+  privateCreditLoanType: z.string().optional()
 });
 
 // Create portfolio item schema
