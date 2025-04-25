@@ -28,13 +28,30 @@ interface CoachProfilePageProps {
   searchParams?: { [key: string]: string | string[] | undefined };
 }
 
+// Portfolio Item interface (simplified version of the actual type)
+interface PortfolioItem {
+  ulid: string;
+  title: string;
+  description?: string;
+  type?: string;
+  date: string;
+  imageUrls?: string[];
+  featured?: boolean;
+  tags?: string[];
+}
+
+// Extended PublicCoachProfile interface to include portfolio items
+interface ExtendedPublicCoachProfile extends PublicCoachProfile {
+  portfolioItems?: PortfolioItem[];
+}
+
 export default async function CoachProfilePage({ params, searchParams }: CoachProfilePageProps) {
   const slug = params.slug;
   // const router = useRouter(); // Can't use useRouter in Server Components
   
   // Fetch data server-side
   const coachResult = await fetchPublicCoachProfileBySlug({ slug });
-  const coach = coachResult.data; // Will be null if error or not found
+  const coach = coachResult.data as ExtendedPublicCoachProfile; // Cast to extended profile type
   const error = coachResult.error;
   
   // Fetch logged-in user data
@@ -199,16 +216,6 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
                     <span className="font-medium">{coach.yearsCoaching}+</span>
                   </div>
                 )}
-                {domains.length > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground flex items-center gap-2"><Users className="h-4 w-4" /> Focus Areas</span>
-                    <div className="flex flex-wrap gap-1 justify-end max-w-[60%]">
-                      {domains.map(domain => (
-                        <Badge key={domain} variant="outline">{formatDomain(domain)}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
               
               {/* Social Links */}
@@ -241,7 +248,7 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
           <Tabs defaultValue="about" className="w-full">
             <TabsList className="grid w-full grid-cols-3 mb-6">
               <TabsTrigger value="about">About</TabsTrigger>
-              <TabsTrigger value="skills">Skills</TabsTrigger>
+              <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
               <TabsTrigger value="recognitions">Recognitions</TabsTrigger>
             </TabsList>
             
@@ -251,19 +258,32 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
                 <CardHeader>
                   <CardTitle>About {coach.firstName}</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-6">
                   {coach.bio ? (
                     <p className="text-muted-foreground whitespace-pre-wrap">{coach.bio}</p>
                   ) : (
                     <p className="text-muted-foreground italic">No biography provided.</p>
                   )}
+                  
+                  {domains.length > 0 && (
+                    <div>
+                      <h3 className="font-semibold flex items-center gap-2 mb-3">
+                        <Users className="h-4 w-4" /> Industry Focus Areas
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {domains.map(domain => (
+                          <Badge key={domain} variant="secondary" className="px-3 py-1 text-sm">
+                            {formatDomain(domain)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            </TabsContent>
-            
-            {/* Skills Tab */}
-            <TabsContent value="skills">
-              <Card>
+              
+              {/* Skills Card (moved from tab to underneath About) */}
+              <Card className="mt-6">
                 <CardHeader>
                   <CardTitle>Coaching Specialties</CardTitle>
                 </CardHeader>
@@ -271,11 +291,69 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
                   {skills.length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                       {skills.map((skill, index) => (
-                        <Badge key={index} variant="secondary">{skill}</Badge>
+                        <Badge key={index} variant="secondary" className="px-3 py-1 text-sm">{skill}</Badge>
                       ))}
                     </div>
                   ) : (
                     <p className="text-muted-foreground italic">No coaching skills listed.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            {/* Portfolio Tab */}
+            <TabsContent value="portfolio">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Portfolio</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {coach.portfolioItems && coach.portfolioItems.length > 0 ? (
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {coach.portfolioItems.map((item: PortfolioItem) => (
+                        <div key={item.ulid} className="rounded-lg border overflow-hidden group hover:shadow-md transition-all">
+                          {item.imageUrls && item.imageUrls.length > 0 ? (
+                            <div className="h-48 overflow-hidden bg-muted">
+                              <Image
+                                src={item.imageUrls[0]}
+                                alt={item.title}
+                                width={400}
+                                height={200}
+                                className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                              />
+                            </div>
+                          ) : (
+                            <div className="h-48 bg-muted flex items-center justify-center">
+                              <Loader2 className="h-16 w-16 text-muted-foreground/30" />
+                            </div>
+                          )}
+                          <div className="p-4">
+                            <div className="flex flex-wrap gap-2 mb-2">
+                              {item.type && (
+                                <Badge variant="secondary">
+                                  {item.type.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                                </Badge>
+                              )}
+                              {item.featured && (
+                                <Badge variant="default" className="bg-yellow-500 text-white">
+                                  Featured
+                                </Badge>
+                              )}
+                            </div>
+                            <h3 className="font-semibold text-lg mb-2">{item.title}</h3>
+                            <p className="text-muted-foreground text-sm line-clamp-2 mb-3">
+                              {item.description}
+                            </p>
+                            <div className="flex items-center text-sm text-muted-foreground">
+                              <Calendar className="h-4 w-4 mr-1" />
+                              {new Date(item.date).toLocaleDateString()}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground italic">No portfolio items available.</p>
                   )}
                 </CardContent>
               </Card>
