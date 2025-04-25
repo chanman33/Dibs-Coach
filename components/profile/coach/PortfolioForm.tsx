@@ -14,7 +14,11 @@ import {
   Tag, 
   Trash2,
   Trophy,
-  Loader2
+  Loader2,
+  Info,
+  FileText,
+  BarChart,
+  ImageIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -63,6 +67,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   PortfolioItem,
   PortfolioItemType,
@@ -189,6 +194,32 @@ const getRelevantFields = (type: PortfolioItemType) => {
   }
 };
 
+// Helper function to format metric labels
+const formatMetricLabel = (metric: string) => {
+  return metric
+    .replace(/([A-Z])/g, " $1") // Add space before capital letters
+    .replace(/^./, (str) => str.toUpperCase()) // Capitalize first letter
+    .trim();
+};
+
+// Get the appropriate icon for each tab
+const getTabIcon = (tabId: string) => {
+  switch (tabId) {
+    case "basic":
+      return <FileText className="h-4 w-4 mr-2" />;
+    case "location":
+      return <MapPin className="h-4 w-4 mr-2" />;
+    case "details":
+      return <Building2 className="h-4 w-4 mr-2" />;
+    case "metrics":
+      return <BarChart className="h-4 w-4 mr-2" />;
+    case "media":
+      return <ImageIcon className="h-4 w-4 mr-2" />;
+    default:
+      return <Info className="h-4 w-4 mr-2" />;
+  }
+};
+
 export function PortfolioForm({
   portfolioItems = [],
   onAddItem,
@@ -203,6 +234,8 @@ export function PortfolioForm({
   const [imageAction, setImageAction] = useState<ImageAction>('keep');
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null); // For local file preview
   const [tagInputString, setTagInputString] = useState(''); 
+  const [activeTab, setActiveTab] = useState("basic"); // Track the active tab
+  const [selectedType, setSelectedType] = useState<PortfolioItemType>("PROPERTY_SALE");
   const { user } = useUser();
   
   const isFormSubmitting = parentIsSubmitting || localIsSubmitting; // Combined submitting state
@@ -263,6 +296,16 @@ export function PortfolioForm({
     };
   }, [localPreviewUrl]);
 
+  // Update selectedType when form type changes
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "type" && value.type) {
+        setSelectedType(value.type as PortfolioItemType);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form.watch]);
+
   // Reset form and image state when editing item changes or dialog closes
   useEffect(() => {
     if (isAddDialogOpen) {
@@ -296,6 +339,8 @@ export function PortfolioForm({
         setLocalPreviewUrl(null);
         setTagInputString('');
       }
+      // Reset to the first tab when opening dialog
+      setActiveTab("basic");
     } else {
       // Reset fully when dialog closes
       setEditingItem(null);
@@ -553,8 +598,6 @@ export function PortfolioForm({
     return undefined;
   };
 
-  // Add state for tracking the selected portfolio type
-  const [selectedType, setSelectedType] = useState<PortfolioItemType>("PROPERTY_SALE");
   const relevantFields = getRelevantFields(selectedType);
 
   return (
@@ -710,7 +753,7 @@ export function PortfolioForm({
 
       {/* Add/Edit Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingItem ? "Edit Portfolio Item" : "Add Portfolio Item"}
@@ -736,393 +779,622 @@ export function PortfolioForm({
               }} 
               className="space-y-6"
             >
-              {/* Type */}
-              <FormField
-                control={form.control}
-                name="type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Type</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      // Use form state value, ensure it's a string for Select
-                      value={String(field.value)} 
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                           {/* Use form state value here too */}
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {Object.entries(PORTFOLIO_ITEM_TYPE_LABELS).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Select the type of achievement or transaction
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Tabbed Interface */}
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid grid-cols-5 mb-4">
+                  <TabsTrigger value="basic" className="flex items-center">
+                    {getTabIcon("basic")}
+                    <span className="hidden sm:inline">Basic</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="location" className="flex items-center">
+                    {getTabIcon("location")}
+                    <span className="hidden sm:inline">Location</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="details" className="flex items-center">
+                    {getTabIcon("details")}
+                    <span className="hidden sm:inline">Details</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="metrics" className="flex items-center">
+                    {getTabIcon("metrics")}
+                    <span className="hidden sm:inline">Metrics</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="media" className="flex items-center">
+                    {getTabIcon("media")}
+                    <span className="hidden sm:inline">Media</span>
+                  </TabsTrigger>
+                </TabsList>
 
-              {/* Title and Date */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Title</FormLabel>
-                      <FormControl>
-                        <Input placeholder="e.g., Luxury Home Sale in Beverly Hills" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="date" 
-                          {...field} 
-                           // Consistent date handling based on form value type
-                          value={typeof field.value === 'string' 
-                            ? field.value.split('T')[0] // Handle potential ISO string from DB
-                            : field.value instanceof Date 
-                              ? field.value.toISOString().split('T')[0] 
-                              : ''}
-                          // Ensure onChange provides YYYY-MM-DD string
-                          onChange={(e) => field.onChange(e.target.value)} 
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Description */}
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Describe this achievement or transaction..." 
-                        className="min-h-[100px]"
-                        {...field}
-                        value={field.value || ""} // Handle potential null/undefined
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Location */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <FormField
-                  control={form.control}
-                  name="location.city"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>City</FormLabel>
-                      <FormControl>
-                        <Input placeholder="City" {...field} value={field.value || ""} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="location.state"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>State</FormLabel>
-                      <FormControl>
-                        <Input placeholder="State" {...field} value={field.value || ""} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="location.zip"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>ZIP Code</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Zip" {...field} value={field.value || ""} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Financial Details */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="financialDetails.amount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Amount</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <DollarSign className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input 
-                            placeholder="Amount" 
-                            type="number" 
-                            className="pl-8" 
-                            {...field}
-                             // Ensure value passed to onChange is number or undefined
-                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
-                            value={field.value || ""} // Handle potential undefined for controlled input
-                          />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Tags Field */}
-                <FormField
-                  control={form.control}
-                  name="tags" // RHF state is string[]
-                  render={({ field }) => ( // field.value is string[], field.onChange expects string[]
-                    <FormItem>
-                      <FormLabel>Tags</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Tag className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input 
-                            placeholder="luxury, investment, record-sale" 
-                            className="pl-8" 
-                            // Use local state for the input value
-                            value={tagInputString} 
-                            // Update local state AND process+update RHF state on change
-                            onChange={(e) => {
-                              const currentInputString = e.target.value;
-                              // 1. Update local state for immediate input feedback
-                              setTagInputString(currentInputString); 
-                              
-                              // 2. Process string into array for RHF state
-                              const tagsArray = currentInputString
-                                .split(",")
-                                .map(tag => tag.trim())
-                                .filter(tag => tag !== ""); 
-                                
-                              // 3. Update RHF state with the processed array
-                              field.onChange(tagsArray); 
-                            }}
-                          />
-                        </div>
-                      </FormControl>
-                      <FormDescription>
-                        Separate tags with commas
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Image Upload - Simplified, no longer directly controlling form value */}
-               {/* We control the File object and action separately */}
-              <FormItem>
-                <FormLabel>Image</FormLabel>
-                <FormControl>
-                  <div className="relative">
-                    <ImageUpload
-                      id="portfolio-image"
-                      previewUrl={getPreviewUrl()} // Use the dynamic preview URL
-                      onFileSelect={handleFileSelected} // Pass the handler for File object
-                      onClear={handleClearImage} // Pass the handler for clearing
-                    />
-                    {/* Show loader only during the final submission phase if needed */}
-                    {localIsSubmitting && imageAction === 'replace' && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <span className="ml-2 text-sm text-primary font-medium">Uploading...</span>
-                      </div>
+                {/* Basic Information Tab */}
+                <TabsContent value="basic" className="space-y-4">
+                  {/* Type */}
+                  <FormField
+                    control={form.control}
+                    name="type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Type</FormLabel>
+                        <Select 
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            setSelectedType(value as PortfolioItemType);
+                          }}
+                          // Use form state value, ensure it's a string for Select
+                          value={String(field.value)} 
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                               {/* Use form state value here too */}
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {Object.entries(PORTFOLIO_ITEM_TYPE_LABELS).map(([value, label]) => (
+                              <SelectItem key={value} value={value}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Select the type of achievement or transaction
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </div>
-                </FormControl>
-                <FormDescription>
-                  Upload an image representing this achievement (Max 5MB).
-                </FormDescription>
-                {/* Display form-level validation errors if needed, separate from ImageUpload's internal errors */}
-                <FormMessage />
-              </FormItem>
+                  />
 
-
-              {/* Featured Flag */}
-              <FormField
-                control={form.control}
-                name="featured"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>Featured</FormLabel>
-                      <FormDescription>
-                        Mark this as a featured portfolio item
-                      </FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
-
-              {/* Add Property Type Selection */}
-              {relevantFields.showPropertyType && (
-                <FormField
-                  control={form.control}
-                  name="propertyType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Property Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select property type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.values(PropertyType).map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type.replace(/([A-Z])/g, ' $1').trim()}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              {/* Add Property Sub Type Selection */}
-              {relevantFields.showPropertySubType && (
-                <FormField
-                  control={form.control}
-                  name="propertySubType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Property Sub Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select property sub type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.values(PropertySubType).map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type.replace(/([A-Z])/g, ' $1').trim()}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              {/* Add Commercial Property Type Selection */}
-              {relevantFields.showCommercialPropertyType && (
-                <FormField
-                  control={form.control}
-                  name="commercialPropertyType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Commercial Property Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select commercial property type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {Object.values(CommercialPropertyType).map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type.replace(/([A-Z])/g, ' $1').trim()}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-
-              {/* Add Metrics Fields */}
-              {relevantFields.showMetrics.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Property Metrics</h3>
-                  {relevantFields.showMetrics.map((metric) => (
+                  {/* Title and Date */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
-                      key={metric}
                       control={form.control}
-                      name={`metrics.${metric}`}
+                      name="title"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>{metric.replace(/([A-Z])/g, ' $1').trim()}</FormLabel>
+                          <FormLabel>Title</FormLabel>
                           <FormControl>
-                            <Input
-                              type="number"
-                              {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                            <Input placeholder="e.g., Luxury Home Sale in Beverly Hills" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Date</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="date" 
+                              {...field} 
+                               // Consistent date handling based on form value type
+                              value={typeof field.value === 'string' 
+                                ? field.value.split('T')[0] // Handle potential ISO string from DB
+                                : field.value instanceof Date 
+                                  ? field.value.toISOString().split('T')[0] 
+                                  : ''}
+                              // Ensure onChange provides YYYY-MM-DD string
+                              onChange={(e) => field.onChange(e.target.value)} 
                             />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  ))}
-                </div>
-              )}
+                  </div>
 
-              <DialogFooter className="gap-2 sm:gap-0">
-                 {/* Delete Button */}
-                {editingItem && (
+                  {/* Description */}
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Describe this achievement or transaction..." 
+                            className="min-h-[100px]"
+                            {...field}
+                            value={field.value || ""} // Handle potential null/undefined
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Tags Field */}
+                  <FormField
+                    control={form.control}
+                    name="tags" // RHF state is string[]
+                    render={({ field }) => ( // field.value is string[], field.onChange expects string[]
+                      <FormItem>
+                        <FormLabel>Tags</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Tag className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                              placeholder="luxury, investment, record-sale" 
+                              className="pl-8" 
+                              // Use local state for the input value
+                              value={tagInputString} 
+                              // Update local state AND process+update RHF state on change
+                              onChange={(e) => {
+                                const currentInputString = e.target.value;
+                                // 1. Update local state for immediate input feedback
+                                setTagInputString(currentInputString); 
+                                
+                                // 2. Process string into array for RHF state
+                                const tagsArray = currentInputString
+                                  .split(",")
+                                  .map(tag => tag.trim())
+                                  .filter(tag => tag !== ""); 
+                                  
+                                // 3. Update RHF state with the processed array
+                                field.onChange(tagsArray); 
+                              }}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormDescription>
+                          Separate tags with commas
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Featured Flag */}
+                  <FormField
+                    control={form.control}
+                    name="featured"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>Featured</FormLabel>
+                          <FormDescription>
+                            Mark this as a featured portfolio item
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </TabsContent>
+
+                {/* Location Tab */}
+                <TabsContent value="location" className="space-y-4">
+                  <div className="flex items-center mb-4">
+                    <MapPin className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <h3 className="text-lg font-medium">Location Information</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="location.city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>City</FormLabel>
+                          <FormControl>
+                            <Input placeholder="City" {...field} value={field.value || ""} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="location.state"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>State</FormLabel>
+                          <FormControl>
+                            <Input placeholder="State" {...field} value={field.value || ""} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="location.zip"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>ZIP Code</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Zip" {...field} value={field.value || ""} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="address"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Address</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Street address" 
+                            {...field}
+                            value={field.value || ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </TabsContent>
+
+                {/* Details Tab */}
+                <TabsContent value="details" className="space-y-4">
+                  <div className="flex items-center mb-4">
+                    <Building2 className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <h3 className="text-lg font-medium">Property Details</h3>
+                  </div>
+
+                  {/* Financial Details */}
+                  <FormField
+                    control={form.control}
+                    name="financialDetails.amount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Amount</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <DollarSign className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                              placeholder="Amount" 
+                              type="number" 
+                              className="pl-8" 
+                              {...field}
+                               // Ensure value passed to onChange is number or undefined
+                              onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                              value={field.value || ""} // Handle potential undefined for controlled input
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Property Type Selection */}
+                  {relevantFields.showPropertyType && (
+                    <FormField
+                      control={form.control}
+                      name="propertyType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Property Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select property type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Object.values(PropertyType).map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {/* Property Sub Type Selection */}
+                  {relevantFields.showPropertySubType && (
+                    <FormField
+                      control={form.control}
+                      name="propertySubType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Property Sub Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select property sub type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Object.values(PropertySubType).map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {/* Commercial Property Type Selection */}
+                  {relevantFields.showCommercialPropertyType && (
+                    <FormField
+                      control={form.control}
+                      name="commercialPropertyType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Commercial Property Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select commercial property type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Object.values(CommercialPropertyType).map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {/* Loan Type */}
+                  {relevantFields.showLoanType && (
+                    <FormField
+                      control={form.control}
+                      name="loanType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Loan Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select loan type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Object.values(LoanType).map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {/* Property Manager Type */}
+                  {relevantFields.showPropertyManagerType && (
+                    <FormField
+                      control={form.control}
+                      name="propertyManagerType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Property Manager Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select property manager type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Object.values(PropertyManagerType).map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {/* Insurance Type */}
+                  {relevantFields.showInsuranceType && (
+                    <FormField
+                      control={form.control}
+                      name="insuranceType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Insurance Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select insurance type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Object.values(InsuranceType).map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {/* Title Escrow Type */}
+                  {relevantFields.showTitleEscrowType && (
+                    <FormField
+                      control={form.control}
+                      name="titleEscrowType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Title/Escrow Type</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select title/escrow type" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Object.values(TitleEscrowType).map((type) => (
+                                <SelectItem key={type} value={type}>
+                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </TabsContent>
+
+                {/* Metrics Tab */}
+                <TabsContent value="metrics" className="space-y-4">
+                  <div className="flex items-center mb-4">
+                    <BarChart className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <h3 className="text-lg font-medium">Property Metrics</h3>
+                  </div>
+
+                  {relevantFields.showMetrics.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {relevantFields.showMetrics.map((metric) => (
+                        <FormField
+                          key={metric}
+                          control={form.control}
+                          name={`metrics.${metric}`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>{formatMetricLabel(metric)}</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder={formatMetricLabel(metric)}
+                                  {...field}
+                                  value={field.value || ""}
+                                  onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-muted-foreground">
+                      <p>No metrics available for the selected portfolio type.</p>
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* Media Tab */}
+                <TabsContent value="media" className="space-y-4">
+                  <div className="flex items-center mb-4">
+                    <ImageIcon className="h-5 w-5 mr-2 text-muted-foreground" />
+                    <h3 className="text-lg font-medium">Media & Attachments</h3>
+                  </div>
+
+                  {/* Image Upload */}
+                  <FormItem>
+                    <FormLabel>Featured Image</FormLabel>
+                    <FormControl>
+                      <div className="relative">
+                        <ImageUpload
+                          id="portfolio-image"
+                          previewUrl={getPreviewUrl()} // Use the dynamic preview URL
+                          onFileSelect={handleFileSelected} // Pass the handler for File object
+                          onClear={handleClearImage} // Pass the handler for clearing
+                        />
+                        {/* Show loader only during the final submission phase if needed */}
+                        {localIsSubmitting && imageAction === 'replace' && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-md">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <span className="ml-2 text-sm text-primary font-medium">Uploading...</span>
+                          </div>
+                        )}
+                      </div>
+                    </FormControl>
+                    <FormDescription>
+                      Upload an image representing this achievement (Max 5MB).
+                    </FormDescription>
+                    {/* Display form-level validation errors if needed, separate from ImageUpload's internal errors */}
+                    <FormMessage />
+                  </FormItem>
+                </TabsContent>
+              </Tabs>
+
+              {/* Form Navigation and Actions */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t">
+                {/* Tab Navigation */}
+                <div className="flex gap-2">
                   <Button
                     type="button"
-                    variant="destructive"
-                    onClick={() => handleDelete(editingItem)}
-                    disabled={isFormSubmitting} // Disable during submission
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const tabs = ["basic", "location", "details", "metrics", "media"];
+                      const currentIndex = tabs.indexOf(activeTab);
+                      if (currentIndex > 0) {
+                        setActiveTab(tabs[currentIndex - 1]);
+                      }
+                    }}
+                    disabled={activeTab === "basic"}
                   >
-                    {/* Consider adding a loading state for delete? */}
-                    Delete
+                    Previous
                   </Button>
-                )}
-                 {/* Cancel and Submit Buttons */}
-                <div className="flex gap-2 ml-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const tabs = ["basic", "location", "details", "metrics", "media"];
+                      const currentIndex = tabs.indexOf(activeTab);
+                      if (currentIndex < tabs.length - 1) {
+                        setActiveTab(tabs[currentIndex + 1]);
+                      }
+                    }}
+                    disabled={activeTab === "media"}
+                  >
+                    Next
+                  </Button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2">
+                  {/* Delete Button */}
+                  {editingItem && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={() => handleDelete(editingItem)}
+                      disabled={isFormSubmitting} // Disable during submission
+                    >
+                      {/* Consider adding a loading state for delete? */}
+                      Delete
+                    </Button>
+                  )}
+                  {/* Cancel and Submit Buttons */}
                   <Button
                     type="button"
                     variant="outline"
@@ -1156,7 +1428,7 @@ export function PortfolioForm({
                     {editingItem ? "Update" : "Add"} Achievement
                   </Button>
                 </div>
-              </DialogFooter>
+              </div>
             </form>
           </Form>
         </DialogContent>

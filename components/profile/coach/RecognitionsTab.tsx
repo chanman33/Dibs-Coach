@@ -27,6 +27,15 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { 
   PlusCircle, 
   Edit, 
@@ -204,6 +213,8 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   // Track expanded descriptions
   const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
+  // Track dialog open state
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   
   const toggleDescriptionExpand = (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); // Prevent card click from triggering
@@ -253,6 +264,7 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
     });
     setEditIndex(null);
     setShowForm(false);
+    setIsDialogOpen(false);
   };
 
   const handleSaveRecognition = () => {
@@ -314,6 +326,7 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
 
     setRecognitions(newRecognitions);
     clearForm();
+    setIsDialogOpen(false);
     
     // Save to database immediately
     saveRecognitionsToDatabase(newRecognitions, visibilityChanged);
@@ -390,6 +403,7 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
     });
     setEditIndex(index);
     setShowForm(true);
+    setIsDialogOpen(true);
   };
 
   const handleDeleteRecognition = (index: number) => {
@@ -397,6 +411,7 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
     newRecognitions.splice(index, 1);
     setRecognitions(newRecognitions);
     clearForm();
+    setIsDialogOpen(false);
     
     // Save the updated recognitions to the database
     saveRecognitionsToDatabase(newRecognitions);
@@ -611,19 +626,16 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
             <div className="flex justify-between items-center mt-6">
               <div className="flex gap-2">
                 <Button 
-                  variant={showForm ? "outline" : "default"}
-                  onClick={() => setShowForm(!showForm)}
+                  onClick={() => {
+                    setShowForm(true);
+                    setEditIndex(null);
+                    setIsDialogOpen(true);
+                  }}
                   className="gap-2"
                   disabled={isSaving || isSubmitting}
                 >
-                  {showForm ? (
-                    <>Cancel</>
-                  ) : (
-                    <>
-                      <PlusCircle className="h-4 w-4" />
-                      Add Recognition
-                    </>
-                  )}
+                  <PlusCircle className="h-4 w-4" />
+                  Add Recognition
                 </Button>
               </div>
             </div>
@@ -631,150 +643,156 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
         </CardContent>
       </Card>
 
-      {/* Add/Edit Form */}
-      {showForm && (
-        <Card className="mt-6 border-primary/20 shadow-sm">
-          <CardHeader className="pb-2 border-b">
-            <CardTitle className="text-lg">
+      {/* Add/Edit Form Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        if (!open) clearForm();
+      }}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
               {editIndex !== null ? "Edit Recognition" : "Add New Recognition"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="space-y-5">
+            </DialogTitle>
+            <DialogDescription>
+              Add certifications, awards, and achievements to showcase your expertise
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-5 py-4">
+            <div>
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Title
+              </label>
+              <Input 
+                value={recognitionValues.title}
+                onChange={(e) => setRecognitionValues({
+                  ...recognitionValues,
+                  title: e.target.value
+                })}
+                placeholder="e.g., Top Producer Award"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Title
+                  Type
                 </label>
-                <Input 
-                  value={recognitionValues.title}
-                  onChange={(e) => setRecognitionValues({
+                <Select 
+                  value={recognitionValues.type}
+                  onValueChange={(value) => setRecognitionValues({
                     ...recognitionValues,
-                    title: e.target.value
+                    type: value as RecognitionTypeValues
                   })}
-                  placeholder="e.g., Top Producer Award"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Type
-                  </label>
-                  <Select 
-                    value={recognitionValues.type}
-                    onValueChange={(value) => setRecognitionValues({
-                      ...recognitionValues,
-                      type: value as RecognitionTypeValues
-                    })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={RecognitionType.AWARD}>Award</SelectItem>
-                      <SelectItem value={RecognitionType.ACHIEVEMENT}>Achievement</SelectItem>
-                      <SelectItem value={RecognitionType.CERTIFICATION}>Certification</SelectItem>
-                      <SelectItem value={RecognitionType.DESIGNATION}>Designation</SelectItem>
-                      <SelectItem value={RecognitionType.LICENSE}>License</SelectItem>
-                      <SelectItem value={RecognitionType.EDUCATION}>Education</SelectItem>
-                      <SelectItem value={RecognitionType.MEMBERSHIP}>Membership</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Issuer
-                  </label>
-                  <Input 
-                    value={recognitionValues.issuer}
-                    onChange={(e) => setRecognitionValues({
-                      ...recognitionValues,
-                      issuer: e.target.value
-                    })}
-                    placeholder="e.g., National Association of Realtors"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Issue Date
-                  </label>
-                  <Input 
-                    type="date"
-                    value={recognitionValues.issueDate}
-                    onChange={(e) => setRecognitionValues({
-                      ...recognitionValues,
-                      issueDate: e.target.value
-                    })}
-                  />
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Expiry Date (Optional)
-                  </label>
-                  <Input 
-                    type="date"
-                    value={recognitionValues.expiryDate || ""}
-                    onChange={(e) => setRecognitionValues({
-                      ...recognitionValues,
-                      expiryDate: e.target.value || null
-                    })}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Industry Type
-                </label>
-                <Select
-                  value={recognitionValues.industryType || "none_general"}
-                  onValueChange={(value) => {
-                    setRecognitionValues({
-                      ...recognitionValues,
-                      industryType: value === "none_general" ? null : value
-                    });
-                  }}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select industry (optional)" />
+                    <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none_general">None (General)</SelectItem>
-                    {domainOptions.map((domain) => (
-                      <SelectItem key={domain} value={domain}>
-                        {getDomainLabel(domain)}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value={RecognitionType.AWARD}>Award</SelectItem>
+                    <SelectItem value={RecognitionType.ACHIEVEMENT}>Achievement</SelectItem>
+                    <SelectItem value={RecognitionType.CERTIFICATION}>Certification</SelectItem>
+                    <SelectItem value={RecognitionType.DESIGNATION}>Designation</SelectItem>
+                    <SelectItem value={RecognitionType.LICENSE}>License</SelectItem>
+                    <SelectItem value={RecognitionType.EDUCATION}>Education</SelectItem>
+                    <SelectItem value={RecognitionType.MEMBERSHIP}>Membership</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Categorize this recognition by industry to help organize your profile.
-                </p>
               </div>
 
               <div>
                 <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Description
+                  Issuer
                 </label>
-                <Textarea 
-                  value={recognitionValues.description || ""}
+                <Input 
+                  value={recognitionValues.issuer}
                   onChange={(e) => setRecognitionValues({
                     ...recognitionValues,
-                    description: e.target.value || null
+                    issuer: e.target.value
                   })}
-                  placeholder="Briefly describe this recognition and what it represents (optional)"
-                  rows={3}
+                  placeholder="e.g., National Association of Realtors"
                 />
               </div>
             </div>
-          </CardContent>
-          <CardFooter className="border-t pt-4 flex justify-between gap-3">
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Issue Date
+                </label>
+                <Input 
+                  type="date"
+                  value={recognitionValues.issueDate}
+                  onChange={(e) => setRecognitionValues({
+                    ...recognitionValues,
+                    issueDate: e.target.value
+                  })}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Expiry Date (Optional)
+                </label>
+                <Input 
+                  type="date"
+                  value={recognitionValues.expiryDate || ""}
+                  onChange={(e) => setRecognitionValues({
+                    ...recognitionValues,
+                    expiryDate: e.target.value || null
+                  })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Industry Type
+              </label>
+              <Select
+                value={recognitionValues.industryType || "none_general"}
+                onValueChange={(value) => {
+                  setRecognitionValues({
+                    ...recognitionValues,
+                    industryType: value === "none_general" ? null : value
+                  });
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select industry (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none_general">None (General)</SelectItem>
+                  {domainOptions.map((domain) => (
+                    <SelectItem key={domain} value={domain}>
+                      {getDomainLabel(domain)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Categorize this recognition by industry to help organize your profile.
+              </p>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Description
+              </label>
+              <Textarea 
+                value={recognitionValues.description || ""}
+                onChange={(e) => setRecognitionValues({
+                  ...recognitionValues,
+                  description: e.target.value || null
+                })}
+                placeholder="Briefly describe this recognition and what it represents (optional)"
+                rows={3}
+              />
+            </div>
+          </div>
+            
+          <DialogFooter className="gap-2 sm:gap-0">
             <div className="flex gap-2">
               {editIndex !== null && (
                 <>
@@ -814,7 +832,7 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
                 </>
               )}
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 ml-auto">
               <Button 
                 variant="outline" 
                 onClick={clearForm}
@@ -829,9 +847,9 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
                 {isSaving || isSubmitting ? "Saving..." : (editIndex !== null ? "Save Changes" : "Save")}
               </Button>
             </div>
-          </CardFooter>
-        </Card>
-      )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 
