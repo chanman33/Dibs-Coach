@@ -77,19 +77,32 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
       const userUlid = userData.ulid;
 
       // Fetch Calendar Integration first to get the primary timezone
-      const { data: calendarIntegration, error: integrationError } = await supabase
-        .from('CalendarIntegration')
-        .select('timeZone')
-        .eq('userUlid', userUlid)
-        .maybeSingle();
+      // This needs to happen regardless of whether a schedule exists
+      let calendarTimeZone: string | null = null;
+      try {
+        const { data: calendarIntegration, error: integrationError } = await supabase
+          .from('CalendarIntegration')
+          .select('timeZone')
+          .eq('userUlid', userUlid)
+          .maybeSingle();
 
-      if (integrationError) {
-        console.warn('[FETCH_AVAILABILITY_WARNING] Failed to fetch calendar integration', {
-          error: integrationError,
-          userUlid,
-          timestamp: new Date().toISOString()
-        })
-        // Continue even if integration fetch fails, we can fallback to schedule timezone
+        if (integrationError) {
+          console.warn('[FETCH_AVAILABILITY_WARNING] Failed to fetch calendar integration', {
+            error: integrationError,
+            userUlid,
+            timestamp: new Date().toISOString()
+          });
+          // Continue even if integration fetch fails
+        } else {
+          calendarTimeZone = calendarIntegration?.timeZone || null;
+        }
+      } catch (integrationCatchError) {
+         console.error('[FETCH_AVAILABILITY_ERROR] Error fetching calendar integration', {
+           error: integrationCatchError,
+           userUlid,
+           timestamp: new Date().toISOString()
+         });
+         // Continue, calendarTimeZone remains null
       }
 
       // Get availability schedule for the user
@@ -105,26 +118,34 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
           userUlid,
           timestamp: new Date().toISOString()
         })
+        // Return error but include the fetched timezone if available
+        // @ts-ignore - Linter struggles with nested null schedule type inference here
         return {
-          data: null,
+          data: { schedule: null, timezone: calendarTimeZone }, // Include timezone even on schedule fetch error
           error: { 
             code: 'DATABASE_ERROR', 
             message: 'Failed to fetch availability schedule. Please try again later.' 
           }
-        }
+        } as ApiResponse<AvailabilityResponse | null>
       }
 
-      // If no schedule exists yet, return NOT_FOUND error
-      // This indicates first-time setup
+      // If no schedule exists yet (first-time setup)
       if (!schedule) {
+        // Return the timezone found (or null) and indicate no schedule
+        console.log('[TIMEZONE_INFO] No schedule found, returning timezone from integration', {
+          calTimeZone: calendarTimeZone || 'none',
+          using: calendarTimeZone || 'none',
+          timestamp: new Date().toISOString()
+        });
+        // @ts-ignore - Linter struggles with nested null schedule type inference here
         return {
-          data: null,
-          error: { code: 'NOT_FOUND', message: 'No availability schedule found' }
-        }
+          data: { schedule: null, timezone: calendarTimeZone },
+          error: { code: 'NOT_FOUND', message: 'No availability schedule found' } // Keep NOT_FOUND to signal first-time setup
+        } as ApiResponse<AvailabilityResponse | null>
       }
 
       // Map Cal.com availability format to our WeeklySchedule format
-      const mapCalAvailabilityToWeeklySchedule = (availability: any): WeeklySchedule => {
+      const mapCalAvailabilityToWeeklySchedule = (availability: any): WeeklySchedule | null => {
         const defaultSchedule: WeeklySchedule = {
           SUNDAY: [], MONDAY: [], TUESDAY: [], WEDNESDAY: [], 
           THURSDAY: [], FRIDAY: [], SATURDAY: []
@@ -133,7 +154,7 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
         // Ensure availability is treated as an array
         const availabilityArray = Array.isArray(availability) ? availability : [];
 
-        if (!availabilityArray.length) return defaultSchedule
+        if (!availabilityArray.length) return null; // Return null if no actual availability slots
         
         // Create new accumulator to avoid mutation issues
         return availabilityArray.reduce((acc: WeeklySchedule, slot: any): WeeklySchedule => {
@@ -171,20 +192,38 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
           return newAcc;
         }, defaultSchedule)
       }
-
-      // Determine timezone: Prioritize CalendarIntegration, then Schedule, then null
-      const determinedTimeZone = calendarIntegration?.timeZone || schedule.timeZone || null;
+      
+      // Determine timezone: Prioritize CalendarIntegration, then Schedule
+      const determinedTimeZone = calendarTimeZone || schedule.timeZone || null;
       
       // Log timezone info for debugging
       console.log('[TIMEZONE_INFO]', {
-        calTimeZone: calendarIntegration?.timeZone || 'none',
+        calTimeZone: calendarTimeZone || 'none',
         dbTimeZone: schedule.timeZone || 'none',
         using: determinedTimeZone || 'none',
         timestamp: new Date().toISOString()
       });
 
+      const mappedSchedule = mapCalAvailabilityToWeeklySchedule(schedule.availability);
+
+      // If mapping resulted in null (empty schedule), treat as NOT_FOUND for frontend consistency
+      // but still return the timezone
+      if (mappedSchedule === null) {
+         console.log('[TIMEZONE_INFO] Schedule exists but is empty, returning timezone', {
+          calTimeZone: calendarTimeZone || 'none',
+          dbTimeZone: schedule.timeZone || 'none',
+          using: determinedTimeZone || 'none',
+          timestamp: new Date().toISOString()
+        });
+        // @ts-ignore - Linter struggles with nested null schedule type inference here
+        return {
+          data: { schedule: null, timezone: determinedTimeZone },
+          error: { code: 'NOT_FOUND', message: 'Availability schedule is empty' } 
+        } as ApiResponse<AvailabilityResponse | null>
+      }
+
       const response: AvailabilityResponse = {
-        schedule: mapCalAvailabilityToWeeklySchedule(schedule.availability),
+        schedule: mappedSchedule,
         timezone: determinedTimeZone
       }
 
@@ -199,7 +238,7 @@ export const fetchCoachAvailability = withServerAction<AvailabilityResponse | nu
         timestamp: new Date().toISOString()
       })
       return {
-        data: null,
+        data: null, // Don't return partial data on unexpected root error
         error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' }
       }
     }

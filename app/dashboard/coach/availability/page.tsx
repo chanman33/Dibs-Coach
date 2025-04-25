@@ -140,14 +140,18 @@ export default function CoachAvailabilityPage() {
       const result = await fetchCoachAvailability({});
       
       if (result.error) {
-        // Don't throw error for first-time setup
+        // If NOT_FOUND, it means no schedule exists (first time setup),
+        // but the action now returns timezone data, so return the data part.
         if (result.error.code === 'NOT_FOUND') {
-          return null
+          // Return the data which might contain only the timezone
+          return result.data || null; 
         }
+        // For any other error, throw it to let react-query handle it
         throw new Error(result.error.message)
       }
       
-      // Ensure data exists before returning
+      // If no error, data should exist. Return it.
+      // The check `result.data ? ... : null` handles potential undefined data even on success
       return result.data ? { schedule: result.data.schedule, timezone: result.data.timezone } : null;
     }
   })
@@ -415,7 +419,7 @@ export default function CoachAvailabilityPage() {
     <div className="p-6">
       <h1 className="text-2xl font-bold mb-6">Manage Your Availability</h1>
       
-      {/* Timezone Alert */}
+      {/* Calendar Alert */}
       {!isFirstTimeSetup && (
         <Alert className="mb-6">
           {determinedTimezone ? (
@@ -423,10 +427,12 @@ export default function CoachAvailabilityPage() {
           ) : (
             <AlertCircle className="h-4 w-4 text-yellow-500" />
           )}
-          <AlertTitle>{determinedTimezone ? "Timezone Information" : "Timezone Required"}</AlertTitle>
+          <AlertTitle>{determinedTimezone ? "Calendar Information" : "Calendar Required"}</AlertTitle>
           <AlertDescription>
             {determinedTimezone ? (
-              `Your availability is currently managed in the ${determinedTimezone} timezone. This is synchronized with your connected calendar or your profile settings.`
+              <span>
+                Your availability is currently managed in the {determinedTimezone} timezone. This is synchronized with your <Link href="/dashboard/coach/integrations/calendar" className="underline font-medium"> Connected Calendar.</Link>
+              </span>
             ) : (
               <span>
                 Please set your timezone to ensure accurate scheduling. You can connect your Cal.com account or set it manually in your <Link href="/dashboard/coach/integrations/calendar" className="underline font-medium">Calendar Integrations</Link>.
