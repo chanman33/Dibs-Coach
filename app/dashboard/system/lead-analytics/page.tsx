@@ -1,21 +1,30 @@
 import { Suspense } from "react"
-import { getLeadStats } from "@/utils/actions/lead-actions"
+import { getLeadStats, getLeadAnalytics } from "@/utils/actions/lead-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LeadStats } from "../lead-mgmt/_components/lead-stats"
 import { LeadAnalyticsCharts } from "./_components/lead-analytics-charts"
-import { TimePeriodFilter } from "./_components/time-period-filter"
+import { TimePeriodFilter, type TimePeriod } from "./_components/time-period-filter"
 import { BarChart3, ArrowUp, ArrowDown } from "lucide-react"
 
 export const dynamic = "force-dynamic"
 
-export default async function LeadAnalyticsPage() {
-  const { data: stats, error } = await getLeadStats()
+interface PageProps {
+  searchParams: {
+    period?: TimePeriod
+  }
+}
+
+export default async function LeadAnalyticsPage({ searchParams }: PageProps) {
+  const period = searchParams.period || "30d"
   
-  // Calculate some metrics for display
+  const { data: stats, error: statsError } = await getLeadStats()
+  const { data: analytics, error: analyticsError } = await getLeadAnalytics(period)
+  
+  // Calculate metrics for display
   const totalLeads = stats?.total || 0
   
-  // Mock data for growth indicators
-  const growthRate = 12.5 // Percentage growth from previous period
+  // Use real growth data from analytics
+  const growthRate = analytics?.growthRate || 0
   const isPositiveGrowth = growthRate > 0
 
   return (
@@ -28,7 +37,7 @@ export default async function LeadAnalyticsPage() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
-          <TimePeriodFilter />
+          <TimePeriodFilter initialPeriod={period as TimePeriod} />
           
           <Card className="border shadow-sm w-full sm:w-auto">
             <div className="w-full justify-between border-0 bg-white h-[60px] px-4 flex items-center">
@@ -53,7 +62,7 @@ export default async function LeadAnalyticsPage() {
       </Suspense>
 
       <Suspense fallback={<div>Loading analytics charts...</div>}>
-        <LeadAnalyticsCharts stats={stats} />
+        <LeadAnalyticsCharts stats={stats} analytics={analytics} />
       </Suspense>
     </div>
   )

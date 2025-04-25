@@ -20,9 +20,29 @@ interface LeadAnalyticsChartsProps {
     byStatus: Record<LeadStatus, number>
     byPriority: Record<LeadPriority, number>
   } | null
+  analytics: {
+    total: number
+    byStatus: Record<string, number>
+    byPriority: Record<string, number>
+    conversionMetrics: {
+      avgTimeToQualify: number
+      avgTimeToClose: number
+      leadToDealRatio: number
+    }
+    assignmentMetrics: {
+      assigned: number
+      unassigned: number
+    }
+    monthlyMetrics: {
+      months: string[]
+      newLeadsByMonth: Record<string, number>
+      qualifiedLeadsByMonth: Record<string, number>
+    }
+    growthRate: number
+  } | null
 }
 
-export function LeadAnalyticsCharts({ stats }: LeadAnalyticsChartsProps) {
+export function LeadAnalyticsCharts({ stats, analytics }: LeadAnalyticsChartsProps) {
   if (!stats) return null
 
   // Calculate some metrics
@@ -31,8 +51,18 @@ export function LeadAnalyticsCharts({ stats }: LeadAnalyticsChartsProps) {
   const lostLeads = stats.byStatus.LOST || 0
   const activeLeads = totalLeads - wonLeads - lostLeads - (stats.byStatus.ARCHIVED || 0)
 
-  // Mock data for charts
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+  // Use actual data for metrics if available
+  const avgTimeToQualify = analytics?.conversionMetrics.avgTimeToQualify || 0
+  const avgTimeToClose = analytics?.conversionMetrics.avgTimeToClose || 0
+  const leadToDealRatio = analytics?.conversionMetrics.leadToDealRatio || 0
+  
+  // Use actual assigned/unassigned counts
+  const assignedLeads = analytics?.assignmentMetrics.assigned || 0
+  const unassignedLeads = analytics?.assignmentMetrics.unassigned || 0
+  const assignedPercentage = totalLeads > 0 ? Math.round((assignedLeads / totalLeads) * 100) : 0
+  
+  // Use actual monthly data if available
+  const months = analytics?.monthlyMetrics.months || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
 
   return (
     <div className="space-y-6">
@@ -47,7 +77,7 @@ export function LeadAnalyticsCharts({ stats }: LeadAnalyticsChartsProps) {
               <div className="flex justify-between items-start">
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Average Time to Qualify</div>
-                  <div className="text-2xl font-bold text-[#4472C4]">3.2 days</div>
+                  <div className="text-2xl font-bold text-[#4472C4]">{avgTimeToQualify} days</div>
                 </div>
                 <Calendar className="h-5 w-5 text-[#4472C4] opacity-70" />
               </div>
@@ -59,7 +89,7 @@ export function LeadAnalyticsCharts({ stats }: LeadAnalyticsChartsProps) {
               <div className="flex justify-between items-start">
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Average Time to Close</div>
-                  <div className="text-2xl font-bold text-[#70AD47]">14.5 days</div>
+                  <div className="text-2xl font-bold text-[#70AD47]">{avgTimeToClose} days</div>
                 </div>
                 <Calendar className="h-5 w-5 text-[#70AD47] opacity-70" />
               </div>
@@ -71,7 +101,7 @@ export function LeadAnalyticsCharts({ stats }: LeadAnalyticsChartsProps) {
               <div className="flex justify-between items-start">
                 <div>
                   <div className="text-sm text-muted-foreground mb-1">Lead-to-Deal Ratio</div>
-                  <div className="text-2xl font-bold text-[#ED7D31]">18.3%</div>
+                  <div className="text-2xl font-bold text-[#ED7D31]">{leadToDealRatio}%</div>
                 </div>
                 <TrendingUp className="h-5 w-5 text-[#ED7D31] opacity-70" />
               </div>
@@ -112,12 +142,12 @@ export function LeadAnalyticsCharts({ stats }: LeadAnalyticsChartsProps) {
               <div className="mt-6 flex items-center justify-between">
                 <div className="flex flex-col">
                   <span className="text-xs text-muted-foreground">Average Time to Close</span>
-                  <span className="text-lg font-bold">14.5 days</span>
+                  <span className="text-lg font-bold">{avgTimeToClose} days</span>
                 </div>
                 <ArrowRight className="h-4 w-4 text-[#70AD47]" />
                 <div className="flex flex-col">
                   <span className="text-xs text-muted-foreground">Conversion Rate</span>
-                  <span className="text-lg font-bold">{((wonLeads / totalLeads) * 100).toFixed(1)}%</span>
+                  <span className="text-lg font-bold">{leadToDealRatio}%</span>
                 </div>
               </div>
             </div>
@@ -136,25 +166,25 @@ export function LeadAnalyticsCharts({ stats }: LeadAnalyticsChartsProps) {
                   <div className="w-3 h-3 rounded-full bg-[#5B9BD5] mr-2"></div>
                   <span className="text-xs">Assigned Leads</span>
                 </div>
-                <span className="text-xs font-medium">{Math.round(totalLeads * 0.75)} leads</span>
+                <span className="text-xs font-medium">{assignedLeads} leads</span>
               </div>
               <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
                 <div
                   className="bg-[#5B9BD5] h-full rounded-full"
-                  style={{ width: '75%' }}
+                  style={{ width: `${assignedPercentage}%` }}
                 ></div>
               </div>
 
               <div className="mt-6 grid grid-cols-2 gap-4">
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <div className="text-xs text-muted-foreground">Assigned</div>
-                  <div className="text-lg font-bold">{Math.round(totalLeads * 0.75)}</div>
-                  <div className="text-xs text-[#5B9BD5]">75%</div>
+                  <div className="text-lg font-bold">{assignedLeads}</div>
+                  <div className="text-xs text-[#5B9BD5]">{assignedPercentage}%</div>
                 </div>
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <div className="text-xs text-muted-foreground">Unassigned</div>
-                  <div className="text-lg font-bold">{Math.round(totalLeads * 0.25)}</div>
-                  <div className="text-xs text-[#ED7D31]">25%</div>
+                  <div className="text-lg font-bold">{unassignedLeads}</div>
+                  <div className="text-xs text-[#ED7D31]">{100 - assignedPercentage}%</div>
                 </div>
               </div>
             </div>
@@ -182,19 +212,27 @@ export function LeadAnalyticsCharts({ stats }: LeadAnalyticsChartsProps) {
 
             <div className="flex items-end justify-between h-[150px]">
               {months.map((month, index) => {
-                const height1 = 30 + Math.random() * 70;
-                const height2 = height1 * (0.4 + Math.random() * 0.3);
+                // Use real data if available, otherwise fallback to random
+                const newLeads = analytics?.monthlyMetrics.newLeadsByMonth[month] || 0
+                const qualifiedLeads = analytics?.monthlyMetrics.qualifiedLeadsByMonth[month] || 0
+                
+                // Calculate relative height for the bars (percentage of max value)
+                const maxNewLeads = Math.max(...Object.values(analytics?.monthlyMetrics.newLeadsByMonth || {}).map(val => val || 0), 1)
+                const newLeadsHeight = (newLeads / maxNewLeads) * 100
+                
+                const maxQualifiedLeads = Math.max(...Object.values(analytics?.monthlyMetrics.qualifiedLeadsByMonth || {}).map(val => val || 0), 1)
+                const qualifiedLeadsHeight = (qualifiedLeads / maxQualifiedLeads) * 100
 
                 return (
                   <div key={month} className="flex flex-col items-center w-1/6">
                     <div className="w-full flex justify-center space-x-1">
                       <div
                         className="w-5 bg-[#ED7D31] rounded-t-sm"
-                        style={{ height: `${height1}%` }}
+                        style={{ height: `${newLeadsHeight}%` }}
                       ></div>
                       <div
                         className="w-5 bg-[#4472C4] rounded-t-sm"
-                        style={{ height: `${height2}%` }}
+                        style={{ height: `${qualifiedLeadsHeight}%` }}
                       ></div>
                     </div>
                     <div className="text-xs text-muted-foreground mt-2">{month}</div>
@@ -210,7 +248,7 @@ export function LeadAnalyticsCharts({ stats }: LeadAnalyticsChartsProps) {
               </div>
               <div className="flex flex-col items-end">
                 <span className="text-xs text-muted-foreground">Monthly Average</span>
-                <span className="text-lg font-bold">{Math.round(totalLeads / 6)}</span>
+                <span className="text-lg font-bold">{Math.round(totalLeads / months.length)}</span>
               </div>
             </div>
           </div>

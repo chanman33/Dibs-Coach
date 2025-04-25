@@ -335,4 +335,245 @@ export async function getLeadStats() {
     console.error("[GET_LEAD_STATS_ERROR]", error)
     return { data: null, error: "Failed to fetch lead statistics" }
   }
+}
+
+// Get enhanced lead analytics data for visualization
+export async function getLeadAnalytics(period: string = 'all') {
+  try {
+    const supabase = createAuthClient()
+    
+    // Calculate the start date based on the period
+    const startDate = new Date()
+    switch (period) {
+      case '7d':
+        startDate.setDate(startDate.getDate() - 7)
+        break
+      case '30d':
+        startDate.setDate(startDate.getDate() - 30)
+        break
+      case '90d':
+        startDate.setDate(startDate.getDate() - 90)
+        break
+      case '1y':
+        startDate.setFullYear(startDate.getFullYear() - 1)
+        break
+      case 'all':
+      default:
+        // Use a far past date to include everything
+        startDate.setFullYear(2000)
+        break
+    }
+    
+    // Format date for Supabase query
+    const formattedStartDate = startDate.toISOString()
+    
+    // Query for all lead data needed for analytics with date filter
+    const { data, error } = await supabase
+      .from("EnterpriseLeads")
+      .select("*")
+      .gte("createdAt", formattedStartDate)
+    
+    if (error) throw error
+    
+    // Get date range for monthly metrics - last 6 months
+    const today = new Date()
+    const sixMonthsAgo = new Date()
+    sixMonthsAgo.setMonth(today.getMonth() - 6)
+    
+    // Use either the filter start date or six months ago, whichever is more recent
+    const monthlyMetricsStartDate = startDate > sixMonthsAgo ? startDate : sixMonthsAgo
+    
+    // Calculate analytics metrics
+    const analytics = {
+      // Basic stats
+      total: data.length,
+      byStatus: data.reduce((acc, lead) => {
+        acc[lead.status] = (acc[lead.status] || 0) + 1
+        return acc
+      }, {} as Record<string, number>),
+      byPriority: data.reduce((acc, lead) => {
+        acc[lead.priority] = (acc[lead.priority] || 0) + 1
+        return acc
+      }, {} as Record<string, number>),
+      
+      // Conversion metrics
+      conversionMetrics: {
+        // Calculate average time from NEW to QUALIFIED (in days)
+        avgTimeToQualify: calculateAvgDaysBetweenStatuses(data, "NEW", "QUALIFIED"),
+        
+        // Calculate average time from QUALIFIED to WON/LOST (in days)
+        avgTimeToClose: calculateAvgDaysBetweenStatuses(data, "QUALIFIED", ["WON", "LOST"]),
+        
+        // Lead-to-deal ratio (percentage of leads that converted to WON)
+        leadToDealRatio: calculateLeadToDealRatio(data),
+      },
+      
+      // Assigned vs Unassigned 
+      assignmentMetrics: {
+        assigned: data.filter(lead => lead.assignedToUlid).length,
+        unassigned: data.filter(lead => !lead.assignedToUlid).length,
+      },
+      
+      // Monthly metrics for the last 6 months
+      monthlyMetrics: getMonthlyLeadMetrics(data, monthlyMetricsStartDate),
+      
+      // Growth rate compared to previous period
+      growthRate: calculateGrowthRate(data, period),
+    }
+    
+    return { data: analytics, error: null }
+  } catch (error) {
+    console.error("[GET_LEAD_ANALYTICS_ERROR]", error)
+    return { data: null, error: "Failed to fetch lead analytics" }
+  }
+}
+
+// Helper function to calculate average days between statuses
+function calculateAvgDaysBetweenStatuses(
+  leads: any[], 
+  fromStatus: string, 
+  toStatus: string | string[]
+) {
+  // Filter leads that have both createdAt and updatedAt timestamps
+  const relevantLeads = leads.filter(lead => {
+    const targetStatus = Array.isArray(toStatus) ? toStatus.includes(lead.status) : lead.status === toStatus
+    return lead.createdAt && lead.updatedAt && targetStatus
+  })
+  
+  if (relevantLeads.length === 0) return 0
+  
+  // Calculate the average time difference in days
+  const totalDays = relevantLeads.reduce((total, lead) => {
+    const createdDate = new Date(lead.createdAt)
+    const updatedDate = new Date(lead.updatedAt)
+    const diffTime = Math.abs(updatedDate.getTime() - createdDate.getTime())
+    const diffDays = diffTime / (1000 * 60 * 60 * 24)
+    return total + diffDays
+  }, 0)
+  
+  return parseFloat((totalDays / relevantLeads.length).toFixed(1))
+}
+
+// Helper function to calculate lead-to-deal ratio
+function calculateLeadToDealRatio(leads: any[]) {
+  if (leads.length === 0) return 0
+  
+  const wonLeads = leads.filter(lead => lead.status === "WON").length
+  return parseFloat(((wonLeads / leads.length) * 100).toFixed(1))
+}
+
+// Helper function to get monthly lead metrics for the past 6 months
+function getMonthlyLeadMetrics(leads: any[], startDate: Date) {
+  const months: string[] = []
+  const newLeadsByMonth: Record<string, number> = {}
+  const qualifiedLeadsByMonth: Record<string, number> = {}
+  
+  // Create array of month names
+  for (let i = 0; i < 6; i++) {
+    const date = new Date(startDate)
+    date.setMonth(startDate.getMonth() + i)
+    const monthName = date.toLocaleString('default', { month: 'short' })
+    months.push(monthName)
+    newLeadsByMonth[monthName] = 0
+    qualifiedLeadsByMonth[monthName] = 0
+  }
+  
+  // Count leads by month
+  leads.forEach(lead => {
+    const createdDate = new Date(lead.createdAt)
+    
+    // Only include leads from the last 6 months
+    if (createdDate >= startDate) {
+      const monthName = createdDate.toLocaleString('default', { month: 'short' })
+      
+      // Increment new leads count for this month
+      if (newLeadsByMonth[monthName] !== undefined) {
+        newLeadsByMonth[monthName]++
+      }
+      
+      // Increment qualified leads if the status is QUALIFIED or further
+      const qualifiedStatuses = ["QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON"]
+      if (qualifiedLeadsByMonth[monthName] !== undefined && qualifiedStatuses.includes(lead.status)) {
+        qualifiedLeadsByMonth[monthName]++
+      }
+    }
+  })
+  
+  return {
+    months,
+    newLeadsByMonth,
+    qualifiedLeadsByMonth
+  }
+}
+
+// Helper function to calculate growth rate compared to previous period
+function calculateGrowthRate(leads: any[], period: string = 'all') {
+  const now = new Date()
+  let currentPeriodStart: Date
+  let previousPeriodStart: Date
+  let previousPeriodEnd: Date
+  
+  // Set the period boundaries based on the selected time period
+  switch (period) {
+    case '7d':
+      currentPeriodStart = new Date(now)
+      currentPeriodStart.setDate(now.getDate() - 7)
+      previousPeriodStart = new Date(currentPeriodStart)
+      previousPeriodStart.setDate(currentPeriodStart.getDate() - 7)
+      previousPeriodEnd = new Date(currentPeriodStart)
+      previousPeriodEnd.setDate(currentPeriodStart.getDate() - 1)
+      break
+    case '30d':
+      currentPeriodStart = new Date(now)
+      currentPeriodStart.setDate(now.getDate() - 30)
+      previousPeriodStart = new Date(currentPeriodStart)
+      previousPeriodStart.setDate(currentPeriodStart.getDate() - 30)
+      previousPeriodEnd = new Date(currentPeriodStart)
+      previousPeriodEnd.setDate(currentPeriodStart.getDate() - 1)
+      break
+    case '90d':
+      currentPeriodStart = new Date(now)
+      currentPeriodStart.setDate(now.getDate() - 90)
+      previousPeriodStart = new Date(currentPeriodStart)
+      previousPeriodStart.setDate(currentPeriodStart.getDate() - 90)
+      previousPeriodEnd = new Date(currentPeriodStart)
+      previousPeriodEnd.setDate(currentPeriodStart.getDate() - 1)
+      break
+    case '1y':
+      currentPeriodStart = new Date(now)
+      currentPeriodStart.setFullYear(now.getFullYear() - 1)
+      previousPeriodStart = new Date(currentPeriodStart)
+      previousPeriodStart.setFullYear(currentPeriodStart.getFullYear() - 1)
+      previousPeriodEnd = new Date(currentPeriodStart)
+      previousPeriodEnd.setDate(currentPeriodStart.getDate() - 1)
+      break
+    case 'all':
+    default:
+      // For all time, compare last month vs previous month
+      currentPeriodStart = new Date(now)
+      currentPeriodStart.setMonth(now.getMonth() - 1)
+      previousPeriodStart = new Date(currentPeriodStart)
+      previousPeriodStart.setMonth(currentPeriodStart.getMonth() - 1)
+      previousPeriodEnd = new Date(currentPeriodStart)
+      previousPeriodEnd.setDate(currentPeriodStart.getDate() - 1)
+      break
+  }
+  
+  // Count leads in current period
+  const currentPeriodLeads = leads.filter(lead => {
+    const createdDate = new Date(lead.createdAt)
+    return createdDate >= currentPeriodStart && createdDate <= now
+  }).length
+  
+  // Count leads in previous period
+  const previousPeriodLeads = leads.filter(lead => {
+    const createdDate = new Date(lead.createdAt)
+    return createdDate >= previousPeriodStart && createdDate <= previousPeriodEnd
+  }).length
+  
+  // Calculate growth rate
+  if (previousPeriodLeads === 0) return currentPeriodLeads > 0 ? 100 : 0 // If no leads last period, 100% growth if we have any leads
+  
+  const growthRate = ((currentPeriodLeads - previousPeriodLeads) / previousPeriodLeads) * 100
+  return parseFloat(growthRate.toFixed(1))
 } 

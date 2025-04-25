@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { CalendarDays, ChevronDown } from "lucide-react"
@@ -10,10 +10,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 
-type TimePeriod = "7d" | "30d" | "90d" | "1y" | "all"
+export type TimePeriod = "7d" | "30d" | "90d" | "1y" | "all"
 
 interface TimePeriodFilterProps {
+  initialPeriod?: TimePeriod
   onChange?: (period: TimePeriod) => void
 }
 
@@ -25,11 +27,29 @@ const timePeriodLabels: Record<TimePeriod, string> = {
   "all": "All time"
 }
 
-export function TimePeriodFilter({ onChange }: TimePeriodFilterProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("30d")
+export function TimePeriodFilter({ initialPeriod = "30d", onChange }: TimePeriodFilterProps) {
+  const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>(initialPeriod)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    // Update the selected period if initialPeriod changes
+    if (initialPeriod && initialPeriod !== selectedPeriod) {
+      setSelectedPeriod(initialPeriod)
+    }
+  }, [initialPeriod, selectedPeriod])
 
   const handlePeriodChange = (period: TimePeriod) => {
     setSelectedPeriod(period)
+    
+    // Update URL with the new period
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("period", period)
+    
+    // Replace the current URL with the new one
+    router.push(`${pathname}?${params.toString()}`)
+    
     if (onChange) {
       onChange(period)
     }
