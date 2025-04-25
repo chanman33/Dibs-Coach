@@ -1,10 +1,11 @@
-import { Clock, Users, Calendar, Video, CheckCircle } from "lucide-react";
+import { Clock, CheckCircle, Video, Calendar } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { CalEventType } from "@/utils/types/coach-availability";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { SessionTypeEmoji } from "@/components/emoji/SessionTypeEmoji";
 
 interface EventTypeSelectorProps {
   eventTypes: CalEventType[];
@@ -90,18 +91,6 @@ export function EventTypeSelector({
     setTimeout(() => onSelectEventType(eventTypes[0].id), 0);
   }
 
-  const getEventTypeIcon = (type: CalEventType) => {
-    // Display different icons based on scheduling type
-    if (type.schedulingType === 'GROUP_SESSION') {
-      return <Users className="h-5 w-5 text-primary" />;
-    }
-    if (type.schedulingType === 'OFFICE_HOURS') {
-      return <Calendar className="h-5 w-5 text-primary" />;
-    }
-    // Default for one-on-one sessions
-    return <Clock className="h-5 w-5 text-primary" />;
-  };
-
   const getDisplayName = (eventType: CalEventType) => {
     return eventType.title || eventType.name || "Coaching Session";
   };
@@ -144,8 +133,12 @@ export function EventTypeSelector({
                     )}
                     
                     <div className="flex items-center mb-2">
-                      {getEventTypeIcon(eventType)}
-                      <h3 className="font-medium text-base ml-2 text-foreground">
+                      <SessionTypeEmoji 
+                        type={getDisplayName(eventType)}
+                        schedulingType={eventType.schedulingType}
+                        className="text-xl mr-2"
+                      />
+                      <h3 className="font-medium text-base text-foreground">
                         {getDisplayName(eventType)}
                       </h3>
                     </div>
