@@ -3,6 +3,7 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import CoachApplicationForm from '@/app/apply-coach/_components/CoachApplicationForm';
 import { getCoachApplication } from '@/utils/actions/coach-application';
 import { createAuthClient } from '@/utils/auth';
+import { type CoachApplicationStatus } from '@/utils/types/coach-application';
 
 export default async function ApplyCoachPage() {
   const { userId } = await auth();
@@ -62,7 +63,7 @@ export default async function ApplyCoachPage() {
     linkedIn: application.linkedIn,
     primarySocialMedia: application.primarySocialMedia,
     aboutYou: application.aboutYou,
-    reviewNotes: application.notes,
+    reviewNotes: application.reviewNotes,
     reviewDate: application.reviewDate,
     reviewer: application.reviewer
   } : undefined;

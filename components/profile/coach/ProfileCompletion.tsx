@@ -555,13 +555,6 @@ export function ProfileCompletion({
               </Button>
             )}
           </div>
-
-          {/* Message if cannot publish */}          
-          {!canPublish && (
-            <div className="mt-4 text-sm text-muted-foreground text-center">
-              Complete all required steps to publish your profile.
-            </div>
-          )}
         </>
       )}
     </Card>
