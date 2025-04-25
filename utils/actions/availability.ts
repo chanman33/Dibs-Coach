@@ -31,13 +31,13 @@ interface AvailabilitySchedule {
   updatedAt: string
 }
 
-interface BookedSession {
+export interface BookedSession {
   ulid: string
   startTime: string
   endTime: string
   coachUlid: string
   menteeUlid: string
-  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW'
+  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "ABSENT" | "RESCHEDULED"
   createdAt: string
 }
 
@@ -350,37 +350,40 @@ export const saveCoachAvailability = withServerAction<{ success: true }, SaveAva
         isDefault: true, // Assuming this is the default schedule being saved
         updatedAt: new Date().toISOString(), // Required by project rules
         // Include other relevant fields from schema like buffer times, duration settings if applicable
-        // bufferAfter: params.bufferAfter ?? existingSchedule?.bufferAfter ?? 0,
-        // bufferBefore: params.bufferBefore ?? existingSchedule?.bufferBefore ?? 0,
-        // defaultDuration: params.defaultDuration ?? existingSchedule?.defaultDuration ?? 60,
-        // ...etc
+        bufferAfter: 0,
+        bufferBefore: 0,
+        defaultDuration: 60,
+        allowCustomDuration: true,
+        minimumDuration: 30,
+        maximumDuration: 120
       }
 
       let result;
       if (existingSchedule) {
         // Update existing schedule
-        console.log('[SAVE_AVAILABILITY] Updating existing schedule', { userUlid, scheduleId: existingSchedule.ulid });
+        console.log('[SAVE_AVAILABILITY] Updating existing schedule', { 
+          userUlid, 
+          scheduleId: existingSchedule.ulid,
+          timeZone: determinedTimeZone 
+        });
         result = await supabase
           .from('CoachingAvailabilitySchedule')
-          .update(schedulePayload) // Pass the whole payload for update
+          .update(schedulePayload)
           .eq('ulid', existingSchedule.ulid)
       } else {
         // Create new schedule
-        console.log('[SAVE_AVAILABILITY] Creating new schedule', { userUlid });
+        console.log('[SAVE_AVAILABILITY] Creating new schedule', { 
+          userUlid,
+          timeZone: determinedTimeZone 
+        });
         result = await supabase
           .from('CoachingAvailabilitySchedule')
           .insert({
             ulid: generateUlid(),
             userUlid: userUlid,
-            ...schedulePayload, // Spread the payload
-            active: true, // Ensure new schedules are active
-            createdAt: new Date().toISOString(), // Set createdAt only for new records
-            // Add defaults for other required fields if not in payload
-            allowCustomDuration: true,
-            minimumDuration: 30,
-            maximumDuration: 120,
-            bufferAfter: 0,
-            bufferBefore: 0
+            ...schedulePayload,
+            active: true,
+            createdAt: new Date().toISOString()
           })
       }
 

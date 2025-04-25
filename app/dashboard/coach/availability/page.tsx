@@ -429,7 +429,7 @@ export default function CoachAvailabilityPage() {
               `Your availability is currently managed in the ${determinedTimezone} timezone. This is synchronized with your connected calendar or your profile settings.`
             ) : (
               <span>
-                Please set your timezone to ensure accurate scheduling. You can connect your Cal.com account or set it manually in your <Link href="/dashboard/settings" className="underline font-medium">Settings</Link>.
+                Please set your timezone to ensure accurate scheduling. You can connect your Cal.com account or set it manually in your <Link href="/dashboard/coach/integrations/calendar" className="underline font-medium">Calendar Integrations</Link>.
               </span>
             )}
           </AlertDescription>

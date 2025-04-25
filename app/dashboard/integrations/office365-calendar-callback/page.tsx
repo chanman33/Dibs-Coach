@@ -158,12 +158,12 @@ export default function Office365CalendarCallback() {
       // Redirect to the settings page with tab and success parameters
       setTimeout(() => {
         try {
-          console.log('[OFFICE365_CALLBACK_UI] Redirecting to settings after successful connection.');
-          router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
+          console.log('[OFFICE365_CALLBACK_UI] Redirecting to new calendar integration page after successful connection.');
+          router.replace(`/dashboard/coach/integrations/calendar?success=calendar_connected&t=${Date.now()}`);
         } catch (err) {
           // Fallback in case of any errors
           console.error('[OFFICE365_CALLBACK_UI] Error during redirect preparation:', err);
-          router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
+          router.replace(`/dashboard/coach/integrations/calendar?success=calendar_connected&t=${Date.now()}`);
         }
       }, 2500); // Shortened delay for user feedback before redirect
       
@@ -177,7 +177,7 @@ export default function Office365CalendarCallback() {
 
   // Function to manually go back to settings
   const handleBackToSettings = () => {
-    router.replace('/dashboard/settings');
+    router.replace('/dashboard/coach/integrations/calendar');
   };
   
   return (

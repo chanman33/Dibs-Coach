@@ -162,13 +162,15 @@ export default function GoogleCalendarCallback() {
           //   console.error('[GOOGLE_CALLBACK_UI] Error prefetching organization data:', err);
           //   router.replace(`/dashboard/settings?tab=integrations&success=true&t=${Date.now()}`);
           // });
-          console.log('[GOOGLE_CALLBACK_UI] Redirecting to settings after successful connection.');
+          console.log('[GOOGLE_CALLBACK_UI] Redirecting to new calendar integration page after successful connection.');
           // Redirect with a specific success parameter for calendar connection
-          router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
+          // router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
+          router.replace(`/dashboard/coach/integrations/calendar?success=calendar_connected&t=${Date.now()}`); // Update route and add timestamp
         } catch (err) {
           // Fallback in case of any errors
           console.error('[GOOGLE_CALLBACK_UI] Error during redirect preparation:', err);
-          router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
+          // router.replace(`/dashboard/settings?tab=integrations&success=calendar_connected`);
+          router.replace(`/dashboard/coach/integrations/calendar?success=calendar_connected&t=${Date.now()}`); // Update route and add timestamp
         }
       }, 2500); // Shortened delay for user feedback before redirect
       
@@ -182,7 +184,8 @@ export default function GoogleCalendarCallback() {
 
   // Function to manually go back to settings
   const handleBackToSettings = () => {
-    router.replace('/dashboard/settings');
+    // router.replace('/dashboard/settings');
+    router.replace('/dashboard/coach/integrations/calendar'); // Update route
   };
   
   return (
