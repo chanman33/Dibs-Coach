@@ -41,7 +41,7 @@ export const transformedSessionSchema = z.object({
   userRole: z.enum(['coach', 'mentee']),
   otherParty: userSchema,
   sessionType: z.enum(Object.values(SESSION_TYPE) as [string, ...string[]]).nullable(),
-  zoomMeetingUrl: z.string().nullable(),
+  zoomJoinUrl: z.string().nullable(),
   paymentStatus: z.string().nullable()
 });
 

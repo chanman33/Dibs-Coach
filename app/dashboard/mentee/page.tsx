@@ -3,7 +3,7 @@
 import { Suspense } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Users, Target, Clock, TrendingUp, ArrowUpRight, Trophy, Loader2, Calendar, Instagram, AlertCircle, ChevronRight, BarChart, ChevronLeft, Home, DollarSign, Users as UsersIcon, Star, Globe, Award, BookOpen, Briefcase, Settings } from "lucide-react"
+import { Users, Target, Clock, TrendingUp, ArrowUpRight, Trophy, Loader2, Calendar, Instagram, AlertCircle, ChevronRight, BarChart, ChevronLeft, Home, DollarSign, Users as UsersIcon, Star, Globe, Award, BookOpen, Briefcase, Settings, Building, Gift } from "lucide-react"
 import Link from 'next/link'
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
@@ -45,7 +45,7 @@ function MenteeDashboard() {
         // Transform the data to match ClientGoal interface and sort by personal/org goals
         const transformedGoals = (data || []).map(goal => {
           const typedGoal = goal as any;
-            
+
           // Parse target value correctly
           let targetValue = 0;
           if (typedGoal.target) {
@@ -65,7 +65,7 @@ function MenteeDashboard() {
               });
             }
           }
-          
+
           // Parse progress value correctly
           let progressValue = 0;
           if (typedGoal.progress) {
@@ -85,7 +85,7 @@ function MenteeDashboard() {
               });
             }
           }
-          
+
           // Parse the due date correctly
           let deadline = typedGoal.dueDate;
           if (deadline) {
@@ -103,7 +103,7 @@ function MenteeDashboard() {
               });
             }
           }
-          
+
           return {
             ulid: typedGoal.ulid,
             userUlid: typedGoal.userUlid,
@@ -131,7 +131,7 @@ function MenteeDashboard() {
           // If both are the same type, sort by creation date (newest first)
           return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
-        
+
         setGoals(sortedGoals);
       } catch (error) {
         console.error('[FETCH_GOALS_ERROR]', error)
@@ -485,33 +485,46 @@ function MenteeDashboard() {
           <CardHeader className="pb-3 flex-none">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Trophy className="h-5 w-5 text-blue-500" />
-                Premium Features
+                <Building className="h-5 w-5 text-blue-500" />
+                Business Connection
               </CardTitle>
             </div>
             <CardDescription className="line-clamp-2">
-              Unlock advanced coaching tools
+              Unlock team-wide benefits when you connect with your brokerage
             </CardDescription>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col justify-between pb-4">
             <div className="space-y-2.5">
               <div className="flex items-start gap-2 text-sm">
                 <Users className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-                <span><span className="font-semibold text-foreground">Expanded coaching access</span> - higher call balance and top-ups</span>
+                <span>
+                  <span className="font-semibold text-foreground">Company-sponsored coaching</span>
+                </span>
               </div>
               <div className="flex items-start gap-2 text-sm">
-                <TrendingUp className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-                <span><span className="font-semibold text-foreground">Advanced AI tools suite</span> - Unlimited chat, listings, and more coming soon</span>
+                <BarChart className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-semibold text-foreground">Enhanced team performance</span>
+                </span>
+              </div>
+              <div className="flex items-start gap-2 text-sm">
+                <Gift className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                <span>
+                  <span className="font-semibold text-foreground">Early access to new features</span>
+                </span>
               </div>
             </div>
 
             <Button
               className="w-full h-10 bg-blue-500 hover:bg-blue-600 text-white transition-colors mt-4"
-              disabled
+              asChild
             >
-              Coming Soon
+              <Link href="/business-solutions">
+                Learn More
+              </Link>
             </Button>
           </CardContent>
+
         </Card>
       </div>
 
@@ -581,9 +594,9 @@ function MenteeDashboard() {
                         Coach {nextSession.otherParty.firstName} {nextSession.otherParty.lastName}
                       </p>
                     </div>
-                    {nextSession.zoomMeetingUrl && (
+                    {nextSession.zoomJoinUrl && (
                       <Button asChild size="sm" variant="outline">
-                        <Link href={nextSession.zoomMeetingUrl} target="_blank" rel="noopener noreferrer">
+                        <Link href={nextSession.zoomJoinUrl} target="_blank" rel="noopener noreferrer">
                           Join Call
                         </Link>
                       </Button>

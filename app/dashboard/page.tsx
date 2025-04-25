@@ -6,11 +6,22 @@ import { createAuthClient } from "@/utils/auth";
 
 export default async function DashboardPage() {
   try {
+    console.log('[DASHBOARD] Starting dashboard page load');
+    
     const authContext = await getAuthContext();
     
     if (!authContext) {
+      console.log('[DASHBOARD] No auth context found, redirecting to sign-in');
       redirect('/sign-in');
     }
+
+    console.log('[DASHBOARD] Auth context loaded:', {
+      userId: authContext.userId,
+      userUlid: authContext.userUlid,
+      systemRole: authContext.systemRole,
+      capabilities: authContext.capabilities,
+      isNewUser: authContext.isNewUser
+    });
 
     // Define routing priority and rules
     const routingRules = [
@@ -59,10 +70,12 @@ export default async function DashboardPage() {
         throw updateError; // Let the error boundary handle this
       }
 
+      console.log('[DASHBOARD] Updated user capabilities, redirecting to mentee dashboard');
       // Redirect to mentee dashboard after fixing capabilities
       redirect("/dashboard/mentee");
     }
 
+    console.log(`[DASHBOARD] Redirecting to ${route}`);
     // Redirect to the appropriate dashboard
     redirect(route);
 
@@ -72,22 +85,23 @@ export default async function DashboardPage() {
       throw error; // Re-throw redirect to let Next.js handle it
     }
 
-    // Handle UserNotFoundError specially
-    if (error instanceof UserNotFoundError) {
-      return (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center space-y-4">
-            <h2 className="text-2xl font-semibold">Setting up your account...</h2>
-            <p className="text-muted-foreground">This may take a few moments.</p>
-            <p className="text-sm text-muted-foreground">If this page persists, please refresh.</p>
-            {/* Automatic refresh after delay */}
-            <script dangerouslySetInnerHTML={{
-              __html: `setTimeout(() => window.location.reload(), 2000)`
-            }} />
-          </div>
-        </div>
-      );
-    }
+    // // Handle UserNotFoundError specially - Let getAuthContext retries handle this.
+    // if (error instanceof UserNotFoundError) {
+    //   console.log('[DASHBOARD] User not found, showing setup message');
+    //   return (
+    //     <div className="flex items-center justify-center min-h-screen">
+    //       <div className="text-center space-y-4">
+    //         <h2 className="text-2xl font-semibold">Setting up your account...</h2>
+    //         <p className="text-muted-foreground">This may take a few moments.</p>
+    //         <p className="text-sm text-muted-foreground">If this page persists, please refresh.</p>
+    //         {/* Automatic refresh after delay */}
+    //         <script dangerouslySetInnerHTML={{
+    //           __html: `setTimeout(() => window.location.reload(), 2000)`
+    //         }} />
+    //       </div>
+    //     </div>
+    //   );
+    // }
     
     // Log other errors properly
     console.error('[DASHBOARD_ERROR]', {

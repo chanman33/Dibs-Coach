@@ -351,9 +351,9 @@ function SessionCard({ session }: SessionCardProps) {
           <div className="flex items-center gap-2">
             {session.status === 'SCHEDULED' && (
               <>
-                {session.zoomMeetingUrl && (
+                {session.zoomJoinUrl && (
                   <Button size="sm" variant="outline" asChild>
-                    <a href={session.zoomMeetingUrl} target="_blank" rel="noopener noreferrer">
+                    <a href={session.zoomJoinUrl} target="_blank" rel="noopener noreferrer">
                       Join Zoom
                     </a>
                   </Button>

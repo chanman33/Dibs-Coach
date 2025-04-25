@@ -50,7 +50,7 @@ CREATE TYPE "VerificationStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'EX
 CREATE TYPE "CertificationStatus" AS ENUM ('ACTIVE', 'EXPIRED', 'REVOKED', 'PENDING');
 
 -- CreateEnum
-CREATE TYPE "SessionStatus" AS ENUM ('SCHEDULED', 'COMPLETED', 'CANCELLED', 'NO_SHOW');
+CREATE TYPE "SessionStatus" AS ENUM ('SCHEDULED', 'COMPLETED', 'RESCHEDULED', 'CANCELLED', 'ABSENT');
 
 -- CreateEnum
 CREATE TYPE "SessionType" AS ENUM ('MANAGED', 'GROUP_SESSION', 'OFFICE_HOURS');
@@ -332,7 +332,7 @@ CREATE TABLE "Session" (
     "coachUlid" CHAR(26) NOT NULL,
     "startTime" TIMESTAMPTZ(6) NOT NULL,
     "endTime" TIMESTAMPTZ(6) NOT NULL,
-    "status" "CalBookingStatus" NOT NULL DEFAULT 'CONFIRMED',
+    "status" "SessionStatus" NOT NULL,
     "sessionType" "SessionType" NOT NULL,
     "sessionNotes" TEXT,
     "originalSessionUlid" CHAR(26),

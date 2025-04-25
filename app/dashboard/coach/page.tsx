@@ -819,15 +819,10 @@ export default function CoachDashboard() {
                           <span>{session.durationMinutes} min session</span>
                         </div>
                       </div>
-                      {session.zoomMeetingUrl && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="ml-auto"
-                          asChild
-                        >
-                          <Link href={session.zoomMeetingUrl} target="_blank">
-                            <Video className="h-4 w-4" />
+                      {session.zoomJoinUrl && (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={session.zoomJoinUrl} target="_blank">
+                            Join Zoom
                           </Link>
                         </Button>
                       )}

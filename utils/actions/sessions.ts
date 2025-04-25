@@ -68,7 +68,7 @@ interface DbSession {
   endTime: string
   status: string // Changed to string to avoid prototype issues
   sessionType: string | null
-  zoomMeetingUrl: string | null
+  zoomJoinUrl: string | null
   paymentStatus: string | null
   createdAt: string
   mentee: {
@@ -121,7 +121,7 @@ export const fetchCoachSessions = withServerAction<any>(
           endTime,
           status,
           sessionType,
-          zoomMeetingUrl,
+          zoomJoinUrl,
           paymentStatus,
           createdAt,
           mentee:User!Session_menteeUlid_fkey (
@@ -194,7 +194,7 @@ export const fetchCoachSessions = withServerAction<any>(
               profileImageUrl: session.mentee.profileImageUrl ? String(session.mentee.profileImageUrl) : null
             },
             sessionType,
-            zoomMeetingUrl: session.zoomMeetingUrl ? String(session.zoomMeetingUrl) : null,
+            zoomJoinUrl: session.zoomJoinUrl ? String(session.zoomJoinUrl) : null,
             paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null
           }
           
@@ -288,7 +288,7 @@ export const fetchUpcomingSessions = withServerAction<any>(
           endTime,
           status,
           sessionType,
-          zoomMeetingUrl,
+          zoomJoinUrl,
           paymentStatus,
           createdAt,
           mentee:User!Session_menteeUlid_fkey (
@@ -300,7 +300,7 @@ export const fetchUpcomingSessions = withServerAction<any>(
           )
         `)
         .eq('coachUlid', userUlid)
-        .eq('status', 'SCHEDULED')
+        .eq('status', SESSION_STATUS.SCHEDULED)
         .gt('startTime', now)
         .order('startTime', { ascending: true })
         .limit(5)
@@ -345,7 +345,7 @@ export const fetchUpcomingSessions = withServerAction<any>(
             profileImageUrl: session.mentee.profileImageUrl ? String(session.mentee.profileImageUrl) : null
           },
           sessionType,
-          zoomMeetingUrl: session.zoomMeetingUrl ? String(session.zoomMeetingUrl) : null,
+          zoomJoinUrl: session.zoomJoinUrl ? String(session.zoomJoinUrl) : null,
           paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null
         }
       })
@@ -408,7 +408,7 @@ export const fetchUserSessions = withServerAction<any>(
           endTime,
           status,
           sessionType,
-          zoomMeetingUrl,
+          zoomJoinUrl,
           paymentStatus,
           createdAt,
           mentee:User!Session_menteeUlid_fkey (
@@ -484,7 +484,7 @@ export const fetchUserSessions = withServerAction<any>(
             profileImageUrl: otherParty.profileImageUrl ? String(otherParty.profileImageUrl) : null
           },
           sessionType: session.sessionType ? String(session.sessionType) : null,
-          zoomMeetingUrl: session.zoomMeetingUrl ? String(session.zoomMeetingUrl) : null,
+          zoomJoinUrl: session.zoomJoinUrl ? String(session.zoomJoinUrl) : null,
           paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null
         }
       })

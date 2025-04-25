@@ -274,7 +274,7 @@ model Session {
   coachUlid          String    @db.Char(26)
   startTime          DateTime  @db.Timestamptz(6)
   endTime            DateTime  @db.Timestamptz(6)
-  status             CalBookingStatus @default(CONFIRMED)
+  status             SessionStatus
   sessionType        SessionType
   sessionNotes       String?
   
@@ -1165,8 +1165,9 @@ enum CertificationStatus {
 enum SessionStatus {
   SCHEDULED
   COMPLETED
+  RESCHEDULED
   CANCELLED
-  NO_SHOW
+  ABSENT
 }
 
 enum SessionType {
