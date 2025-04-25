@@ -177,7 +177,6 @@ export function OrganizationBillingPanel({ orgId }: OrganizationBillingPanelProp
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="seats">Seat Management</TabsTrigger>
               <TabsTrigger value="payment">Payment Methods</TabsTrigger>
-              <TabsTrigger value="usage">Usage & Analytics</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview" className="space-y-4">
@@ -436,92 +435,7 @@ export function OrganizationBillingPanel({ orgId }: OrganizationBillingPanelProp
               )}
             </TabsContent>
             
-            <TabsContent value="usage" className="space-y-4">
-              {isLoading ? (
-                renderSkeletonLoading()
-              ) : (
-                <>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Usage Analytics</CardTitle>
-                      <CardDescription>Track coaching session usage and spending</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid gap-4 md:grid-cols-3 mb-6">
-                        <div className="bg-muted p-4 rounded-lg border">
-                          <div className="text-sm text-muted-foreground mb-1">Sessions Booked</div>
-                          <div className="text-2xl font-bold">{usageData.sessionsBooked}</div>
-                        </div>
-                        <div className="bg-muted p-4 rounded-lg border">
-                          <div className="text-sm text-muted-foreground mb-1">Sessions Completed</div>
-                          <div className="text-2xl font-bold">{usageData.sessionsCompleted}</div>
-                        </div>
-                        <div className="bg-muted p-4 rounded-lg border">
-                          <div className="text-sm text-muted-foreground mb-1">Total Spent</div>
-                          <div className="text-2xl font-bold">${usageData.totalSpent}</div>
-                        </div>
-                      </div>
-                      
-                      <div className="mb-4">
-                        <div className="font-medium mb-2">Most Active Coaches</div>
-                        <div className="space-y-2">
-                          {usageData.topCoaches.map((coach, index) => (
-                            <div key={index} className="flex justify-between items-center">
-                              <div>{coach.name}</div>
-                              <Badge variant="outline">{coach.sessions} sessions</Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <Separator className="my-4" />
-                      
-                      <div className="mb-2 font-medium">Department Usage</div>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Department</TableHead>
-                            <TableHead>Users</TableHead>
-                            <TableHead>Sessions</TableHead>
-                            <TableHead>Avg. per User</TableHead>
-                            <TableHead>Total Spent</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          <TableRow>
-                            <TableCell className="font-medium">Sales</TableCell>
-                            <TableCell>8</TableCell>
-                            <TableCell>19</TableCell>
-                            <TableCell>2.4</TableCell>
-                            <TableCell>$1,920</TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell className="font-medium">Marketing</TableCell>
-                            <TableCell>5</TableCell>
-                            <TableCell>12</TableCell>
-                            <TableCell>2.4</TableCell>
-                            <TableCell>$1,210</TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell className="font-medium">Operations</TableCell>
-                            <TableCell>5</TableCell>
-                            <TableCell>7</TableCell>
-                            <TableCell>1.4</TableCell>
-                            <TableCell>$740</TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                    <CardFooter>
-                      <Button variant="outline" className="w-full">
-                        <TrendingUp className="mr-2 h-4 w-4" />
-                        Generate Detailed Report
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                </>
-              )}
-            </TabsContent>
+            
           </Tabs>
         </CardContent>
       </Card>

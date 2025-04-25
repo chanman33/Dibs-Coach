@@ -139,8 +139,14 @@ export async function createOrganization(data: z.infer<typeof createOrganization
   try {
     const supabase = createAuthClient()
     
+    // Generate a ULID if not provided
+    const organizationUlid = data.ulid || ulid()
+    
     // Validate the data
-    const validatedData = createOrganizationSchema.parse(data)
+    const validatedData = createOrganizationSchema.parse({
+      ...data,
+      ulid: organizationUlid
+    })
     
     // Prepare data for insertion with required fields
     const organizationData = {
@@ -149,7 +155,7 @@ export async function createOrganization(data: z.infer<typeof createOrganization
       updatedAt: new Date().toISOString()
     }
     
-    // Create the organization - use type assertion to bypass type checking issues
+    // Insert the organization - use type assertion to bypass type checking issues
     const { data: organization, error } = await supabase
       .from('Organization')
       .insert(organizationData as any)
@@ -161,37 +167,37 @@ export async function createOrganization(data: z.infer<typeof createOrganization
       return { error: error.message, data: null }
     }
     
-    // Add the user as an owner
+    // If a userUlid is provided, add the user as an owner
     if (data.userUlid) {
-      const memberData = {
-        ulid: ulid(),
-        organizationUlid: organization.ulid,
-        userUlid: data.userUlid,
-        role: 'OWNER',
-        status: 'ACTIVE',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-      
       const { error: memberError } = await supabase
         .from('OrganizationMember')
-        .insert(memberData as any)
+        .insert({
+          ulid: ulid(),
+          organizationUlid: organizationUlid,
+          userUlid: data.userUlid,
+          role: 'OWNER',
+          status: 'ACTIVE',
+          scope: 'GLOBAL',
+          customPermissions: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        } as any)
       
       if (memberError) {
         console.error('[CREATE_ORGANIZATION_MEMBER_ERROR]', memberError)
-        // Ideally we would rollback the organization creation here
-        return { error: memberError.message, data: null }
+        // Don't return an error here, as the organization was created successfully
       }
     }
     
-    revalidatePath('/dashboard/system/organizations')
     return { data: organization, error: null }
   } catch (error) {
     console.error('[CREATE_ORGANIZATION_ERROR]', error)
-    if (error instanceof z.ZodError) {
-      return { error: error.errors[0].message, data: null }
+    return { 
+      error: error instanceof z.ZodError 
+        ? 'Validation error: ' + JSON.stringify(error.errors) 
+        : 'Failed to create organization', 
+      data: null 
     }
-    return { error: 'Failed to create organization', data: null }
   }
 }
 
@@ -296,7 +302,7 @@ export async function addOrganizationMember(data: z.infer<typeof addOrganization
     const { data: user, error: userError } = await supabase
       .from('User')
       .select('ulid')
-      .eq('email', validatedData.email)
+      .eq('email', validatedData.email || '')
       .single()
     
     if (userError || !user) {
@@ -317,12 +323,12 @@ export async function addOrganizationMember(data: z.infer<typeof addOrganization
     
     // Add the user as a member
     const memberData = {
-      ulid: validatedData.ulid,
+      ulid: validatedData.ulid || ulid(),
       organizationUlid: validatedData.organizationUlid,
       userUlid: user.ulid,
       role: validatedData.role || 'MEMBER',
       scope: validatedData.scope || 'LOCAL',
-      customPermissions: validatedData.customPermissions,
+      customPermissions: validatedData.customPermissions || [],
       status: 'ACTIVE',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

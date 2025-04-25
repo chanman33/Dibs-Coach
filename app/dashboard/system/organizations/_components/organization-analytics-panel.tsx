@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -20,6 +20,7 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { fetchOrganizationAnalytics, fetchOrganizationMemberGrowth, OrganizationAnalyticsData } from '@/utils/actions/admin-organizations-analytics'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 interface OrganizationAnalyticsPanelProps {
   orgId: string
@@ -33,6 +34,7 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
   const [error, setError] = useState<string | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const [usageData, setUsageData] = useState<any>(null)
 
   const fetchAnalytics = async () => {
     try {
@@ -114,6 +116,31 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
       setError("Organization ID is missing")
       setLoading(false)
     }
+  }, [orgId])
+
+  useEffect(() => {
+    // Simulate API fetch for usage data
+    const timer = setTimeout(() => {
+      setUsageData({
+        sessionsBooked: 43,
+        sessionsCompleted: 38,
+        totalSpent: 3870,
+        avgSessionCost: 101.84,
+        departmentUsage: [
+          { department: "Sales", sessions: 19, spend: 1920, percentage: 49.6 },
+          { department: "Marketing", sessions: 12, spend: 1210, percentage: 31.3 },
+          { department: "Operations", sessions: 7, spend: 740, percentage: 19.1 }
+        ],
+        topUsers: [
+          { name: "John Smith", sessions: 12, spend: 630, department: "Sales" },
+          { name: "Emily Johnson", sessions: 8, spend: 510, department: "Marketing" },
+          { name: "Michael Davis", sessions: 6, spend: 420, department: "Sales" }
+        ]
+      })
+      setLoading(false)
+    }, 1500)
+    
+    return () => clearTimeout(timer)
   }, [orgId])
 
   const handleRefresh = async () => {
@@ -455,6 +482,130 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Usage Analytics</CardTitle>
+          <CardDescription>
+            Detailed coaching usage and spending metrics
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-4 mb-6">
+            <div className="bg-muted p-4 rounded-lg border">
+              <div className="text-sm text-muted-foreground mb-1">Sessions Booked</div>
+              <div className="text-2xl font-bold">
+                {loading || !usageData ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  usageData.sessionsBooked
+                )}
+              </div>
+            </div>
+            <div className="bg-muted p-4 rounded-lg border">
+              <div className="text-sm text-muted-foreground mb-1">Sessions Completed</div>
+              <div className="text-2xl font-bold">
+                {loading || !usageData ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  usageData.sessionsCompleted
+                )}
+              </div>
+            </div>
+            <div className="bg-muted p-4 rounded-lg border">
+              <div className="text-sm text-muted-foreground mb-1">Total Spent</div>
+              <div className="text-2xl font-bold">
+                {loading || !usageData ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  `$${usageData.totalSpent}`
+                )}
+              </div>
+            </div>
+            <div className="bg-muted p-4 rounded-lg border">
+              <div className="text-sm text-muted-foreground mb-1">Avg Cost Per Session</div>
+              <div className="text-2xl font-bold">
+                {loading || !usageData ? (
+                  <Skeleton className="h-8 w-16" />
+                ) : (
+                  `$${usageData.avgSessionCost.toFixed(2)}`
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div className="h-80 flex items-center justify-center border rounded-lg mb-6">
+            <div className="text-muted-foreground">Usage chart would go here</div>
+          </div>
+          
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <h3 className="text-lg font-medium mb-2">Department Usage</h3>
+              {loading || !usageData ? (
+                <Skeleton className="h-[200px] w-full" />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Department</TableHead>
+                      <TableHead>Sessions</TableHead>
+                      <TableHead>Spend</TableHead>
+                      <TableHead>% of Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {usageData.departmentUsage.map((dept: any) => (
+                      <TableRow key={dept.department}>
+                        <TableCell className="font-medium">{dept.department}</TableCell>
+                        <TableCell>{dept.sessions}</TableCell>
+                        <TableCell>${dept.spend}</TableCell>
+                        <TableCell>{dept.percentage}%</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            
+            <div>
+              <h3 className="text-lg font-medium mb-2">Top Users</h3>
+              {loading || !usageData ? (
+                <Skeleton className="h-[200px] w-full" />
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Sessions</TableHead>
+                      <TableHead>Spend</TableHead>
+                      <TableHead>Department</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {usageData.topUsers.map((user: any) => (
+                      <TableRow key={user.name}>
+                        <TableCell className="font-medium">{user.name}</TableCell>
+                        <TableCell>{user.sessions}</TableCell>
+                        <TableCell>${user.spend}</TableCell>
+                        <TableCell>{user.department}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          <div className="text-sm text-muted-foreground">
+            Data for current billing period
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline">Download Report</Button>
+            <Button>Schedule Reports</Button>
+          </div>
+        </CardFooter>
+      </Card>
     </div>
   )
 } 

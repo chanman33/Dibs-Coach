@@ -36,35 +36,28 @@ import { ArrowLeft, Building2, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { createOrganization } from '@/utils/actions/organization-actions'
 import { Suspense } from 'react'
-
-// Schema for form validation
-const formSchema = z.object({
-  name: z.string().min(2).max(100),
-  type: z.string().min(1),
-  industry: z.string().min(1),
-  tier: z.string().min(1),
-  level: z.string().min(1),
-  description: z.string().max(500).optional(),
-  contactEmail: z.string().email().optional().or(z.literal('')),
-  contactPhone: z.string().optional().or(z.literal('')),
-  website: z.string().url().optional().or(z.literal('')),
-  address: z.string().optional().or(z.literal('')),
-});
-
-type FormValues = z.infer<typeof formSchema>;
+import { 
+  organizationFormSchema, 
+  OrganizationFormValues,
+  OrgType,
+  OrgIndustry,
+  OrgTier,
+  OrgLevel
+} from '@/utils/types/organization'
+import { ulid } from 'ulid'
 
 function CreateOrganizationPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Initialize form with default values
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<OrganizationFormValues>({
+    resolver: zodResolver(organizationFormSchema),
     defaultValues: {
       name: '',
       type: 'BUSINESS',
-      industry: 'REAL_ESTATE',
-      tier: 'BASIC',
+      industry: 'REAL_ESTATE_SALES',
+      tier: 'STARTER',
       level: 'LOCAL',
       description: '',
       contactEmail: '',
@@ -74,27 +67,34 @@ function CreateOrganizationPage() {
     },
   });
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: OrganizationFormValues) {
     try {
       setIsSubmitting(true);
       console.log('[CREATE_ORG_VALUES]', values);
 
+      // Generate a ULID for the organization
+      const organizationUlid = ulid();
+
       const result = await createOrganization({
+        ulid: organizationUlid,
         name: values.name,
         type: values.type,
         industry: values.industry,
         tier: values.tier,
         level: values.level,
+        status: 'ACTIVE',
         description: values.description || '',
-        contactEmail: values.contactEmail || '',
-        contactPhone: values.contactPhone || '',
-        website: values.website || '',
-        address: values.address || '',
+        metadata: {
+          contactEmail: values.contactEmail || '',
+          contactPhone: values.contactPhone || '',
+          website: values.website || '',
+          address: values.address || '',
+        }
       });
 
       if (result.error) {
         console.error('[CREATE_ORG_ERROR]', result.error);
-        throw new Error(result.error.message || 'Failed to create organization');
+        throw new Error(typeof result.error === 'string' ? result.error : 'Failed to create organization');
       }
 
       // Redirect to the organization list
@@ -166,11 +166,11 @@ function CreateOrganizationPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="BUSINESS">Business</SelectItem>
-                            <SelectItem value="NON_PROFIT">Non-Profit</SelectItem>
-                            <SelectItem value="EDUCATIONAL">Educational</SelectItem>
-                            <SelectItem value="GOVERNMENT">Government</SelectItem>
-                            <SelectItem value="OTHER">Other</SelectItem>
+                            {Object.values(OrgType).map((type) => (
+                              <SelectItem key={type} value={type}>
+                                {type.replace(/_/g, ' ')}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -193,13 +193,11 @@ function CreateOrganizationPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="REAL_ESTATE">Real Estate</SelectItem>
-                            <SelectItem value="FINANCE">Finance</SelectItem>
-                            <SelectItem value="TECHNOLOGY">Technology</SelectItem>
-                            <SelectItem value="HEALTHCARE">Healthcare</SelectItem>
-                            <SelectItem value="EDUCATION">Education</SelectItem>
-                            <SelectItem value="GOVERNMENT">Government</SelectItem>
-                            <SelectItem value="OTHER">Other</SelectItem>
+                            {Object.values(OrgIndustry).map((industry) => (
+                              <SelectItem key={industry} value={industry}>
+                                {industry.replace(/_/g, ' ')}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -220,10 +218,11 @@ function CreateOrganizationPage() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="BASIC">Basic</SelectItem>
-                            <SelectItem value="STANDARD">Standard</SelectItem>
-                            <SelectItem value="PREMIUM">Premium</SelectItem>
-                            <SelectItem value="ENTERPRISE">Enterprise</SelectItem>
+                            {Object.values(OrgTier).map((tier) => (
+                              <SelectItem key={tier} value={tier}>
+                                {tier}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -245,10 +244,11 @@ function CreateOrganizationPage() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="GLOBAL">Global</SelectItem>
-                          <SelectItem value="REGIONAL">Regional</SelectItem>
-                          <SelectItem value="LOCAL">Local</SelectItem>
-                          <SelectItem value="BRANCH">Branch</SelectItem>
+                          {Object.values(OrgLevel).map((level) => (
+                            <SelectItem key={level} value={level}>
+                              {level}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <FormDescription>

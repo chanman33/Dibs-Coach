@@ -114,7 +114,6 @@ export default function OrganizationBillingPage({ params }: OrganizationBillingP
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="management">Billing Management</TabsTrigger>
           <TabsTrigger value="history">Payment History</TabsTrigger>
-          <TabsTrigger value="usage">Usage Analytics</TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview" className="space-y-4">
@@ -439,126 +438,6 @@ export default function OrganizationBillingPage({ params }: OrganizationBillingP
                   <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
                     <AlertCircle className="h-4 w-4" />
                     <span>These actions will be logged for audit purposes</span>
-                  </div>
-                </CardFooter>
-              </Card>
-            </>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="usage" className="space-y-4">
-          {isLoading ? (
-            renderSkeletonLoading()
-          ) : (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Usage Analytics</CardTitle>
-                  <CardDescription>
-                    Detailed coaching usage and spending metrics
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-4 mb-6">
-                    <div className="bg-muted p-4 rounded-lg border">
-                      <div className="text-sm text-muted-foreground mb-1">Sessions Booked</div>
-                      <div className="text-2xl font-bold">{organization.usageData.sessionsBooked}</div>
-                    </div>
-                    <div className="bg-muted p-4 rounded-lg border">
-                      <div className="text-sm text-muted-foreground mb-1">Sessions Completed</div>
-                      <div className="text-2xl font-bold">{organization.usageData.sessionsCompleted}</div>
-                    </div>
-                    <div className="bg-muted p-4 rounded-lg border">
-                      <div className="text-sm text-muted-foreground mb-1">Total Spent</div>
-                      <div className="text-2xl font-bold">${organization.usageData.totalSpent}</div>
-                    </div>
-                    <div className="bg-muted p-4 rounded-lg border">
-                      <div className="text-sm text-muted-foreground mb-1">Avg Cost Per Session</div>
-                      <div className="text-2xl font-bold">${organization.usageData.avgSessionCost.toFixed(2)}</div>
-                    </div>
-                  </div>
-                  
-                  <div className="h-80 flex items-center justify-center border rounded-lg mb-6">
-                    <div className="text-muted-foreground">Usage chart would go here</div>
-                  </div>
-                  
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Department Usage</h3>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Department</TableHead>
-                            <TableHead>Sessions</TableHead>
-                            <TableHead>Spend</TableHead>
-                            <TableHead>% of Total</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          <TableRow>
-                            <TableCell className="font-medium">Sales</TableCell>
-                            <TableCell>19</TableCell>
-                            <TableCell>$1,920</TableCell>
-                            <TableCell>49.6%</TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell className="font-medium">Marketing</TableCell>
-                            <TableCell>12</TableCell>
-                            <TableCell>$1,210</TableCell>
-                            <TableCell>31.3%</TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell className="font-medium">Operations</TableCell>
-                            <TableCell>7</TableCell>
-                            <TableCell>$740</TableCell>
-                            <TableCell>19.1%</TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                    
-                    <div>
-                      <h3 className="text-lg font-medium mb-2">Top Users</h3>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>User</TableHead>
-                            <TableHead>Sessions</TableHead>
-                            <TableHead>Spend</TableHead>
-                            <TableHead>Department</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          <TableRow>
-                            <TableCell className="font-medium">John Smith</TableCell>
-                            <TableCell>6</TableCell>
-                            <TableCell>$630</TableCell>
-                            <TableCell>Sales</TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell className="font-medium">Emma Johnson</TableCell>
-                            <TableCell>5</TableCell>
-                            <TableCell>$510</TableCell>
-                            <TableCell>Marketing</TableCell>
-                          </TableRow>
-                          <TableRow>
-                            <TableCell className="font-medium">Michael Davis</TableCell>
-                            <TableCell>4</TableCell>
-                            <TableCell>$420</TableCell>
-                            <TableCell>Sales</TableCell>
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Data for current billing period ({organization.paymentHistory[0].date} - {organization.nextBillingDate})
-                  </div>
-                  <div className="flex gap-2">
-                    <Button variant="outline">Download Report</Button>
-                    <Button>Schedule Reports</Button>
                   </div>
                 </CardFooter>
               </Card>
