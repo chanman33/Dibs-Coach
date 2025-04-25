@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -260,6 +260,9 @@ export function CoachProfileForm({
     mode: "onChange",
   });
 
+  // Ref to track initial mount
+  const isInitialMount = useRef(true);
+
   // Memoize specialty options
   const specialtyOptions = useMemo(() =>
     Object.entries(COACH_SPECIALTIES).map(([category, specialties]) => ({
@@ -272,47 +275,23 @@ export function CoachProfileForm({
     }))
     , []); // Empty dependency array since COACH_SPECIALTIES is constant
 
-  // Update form values when initialData changes
   useEffect(() => {
     console.log("[COACH_FORM_RESET_EFFECT]", {
-      initialData: {
-        slogan: initialData?.slogan,
-        coachPrimaryDomain: initialData?.coachPrimaryDomain,
-        coachRealEstateDomains: initialData?.coachRealEstateDomains,
-        yearsCoaching: initialData?.yearsCoaching,
-        hourlyRate: initialData?.hourlyRate,
-        coachSkills: initialData?.coachSkills,
-        profileSlug: initialData?.profileSlug,
-        websiteUrl: initialData?.websiteUrl,
-        facebookUrl: initialData?.facebookUrl,
-        instagramUrl: initialData?.instagramUrl,
-        linkedinUrl: initialData?.linkedinUrl,
-        youtubeUrl: initialData?.youtubeUrl,
-        tiktokUrl: initialData?.tiktokUrl,
-      },
-      currentFormValues: {
-        ...form.getValues(),
-        yearsCoaching: form.getValues().yearsCoaching,
-        hourlyRate: form.getValues().hourlyRate,
-        profileSlug: form.getValues().profileSlug,
-        websiteUrl: form.getValues().websiteUrl,
-        facebookUrl: form.getValues().facebookUrl,
-        instagramUrl: form.getValues().instagramUrl,
-        linkedinUrl: form.getValues().linkedinUrl,
-        youtubeUrl: form.getValues().youtubeUrl,
-        tiktokUrl: form.getValues().tiktokUrl,
-      },
+      initialDataProvided: !!initialData,
+      isInitialMount: isInitialMount.current,
       timestamp: new Date().toISOString()
     });
-    
-    if (initialData) {
+
+    // Only reset the form on the initial mount OR if initialData fundamentally changes (e.g., user ID changes, which isn't tracked here but implies a full data reload)
+    // We rely on initialData being potentially updated partially (like skills), so resetting aggressively wipes user input.
+    if (initialData && isInitialMount.current) {
       // Log the values we're about to reset to
       const resetValues = {
         slogan: initialData.slogan || "",
         coachPrimaryDomain: initialData.coachPrimaryDomain || null,
         coachRealEstateDomains: initialData.coachRealEstateDomains || [],
-        yearsCoaching: initialData.yearsCoaching !== undefined ? initialData.yearsCoaching : 0,
-        hourlyRate: initialData.hourlyRate !== undefined ? initialData.hourlyRate : 100,
+        yearsCoaching: initialData.yearsCoaching !== undefined ? Number(initialData.yearsCoaching) : 0, // Ensure number
+        hourlyRate: initialData.hourlyRate !== undefined ? Number(initialData.hourlyRate) : 100, // Ensure number
         coachSkills: initialData.coachSkills || [],
         profileSlug: initialData.profileSlug || null,
         websiteUrl: initialData.websiteUrl || "",
@@ -323,38 +302,38 @@ export function CoachProfileForm({
         tiktokUrl: initialData.tiktokUrl || "",
       };
       
-      console.log("[COACH_FORM_BEFORE_RESET]", {
+      console.log("[COACH_FORM_INITIAL_RESET]", {
         resetValues,
-        yearsCoaching: resetValues.yearsCoaching,
-        hourlyRate: resetValues.hourlyRate,
-        profileSlug: resetValues.profileSlug,
-        websiteUrl: resetValues.websiteUrl,
-        facebookUrl: resetValues.facebookUrl,
-        instagramUrl: resetValues.instagramUrl,
-        linkedinUrl: resetValues.linkedinUrl,
-        youtubeUrl: resetValues.youtubeUrl,
-        tiktokUrl: resetValues.tiktokUrl,
         timestamp: new Date().toISOString()
       });
       
       // Reset the form with the values from initialData
       form.reset(resetValues);
       
-      console.log("[COACH_FORM_AFTER_RESET]", {
-        resetValues: form.getValues(),
-        yearsCoaching: form.getValues().yearsCoaching,
-        hourlyRate: form.getValues().hourlyRate,
-        profileSlug: form.getValues().profileSlug,
-        websiteUrl: form.getValues().websiteUrl,
-        facebookUrl: form.getValues().facebookUrl,
-        instagramUrl: form.getValues().instagramUrl,
-        linkedinUrl: form.getValues().linkedinUrl,
-        youtubeUrl: form.getValues().youtubeUrl,
-        tiktokUrl: form.getValues().tiktokUrl,
+      // Mark initial mount as complete
+      isInitialMount.current = false; 
+      
+      console.log("[COACH_FORM_AFTER_INITIAL_RESET]", {
+        formValues: form.getValues(),
         timestamp: new Date().toISOString()
       });
+    } else if (initialData && !isInitialMount.current) {
+       // Handle subsequent updates to initialData if needed, maybe selectively?
+       // For now, we log that we skipped the reset to avoid wiping user edits.
+       // We might need to use form.setValue for specific fields if external updates
+       // SHOULD overwrite user input (e.g., profile status changing externally).
+       console.log("[COACH_FORM_SKIPPED_RESET] Skipping reset on subsequent render to preserve user input.", {
+         changedInitialDataKeys: Object.keys(initialData), // Log which keys are present in the changed initialData
+         currentFormValues: form.getValues(),
+         timestamp: new Date().toISOString()
+       });
+       // Example: If we needed to update skills specifically without resetting others:
+       // if (initialData.coachSkills && JSON.stringify(initialData.coachSkills) !== JSON.stringify(form.getValues().coachSkills)) {
+       //   console.log("[COACH_FORM_UPDATING_SKILLS] Selectively updating skills field.");
+       //   form.setValue('coachSkills', initialData.coachSkills, { shouldDirty: true }); 
+       // }
     }
-  }, [initialData, form]);
+  }, [initialData, form]); // Keep dependencies, but logic inside checks isInitialMount
 
   // Memoize the formatGroupLabel function
   const memoizedFormatGroupLabel = useCallback((group: GroupBase<any>) => {
