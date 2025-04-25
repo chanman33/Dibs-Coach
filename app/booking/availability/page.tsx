@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { format } from "date-fns";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Clock } from "lucide-react";
@@ -12,6 +12,8 @@ import { EmptyState } from "./EmptyState";
 import { LoadingState } from "./LoadingState";
 import { ErrorState } from "./ErrorState";
 import { DebugPanel } from "./DebugPanel";
+import { CoachProfileSection } from "./CoachProfileSection";
+import { EventTypeSelector } from "./EventTypeSelector";
 
 /**
  * Booking Availability Page
@@ -26,6 +28,9 @@ export default function BookingAvailabilityPage() {
     loadingState,
     error,
     coachName,
+    coachProfileImage,
+    coachSpecialty,
+    coachDomains,
     selectedDate,
     setSelectedDate,
     availableDates,
@@ -36,7 +41,10 @@ export default function BookingAvailabilityPage() {
     handleConfirmBooking,
     isDateDisabled,
     formatTime,
-    coachTimezone
+    coachTimezone,
+    eventTypes,
+    selectedEventTypeId,
+    setSelectedEventTypeId
   } = useBookingUI();
 
   // Format the date for display
@@ -46,7 +54,35 @@ export default function BookingAvailabilityPage() {
   }, [selectedDate]);
 
   // Determine if we can proceed with booking
-  const canBook = !!selectedTimeSlot;
+  const canBook = !!selectedTimeSlot && !!selectedEventTypeId;
+
+  const selectedEventType = useMemo(() => {
+    if (!selectedEventTypeId || !eventTypes || eventTypes.length === 0) return null;
+    return eventTypes.find(et => et.id === selectedEventTypeId) || null;
+  }, [selectedEventTypeId, eventTypes]);
+
+  // Add useEffect to log when event types or selected event type changes
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[DEBUG][EVENT_TYPES] Available event types:', 
+        eventTypes?.map(et => ({
+          id: et.id,
+          name: et.title || et.name,
+          duration: et.length || et.duration,
+          type: et.schedulingType
+        })) || []
+      );
+    }
+  }, [eventTypes]);
+
+  useEffect(() => {
+    if (selectedEventTypeId && process.env.NODE_ENV === 'development') {
+      console.log('[DEBUG][EVENT_TYPES] Selected event type:', 
+        selectedEventTypeId,
+        eventTypes?.find(et => et.id === selectedEventTypeId)
+      );
+    }
+  }, [selectedEventTypeId, eventTypes]);
 
   if (loading) {
     return <LoadingState message={loadingState.message || "Loading availability..."} />;
@@ -61,8 +97,17 @@ export default function BookingAvailabilityPage() {
       <h1 className="text-2xl font-bold mb-6">Book a Session with {coachName}</h1>
       
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Date Picker Section */}
+        {/* Left Column - Coach Profile & Date Selection */}
         <div>
+          {/* Coach Profile Section */}
+          <CoachProfileSection 
+            coachName={coachName} 
+            profileImageUrl={coachProfileImage}
+            specialty={coachSpecialty}
+            domains={coachDomains}
+          />
+          
+          {/* Date Picker Section */}
           <DatePickerSection
             selectedDate={selectedDate}
             onDateChange={setSelectedDate}
@@ -76,6 +121,8 @@ export default function BookingAvailabilityPage() {
             availableDates={availableDates}
             isDateDisabled={isDateDisabled}
             coachTimezone={coachTimezone}
+            selectedEventType={selectedEventType}
+            eventTypes={eventTypes}
           />
           
           {/* Add timezone display in booking UI */}
@@ -87,8 +134,17 @@ export default function BookingAvailabilityPage() {
           )}
         </div>
 
-        {/* Time Slots Section */}
+        {/* Right Column - Event Type Selection, Time Slots, and Booking Summary */}
         <div className="md:col-span-2">
+          {/* Event Type Selection */}
+          <EventTypeSelector
+            eventTypes={eventTypes || []}
+            selectedEventTypeId={selectedEventTypeId}
+            onSelectEventType={setSelectedEventTypeId}
+            isLoading={loading && loadingState.context === 'COACH_DATA'}
+          />
+          
+          {/* Time Slots Section */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -104,6 +160,8 @@ export default function BookingAvailabilityPage() {
             <CardContent>
               {!selectedDate ? (
                 <EmptyState message="Select a date to see available times" />
+              ) : !selectedEventTypeId && eventTypes && eventTypes.length > 0 ? (
+                <EmptyState message="Please select a session type first" />
               ) : timeSlotGroups.length === 0 ? (
                 <EmptyState message="No available times on this date, please try a different day." />
               ) : (
@@ -118,8 +176,8 @@ export default function BookingAvailabilityPage() {
             </CardContent>
           </Card>
 
-          {/* Booking Summary Section - Only show if a slot is selected AND coach timezone is known */}
-          {selectedTimeSlot && coachTimezone && (
+          {/* Booking Summary Section - Only show if all required selections are made */}
+          {selectedTimeSlot && selectedEventTypeId && coachTimezone && (
             <BookingSummary
               selectedDate={selectedDate}
               selectedTimeSlot={selectedTimeSlot}
@@ -129,6 +187,8 @@ export default function BookingAvailabilityPage() {
               coachName={coachName}
               formatTime={formatTime}
               coachTimezone={coachTimezone}
+              eventTypeId={selectedEventTypeId}
+              eventTypeName={selectedEventType?.title || selectedEventType?.name || "Coaching Session"}
             />
           )}
         </div>

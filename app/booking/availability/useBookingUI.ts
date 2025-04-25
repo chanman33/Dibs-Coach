@@ -6,7 +6,7 @@ import { format, addDays, parseISO } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 import { getCoachAvailability } from "@/utils/actions/coach-availability";
 import { getCoachBusyTimes } from "@/utils/actions/coach-calendar";
-import { type CoachSchedule } from "@/utils/types/coach-availability";
+import { type CoachSchedule, type CalEventType } from "@/utils/types/coach-availability";
 import { createBooking } from "@/utils/actions/booking-actions";
 import { TimeSlot, TimeSlotGroup, LoadingState } from "@/utils/types/booking";
 import {
@@ -23,6 +23,7 @@ import {
   getHourInTimezone,
   formatUtcDateInTimezone
 } from '@/utils/timezone-utils';
+import { getCoachEventTypes } from "@/utils/actions/coach-event-types";
 
 export interface BusyTime {
   start: string;
@@ -60,11 +61,18 @@ export function useBookingUI() {
     lastFetched: null
   });
   const [coachName, setCoachName] = useState("");
+  const [coachProfileImage, setCoachProfileImage] = useState<string | null>(null);
+  const [coachSpecialty, setCoachSpecialty] = useState<string | null>(null);
+  const [coachDomains, setCoachDomains] = useState<string[] | null>(null);
   const [isBooking, setIsBooking] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [actualCoachId, setActualCoachId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [coachTimezone, setCoachTimezone] = useState<string | undefined>(undefined);
+  
+  // Event type related state
+  const [eventTypes, setEventTypes] = useState<CalEventType[]>([]);
+  const [selectedEventTypeId, setSelectedEventTypeId] = useState<string | null>(null);
   
   // Enhanced loading state
   const [loadingState, setLoadingState] = useState<LoadingState>({
@@ -148,6 +156,52 @@ export function useBookingUI() {
         const { coach, schedule } = result.data;
         setActualCoachId(coach.ulid);
         setCoachName(`${coach.firstName || ""} ${coach.lastName || ""}`);
+        setCoachProfileImage(coach.profileImageUrl || null);
+        setCoachSpecialty(coach.coachPrimaryDomain || null);
+        setCoachDomains(coach.coachRealEstateDomains || null);
+        
+        // Fetch event types from our new server action
+        const eventTypesResult = await getCoachEventTypes({
+          coachUlid: coach.ulid
+        });
+        
+        if (eventTypesResult.error) {
+          console.error("[FETCH_EVENT_TYPES_ERROR]", {
+            error: eventTypesResult.error,
+            timestamp: new Date().toISOString()
+          });
+          
+          // Set a default event type in case of error
+          setEventTypes([{
+            id: 'default',
+            name: 'Coaching Session',
+            description: 'Regular coaching session',
+            duration: schedule?.defaultDuration || 30,
+            schedulingType: 'MANAGED'
+          }]);
+        } else if (eventTypesResult.data && eventTypesResult.data.length > 0) {
+          // Set the fetched event types
+          setEventTypes(eventTypesResult.data);
+          
+          // Log the event types for debugging
+          console.log('[DEBUG][BOOKING] Event types loaded', {
+            count: eventTypesResult.data.length,
+            eventTypes: eventTypesResult.data.map(et => ({
+              id: et.id,
+              name: et.title || et.name,
+              duration: et.length || et.duration
+            }))
+          });
+        } else {
+          // If no event types were found, create a default one
+          setEventTypes([{
+            id: 'default',
+            name: 'Coaching Session',
+            description: 'Regular coaching session',
+            duration: schedule?.defaultDuration || 30,
+            schedulingType: 'MANAGED'
+          }]);
+        }
         
         // Get the timezone, prioritizing Cal.com integration timezone
         // This fetching is handled in getCoachAvailability server action
@@ -672,65 +726,88 @@ export function useBookingUI() {
   }, [timeSlots, coachTimezone]);
 
   // Handle booking confirmation - Pass UTC ISO strings if needed by API
-  const handleConfirmBooking = useCallback(async () => {
-    if (!selectedTimeSlot || !actualCoachId || !coachTimezone) return;
-
-    const startTimeUtcIso = selectedTimeSlot.startTime.toISOString();
-    const endTimeUtcIso = selectedTimeSlot.endTime.toISOString();
-
-    console.log('[DEBUG][BOOKING] Starting booking confirmation (UTC)', {
-      coachId: actualCoachId,
-      startTimeUtc: startTimeUtcIso,
-      endTimeUtc: endTimeUtcIso,
-      coachTimezone, // Coach's original TZ for reference
-      userTimezone: getUserTimezone() // User's TZ for reference
-    });
-
+  const handleConfirmBooking = async () => {
+    if (!selectedTimeSlot || !actualCoachId || !selectedEventTypeId) {
+      toast({
+        title: "Unable to book session",
+        description: "Please select a time slot and session type first.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     setIsBooking(true);
-    setLoadingState({ status: 'loading', context: 'BOOKING', message: 'Creating your booking...' });
-
+    
     try {
       // --- TEST MODE --- //
-      setTimeout(() => {
-        setLoadingState({ status: 'success', context: 'BOOKING', message: 'Booking created successfully! (TEST MODE)'});
-        toast({ title: "Booking Confirmed (Test Mode)", description: "This is a test booking and was not actually created. In production, this would create a real booking." });
-        setIsBooking(false);
-        const coachIdentifier = coachSlug ? `slug=${coachSlug}` : `coachId=${actualCoachId}`;
-        // Pass the reliable UTC ISO strings
-        router.push(`/booking/booking-success?${coachIdentifier}&startTime=${encodeURIComponent(startTimeUtcIso)}&endTime=${encodeURIComponent(endTimeUtcIso)}&bookingUid=test-booking&testMode=true`);
-      }, 1500);
-      // --- END TEST MODE --- //
-
-      /* --- PRODUCTION CODE (Requires API update if not expecting UTC) --- //
-      const result = await createBooking({
-        eventTypeId: 12345, // Placeholder
-        startTime: startTimeUtcIso, // Send UTC ISO string
-        endTime: endTimeUtcIso,     // Send UTC ISO string
-        attendeeName: "Test User", // Placeholder
-        attendeeEmail: "test@example.com", // Placeholder
-        timeZone: coachTimezone, // Maybe needed by API? Consult Cal.com docs
-        notes: "Booked via local testing"
+      // In development, we mock the booking creation
+      console.log("[DEBUG][BOOKING] Creating booking in test mode", {
+        coachId: actualCoachId,
+        startTime: selectedTimeSlot.startTime.toISOString(),
+        endTime: selectedTimeSlot.endTime.toISOString(),
+        eventTypeId: selectedEventTypeId
       });
-      // ... [rest of production error handling/redirect] ...
-      */
+      
+      // Simulate a delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Show success message
+      toast({
+        title: "Booking confirmed! (Test Mode)",
+        description: "Your session has been booked successfully in test mode.",
+        variant: "default"
+      });
+      
+      // Redirect to a success page or dashboard
+      router.push("/dashboard/mentee/sessions");
+      
+      // --- PRODUCTION MODE (Uncomment when ready) --- //
+      // const result = await createBooking({
+      //   coachId: actualCoachId,
+      //   startTime: selectedTimeSlot.startTime.toISOString(),
+      //   endTime: selectedTimeSlot.endTime.toISOString(),
+      //   eventTypeId: parseInt(selectedEventTypeId, 10)
+      // });
+      // 
+      // if (result.error) {
+      //   console.error("[BOOKING_ERROR]", {
+      //     error: result.error,
+      //     timestamp: new Date().toISOString()
+      //   });
+      //   
+      //   toast({
+      //     title: "Booking failed",
+      //     description: result.error.message || "There was a problem creating your booking. Please try again.",
+      //     variant: "destructive"
+      //   });
+      //   
+      //   return;
+      // }
+      // 
+      // // Success!
+      // toast({
+      //   title: "Booking confirmed!",
+      //   description: "Your session has been booked successfully.",
+      //   variant: "default"
+      // });
+      // 
+      // // Redirect to the booking details or dashboard
+      // router.push("/dashboard/mentee/sessions");
     } catch (error) {
       console.error("[BOOKING_ERROR]", {
         error,
         timestamp: new Date().toISOString()
       });
+      
       toast({
-        title: "Booking Error",
-        description: "An unexpected error occurred. Please try again later.",
+        title: "Booking failed",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive"
       });
+    } finally {
       setIsBooking(false);
-      setLoadingState({
-        status: 'error',
-        context: 'BOOKING',
-        message: 'An unexpected error occurred'
-      });
     }
-  }, [selectedTimeSlot, actualCoachId, coachSchedule, coachSlug, router, coachTimezone]);
+  };
 
   // Format time for display (kept for BookingSummary, should ideally be updated there too)
   const formatTime = useCallback((time: string | Date) => {
@@ -750,6 +827,9 @@ export function useBookingUI() {
     loadingState,
     error,
     coachName,
+    coachProfileImage,
+    coachSpecialty,
+    coachDomains,
     selectedDate,
     setSelectedDate: handleDateChange,
     availableDates,
@@ -764,6 +844,10 @@ export function useBookingUI() {
 
     handleConfirmBooking,
     isDateDisabled,
-    formatTime // Keep for BookingSummary
+    formatTime, // Keep for BookingSummary
+
+    eventTypes,
+    selectedEventTypeId,
+    setSelectedEventTypeId
   };
 } 

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { TimeSlot } from "@/utils/types/booking";
-import { Loader2 } from "lucide-react";
+import { Clock, Loader2 } from "lucide-react";
 import { convertTimeSlotToUserTimezone, getUserTimezone } from "@/utils/timezone-utils";
 
 interface BookingSummaryProps {
@@ -14,8 +14,10 @@ interface BookingSummaryProps {
   canBook: boolean;
   isBooking: boolean;
   coachName: string;
-  formatTime: (time: string) => string;
+  formatTime: (time: string | Date) => string;
   coachTimezone: string;
+  eventTypeId?: string;
+  eventTypeName?: string;
 }
 
 export function BookingSummary({
@@ -26,12 +28,19 @@ export function BookingSummary({
   isBooking,
   coachName,
   formatTime,
-  coachTimezone
+  coachTimezone,
+  eventTypeId,
+  eventTypeName
 }: BookingSummaryProps) {
   const userTimezone = getUserTimezone();
   const userTimeSlot = selectedTimeSlot 
     ? convertTimeSlotToUserTimezone(selectedTimeSlot, coachTimezone, userTimezone)
     : null;
+
+  // Calculate duration in minutes
+  const durationMinutes = userTimeSlot 
+    ? Math.round((userTimeSlot.endTime.getTime() - userTimeSlot.startTime.getTime()) / (1000 * 60)) 
+    : 0;
 
   return (
     <Card className="mt-6">
@@ -53,6 +62,18 @@ export function BookingSummary({
           </div>
         </div>
 
+        {eventTypeName && (
+          <div>
+            <h4 className="font-medium">Session Type</h4>
+            <div className="flex items-center text-sm text-muted-foreground">
+              <Clock className="h-4 w-4 mr-2" />
+              <span>
+                {eventTypeName} ({durationMinutes} minutes)
+              </span>
+            </div>
+          </div>
+        )}
+
         {selectedDate && (
           <div>
             <h4 className="font-medium">Date</h4>
@@ -66,7 +87,7 @@ export function BookingSummary({
           <div>
             <h4 className="font-medium">Time</h4>
             <p className="text-sm text-muted-foreground">
-              {formatTime(userTimeSlot.startTime.toISOString())} - {formatTime(userTimeSlot.endTime.toISOString())}
+              {formatTime(userTimeSlot.startTime)} - {formatTime(userTimeSlot.endTime)}
               <br />
               <span className="text-xs">
                 (Your timezone: {userTimezone})

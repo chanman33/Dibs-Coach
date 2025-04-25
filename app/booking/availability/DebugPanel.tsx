@@ -5,19 +5,24 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getTomorrowDate, getMaxBookingDate } from "@/utils/date-utils";
 import { useEffect } from "react";
 import { getUserTimezone } from "@/utils/timezone-utils";
+import { CalEventType } from "@/utils/types/coach-availability";
 
 interface DebugPanelProps {
   selectedDate: Date | null;
   availableDates: Date[];
   isDateDisabled: (date: Date) => boolean;
   coachTimezone?: string;
+  selectedEventType?: CalEventType | null;
+  eventTypes?: CalEventType[];
 }
 
 export function DebugPanel({ 
   selectedDate, 
   availableDates, 
   isDateDisabled,
-  coachTimezone 
+  coachTimezone,
+  selectedEventType,
+  eventTypes
 }: DebugPanelProps) {
   // Only show in development
   if (process.env.NODE_ENV !== "development") {
@@ -57,7 +62,7 @@ export function DebugPanel({
   return (
     <Card className="mt-4 border-dashed border-yellow-500">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-yellow-600">Debug: Date Information</CardTitle>
+        <CardTitle className="text-sm font-medium text-yellow-600">Debug: Booking Information</CardTitle>
       </CardHeader>
       <CardContent className="text-xs space-y-2">
         <div>
@@ -84,6 +89,32 @@ export function DebugPanel({
         {coachTimezone && (
           <div>
             <strong>Coach Timezone:</strong> {coachTimezone}
+          </div>
+        )}
+        
+        {/* Event Type Debug Information */}
+        {eventTypes && eventTypes.length > 0 && (
+          <div className="pt-2 border-t border-dashed border-yellow-300 mt-2">
+            <strong>Available Event Types:</strong> {eventTypes.length}
+            <ul className="mt-1 pl-2">
+              {eventTypes.map((et) => (
+                <li key={et.id} className={selectedEventType?.id === et.id ? "font-medium" : ""}>
+                  {et.title || et.name} ({et.length || et.duration} min) - ID: {et.id}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        
+        {selectedEventType && (
+          <div className="pt-2 border-t border-dashed border-yellow-300 mt-2">
+            <strong>Selected Event Type:</strong>
+            <div className="mt-1 pl-2">
+              <div><span className="opacity-70">Name:</span> {selectedEventType.title || selectedEventType.name}</div>
+              <div><span className="opacity-70">Duration:</span> {selectedEventType.length || selectedEventType.duration} minutes</div>
+              <div><span className="opacity-70">Type:</span> {selectedEventType.schedulingType || "MANAGED"}</div>
+              <div><span className="opacity-70">ID:</span> {selectedEventType.id}</div>
+            </div>
           </div>
         )}
       </CardContent>

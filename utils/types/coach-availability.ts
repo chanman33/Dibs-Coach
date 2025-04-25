@@ -23,17 +23,32 @@ export const CoachScheduleSchema = z.object({
 
 export type CoachSchedule = z.infer<typeof CoachScheduleSchema>;
 
+// Event types interface
+export interface CalEventType {
+  id: string;
+  title?: string;
+  name?: string;
+  description: string | null;
+  length?: number;
+  duration?: number;
+  schedulingType?: string;
+}
+
 // Type for coach basic info
 export interface CoachInfo {
   ulid: string;
   firstName: string;
   lastName: string;
+  profileImageUrl?: string | null;
+  coachPrimaryDomain?: string | null;
+  coachRealEstateDomains?: string[] | null;
 }
 
 // Response type for getCoachAvailability
 export interface CoachAvailabilityResponse {
   coach: CoachInfo | null;
   schedule: CoachSchedule | null;
+  eventTypes?: CalEventType[] | null;
 }
 
 // Parameter type for getCoachAvailability

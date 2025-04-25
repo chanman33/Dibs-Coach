@@ -73,7 +73,17 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
       console.log('[GET_COACH_AVAILABILITY] Fetching coach data', { coachUlid });
       const { data: coachData, error: coachError } = await supabase
         .from("User")
-        .select("ulid, firstName, lastName")
+        .select(`
+          ulid, 
+          firstName, 
+          lastName,
+          profileImageUrl,
+          CoachProfile(
+            ulid,
+            coachPrimaryDomain,
+            coachRealEstateDomains
+          )
+        `)
         .eq("ulid", coachUlid)
         .single();
       
@@ -115,7 +125,10 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
             coach: {
               ulid: coachData.ulid,
               firstName: coachData.firstName || '',
-              lastName: coachData.lastName || ''
+              lastName: coachData.lastName || '',
+              profileImageUrl: coachData.profileImageUrl || null,
+              coachPrimaryDomain: coachData.CoachProfile?.[0]?.coachPrimaryDomain || null,
+              coachRealEstateDomains: coachData.CoachProfile?.[0]?.coachRealEstateDomains || null
             }, 
             schedule: null 
           },
@@ -137,7 +150,10 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
             coach: {
               ulid: coachData.ulid,
               firstName: coachData.firstName || '',
-              lastName: coachData.lastName || ''
+              lastName: coachData.lastName || '',
+              profileImageUrl: coachData.profileImageUrl || null,
+              coachPrimaryDomain: coachData.CoachProfile?.[0]?.coachPrimaryDomain || null,
+              coachRealEstateDomains: coachData.CoachProfile?.[0]?.coachRealEstateDomains || null
             }, 
             schedule: null 
           },
@@ -202,7 +218,10 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
           coach: {
             ulid: coachData.ulid,
             firstName: coachData.firstName || '',
-            lastName: coachData.lastName || ''
+            lastName: coachData.lastName || '',
+            profileImageUrl: coachData.profileImageUrl || null,
+            coachPrimaryDomain: coachData.CoachProfile?.[0]?.coachPrimaryDomain || null,
+            coachRealEstateDomains: coachData.CoachProfile?.[0]?.coachRealEstateDomains || null
           },
           schedule: {
             ulid: scheduleData.ulid,
