@@ -285,73 +285,6 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
   }
 )
 
-
-/**
- * Fetches marketing information for the current user's realtor profile
- */
-export async function fetchMarketingInfo() {
-  try {
-    // Validate auth
-    const session = await auth()
-    if (!session?.userId) {
-      return { success: false, error: "Unauthorized" }
-    }
-
-    // Get supabase client
-    const supabase = await createAuthClient()
-
-    // Get user's database ID
-    const { data: userData, error: userError } = await supabase
-      .from("User")
-      .select("id")
-      .eq("userId", session.userId)
-      .single()
-
-    if (userError || !userData) {
-      console.error("[MARKETING_FETCH_ERROR] User not found:", userError)
-      return { success: false, error: "User not found" }
-    }
-
-    // Get marketing information from realtor profile
-    const { data: marketingData, error: marketingError } = await supabase
-      .from("RealtorProfile")
-      .select(`
-        slogan,
-        websiteUrl,
-        facebookUrl,
-        instagramUrl,
-        linkedinUrl,
-        youtubeUrl,
-        marketingAreas,
-        testimonials
-      `)
-      .eq("userDbId", (userData as unknown as { id: string }).id)
-      .single()
-
-    if (marketingError) {
-      console.error("[MARKETING_FETCH_ERROR]", marketingError)
-      return { success: false, error: "Failed to fetch marketing information" }
-    }
-
-    // Add type assertion to handle potential type errors
-    const typedMarketingData = marketingData as any;
-
-    return {
-      success: true,
-      data: {
-        ...typedMarketingData,
-        marketingAreas: Array.isArray(typedMarketingData.marketingAreas)
-          ? typedMarketingData.marketingAreas.join(", ")
-          : typedMarketingData.marketingAreas || "",
-        testimonials: typedMarketingData.testimonials || []
-      } as MarketingInfo
-    }
-  } catch (error) {
-    console.error("[MARKETING_FETCH_ERROR]", error)
-    return { success: false, error: "Failed to fetch marketing information" }
-  }
-}
-
 // Fetch user's database ID
 export async function fetchUserDbId() {
   try {
@@ -495,8 +428,6 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, 
     }
   }
 );
-
-
 
 export interface LanguageUpdateData {
   languages: string[]

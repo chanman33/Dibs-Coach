@@ -23,7 +23,6 @@ import {
 } from "@/utils/actions/coach-profile-actions";
 import { type ApiResponse } from "@/utils/types/api";
 import { type RealEstateDomain } from "@/utils/types/coach";
-import { type ListingWithRealtor, type CreateListing } from "@/utils/types/listing";
 import { useUser } from "@clerk/nextjs";
 import config from "@/config";
 import {
@@ -37,7 +36,6 @@ import {
   updatePortfolioItem,
   deletePortfolioItem
 } from "@/utils/actions/portfolio-actions";
-import type { MarketingInfo } from "@/utils/types/marketing";
 
 // Define the shape of the general data
 interface GeneralData {
@@ -79,24 +77,8 @@ interface ProfileContextType {
   // Portfolio items
   portfolioItems: PortfolioItem[];
   
-  // Domain-specific data
-  realtorData: any;
-  investorData: any;
-  mortgageData: any;
-  propertyManagerData: any;
-  insuranceData: any;
-  commercialData: any;
-  privateCreditData: any;
-  titleEscrowData: any;
-  
   // Professional recognitions
   recognitionsData: ProfessionalRecognition[];
-  
-  // Marketing info
-  marketingData: MarketingInfo | null;
-  
-  // Goals data
-  goalsData: any;
   
   // Status information
   profileStatus: ProfileStatus;
@@ -120,24 +102,10 @@ interface ProfileContextType {
   selectedSkills: string[];
   realEstateDomains: RealEstateDomain[];
   
-  // Listings data
-  activeListings: ListingWithRealtor[];
-  successfulTransactions: ListingWithRealtor[];
-  
   // Update functions
   updateGeneralData: (data: GeneralFormData) => Promise<ApiResponse<GeneralFormData>>;
   updateCoachData: (data: CoachProfileFormValues) => Promise<void>;
-  updateRealtorData: (data: any) => Promise<void>;
-  updateInvestorData: (data: any) => Promise<void>;
-  updateMortgageData: (data: any) => Promise<void>;
-  updatePropertyManagerData: (data: any) => Promise<void>;
-  updateInsuranceData: (data: any) => Promise<void>;
-  updateCommercialData: (data: any) => Promise<void>;
-  updatePrivateCreditData: (data: any) => Promise<void>;
-  updateTitleEscrowData: (data: any) => Promise<void>;
   updateRecognitionsData: (data: ProfessionalRecognition[]) => Promise<void>;
-  updateMarketingData: (data: MarketingInfo) => Promise<void>;
-  updateGoalsData: (data: any) => Promise<void>;
   updateLanguages: (languages: string[]) => Promise<void>;
   
   // Portfolio functions
@@ -149,10 +117,6 @@ interface ProfileContextType {
   onSkillsChange: (skills: string[]) => void;
   saveSkills: (skills: string[]) => Promise<boolean>;
   updateSkills: (skills: string[]) => Promise<void>;
-  
-  // Listings handlers
-  onSubmitListing: (data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null }>;
-  onUpdateListing: (ulid: string, data: CreateListing) => Promise<{ data?: ListingWithRealtor | null; error?: string | null }>;
   
   // Function to update completion status locally
   updateCompletionStatus: (data: any) => void;
@@ -200,24 +164,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   // Add portfolioItems state
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
   
-  // Domain-specific data states
-  const [realtorData, setRealtorData] = useState<any>(null);
-  const [investorData, setInvestorData] = useState<any>(null);
-  const [mortgageData, setMortgageData] = useState<any>(null);
-  const [propertyManagerData, setPropertyManagerData] = useState<any>(null);
-  const [insuranceData, setInsuranceData] = useState<any>(null);
-  const [commercialData, setCommercialData] = useState<any>(null);
-  const [privateCreditData, setPrivateCreditData] = useState<any>(null);
-  const [titleEscrowData, setTitleEscrowData] = useState<any>(null);
-  
   // Professional recognitions state
   const [recognitionsData, setRecognitionsData] = useState<ProfessionalRecognition[]>([]);
-  
-  // Marketing info state
-  const [marketingData, setMarketingData] = useState<MarketingInfo | null>(null);
-  
-  // Goals data state
-  const [goalsData, setGoalsData] = useState<any>(null);
   
   // Status information state
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>("DRAFT");
@@ -248,10 +196,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const MAX_RETRIES = 3;
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Listings state
-  const [activeListings, setActiveListings] = useState<ListingWithRealtor[]>([]);
-  const [successfulTransactions, setSuccessfulTransactions] = useState<ListingWithRealtor[]>([]);
-
   // Fetch all profile data
   const fetchData = useCallback(async (): Promise<boolean> => {
     setIsLoading(true);
@@ -263,7 +207,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       });
       
       // Fetch user capabilities
-      const capabilitiesResult: ApiResponse<UserCapabilitiesResponse> = await fetchUserCapabilities();
+      const capabilitiesResult: ApiResponse<UserCapabilitiesResponse> = await fetchUserCapabilities({ skipProfileCheck: false });
       if (capabilitiesResult.error) {
         throw new Error(capabilitiesResult.error.message);
       }
@@ -679,226 +623,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  const updateRealtorData = async (data: any) => {
-    setIsSubmitting(true);
-    try {
-      // TODO: Implement realtor profile update
-      setRealtorData(data);
-      toast.success("Realtor profile updated successfully");
-      
-      // Fetch updated coach profile to get new completion status
-      const coachProfileResult = await fetchCoachProfile();
-      if (coachProfileResult.data) {
-        updateCompletionStatus(coachProfileResult.data);
-      }
-    } catch (error) {
-      console.error("[UPDATE_REALTOR_ERROR]", error);
-      toast.error("Failed to update realtor profile");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  const updateInvestorData = async (data: any) => {
-    // Similar implementation as updateRealtorData
-    setInvestorData(data);
-  };
-  
-  const updateMortgageData = async (data: any) => {
-    setIsSubmitting(true);
-    try {
-      const { updateMortgageProfile } = await import('@/utils/actions/mortgage-profile-actions');
-      const result = await updateMortgageProfile(data);
-      
-      if (result.error) {
-        console.error("[UPDATE_MORTGAGE_PROFILE_ERROR]", {
-          error: result.error,
-          timestamp: new Date().toISOString()
-        });
-        toast.error("Failed to update mortgage profile");
-        return;
-      }
-      
-      // Update the state
-      setMortgageData(data);
-      toast.success("Mortgage profile updated successfully");
-      
-      // Fetch updated coach profile to get new completion status
-      const coachProfileResult = await fetchCoachProfile();
-      if (coachProfileResult.data) {
-        updateCompletionStatus(coachProfileResult.data);
-      }
-    } catch (error) {
-      console.error("[UPDATE_MORTGAGE_ERROR]", {
-        error,
-        timestamp: new Date().toISOString()
-      });
-      toast.error("Failed to update mortgage profile");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  const updatePropertyManagerData = async (data: any) => {
-    setIsSubmitting(true);
-    try {
-      const { updatePropertyManagerProfile } = await import('@/utils/actions/property-manager-profile-actions');
-      const result = await updatePropertyManagerProfile(data);
-      
-      if (result.error) {
-        console.error("[UPDATE_PROPERTY_MANAGER_PROFILE_ERROR]", {
-          error: result.error,
-          timestamp: new Date().toISOString()
-        });
-        toast.error("Failed to update property manager profile");
-        return;
-      }
-      
-      // Update the state
-      setPropertyManagerData(data);
-      toast.success("Property manager profile updated successfully");
-      
-      // Fetch updated coach profile to get new completion status
-      const coachProfileResult = await fetchCoachProfile();
-      if (coachProfileResult.data) {
-        updateCompletionStatus(coachProfileResult.data);
-      }
-    } catch (error) {
-      console.error("[UPDATE_PROPERTY_MANAGER_ERROR]", {
-        error,
-        timestamp: new Date().toISOString()
-      });
-      toast.error("Failed to update property manager profile");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  const updateInsuranceData = async (data: any) => {
-    setIsSubmitting(true);
-    try {
-      const { updateInsuranceProfile } = await import('@/utils/actions/insurance-profile-actions');
-      const result = await updateInsuranceProfile(data);
-      
-      if (result.error) {
-        console.error("[UPDATE_INSURANCE_PROFILE_ERROR]", {
-          error: result.error,
-          timestamp: new Date().toISOString()
-        });
-        toast.error("Failed to update insurance profile");
-        return;
-      }
-      
-      // Update the state
-      setInsuranceData(data);
-      toast.success("Insurance profile updated successfully");
-      
-      // Fetch updated coach profile to get new completion status
-      const coachProfileResult = await fetchCoachProfile();
-      if (coachProfileResult.data) {
-        updateCompletionStatus(coachProfileResult.data);
-      }
-    } catch (error) {
-      console.error("[UPDATE_INSURANCE_ERROR]", {
-        error,
-        timestamp: new Date().toISOString()
-      });
-      toast.error("Failed to update insurance profile");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  const updateCommercialData = async (data: any) => {
-    setIsSubmitting(true);
-    try {
-      const { updateCommercialProfile } = await import('@/utils/actions/commercial-profile-actions');
-      const result = await updateCommercialProfile(data);
-      
-      if (result.error) {
-        console.error("[UPDATE_COMMERCIAL_PROFILE_ERROR]", {
-          error: result.error,
-          timestamp: new Date().toISOString()
-        });
-        toast.error("Failed to update commercial profile");
-        return;
-      }
-      
-      // Update the state
-      setCommercialData(data);
-      toast.success("Commercial profile updated successfully");
-      
-      // Fetch updated coach profile to get new completion status
-      const coachProfileResult = await fetchCoachProfile();
-      if (coachProfileResult.data) {
-        updateCompletionStatus(coachProfileResult.data);
-      }
-    } catch (error) {
-      console.error("[UPDATE_COMMERCIAL_ERROR]", {
-        error,
-        timestamp: new Date().toISOString()
-      });
-      toast.error("Failed to update commercial profile");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  const updatePrivateCreditData = async (data: any) => {
-    setIsSubmitting(true);
-    try {
-      const { updatePrivateCreditProfile } = await import('@/utils/actions/private-credit-profile-actions');
-      const result = await updatePrivateCreditProfile(data);
-      
-      if (result.error) {
-        console.error("[UPDATE_PRIVATE_CREDIT_PROFILE_ERROR]", {
-          error: result.error,
-          timestamp: new Date().toISOString()
-        });
-        toast.error("Failed to update private credit profile");
-        return;
-      }
-      
-      // Update the state
-      setPrivateCreditData(data);
-      toast.success("Private credit profile updated successfully");
-      
-      // Fetch updated coach profile to get new completion status
-      const coachProfileResult = await fetchCoachProfile();
-      if (coachProfileResult.data) {
-        updateCompletionStatus(coachProfileResult.data);
-      }
-    } catch (error) {
-      console.error("[UPDATE_PRIVATE_CREDIT_ERROR]", {
-        error,
-        timestamp: new Date().toISOString()
-      });
-      toast.error("Failed to update private credit profile");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  const updateTitleEscrowData = async (data: any) => {
-    setIsSubmitting(true);
-    try {
-      // TODO: Implement title escrow data update
-      setTitleEscrowData(data);
-      toast.success("Title escrow data updated successfully");
-      
-      // Fetch updated coach profile to get new completion status
-      const coachProfileResult = await fetchCoachProfile();
-      if (coachProfileResult.data) {
-        updateCompletionStatus(coachProfileResult.data);
-      }
-    } catch (error) {
-      console.error("[UPDATE_TITLE_ESCROW_ERROR]", error);
-      toast.error("Failed to update title escrow data");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
   const updateRecognitionsData = async (data: ProfessionalRecognition[]) => {
     setIsSubmitting(true);
     try {
@@ -973,31 +697,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsSubmitting(false);
     }
-  };
-  
-  const updateMarketingData = async (data: MarketingInfo) => {
-    setIsSubmitting(true);
-    try {
-      console.log("Updating marketing info...", data); // Log what's being passed
-      // Replace the placeholder with the actual update logic if needed
-      // For now, just log and update local state
-      // const response = await updateMarketingInfo(data);
-      // if (response.error) {
-      //   throw new Error(response.error.message || 'Failed to update marketing info');
-      // }
-      setMarketingData(data); // Update local state
-      toast.success("Marketing info saved locally (no backend update)");
-    } catch (error: any) {
-      console.error("Error updating marketing data:", error);
-      toast.error("Failed to update marketing information");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  const updateGoalsData = async (data: any) => {
-    // Similar implementation as other update functions
-    setGoalsData(data);
   };
   
   const updateLanguages = async (languages: string[]) => {
@@ -1170,60 +869,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  // Listings handlers
-  const onSubmitListing = useCallback(async (data: CreateListing) => {
-    try {
-      setIsSubmitting(true);
-      // TODO: Implement listing submission
-      console.log("[SUBMIT_LISTING]", {
-        data,
-        timestamp: new Date().toISOString()
-      });
-      return { data: null, error: null };
-    } catch (error) {
-      console.error("[SUBMIT_LISTING_ERROR]", error);
-      toast.error("Failed to submit listing");
-      return { data: null, error: "Failed to submit listing" };
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, []);
-
-  const onUpdateListing = useCallback(async (ulid: string, data: CreateListing) => {
-    try {
-      setIsSubmitting(true);
-      // TODO: Implement listing update
-      console.log("[UPDATE_LISTING]", {
-        ulid,
-        data,
-        timestamp: new Date().toISOString()
-      });
-      return { data: null, error: null };
-    } catch (error) {
-      console.error("[UPDATE_LISTING_ERROR]", error);
-      toast.error("Failed to update listing");
-      return { data: null, error: "Failed to update listing" };
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, []);
-
   // Context value
   const contextValue: ProfileContextType = {
     generalData,
     coachData,
     portfolioItems,
-    realtorData,
-    investorData,
-    mortgageData,
-    propertyManagerData,
-    insuranceData,
-    commercialData,
-    privateCreditData,
-    titleEscrowData,
     recognitionsData,
-    marketingData,
-    goalsData,
     profileStatus,
     completionPercentage,
     missingFields,
@@ -1241,24 +892,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     updateSkills,
     updateGeneralData,
     updateCoachData,
-    updateRealtorData,
-    updateInvestorData,
-    updateMortgageData,
-    updatePropertyManagerData,
-    updateInsuranceData,
-    updateCommercialData,
-    updatePrivateCreditData,
-    updateTitleEscrowData,
     updateRecognitionsData,
-    updateMarketingData,
-    updateGoalsData,
     updateLanguages,
     fetchError,
     retryCount,
-    activeListings,
-    successfulTransactions,
-    onSubmitListing,
-    onUpdateListing,
     clerkUser: clerkUser || null,
     isClerkLoaded,
     updateCompletionStatus,

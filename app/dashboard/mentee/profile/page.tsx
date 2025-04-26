@@ -5,30 +5,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import GeneralForm from "../../../../components/profile/common/GeneralForm"
 import { Button } from "@/components/ui/button"
 import { useRouter, useSearchParams } from "next/navigation"
-import { getCoachApplication } from "@/utils/actions/coach-application"
-import { fetchRealtorProfile, updateRealtorProfile } from "@/utils/actions/realtor-profile"
 import { Loader2 } from "lucide-react"
-import type { ApplicationResponse } from "@/utils/types/coach-application"
 import { updateUserProfile } from "@/utils/actions/user-profile-actions"
-import type { GeneralFormData } from "@/utils/actions/user-profile-actions"
+import type { GeneralFormData, UserProfileResponse } from "@/utils/actions/user-profile-actions"
 import type { ApiResponse, ApiError } from "@/utils/types/api"
 import { toast } from "sonner"
 import { fetchUserProfile } from "@/utils/actions/user-profile-actions"
 
 interface ProfileData {
-  user: {
-    firstName: string | null
-    lastName: string | null
-    displayName: string | null
-    bio: string | null
-    realEstateDomains: string[]
-    primaryDomain: string | null
-    languages: string[]
-  }
-  realtorProfile: {
-    yearsExperience: number | null
-    primaryMarket: string | null
-  }
+  displayName: string | null
+  bio: string | null
+  realEstateDomains: string[]
+  primaryDomain: string | null
+  languages: string[]
+  totalYearsRE: number
+  primaryMarket: string | null
 }
 
 export default function AgentProfilePage() {
@@ -46,52 +37,35 @@ export default function AgentProfilePage() {
       });
 
       try {
-        const [profileResponse, userProfileResponse] = await Promise.all([
-          fetchRealtorProfile(),
-          fetchUserProfile()
-        ])
+        const userProfileResponse = await fetchUserProfile();
 
         console.log('[PROFILE_PAGE_FETCH_COMPLETE]', {
-          hasProfileData: !!profileResponse.data,
           hasUserProfileData: !!userProfileResponse.data,
           timestamp: new Date().toISOString()
         });
 
         // Handle profile data
-        if (profileResponse.error) {
+        if (userProfileResponse.error) {
           console.error('[FETCH_PROFILE_ERROR]', {
-            error: profileResponse.error,
+            error: userProfileResponse.error,
             timestamp: new Date().toISOString()
           })
           toast.error('Failed to load profile data')
-        } else if (profileResponse.data) {
+        } else if (userProfileResponse.data) {
           console.log('[PROFILE_DATA_UPDATE]', {
-            firstName: profileResponse.data.user.firstName,
-            lastName: profileResponse.data.user.lastName,
+            displayName: userProfileResponse.data.displayName,
             timestamp: new Date().toISOString()
           });
           
-          // Get user profile data for domains and languages
-          const userDomains = userProfileResponse.data?.realEstateDomains || [];
-          const userPrimaryDomain = userProfileResponse.data?.primaryDomain || null;
-          const userLanguages = userProfileResponse.data?.languages || [];
-          
           setProfileData({
-            user: {
-              firstName: profileResponse.data.user.firstName ?? null,
-              lastName: profileResponse.data.user.lastName ?? null,
-              displayName: profileResponse.data.user.displayName ?? null,
-              bio: profileResponse.data.user.bio ?? null,
-              // Use the data from the user profile response
-              realEstateDomains: userDomains,
-              primaryDomain: userPrimaryDomain,
-              languages: userLanguages
-            },
-            realtorProfile: {
-              yearsExperience: profileResponse.data.realtorProfile.yearsExperience ?? null,
-              primaryMarket: profileResponse.data.realtorProfile.primaryMarket ?? null
-            }
-          })
+            displayName: userProfileResponse.data.displayName ?? "",
+            bio: userProfileResponse.data.bio ?? null,
+            realEstateDomains: userProfileResponse.data.realEstateDomains || [],
+            primaryDomain: userProfileResponse.data.primaryDomain ?? null,
+            languages: userProfileResponse.data.languages || [],
+            totalYearsRE: userProfileResponse.data.totalYearsRE || 0,
+            primaryMarket: userProfileResponse.data.primaryMarket ?? null
+          });
         }
       } catch (error) {
         console.error('[FETCH_DATA_ERROR]', {
@@ -99,7 +73,7 @@ export default function AgentProfilePage() {
           stack: error instanceof Error ? error.stack : undefined,
           timestamp: new Date().toISOString()
         })
-        toast.error('Failed to load some data')
+        toast.error('Failed to load profile data')
       } finally {
         setIsLoading(false)
       }
@@ -111,7 +85,7 @@ export default function AgentProfilePage() {
   const handleGeneralSubmit = async (formData: GeneralFormData): Promise<ApiResponse<GeneralFormData>> => {
     setIsSubmitting(true)
     try {
-      // First update the user profile with domains
+      // Update the user profile with all data
       const userProfileResponse = await updateUserProfile({
         displayName: formData.displayName,
         bio: formData.bio,
@@ -130,45 +104,18 @@ export default function AgentProfilePage() {
         toast.error(userProfileResponse.error.message || 'Failed to update user profile');
         return { data: null, error: userProfileResponse.error };
       }
-      
-      // Then update the realtor profile
-      const response = await updateRealtorProfile({
-        user: {
-          displayName: formData.displayName,
-          bio: formData.bio
-        },
-        realtorProfile: {
-          yearsExperience: formData.totalYearsRE,
-          primaryMarket: formData.primaryMarket
-        }
-      })
-      
-      if (response.error) {
-        console.error('[SUBMIT_PROFILE_ERROR]', {
-          error: response.error,
-          timestamp: new Date().toISOString()
-        })
-        toast.error(response.error.message || 'Failed to update profile')
-        return { data: null, error: response.error }
-      }
 
       // Update local state to avoid refetch
       setProfileData(prev => prev ? {
         ...prev,
-        user: {
-          ...prev.user,
-          displayName: formData.displayName,
-          bio: formData.bio,
-          realEstateDomains: formData.realEstateDomains,
-          primaryDomain: formData.primaryDomain,
-          languages: formData.languages || []
-        },
-        realtorProfile: {
-          ...prev.realtorProfile,
-          yearsExperience: formData.totalYearsRE,
-          primaryMarket: formData.primaryMarket
-        }
-      } : null)
+        displayName: formData.displayName,
+        bio: formData.bio,
+        realEstateDomains: formData.realEstateDomains,
+        primaryDomain: formData.primaryDomain,
+        languages: formData.languages || [],
+        totalYearsRE: formData.totalYearsRE,
+        primaryMarket: formData.primaryMarket
+      } : null);
 
       toast.success('Profile updated successfully')
       return { data: formData, error: null }
@@ -207,13 +154,13 @@ export default function AgentProfilePage() {
           onSubmit={handleGeneralSubmit} 
           isSubmitting={isSubmitting}
           initialData={{
-            displayName: profileData?.user.displayName || "",
-            bio: profileData?.user.bio || "",
-            totalYearsRE: profileData?.realtorProfile.yearsExperience || 0,
-            primaryMarket: profileData?.realtorProfile.primaryMarket || "",
-            languages: profileData?.user.languages || [],
-            realEstateDomains: profileData?.user.realEstateDomains || [],
-            primaryDomain: profileData?.user.primaryDomain || null
+            displayName: profileData?.displayName || "",
+            bio: profileData?.bio || "",
+            totalYearsRE: profileData?.totalYearsRE || 0,
+            primaryMarket: profileData?.primaryMarket || "",
+            languages: profileData?.languages || [],
+            realEstateDomains: profileData?.realEstateDomains || [],
+            primaryDomain: profileData?.primaryDomain || null
           }}
         />
       )}
