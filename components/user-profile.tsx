@@ -174,17 +174,10 @@ export function UserProfile() {
                     </Link>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                {config.auth.enabled ? (
-                    <DropdownMenuItem onClick={() => signOut(() => router.push('/'))}>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        <span>Log out</span>
-                    </DropdownMenuItem>
-                ) : (
-                    <DropdownMenuItem onClick={() => router.push('/sign-in')}>
-                        <LogOut className="mr-2 h-4 w-4" />
-                        <span>Switch User</span>
-                    </DropdownMenuItem>
-                )}
+                <DropdownMenuItem onClick={() => signOut(() => router.push('/'))}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                </DropdownMenuItem>
             </DropdownMenuContent>
         </DropdownMenu>
     )
