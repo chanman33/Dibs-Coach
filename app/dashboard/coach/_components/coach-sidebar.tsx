@@ -49,7 +49,7 @@ export function CoachSidebar() {
   useEffect(() => {
     const getUserDomains = async () => {
       try {
-        const result = await fetchUserCapabilities()
+        const result = await fetchUserCapabilities({})
         if (result.data) {
           const { realEstateDomains } = result.data
           const isRealtor = realEstateDomains?.includes('REALTOR') || false
@@ -100,6 +100,9 @@ export function CoachSidebar() {
             </NavLink>
             <NavLink href="/dashboard/coach/profile" icon={UserCircle}>
               Profile
+            </NavLink>
+            <NavLink href="/dashboard/coach/coach-profile" icon={Briefcase}>
+              Coach Profile
             </NavLink>
             <NavLink href="/dashboard/coach/calendar" icon={CalendarDays}>
               Calendar
