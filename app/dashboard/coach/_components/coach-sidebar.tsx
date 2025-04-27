@@ -27,10 +27,64 @@ import {
   ListChecks
 } from "lucide-react"
 import { useCentralizedAuth } from '@/app/provider'
-import { REAL_ESTATE_DOMAINS } from "@/utils/types/coach"
+import { REAL_ESTATE_DOMAINS, PROFILE_STATUS, ProfileStatus } from "@/utils/types/coach"
 import { fetchUserCapabilities } from "@/utils/actions/user-profile-actions"
 import { SidebarOrganizationSection } from "@/components/organization/sidebar-organization-section"
 import { useOrganization } from "@/utils/auth/OrganizationContext"
+import { fetchCoachProfile } from "@/utils/actions/coach-profile-actions"
+
+// Status tag component that displays the coach profile status
+const ProfileStatusTag = () => {
+  const [profileStatus, setProfileStatus] = useState<ProfileStatus>("DRAFT")
+  const [isLoading, setIsLoading] = useState(true)
+  const { authData } = useCentralizedAuth()
+
+  useEffect(() => {
+    const getProfileStatus = async () => {
+      if (!authData?.userUlid) return
+
+      try {
+        setIsLoading(true)
+        const result = await fetchCoachProfile()
+        
+        if (result.data) {
+          setProfileStatus(result.data.profileStatus || "DRAFT")
+        }
+      } catch (error) {
+        console.error("[FETCH_PROFILE_STATUS_ERROR]", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (authData?.userUlid) {
+      getProfileStatus()
+    }
+  }, [authData?.userUlid])
+
+  if (isLoading) return null
+
+  // Return different styles based on status
+  const statusStyles = {
+    DRAFT: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+    PUBLISHED: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
+    SUSPENDED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+    ARCHIVED: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+  }
+
+  const statusLabel = {
+    DRAFT: "Draft",
+    PUBLISHED: "Published",
+    SUSPENDED: "Suspended",
+    ARCHIVED: "Archived"
+  }
+
+  return (
+    <span className={`text-xs font-medium ml-2 px-2 py-0.5 rounded ${statusStyles[profileStatus]}`}>
+      {statusLabel[profileStatus]}
+    </span>
+  )
+}
 
 export function CoachSidebar() {
   const pathname = usePathname()
@@ -103,6 +157,7 @@ export function CoachSidebar() {
             </NavLink>
             <NavLink href="/dashboard/coach/coach-profile" icon={Briefcase}>
               Coach Profile
+              <ProfileStatusTag />
             </NavLink>
             <NavLink href="/dashboard/coach/calendar" icon={CalendarDays}>
               Calendar
