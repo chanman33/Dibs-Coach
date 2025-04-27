@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PortfolioForm } from "./PortfolioForm";
 import { CreatePortfolioItem, UpdatePortfolioItem } from "@/utils/types/portfolio";
-import { useProfileContext } from "../context/ProfileContext";
+import { useProfileContext } from "./ProfileContext";
 import { toast } from "sonner";
 
 export function PortfolioPage() {

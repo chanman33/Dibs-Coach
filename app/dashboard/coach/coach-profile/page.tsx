@@ -1,7 +1,7 @@
 "use client";
 
-import { useProfileContext, ProfileProvider } from "@/components/profile/context/ProfileContext";
-import { CoachProfileForm } from "@/components/profile/coach/CoachProfileForm";
+import { useProfileContext, ProfileProvider } from "@/components/coach-profile/ProfileContext";
+import { CoachProfileForm } from "@/components/coach-profile/CoachProfileForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Loader2, Briefcase, Building, Award } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -14,8 +14,8 @@ import config from "@/config";
 import { updateProfileCompletion } from "@/utils/actions/update-profile-completion";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { PortfolioPage } from "@/components/profile/coach/PortfolioPage";
-import { RecognitionsTab } from "@/components/profile/coach/RecognitionsTab";
+import { PortfolioPage } from "@/components/coach-profile/PortfolioPage";
+import { RecognitionsTab } from "@/components/coach-profile/RecognitionsTab";
 
 // Extended type for coach data that includes profile completion info
 interface ExtendedCoachData extends Omit<CoachProfileInitialData, 'displayName' | 'slogan'> {

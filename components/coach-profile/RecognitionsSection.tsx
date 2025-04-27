@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { ProfessionalRecognition, SerializableProfessionalRecognition } from "@/utils/types/recognition";
-import { RecognitionsTab } from "@/components/profile/coach/RecognitionsTab";
+import { RecognitionsTab } from "@/components/coach-profile/RecognitionsTab";
 import { updateRecognitions, testDirectDatabaseAccess } from "@/utils/actions/recognition-actions";
 import { toast } from "sonner";
-import { FormSectionHeader } from "../common/FormSectionHeader";
+import { FormSectionHeader } from "../profile/common/FormSectionHeader";
 import { Button } from "@/components/ui/button";
 
 

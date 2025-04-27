@@ -1,17 +1,15 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
-import { CoachProfileFormValues, CoachProfileInitialData } from "../types";
+import { CoachProfileFormValues, CoachProfileInitialData } from "../profile/types";
 import { ProfileStatus } from "@/utils/types/coach";
 import { ProfessionalRecognition, SerializableProfessionalRecognition } from "@/utils/types/recognition";
 import { toast } from "sonner";
 import { updateRecognitions } from "@/utils/actions/recognition-actions";
 import { 
   fetchUserCapabilities,
-  updateUserProfile,
   updateUserLanguages,
   fetchUserProfile,
-  type GeneralFormData,
   UserCapabilitiesResponse,
   UserProfileResponse
 } from "@/utils/actions/user-profile-actions";
@@ -103,7 +101,6 @@ interface ProfileContextType {
   realEstateDomains: RealEstateDomain[];
   
   // Update functions
-  updateGeneralData: (data: GeneralFormData) => Promise<ApiResponse<GeneralFormData>>;
   updateCoachData: (data: CoachProfileFormValues) => Promise<void>;
   updateRecognitionsData: (data: ProfessionalRecognition[]) => Promise<void>;
   updateLanguages: (languages: string[]) => Promise<void>;
@@ -207,7 +204,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       });
       
       // Fetch user capabilities
-      const capabilitiesResult: ApiResponse<UserCapabilitiesResponse> = await fetchUserCapabilities({ skipProfileCheck: false });
+      const capabilitiesResult = await fetchUserCapabilities({ skipProfileCheck: false });
       if (capabilitiesResult.error) {
         throw new Error(capabilitiesResult.error.message);
       }
@@ -222,7 +219,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       });
       
       // Fetch user profile data
-      const userProfileResult: ApiResponse<UserProfileResponse> = await fetchUserProfile();
+      const userProfileResult = await fetchUserProfile();
       if (userProfileResult.error) {
         throw new Error(userProfileResult.error.message);
       }
@@ -273,7 +270,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           timestamp: new Date().toISOString()
         });
         
-        const coachProfileResult: ApiResponse<any> = await fetchCoachProfile();
+        const coachProfileResult = await fetchCoachProfile();
         if (coachProfileResult.error) {
           console.error('[FETCH_COACH_PROFILE_ERROR]', coachProfileResult.error);
         } else if (coachProfileResult.data) {
@@ -465,37 +462,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Update functions
-  const updateGeneralData = async (data: GeneralFormData): Promise<ApiResponse<GeneralFormData>> => {
-    setIsSubmitting(true);
-    try {
-      const result = await updateUserProfile(data);
-      if (result.data) {
-        setGeneralData(prevData => ({
-          ...prevData,
-          ...result.data as GeneralFormData,
-          languages: (result.data as GeneralFormData).languages || []
-        }));
-        toast.success("General profile updated successfully");
-        
-        // Fetch updated coach profile to get new completion status
-        const coachProfileResult = await fetchCoachProfile();
-        if (coachProfileResult.data) {
-          updateCompletionStatus(coachProfileResult.data);
-        }
-      } else if (result.error) {
-        toast.error(String(result.error));
-      }
-      return result;
-    } catch (error) {
-      console.error("[UPDATE_GENERAL_ERROR]", error);
-      toast.error("Failed to update general profile");
-      return { data: null, error: { code: 'INTERNAL_ERROR', message: 'Failed to update general profile' } };
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
   // Update completion status from server response
   const updateCompletionStatus = (data: any) => {
     if (data) {
@@ -890,7 +856,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     onSkillsChange,
     saveSkills,
     updateSkills,
-    updateGeneralData,
     updateCoachData,
     updateRecognitionsData,
     updateLanguages,

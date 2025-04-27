@@ -1,4 +1,3 @@
-"use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
@@ -18,8 +17,8 @@ import { ProfileCompletion } from "./ProfileCompletion";
 import { Card } from "@/components/ui/card";
 import { ProfileStatus, REAL_ESTATE_DOMAINS } from "@/utils/types/coach";
 import { z } from "zod";
-import type { CoachProfileFormValues } from "../types";
-import type { UserInfo } from "../types";
+import type { CoachProfileFormValues } from "../profile/types";
+import type { UserInfo } from "../profile/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -29,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FormSectionHeader } from "../common/FormSectionHeader";
+import { FormSectionHeader } from "../profile/common/FormSectionHeader";
 import { COACH_SPECIALTIES, SpecialtyCategory, Specialty } from "@/utils/types/coach";
 import ReactSelect from 'react-select';
 import { selectStyles } from "@/components/ui/select-styles";

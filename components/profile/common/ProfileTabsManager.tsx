@@ -6,12 +6,12 @@ import { Award, Building, User, Briefcase, Globe } from "lucide-react";
 import { CoachProfileFormValues } from "../types";
 import { ProfessionalRecognition } from "@/utils/types/recognition";
 import GeneralForm from "./GeneralForm";
-import { RecognitionsTab } from "../coach/RecognitionsTab";
+import { RecognitionsTab } from "../../coach-profile/RecognitionsTab";
 import MarketingInfo from "../coach/MarketingInfo";
 import { MarketingInfo as MarketingInfoType } from "@/utils/types/marketing";
 import { type ApiResponse } from "@/utils/types/api";
 import { type GeneralFormData } from "@/utils/actions/user-profile-actions";
-import { PortfolioPage } from "../coach/PortfolioPage";
+import { PortfolioPage } from "../../coach-profile/PortfolioPage";
 
 // Define the tab interface
 export interface ProfileTab {
