@@ -40,6 +40,144 @@ export interface BusyTime {
   source: string;
 }
 
+// Helper function to generate and filter time slots for a specific date
+const generateAndFilterTimeSlots = (
+  date: Date, 
+  coachSchedule: CoachSchedule, 
+  busyTimes: BusyTime[], 
+  slotDuration: number
+): TimeSlot[] => {
+  
+  console.log('[DEBUG][BOOKING_HELPER] Generating slots for date', {
+    date: format(date, 'yyyy-MM-dd'),
+    slotDuration
+  });
+  
+  const dayOfWeek = date.getDay();
+  const dayName = getDayNameFromNumber(dayOfWeek);
+  
+  if (!dayName) {
+    console.error('[DEBUG][BOOKING_HELPER] Invalid day for slot generation', { date });
+    return []; // Cannot generate slots if day name is invalid
+  }
+
+  // Find availability slots for the selected day
+  const dayScheduleSlots = coachSchedule.availability.filter(slot => {
+    if (!slot.days || !Array.isArray(slot.days)) return false;
+    return slot.days.some(day => {
+      if (typeof day === 'number') return day === dayOfWeek;
+      if (typeof day === 'string') return day.toUpperCase() === dayName.toUpperCase(); // Case-insensitive compare
+      return false;
+    });
+  });
+
+  console.log('[DEBUG][BOOKING_HELPER] Found schedule slots for day', { dayName, count: dayScheduleSlots.length });
+
+  if (dayScheduleSlots.length === 0) {
+    return []; // No availability defined for this day
+  }
+
+  // Generate potential slots based on schedule
+  const potentialSlots: TimeSlot[] = [];
+  dayScheduleSlots.forEach(scheduleSlot => {
+    const [startHour, startMinute] = scheduleSlot.startTime.split(":").map(Number);
+    const [endHour, endMinute] = scheduleSlot.endTime.split(":").map(Number);
+
+    let currentTime = new Date(date);
+    currentTime.setHours(startHour, startMinute, 0, 0);
+
+    const scheduleEndTime = new Date(date);
+    scheduleEndTime.setHours(endHour, endMinute, 0, 0);
+
+    console.log('[DEBUG][BOOKING_HELPER] Processing schedule slot', {
+      scheduleStartTime: scheduleSlot.startTime,
+      scheduleEndTime: scheduleSlot.endTime,
+      loopStart: format(currentTime, 'HH:mm'),
+      loopEnd: format(scheduleEndTime, 'HH:mm')
+    });
+
+    while (currentTime < scheduleEndTime) {
+      const slotEndTime = new Date(currentTime);
+      slotEndTime.setMinutes(currentTime.getMinutes() + slotDuration);
+
+      if (slotEndTime <= scheduleEndTime) {
+        potentialSlots.push({
+          startTime: new Date(currentTime),
+          endTime: slotEndTime
+        });
+      }
+      currentTime = new Date(slotEndTime);
+    }
+  });
+  
+  console.log('[DEBUG][BOOKING_HELPER] Generated potential slots', { count: potentialSlots.length });
+
+  // Filter out slots conflicting with busy times
+  const availableSlots = potentialSlots.filter(slot => {
+    const conflicts = busyTimes.some(busyTime => {
+      // Ensure busy times are parsed correctly into Date objects
+      let busyStart: Date, busyEnd: Date;
+      try {
+        busyStart = parseISO(busyTime.start);
+        busyEnd = parseISO(busyTime.end);
+      } catch (e) {
+        console.error('[DEBUG][BOOKING_HELPER] Failed to parse busy time:', busyTime, e);
+        return true; // Treat parse failure as a conflict to be safe
+      }
+
+      // Check for overlap using the utility function
+      const overlaps = doesTimeSlotOverlapWithBusyTime(slot, busyStart, busyEnd);
+      
+      // Add detailed logging for the comparison
+      if (format(date, 'yyyy-MM-dd') === '2025-05-01') { // Log specifically for May 1st
+           console.log('[DEBUG][BOOKING_HELPER][MAY_1_FILTER]', {
+              slotStart: slot.startTime.toISOString(), 
+              slotEnd: slot.endTime.toISOString(),
+              busyStart: busyStart.toISOString(),
+              busyEnd: busyEnd.toISOString(),
+              busySource: busyTime.source,
+              slotStartTimestamp: slot.startTime.getTime(),
+              slotEndTimestamp: slot.endTime.getTime(),
+              busyStartTimestamp: busyStart.getTime(),
+              busyEndTimestamp: busyEnd.getTime(),
+              check: `(${slot.startTime.getTime()} < ${busyEnd.getTime()}) && (${slot.endTime.getTime()} > ${busyStart.getTime()})`,
+              overlaps
+            });
+      }
+      
+      // Log general conflicts
+      if (overlaps) {
+        console.log('[DEBUG][BOOKING_HELPER] Slot conflicts with busy time', {
+            slot: {
+              start: format(slot.startTime, 'HH:mm'),
+              end: format(slot.endTime, 'HH:mm'),
+              utc: slot.startTime.toISOString()
+            },
+            busy: {
+              start: format(busyStart, 'HH:mm zzz'), // Add timezone info if possible
+              end: format(busyEnd, 'HH:mm zzz'),
+              utcStart: busyStart.toISOString(),
+              utcEnd: busyEnd.toISOString(),
+              source: busyTime.source
+            }
+          });
+      }
+      return overlaps;
+    });
+    // Keep the slot only if it DOES NOT conflict
+    return !conflicts; 
+  });
+  // const availableSlots = potentialSlots; // REMOVED: Use the filtered slots
+
+  console.log('[DEBUG][BOOKING_HELPER] Final filtered slots for date', {
+    date: format(date, 'yyyy-MM-dd'),
+    count: availableSlots.length,
+    slots: availableSlots.map(s => format(s.startTime, 'HH:mm')) 
+  });
+  
+  return availableSlots;
+};
+
 export function useLocalBookingAvailability() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -50,11 +188,12 @@ export function useLocalBookingAvailability() {
   
   // State variables
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [availableDates, setAvailableDates] = useState<Date[]>([]);
+  // AVAILABLE DATES NOW REPRESENTS DATES WITH CONFIRMED SLOTS
+  const [availableDates, setAvailableDates] = useState<Date[]>([]); 
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [coachSchedule, setCoachSchedule] = useState<CoachSchedule | null>(null);
-  const [busyTimes, setBusyTimes] = useState<BusyTime[]>([]);
+  const [busyTimes, setBusyTimes] = useState<BusyTime[]>([]); // Keep busyTimes state
   const [coachName, setCoachName] = useState("");
   const [isBooking, setIsBooking] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
@@ -67,7 +206,8 @@ export function useLocalBookingAvailability() {
     context: 'initial'
   });
 
-  // Helper function to check if a date should be disabled
+  // Helper function to check if a date should be disabled (outside window or general non-working day)
+  // Note: This remains unchanged, it's about the overall window/day-off status, not specific slots.
   const isDateDisabled = useCallback((date: Date) => {
     if (!date) return true;
     
@@ -79,7 +219,7 @@ export function useLocalBookingAvailability() {
       return true; // Outside booking window - disable
     }
     
-    // Second check: Is this a day the coach works on?
+    // Second check: Is this a day the coach generally works on?
     const dayOfWeek = date.getDay();
     const dateDayName = getDayNameFromNumber(dayOfWeek);
     
@@ -88,11 +228,15 @@ export function useLocalBookingAvailability() {
     }
     
     // Check if this day is in the coach's schedule
-    const isDayAvailable = coachSchedule.availability.some(slot => 
-      slot.days.includes(dateDayName)
+    const isDayGenerallyAvailable = coachSchedule.availability.some(slot => 
+      slot.days.some(day => {
+        if (typeof day === 'number') return day === dayOfWeek;
+        if (typeof day === 'string') return day.toUpperCase() === dateDayName.toUpperCase();
+        return false;
+      })
     );
     
-    return !isDayAvailable; // Disable if not available
+    return !isDayGenerallyAvailable; // Disable if not generally available
   }, [coachSchedule]);
 
   // Fetch coach data and schedule when component mounts
@@ -230,26 +374,25 @@ export function useLocalBookingAvailability() {
             availability: availabilityData
           });
           
-          // NOTE: Cal.com API integration commented out for testing local functionality
-          /*
-          // Get the cal.com token for this coach to fetch busy times
-          console.log('[DEBUG][BOOKING] Fetching calendar integration token', { coachUlid });
-          const { data: calData, error: calError } = await supabase
-            .from("CalendarIntegration")
-            .select("calAccessToken")
-            .eq("userUlid", coachUlid)
-            .single();
-            
-          if (!calError && calData) {
-            console.log('[DEBUG][BOOKING] Calendar token retrieved', { 
-              hasToken: !!calData.calAccessToken,
-              tokenLength: calData.calAccessToken ? calData.calAccessToken.length : 0
-            });
-            setCalToken(calData.calAccessToken);
-          } else {
-            console.warn('[DEBUG][BOOKING] No calendar token found', { error: calError });
-          }
-          */
+          // Fetch busy times using the actualCoachId
+           if (coachUlid) {
+             setLoadingState({ status: 'loading', context: 'BUSY_TIMES', message: 'Loading busy times...' });
+             try {
+               const response = await fetch(`/api/availability/busy-times?coachId=${coachUlid}&days=31`); // Fetch for ~1 month
+               if (!response.ok) {
+                 throw new Error(`Failed to fetch busy times: ${response.statusText}`);
+               }
+               const busyData: BusyTime[] = await response.json();
+               setBusyTimes(busyData);
+               console.log('[DEBUG][BOOKING] Successfully fetched busy times', { count: busyData.length, sample: busyData.slice(0, 2) });
+               setLoadingState({ status: 'success', context: 'BUSY_TIMES' });
+             } catch (busyError) {
+               console.error('[FETCH_BUSY_TIMES_ERROR]', busyError);
+               toast({ title: 'Error loading busy times', description: 'Could not load calendar events.', variant: 'destructive' });
+               setBusyTimes([]); // Proceed without busy times if fetch fails
+               setLoadingState({ status: 'error', context: 'BUSY_TIMES', message: 'Failed to load busy times' });
+             }
+           }
           
           setLoadingState({
             status: 'success',
@@ -274,298 +417,160 @@ export function useLocalBookingAvailability() {
           message: 'An unexpected error occurred'
         });
       } finally {
-        setLoading(false);
+        // We are not done loading yet, calculation of available dates comes next
+        // setLoading(false); 
       }
     };
 
     fetchCoachData();
   }, [coachId, coachSlug]);
 
-  // Calculate available dates based on coach schedule
+  // Calculate available DATES (with confirmed slots) based on coach schedule and busy times
   useEffect(() => {
-    if (!coachSchedule) return;
-    
-    console.log('[DEBUG][BOOKING] Calculating available dates from schedule');
+    // Wait until both schedule and busy times are potentially loaded
+    if (!coachSchedule || loadingState.context === 'BUSY_TIMES' && loadingState.status === 'loading') {
+        console.log('[DEBUG][BOOKING] Waiting for schedule/busy times before calculating available dates...');
+        return;
+    }
+
+    console.log('[DEBUG][BOOKING] Calculating available DATES with actual slots');
     setLoadingState({
       status: 'loading',
-      context: 'CALCULATING_DATES',
-      message: 'Calculating available dates...'
+      context: 'CALCULATING_DATES_WITH_SLOTS',
+      message: 'Finding dates with available slots...'
     });
-    
-    // Get tomorrow and max date for the booking window
-    const tomorrow = getTomorrowDate();
-    const maxDate = getMaxBookingDate();
-    
-    const availableDays = new Set<number>();
-    
-    // Collect all days the coach is available
-    coachSchedule.availability.forEach(slot => {
-      slot.days.forEach(day => {
-        // Convert from string day name to number (0-6, where 0 is Sunday)
-        const dayNumber = dayMapping[day];
-        if (dayNumber !== undefined) {
-          availableDays.add(dayNumber);
-        }
-      });
-    });
-    
-    console.log('[DEBUG][BOOKING] Available days of week', { 
-      availableDays: Array.from(availableDays),
-      availableDayNames: Array.from(availableDays).map(day => 
-        Object.keys(dayMapping).find(key => dayMapping[key] === day)
-      )
-    });
-    
-    // Generate dates within the allowed booking window: tomorrow up to 15 days later
-    // and only include days when the coach is available
-    const dates: Date[] = [];
-    
-    // Start from tomorrow (no same-day bookings)
-    for (let i = 0; i <= 15; i++) {
-      const date = addDays(tomorrow, i);
-      
-      // Stop if we've reached beyond the max date
-      if (date > maxDate) break;
-      
-      const dayOfWeek = date.getDay(); // 0-6, Sunday is 0
-      
-      if (availableDays.has(dayOfWeek)) {
-        dates.push(date);
-      }
-    }
-    
-    console.log('[DEBUG][BOOKING] Available dates calculated', { 
-      numDates: dates.length,
-      dateRange: dates.length > 0 ? {
-        firstDate: format(dates[0], 'yyyy-MM-dd'),
-        lastDate: format(dates[dates.length - 1], 'yyyy-MM-dd')
-      } : 'No dates available'
-    });
-    
-    setAvailableDates(dates);
-    
-    // If we have dates and no selected date yet, select the first available date
-    if (dates.length > 0 && (!selectedDate || isDateDisabled(selectedDate))) {
-      console.log('[DEBUG][BOOKING] Setting default selected date', { 
-        date: format(dates[0], 'yyyy-MM-dd')
-      });
-      setSelectedDate(dates[0]);
-      setLoadingState({
-        status: 'success',
-        context: 'CALCULATING_DATES'
-      });
-    } else if (dates.length === 0) {
-      // No dates available in booking window
-      console.warn('[DEBUG][BOOKING] No available dates found in booking window');
-      setError("No available booking slots in the next 15 days");
-      setLoadingState({
-        status: 'error',
-        context: 'CALCULATING_DATES',
-        message: 'No available dates found in the booking window'
-      });
-    }
-  }, [coachSchedule, selectedDate, isDateDisabled]);
 
-  // NOTE: Cal.com API integration commented out for testing local functionality
-  /*
-  // Fetch busy times when calendar token is available and date is selected
-  useEffect(() => {
-    if (!calToken || !selectedDate || !coachSchedule || !actualCoachId) return;
-
-    const fetchBusyTimes = async () => {
-      // Cal.com API integration code here...
-    };
-
-    fetchBusyTimes();
-  }, [calToken, selectedDate, actualCoachId, coachSchedule]);
-  */
-
-  // Calculate available time slots based on schedule and busy times
-  useEffect(() => {
-    if (!selectedDate || !coachSchedule) return;
-    
-    console.log('[DEBUG][BOOKING_LOCAL] Calculating time slots for selected date', {
-      date: format(selectedDate, 'yyyy-MM-dd'),
-      timezone: coachSchedule.timeZone,
-      availability: coachSchedule.availability
-    });
-    
-    setLoadingState({
-      status: 'loading',
-      context: 'TIME_SLOTS',
-      message: 'Calculating available time slots...'
-    });
-    
-    // Get the day of week for the selected date (0-6, Sunday is 0)
-    const dayOfWeek = selectedDate.getDay();
-    
-    // Convert day number to day name for matching with availability
-    const selectedDayName = getDayNameFromNumber(dayOfWeek);
-    
-    console.log('[DEBUG][BOOKING_LOCAL] Selected day info', {
-      dayOfWeek,
-      dayName: selectedDayName,
-      dayOfWeekType: typeof dayOfWeek
-    });
-    
-    if (!selectedDayName) {
-      console.error('[DEBUG][BOOKING_LOCAL] Invalid day selection', { dayOfWeek });
-      setLoadingState({
-        status: 'error',
-        context: 'TIME_SLOTS',
-        message: 'Invalid day selection'
-      });
-      return;
-    }
-    
-    // Find availability slots for the selected day
-    // IMPORTANT FIX: Handle both number and string day formats
-    const daySlots = coachSchedule.availability.filter(slot => {
-      if (!slot.days || !Array.isArray(slot.days)) return false;
-      
-      // Handle both number and string day formats
-      return slot.days.some(day => {
-        if (typeof day === 'number') {
-          // If day is stored as number (0-6), compare directly with dayOfWeek
-          return day === dayOfWeek;
-        } else if (typeof day === 'string') {
-          // If day is stored as string, compare with selectedDayName
-          return day.toUpperCase() === selectedDayName;
-        }
-        return false;
-      });
-    });
-    
-    console.log('[DEBUG][BOOKING_LOCAL] Availability slots for selected day', {
-      dayName: selectedDayName,
-      slotsCount: daySlots.length,
-      slots: daySlots,
-      fullCoachSchedule: coachSchedule.availability.map(slot => ({
-        days: slot.days,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        dayTypes: slot.days.map(d => typeof d)
-      }))
-    });
-    
-    if (daySlots.length === 0) {
-      console.log('[DEBUG][BOOKING_LOCAL] No availability slots for selected day');
-      setTimeSlots([]);
-      setLoadingState({
-        status: 'success',
-        context: 'TIME_SLOTS',
-        message: 'No time slots available on this day'
-      });
-      return;
-    }
-    
-    // Generate time slots for the selected day
-    const slots: TimeSlot[] = [];
-    const slotDuration = coachSchedule.defaultDuration || 60; // minutes
-    
-    console.log('[DEBUG][BOOKING] Generating time slots with duration', {
-      slotDuration
-    });
-    
-    daySlots.forEach(slot => {
-      const [startHour, startMinute] = slot.startTime.split(":").map(Number);
-      const [endHour, endMinute] = slot.endTime.split(":").map(Number);
-      
-      let currentTime = new Date(selectedDate);
-      currentTime.setHours(startHour, startMinute, 0, 0);
-      
-      const endTime = new Date(selectedDate);
-      endTime.setHours(endHour, endMinute, 0, 0);
-      
-      console.log('[DEBUG][BOOKING] Processing availability slot', {
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        formattedStart: format(currentTime, 'HH:mm'),
-        formattedEnd: format(endTime, 'HH:mm')
-      });
-      
-      // Generate slots until reaching end time
-      while (currentTime < endTime) {
-        const slotEndTime = new Date(currentTime);
-        slotEndTime.setMinutes(currentTime.getMinutes() + slotDuration);
+    // Use a timeout to ensure state updates from busyTimes fetch have settled
+    const timerId = setTimeout(() => {
+      const calculateAvailableDatesWithSlots = () => {
+        const tomorrow = getTomorrowDate();
+        const maxDate = getMaxBookingDate();
+        const slotDuration = coachSchedule.defaultDuration || 60;
+        const finalAvailableDates: Date[] = [];
         
-        // Check if this slot ends before or at the availability end time
-        if (slotEndTime <= endTime) {
-          slots.push({
-            startTime: new Date(currentTime),
-            endTime: slotEndTime
-          });
-        }
-        
-        // Move to next slot
-        currentTime = new Date(slotEndTime);
-      }
-    });
-    
-    console.log('[DEBUG][BOOKING] Generated time slots before filtering', {
-      count: slots.length,
-      firstSlot: slots.length > 0 ? {
-        start: format(slots[0].startTime, 'HH:mm'),
-        end: format(slots[0].endTime, 'HH:mm')
-      } : null,
-      lastSlot: slots.length > 0 ? {
-        start: format(slots[slots.length - 1].startTime, 'HH:mm'),
-        end: format(slots[slots.length - 1].endTime, 'HH:mm')
-      } : null
-    });
-    
-    // Filter out slots that conflict with busy times
-    console.log('[DEBUG][BOOKING] Filtering slots with busy times', {
-      busyTimesCount: busyTimes.length
-    });
-    
-    // NOTE: Cal.com API integration commented out for testing local functionality
-    // Using all slots without filtering for busy times
-    const availableSlots = slots;
-    /*
-    const availableSlots = slots.filter(slot => {
-      // Check for conflicts with busy times
-      const conflicts = busyTimes.some(busyTime => {
-        const busyStart = parseISO(busyTime.start);
-        const busyEnd = parseISO(busyTime.end);
-        
-        // Check if slot overlaps with busy time
-        const overlaps = doesTimeSlotOverlapWithBusyTime(slot, busyStart, busyEnd);
-        if (overlaps) {
-          console.log('[DEBUG][BOOKING] Slot conflicts with busy time', {
-            slot: {
-              start: format(slot.startTime, 'HH:mm'),
-              end: format(slot.endTime, 'HH:mm')
-            },
-            busy: {
-              start: format(busyStart, 'HH:mm'),
-              end: format(busyEnd, 'HH:mm')
+        // Now we can safely use the busyTimes state
+        const currentBusyTimes = busyTimes;
+        console.log('[DEBUG][BOOKING] Using busy times for date calculation:', { count: currentBusyTimes.length });
+
+        // Iterate through the booking window
+        for (let i = 0; i <= 15; i++) {
+          const date = addDays(tomorrow, i);
+          if (date > maxDate) break;
+
+          // Check if the day itself is generally available (avoids unnecessary slot calculation)
+          const dayOfWeek = date.getDay();
+          const dayName = getDayNameFromNumber(dayOfWeek);
+          const isDayGenerallyAvailable = coachSchedule.availability.some(slot => 
+            slot.days.some(day => {
+              if (typeof day === 'number') return day === dayOfWeek;
+              if (typeof day === 'string') return day.toUpperCase() === dayName?.toUpperCase();
+              return false;
+            })
+          );
+
+          if (isDayGenerallyAvailable) {
+            // Generate slots for this specific date, filtering with currentBusyTimes
+            const slotsForDate = generateAndFilterTimeSlots(date, coachSchedule, currentBusyTimes, slotDuration);
+            
+            // If slots exist for this date, add it to the list
+            if (slotsForDate.length > 0) {
+              finalAvailableDates.push(date);
+            } else {
+               console.log(`[DEBUG][BOOKING] No slots found for ${format(date, 'yyyy-MM-dd')} after filtering.`);
             }
+          } else {
+             console.log(`[DEBUG][BOOKING] Day ${format(date, 'yyyy-MM-dd')} (${dayName}) is not generally available.`);
+          }
+        }
+
+        console.log('[DEBUG][BOOKING] Final available dates with slots calculated', {
+          numDates: finalAvailableDates.length,
+          dates: finalAvailableDates.map(d => format(d, 'yyyy-MM-dd')), // Log the actual dates
+          dateRange: finalAvailableDates.length > 0 ? {
+            firstDate: format(finalAvailableDates[0], 'yyyy-MM-dd'),
+            lastDate: format(finalAvailableDates[finalAvailableDates.length - 1], 'yyyy-MM-dd')
+          } : 'No dates available'
+        });
+        
+        setAvailableDates(finalAvailableDates);
+        
+        // Auto-select the first available date if none is selected or current selection is invalid/disabled
+        if (finalAvailableDates.length > 0) {
+          const isCurrentSelectionValid = selectedDate && 
+                                         finalAvailableDates.some(d => d.getTime() === selectedDate.getTime()) &&
+                                         !isDateDisabled(selectedDate); // isDateDisabled checks general window/day off
+
+          if (!isCurrentSelectionValid) {
+            console.log('[DEBUG][BOOKING] Setting default selected date from dates with slots', { 
+              date: format(finalAvailableDates[0], 'yyyy-MM-dd')
+            });
+            setSelectedDate(finalAvailableDates[0]); // Select the first date that *has slots*
+          }
+          setLoadingState({
+            status: 'success',
+            context: 'CALCULATING_DATES_WITH_SLOTS'
+          });
+        } else {
+          console.warn('[DEBUG][BOOKING] No dates with available slots found in booking window');
+          setError("No available booking slots found in the next 15 days.");
+          setSelectedDate(undefined); // Clear selection if no dates are available
+          setLoadingState({
+            status: 'error',
+            context: 'CALCULATING_DATES_WITH_SLOTS',
+            message: 'No available dates with slots found'
           });
         }
-        return overlaps;
-      });
-      
-      return !conflicts;
+        setLoading(false); // Finish loading only after dates are calculated
+      };
+
+      calculateAvailableDatesWithSlots();
+   }, 0); // Use setTimeout with 0 delay
+
+  // Rerun when schedule changes, OR potentially when busyTimes changes if it's dynamic
+  // Make sure busyTimes state is included here so recalculation happens after fetch
+  }, [coachSchedule, busyTimes]); 
+  // REMOVED selectedDate and isDateDisabled from dependencies - these shouldn't trigger recalculation of the entire available date list.
+  // Auto-selection logic inside the effect handles the selectedDate aspect.
+
+
+  // Calculate available TIME SLOTS for the currently selected date
+  useEffect(() => {
+    // Only run if we have a selected date AND the schedule is loaded AND date calculation is done
+     if (!selectedDate || !coachSchedule || loadingState.status !== 'success' || loadingState.context === 'CALCULATING_DATES_WITH_SLOTS') {
+         console.log('[DEBUG][BOOKING] Waiting to calculate time slots...', { hasSelectedDate: !!selectedDate, hasCoachSchedule: !!coachSchedule, loadingStatus: loadingState.status, loadingContext: loadingState.context });
+         return;
+     }
+
+    console.log('[DEBUG][BOOKING] Calculating/Re-calculating time slots for SELECTED date', {
+      date: format(selectedDate, 'yyyy-MM-dd')
     });
-    */
     
-    console.log('[DEBUG][BOOKING] Final available time slots', {
-      count: availableSlots.length,
-      slots: availableSlots.map(slot => ({
-        start: format(slot.startTime, 'HH:mm'),
-        end: format(slot.endTime, 'HH:mm')
-      }))
+    setLoadingState({
+      status: 'loading',
+      context: 'TIME_SLOTS_FOR_SELECTED',
+      message: 'Loading time slots for selected date...'
     });
     
-    setTimeSlots(availableSlots);
+    const slotDuration = coachSchedule.defaultDuration || 60;
+    // Use the helper function to get slots for the selected date
+    // Assuming busyTimes state is up-to-date if/when implemented
+    const slots = generateAndFilterTimeSlots(selectedDate, coachSchedule, busyTimes, slotDuration); 
+    
+    console.log('[DEBUG][BOOKING] Final available time slots for selected date', {
+      count: slots.length,
+      slots: slots.map(slot => format(slot.startTime, 'HH:mm'))
+    });
+    
+    setTimeSlots(slots);
     setSelectedTimeSlot(null); // Reset selected time slot when date changes
     
     setLoadingState({
       status: 'success',
-      context: 'TIME_SLOTS'
+      context: 'TIME_SLOTS_FOR_SELECTED'
     });
-  }, [selectedDate, coachSchedule, busyTimes]);
+  // Rerun when selectedDate, coachSchedule, or busyTimes change
+  }, [selectedDate, coachSchedule, busyTimes, loadingState.status, loadingState.context]); 
+
 
   // Prepare times for rendering by grouping into morning, afternoon, evening
   const timeSlotGroups = useMemo<TimeSlotGroup[]>(() => {

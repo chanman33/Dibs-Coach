@@ -50,7 +50,8 @@ export function useBookingUI() {
   
   // State variables
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [availableDates, setAvailableDates] = useState<Date[]>([]);
+  const [potentialDatesInWindow, setPotentialDatesInWindow] = useState<Date[]>([]);
+  const [datesWithActualSlots, setDatesWithActualSlots] = useState<Date[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [coachSchedule, setCoachSchedule] = useState<CoachSchedule | null>(null);
@@ -263,96 +264,74 @@ export function useBookingUI() {
     fetchCoachData();
   }, [coachId, coachSlug]);
 
-  // Calculate available dates based on coach schedule
+  // Calculate initial potential available dates based on coach schedule window
   useEffect(() => {
     if (!coachSchedule) return;
     
-    console.log('[DEBUG][BOOKING] Calculating available dates from schedule');
+    console.log('[DEBUG][BOOKING] Calculating potential dates within booking window');
     setLoadingState({
       status: 'loading',
-      context: 'CALCULATING_DATES',
-      message: 'Calculating available dates...'
+      context: 'CALCULATING_POTENTIAL_DATES',
+      message: 'Identifying potential dates...' 
     });
     
-    // Get tomorrow and max date for the booking window
     const tomorrow = getTomorrowDate();
     const maxDate = getMaxBookingDate();
     
-    // Log booking window details
     console.log('[DEBUG][BOOKING_WINDOW]', {
       tomorrowDate: format(tomorrow, 'yyyy-MM-dd'),
       maxDate: format(maxDate, 'yyyy-MM-dd'),
-      windowDays: 15,
+      windowDays: 15, 
       currentDate: format(new Date(), 'yyyy-MM-dd')
     });
     
-    // Track days the coach is available (for highlighting in UI)
-    const availableDays = new Set<number>();
-    
-    // Collect all days the coach is available
-    coachSchedule.availability.forEach(slot => {
-      slot.days.forEach(day => {
-        // Convert from string day name to number (0-6, where 0 is Sunday)
-        const dayNumber = dayMapping[day];
-        if (dayNumber !== undefined) {
-          availableDays.add(dayNumber);
-        }
-      });
-    });
-    
-    console.log('[DEBUG][BOOKING] Available days of week', { 
-      availableDays: Array.from(availableDays),
-      availableDayNames: Array.from(availableDays).map(day => 
-        Object.keys(dayMapping).find(key => dayMapping[key] === day)
-      )
-    });
-    
     // Generate ALL dates within the allowed booking window (15 days)
-    const dates: Date[] = [];
-    
-    // Start from tomorrow (no same-day bookings) and go for 15 days
+    const potentialDates: Date[] = [];
     for (let i = 0; i <= 14; i++) {
       const date = addDays(tomorrow, i);
-      const dateStr = format(date, 'yyyy-MM-dd');
-      const withinWindow = date >= tomorrow && date <= maxDate;
-      
-      console.log(`[DEBUG][DATE_GENERATION] Date ${i+1}/15: ${dateStr}, within window: ${withinWindow}`);
-      
-      dates.push(date);
+      if (date <= maxDate) { // Ensure we don't exceed max date
+        // Optional: Filter out days the coach NEVER works on (optimization)
+        // This requires checking coachSchedule.availability days
+        const dayOfWeek = date.getDay();
+        const dayName = getDayNameFromNumber(dayOfWeek);
+        const isGenerallyAvailable = coachSchedule.availability.some(slot => 
+          slot.days.some(day => {
+            if (typeof day === 'number') return day === dayOfWeek;
+            if (typeof day === 'string') return day.toUpperCase() === dayName?.toUpperCase();
+            return false;
+          })
+        );
+
+        if (isGenerallyAvailable) {
+           console.log(`[DEBUG][POTENTIAL_DATE_GENERATION] Date ${i+1}/15: ${format(date, 'yyyy-MM-dd')} - Potential`);
+           potentialDates.push(date);
+        } else {
+           console.log(`[DEBUG][POTENTIAL_DATE_GENERATION] Date ${i+1}/15: ${format(date, 'yyyy-MM-dd')} - Excluded (Not a working day)`);
+        }
+      } else {
+        console.log(`[DEBUG][POTENTIAL_DATE_GENERATION] Date ${i+1}/15: ${format(date, 'yyyy-MM-dd')} - Excluded (Outside window)`);
+      }
     }
     
-    console.log('[DEBUG][BOOKING] Available dates calculated', { 
-      numDates: dates.length,
-      dateRange: dates.length > 0 ? {
-        firstDate: format(dates[0], 'yyyy-MM-dd'),
-        lastDate: format(dates[dates.length - 1], 'yyyy-MM-dd')
-      } : 'No dates available'
+    console.log('[DEBUG][BOOKING] Potential dates calculated', { 
+      numDates: potentialDates.length,
+      dateRange: potentialDates.length > 0 ? {
+        firstDate: format(potentialDates[0], 'yyyy-MM-dd'),
+        lastDate: format(potentialDates[potentialDates.length - 1], 'yyyy-MM-dd')
+      } : 'No potential dates'
     });
     
-    // Keep track of all dates in the booking window
-    setAvailableDates(dates);
+    // Set the potential dates - the actual filtering happens later
+    setPotentialDatesInWindow(potentialDates);
     
-    // If we have dates and no selected date yet, select the first available date
-    if (dates.length > 0 && !selectedDate) {
-      console.log('[DEBUG][BOOKING] Setting default selected date', { 
-        date: format(dates[0], 'yyyy-MM-dd')
-      });
-      setSelectedDate(dates[0]);
-      setLoadingState({
-        status: 'success',
-        context: 'CALCULATING_DATES'
-      });
-    } else if (dates.length === 0) {
-      // This should never happen as we're including all dates in the window
-      console.warn('[DEBUG][BOOKING] No available dates found in booking window');
-      setError("No available booking slots in the next 15 days");
-      setLoadingState({
-        status: 'error',
-        context: 'CALCULATING_DATES',
-        message: 'No available dates found in the booking window'
-      });
-    }
-  }, [coachSchedule, selectedDate]);
+    // Auto-select logic moved to the effect that calculates datesWithActualSlots
+    // to ensure the first selected date *has* slots.
+    setLoadingState({
+      status: 'success',
+      context: 'CALCULATING_POTENTIAL_DATES'
+    });
+
+  }, [coachSchedule]); // Only depends on the schedule
 
   // Fetch busy times when date is selected, but with caching
   useEffect(() => {
@@ -473,9 +452,9 @@ export function useBookingUI() {
       });
       
       // If somehow an invalid date got through, fix it by selecting first available date
-      if (availableDates.length > 0) {
+      if (potentialDatesInWindow.length > 0) {
         console.log('[DEBUG][BOOKING] Selecting first available date as fallback');
-        setSelectedDate(availableDates[0]);
+        setSelectedDate(potentialDatesInWindow[0]);
       }
       return;
     }
@@ -822,6 +801,119 @@ export function useBookingUI() {
     }
   }, []);
 
+  // Calculate DATES WITH ACTUAL SLOTS based on potential dates and busy times
+  useEffect(() => {
+    // Wait until we have potential dates, schedule, and busy times (or know they failed to load)
+    if (!coachSchedule || !coachTimezone || potentialDatesInWindow.length === 0 || 
+        (loadingState.context === 'BUSY_TIMES' && loadingState.status === 'loading')) {
+      console.log('[DEBUG][DATES_WITH_SLOTS] Waiting for schedule/potential dates/busy times...');
+      return;
+    }
+
+    console.log('[DEBUG][DATES_WITH_SLOTS] Calculating dates with actual slots...');
+    setLoadingState({
+      status: 'loading',
+      context: 'CALCULATING_DATES_WITH_SLOTS',
+      message: 'Finding dates with available slots...'
+    });
+
+    const confirmedBookableDates: Date[] = [];
+    const slotDuration = 30; // Use consistent slot duration
+    const currentBusyTimes = busyTimesCache.busyTimes;
+    
+    console.log('[DEBUG][DATES_WITH_SLOTS] Using busy times for calculation:', { count: currentBusyTimes.length });
+
+    // Iterate through potential dates
+    potentialDatesInWindow.forEach(date => {
+      // Generate and filter slots for *this specific date*
+      const dayOfWeek = date.getDay();
+      const dayName = getDayNameFromNumber(dayOfWeek);
+      
+      if (!dayName) return; // Skip if day name invalid
+      
+      // Find schedule slots for this day
+      const dayScheduleSlots = coachSchedule.availability.filter(slot => {
+        if (!slot.days || !Array.isArray(slot.days)) return false;
+        return slot.days.some(day => {
+          if (typeof day === 'number') return day === dayOfWeek;
+          if (typeof day === 'string') return day.toUpperCase() === dayName.toUpperCase();
+          return false;
+        });
+      });
+      
+      if (dayScheduleSlots.length === 0) return; // Skip if no schedule for this day
+      
+      // Generate potential UTC slots for this day
+      const potentialUtcSlots: TimeSlot[] = [];
+      dayScheduleSlots.forEach(scheduleSlot => {
+         if (!scheduleSlot.startTime || !scheduleSlot.endTime) return;
+         try {
+            let currentUtcTime = createUtcDate(date, scheduleSlot.startTime, coachTimezone);
+            const endUtcTime = createUtcDate(date, scheduleSlot.endTime, coachTimezone);
+            while (currentUtcTime < endUtcTime) {
+              const slotEndUtcTime = new Date(currentUtcTime.getTime() + slotDuration * 60000);
+              if (slotEndUtcTime <= endUtcTime) {
+                potentialUtcSlots.push({ startTime: new Date(currentUtcTime), endTime: new Date(slotEndUtcTime) });
+              }
+              currentUtcTime = new Date(slotEndUtcTime);
+            }
+         } catch (err) { /* Handle error if needed */ }
+      });
+      
+      // Filter against busy times
+      const finalSlotsForDate = potentialUtcSlots.filter(slot => 
+         !currentBusyTimes.some(busyTime => 
+            doesTimeSlotOverlapWithBusyTime(slot, new Date(busyTime.start), new Date(busyTime.end))
+         )
+      );
+      
+      // If slots exist for this date, add it to the list
+      if (finalSlotsForDate.length > 0) {
+        confirmedBookableDates.push(date);
+         console.log(`[DEBUG][DATES_WITH_SLOTS] Found ${finalSlotsForDate.length} slots for ${format(date, 'yyyy-MM-dd')} - Adding to bookable list.`);
+      } else {
+         console.log(`[DEBUG][DATES_WITH_SLOTS] No slots found for ${format(date, 'yyyy-MM-dd')} after filtering.`);
+      }
+    });
+
+    console.log('[DEBUG][DATES_WITH_SLOTS] Final bookable dates calculated', {
+      numDates: confirmedBookableDates.length,
+      dates: confirmedBookableDates.map(d => format(d, 'yyyy-MM-dd'))
+    });
+    
+    setDatesWithActualSlots(confirmedBookableDates);
+    
+    // Auto-select the first available date *with slots* if none selected or current invalid
+    if (confirmedBookableDates.length > 0) {
+      const isCurrentSelectionValidAndBookable = selectedDate && 
+                                             !isDateDisabled(selectedDate) &&
+                                             confirmedBookableDates.some(d => d.getTime() === selectedDate.getTime());
+
+      if (!isCurrentSelectionValidAndBookable) {
+        console.log('[DEBUG][BOOKING] Setting default selected date from dates *with slots*', { 
+          date: format(confirmedBookableDates[0], 'yyyy-MM-dd')
+        });
+        setSelectedDate(confirmedBookableDates[0]); 
+      }
+      setLoadingState({
+        status: 'success',
+        context: 'CALCULATING_DATES_WITH_SLOTS'
+      });
+    } else {
+      console.warn('[DEBUG][BOOKING] No dates with available slots found in booking window');
+      setError("No available booking slots found in the next 15 days.");
+      setSelectedDate(null); // Clear selection
+      setDatesWithActualSlots([]); // Ensure it's empty
+      setLoadingState({
+        status: 'error',
+        context: 'CALCULATING_DATES_WITH_SLOTS',
+        message: 'No available dates with slots found'
+      });
+    }
+    setLoading(false); // Indicate overall loading is finished *after* dates with slots are determined
+
+  }, [potentialDatesInWindow, busyTimesCache, coachSchedule, coachTimezone]); // Dependencies that trigger recalculation of dates with slots
+
   return {
     loading,
     loadingState,
@@ -832,7 +924,7 @@ export function useBookingUI() {
     coachDomains,
     selectedDate,
     setSelectedDate: handleDateChange,
-    availableDates,
+    potentialDatesInWindow,
     timeSlots, // Now contains UTC Date objects
     selectedTimeSlot,
     setSelectedTimeSlot,
@@ -848,6 +940,9 @@ export function useBookingUI() {
 
     eventTypes,
     selectedEventTypeId,
-    setSelectedEventTypeId
+    setSelectedEventTypeId,
+
+    // Alias the correct state variable for consumption by DatePickerSection
+    availableDates: datesWithActualSlots, 
   };
 } 

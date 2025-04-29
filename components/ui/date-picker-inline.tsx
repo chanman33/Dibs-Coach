@@ -4,7 +4,7 @@ import * as React from 'react'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import '@/styles/date-picker.css'
-import { format } from 'date-fns'
+import { format, isSameDay } from 'date-fns'
 import { useCallback } from 'react'
 
 interface InlineDatePickerProps {
@@ -12,6 +12,7 @@ interface InlineDatePickerProps {
   onSelect: (date: Date | null) => void;
   disabled?: boolean;
   disabledDates?: (date: Date) => boolean;
+  bookableDates?: Date[];
   className?: string;
 }
 
@@ -20,37 +21,44 @@ export function InlineDatePicker({
   onSelect, 
   disabled = false,
   disabledDates,
+  bookableDates = [],
   className
 }: InlineDatePickerProps) {
-  const handleSelect = (date: Date | undefined) => {
+  const handleChange = (newDate: Date | null) => {
+    console.log('[DEBUG][INLINE_DATE_PICKER] Date changed:', {
+      date: newDate ? format(newDate, 'yyyy-MM-dd') : null,
+    });
+    
     if (onSelect) {
-      onSelect(date || null);
+      onSelect(newDate);
     }
   };
 
-  const handleChange = (date: Date | null) => {
-    console.log('[DEBUG][DATE_PICKER] Date selected:', date);
-    if (onSelect) {
-      onSelect(date);
-    }
-  };
-
-  const handleDateFilter = useCallback((date: Date): boolean => {
-    // If no disabledDates function provided, don't disable any dates
+  const handleDateFilter = useCallback((dateToCheck: Date): boolean => {
     if (!disabledDates) return true;
-    
-    const shouldBeDisabled = disabledDates(date);
-    const willBeEnabled = !shouldBeDisabled;
-    
-    // Only log when a date is being enabled (reduces noise)
-    // if (willBeEnabled) {
-    //   console.log('[DEBUG][DATE_PICKER] Enabling date:', {
-    //     date: format(date, 'yyyy-MM-dd')
-    //   });
-    // }
-    
-    return willBeEnabled;
+    const isDisabled = disabledDates(dateToCheck);
+    return !isDisabled;
   }, [disabledDates]);
+
+  const getDayClassName = useCallback((currentDate: Date) => {
+    const isSelected = date && isSameDay(currentDate, date);
+    const isDisabledByWindow = disabledDates ? disabledDates(currentDate) : false;
+    const isBookable = bookableDates.some(bookableDate => isSameDay(currentDate, bookableDate));
+    
+    let baseClass = '';
+    
+    if (isDisabledByWindow) {
+      baseClass = 'date-disabled';
+    } else if (isBookable) {
+      baseClass = 'date-bookable';
+    } else {
+      baseClass = 'date-clickable';
+    }
+    
+    const finalClassName = isSelected ? `${baseClass} date-selected` : baseClass;
+    
+    return finalClassName;
+  }, [date, bookableDates, disabledDates]);
 
   return (
     <div className={className}>
@@ -61,11 +69,15 @@ export function InlineDatePicker({
         filterDate={handleDateFilter}
         inline
         calendarClassName="border rounded-md shadow-sm"
-        dayClassName={() => "text-sm"}
+        dayClassName={getDayClassName}
         fixedHeight
-        showMonthDropdown
-        showYearDropdown
-        dropdownMode="select"
+        showMonthYearPicker={false}
+        showFullMonthYearPicker={false}
+        showTwoColumnMonthYearPicker={false}
+        showPopperArrow={false}
+        showMonthDropdown={false}
+        showYearDropdown={false}
+        dateFormat="MMMM yyyy"
       />
     </div>
   )
