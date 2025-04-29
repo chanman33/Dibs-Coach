@@ -65,29 +65,6 @@ export function DatePickerSection({
             <div className="w-4 h-4 rounded-md bg-[#E6F4F1]"></div>
             <span>Bookable (slots available)</span>
           </div>
-          {/* State 2: Clickable but not bookable (Default background) */}
-          <div className="flex items-center gap-2">
-            {/* Represent default clickable style (e.g., simple border or default bg) */}
-            <div className="w-4 h-4 rounded-md border border-input bg-transparent"></div>
-            <span>Available (no slots)</span> 
-          </div>
-          {/* State 1: Disabled (Grayed out text) */}
-          <div className="flex items-center gap-2">
-             {/* Represent disabled style (e.g., lighter text color) */}
-            <div className="w-4 h-4 rounded-md border border-muted-foreground/30 flex items-center justify-center">
-              <span className="text-muted-foreground/50">15</span>
-            </div>
-            <span>Unavailable / Outside window</span>
-          </div>
-           {/* Selected States */}
-           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-md bg-[#E7F5EF]"></div>
-            <span>Selected (Bookable)</span>
-          </div>
-           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-md bg-foreground"></div>
-            <span>Selected (No Slots)</span>
-          </div>
         </div>
       </CardContent>
     </Card>

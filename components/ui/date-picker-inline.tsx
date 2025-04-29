@@ -2,8 +2,6 @@
 
 import * as React from 'react'
 import DatePicker from 'react-datepicker'
-import 'react-datepicker/dist/react-datepicker.css'
-import '@/styles/date-picker.css'
 import { format, isSameDay } from 'date-fns'
 import { useCallback } from 'react'
 

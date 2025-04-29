@@ -23,6 +23,19 @@ import { EventTypeSelector } from "./EventTypeSelector";
  * and a booking summary.
  */
 export default function BookingAvailabilityPage() {
+  // Add state to track if styles are fully loaded
+  const [stylesLoaded, setStylesLoaded] = useState(false);
+  
+  // Ensure styles are loaded and apply a short delay to prevent UI flicker
+  useEffect(() => {
+    // Mark styles as loaded after a short delay
+    const timer = setTimeout(() => {
+      setStylesLoaded(true);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
   const {
     loading,
     loadingState,
@@ -84,8 +97,9 @@ export default function BookingAvailabilityPage() {
     }
   }, [selectedEventTypeId, eventTypes]);
 
-  if (loading) {
-    return <LoadingState message={loadingState.message || "Loading availability..."} />;
+  // Show loading state if either the booking data is loading or styles aren't loaded yet
+  if (loading || !stylesLoaded) {
+    return <LoadingState message={loadingState?.message || "Loading availability..."} />;
   }
 
   if (error) {

@@ -1,0 +1,120 @@
+/* Import React DatePicker styles */
+@import 'react-datepicker/dist/react-datepicker.css';
+
+/* Custom styles for react-datepicker */
+.react-datepicker {
+  font-family: var(--font-sans);
+  border: 0;
+  box-shadow: none;
+  background-color: transparent !important;
+}
+
+.react-datepicker__month-container {
+  background-color: hsl(var(--background));
+  border-radius: 0.375rem;
+}
+
+.react-datepicker__header {
+  background-color: transparent;
+  border-bottom: 1px solid hsl(var(--border));
+  padding-bottom: 1rem;
+}
+
+/* Month-Year header styling */
+.react-datepicker__current-month {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.react-datepicker__day-name {
+  color: hsl(var(--muted-foreground));
+  font-weight: normal;
+  font-size: 0.75rem;
+}
+
+/* Base Day Style */
+.react-datepicker__day {
+  border-radius: 0.375rem;
+  transition: background-color 0.2s, color 0.2s;
+  font-size: 0.875rem;
+  font-weight: normal;
+}
+
+/* Disabled (Outside booking window / Non-working day) */
+.react-datepicker__day.date-disabled, 
+.react-datepicker__day--disabled {
+  color: hsl(var(--muted-foreground) / 0.5);
+  background-color: transparent;
+  cursor: not-allowed !important;
+}
+.react-datepicker__day.date-disabled:hover, 
+.react-datepicker__day--disabled:hover {
+  background-color: transparent !important;
+}
+
+/* Clickable (Within window, no slots available) */
+.react-datepicker__day.date-clickable {
+  color: hsl(var(--foreground));
+  background-color: transparent;
+}
+.react-datepicker__day.date-clickable:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+/* Bookable (Within window, has slots) */
+.react-datepicker__day.date-bookable {
+  background-color: #E6F4F1;
+  color: hsl(var(--foreground));
+}
+.react-datepicker__day.date-bookable:hover {
+  background-color: rgba(230, 244, 241, 0.8);
+}
+
+/* Selected States */
+.react-datepicker__day.date-selected {
+  font-weight: 600;
+}
+
+/* Selected State for Clickable (No Slots) */
+.react-datepicker__day.date-clickable.date-selected {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+}
+.react-datepicker__day.date-clickable.date-selected:hover {
+  background-color: hsl(var(--muted) / 0.9);
+}
+
+/* Selected State for Bookable (Has Slots) */
+.react-datepicker__day.date-bookable.date-selected {
+  background-color: #E7F5EF;
+  color: hsl(var(--foreground));
+  border: 0;
+}
+.react-datepicker__day.date-bookable.date-selected:hover {
+  background-color: rgba(231, 245, 239, 0.9);
+}
+
+/* Keyboard focus styling */
+.react-datepicker__day--keyboard-selected {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+.react-datepicker__day--keyboard-selected:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+/* Navigation arrows styling */
+.react-datepicker__navigation {
+  top: 0.75rem;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: hsl(var(--foreground) / 0.6);
+}
+
+.react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: hsl(var(--foreground));
+} 
