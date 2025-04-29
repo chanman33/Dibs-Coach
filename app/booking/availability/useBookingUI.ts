@@ -437,8 +437,21 @@ export function useBookingUI() {
   }, [selectedDate, actualCoachId, coachSchedule]);
 
   // Calculate available time slots based on schedule and busy times from cache
+  // Now considers event type duration for conflict checking
   useEffect(() => {
     if (!selectedDate || !coachSchedule || !coachTimezone) return;
+
+    // Get the event type duration
+    const currentEventType = eventTypes.find(et => et.id === selectedEventTypeId);
+    const eventTypeDuration = currentEventType ? 
+      (currentEventType.length || currentEventType.duration || coachSchedule.defaultDuration || 30) 
+      : (coachSchedule.defaultDuration || 30);
+    
+    console.log('[DEBUG][BOOKING] Calculating time slots with event duration', {
+      selectedEventTypeId,
+      eventTypeDuration,
+      eventTypeName: currentEventType?.title || currentEventType?.name
+    });
     
     // Validate selected date is within booking window
     const tomorrow = getTomorrowDate();
@@ -537,10 +550,12 @@ export function useBookingUI() {
     
     // Array to hold TimeSlot objects with correct UTC Date instances
     const utcSlots: TimeSlot[] = [];
-    const slotDuration = 30; // minutes - hardcoded to ensure consistent available slots
+    // Use a consistent slot increment of 30 min but properly check for duration conflicts
+    const slotIncrement = 30; // We'll generate 30 min increments for consistency
     
     console.log('[DEBUG][BOOKING] Generating UTC time slots with duration', {
-      slotDuration,
+      slotIncrement,
+      eventTypeDuration,
       originalDefaultDuration: coachSchedule.defaultDuration || 60
     });
 
@@ -566,15 +581,18 @@ export function useBookingUI() {
 
         // Iterate using UTC Date objects
         while (currentUtcTime < endUtcTime) {
-          const slotEndUtcTime = new Date(currentUtcTime.getTime() + slotDuration * 60000);
+          // Calculate the end time based on the event duration
+          const slotEndUtcTime = new Date(currentUtcTime.getTime() + slotIncrement * 60000);
+          const eventEndUtcTime = new Date(currentUtcTime.getTime() + eventTypeDuration * 60000);
 
-          if (slotEndUtcTime <= endUtcTime) {
+          // Check if we have enough time for this slot within the coach's availability
+          if (eventEndUtcTime <= endUtcTime) {
             utcSlots.push({
               startTime: new Date(currentUtcTime), // Clone to avoid reference issues
-              endTime: new Date(slotEndUtcTime)    // Clone to avoid reference issues
+              endTime: new Date(eventEndUtcTime)   // Use event duration for end time
             });
           }
-          currentUtcTime = new Date(slotEndUtcTime); // Clone to avoid reference issues
+          currentUtcTime = new Date(slotEndUtcTime); // Increment by standard 30 min for slot generation
         }
       } catch (err) {
         console.error('[DEBUG][BOOKING] Error creating UTC dates', {
@@ -587,9 +605,11 @@ export function useBookingUI() {
 
     console.log('[DEBUG][BOOKING] Generated UTC slots before filtering', {
       count: utcSlots.length,
+      eventTypeDuration,
       slots: utcSlots.slice(0, 3).map(s => ({
         start: s.startTime.toISOString(),
-        end: s.endTime.toISOString()
+        end: s.endTime.toISOString(),
+        durationMinutes: (s.endTime.getTime() - s.startTime.getTime()) / 60000
       }))
     });
 
@@ -600,10 +620,11 @@ export function useBookingUI() {
     if (busyTimesCache.busyTimes.length > 0) {
       console.log('[DEBUG][BOOKING] Filtering slots with busy times', {
         totalSlots: utcSlots.length,
-        busyTimesCount: busyTimesCache.busyTimes.length
+        busyTimesCount: busyTimesCache.busyTimes.length,
+        eventTypeDuration
       });
 
-      // Filter out slots that conflict with busy times
+      // Filter out slots that conflict with busy times, considering event duration
       availableUtcSlots = utcSlots.filter(slot => {
         // Check each busy time for conflicts
         return !busyTimesCache.busyTimes.some(busyTime => {
@@ -617,6 +638,7 @@ export function useBookingUI() {
             console.log('[DEBUG][BOOKING] Excluding slot due to calendar conflict', {
               slotStart: slot.startTime.toISOString(),
               slotEnd: slot.endTime.toISOString(),
+              slotDuration: (slot.endTime.getTime() - slot.startTime.getTime()) / 60000,
               busyStart: busyStart.toISOString(),
               busyEnd: busyEnd.toISOString(),
               source: busyTime.source || 'External Calendar'
@@ -630,16 +652,19 @@ export function useBookingUI() {
       console.log('[DEBUG][BOOKING] Filtering results', { 
         originalCount: utcSlots.length,
         filteredCount: availableUtcSlots.length,
-        removedCount: utcSlots.length - availableUtcSlots.length
+        removedCount: utcSlots.length - availableUtcSlots.length,
+        eventTypeDuration
       });
     }
 
     // Add back the final debug log:
     console.log('[DEBUG][BOOKING] Final available UTC time slots', {
       count: availableUtcSlots.length,
+      eventTypeDuration,
       slots: availableUtcSlots.map(slot => ({
         startUtc: slot.startTime.toISOString(),
         endUtc: slot.endTime.toISOString(),
+        durationMinutes: (slot.endTime.getTime() - slot.startTime.getTime()) / 60000,
         // Format for display log in user's timezone
         userDisplayTime: formatUtcDateInTimezone(slot.startTime, getUserTimezone()),
         // Format for display log in coach's timezone
@@ -651,7 +676,7 @@ export function useBookingUI() {
     setTimeSlots(availableUtcSlots);
     setSelectedTimeSlot(null);
     setLoadingState({ status: 'success', context: 'TIME_SLOTS' });
-  }, [selectedDate, coachSchedule, coachTimezone, busyTimesCache]);
+  }, [selectedDate, coachSchedule, coachTimezone, busyTimesCache, selectedEventTypeId, eventTypes]);
 
   // Prepare times for rendering by grouping based on user's timezone hour
   const timeSlotGroups = useMemo<TimeSlotGroup[]>(() => {
@@ -715,6 +740,11 @@ export function useBookingUI() {
       return;
     }
     
+    // Get the selected event type and its duration
+    const selectedEventType = eventTypes.find(et => et.id === selectedEventTypeId);
+    const eventTypeDuration = selectedEventType ? 
+      (selectedEventType.length || selectedEventType.duration || 30) : 30;
+    
     setIsBooking(true);
     
     try {
@@ -724,7 +754,9 @@ export function useBookingUI() {
         coachId: actualCoachId,
         startTime: selectedTimeSlot.startTime.toISOString(),
         endTime: selectedTimeSlot.endTime.toISOString(),
-        eventTypeId: selectedEventTypeId
+        eventTypeId: selectedEventTypeId,
+        eventTypeName: selectedEventType?.title || selectedEventType?.name,
+        eventTypeDuration
       });
       
       // Simulate a delay
@@ -745,7 +777,8 @@ export function useBookingUI() {
       //   coachId: actualCoachId,
       //   startTime: selectedTimeSlot.startTime.toISOString(),
       //   endTime: selectedTimeSlot.endTime.toISOString(),
-      //   eventTypeId: parseInt(selectedEventTypeId, 10)
+      //   eventTypeId: parseInt(selectedEventTypeId, 10),
+      //   duration: eventTypeDuration
       // });
       // 
       // if (result.error) {

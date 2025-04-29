@@ -74,6 +74,12 @@ export default function BookingAvailabilityPage() {
     return eventTypes.find(et => et.id === selectedEventTypeId) || null;
   }, [selectedEventTypeId, eventTypes]);
 
+  // Extract event type duration for duration-aware availability filtering
+  const eventTypeDuration = useMemo(() => {
+    if (!selectedEventType) return undefined;
+    return selectedEventType.length || selectedEventType.duration || 30; // Default to 30 min if not specified
+  }, [selectedEventType]);
+
   // Add useEffect to log when event types or selected event type changes
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
@@ -185,6 +191,7 @@ export default function BookingAvailabilityPage() {
                   onSelectTimeSlot={setSelectedTimeSlot}
                   formatTime={formatTime}
                   coachTimezone={coachTimezone}
+                  eventTypeDuration={eventTypeDuration}
                 />
               )}
             </CardContent>
@@ -203,6 +210,7 @@ export default function BookingAvailabilityPage() {
               coachTimezone={coachTimezone}
               eventTypeId={selectedEventTypeId}
               eventTypeName={selectedEventType?.title || selectedEventType?.name || "Coaching Session"}
+              eventTypeDuration={eventTypeDuration}
             />
           )}
         </div>

@@ -18,6 +18,7 @@ interface BookingSummaryProps {
   coachTimezone: string;
   eventTypeId?: string;
   eventTypeName?: string;
+  eventTypeDuration?: number;
 }
 
 export function BookingSummary({
@@ -30,17 +31,18 @@ export function BookingSummary({
   formatTime,
   coachTimezone,
   eventTypeId,
-  eventTypeName
+  eventTypeName,
+  eventTypeDuration
 }: BookingSummaryProps) {
   const userTimezone = getUserTimezone();
   const userTimeSlot = selectedTimeSlot 
     ? convertTimeSlotToUserTimezone(selectedTimeSlot, coachTimezone, userTimezone)
     : null;
 
-  // Calculate duration in minutes
-  const durationMinutes = userTimeSlot 
+  // Calculate duration in minutes - use eventTypeDuration if provided, otherwise calculate from time slot
+  const durationMinutes = eventTypeDuration || (userTimeSlot 
     ? Math.round((userTimeSlot.endTime.getTime() - userTimeSlot.startTime.getTime()) / (1000 * 60)) 
-    : 0;
+    : 0);
 
   return (
     <Card className="mt-6">
