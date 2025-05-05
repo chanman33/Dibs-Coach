@@ -307,7 +307,7 @@ export const fetchTopMentees = withServerAction<TopMentee[]>(
           ulid,
           menteeUlid,
           status,
-          priceAmount,
+          price,
           mentee:User!menteeUlid (
             ulid,
             firstName,
@@ -338,7 +338,7 @@ export const fetchTopMentees = withServerAction<TopMentee[]>(
       sessions?.forEach(session => {
         const menteeUlid = session.menteeUlid
         const mentee = session.mentee
-        const sessionAmount = session.priceAmount || 0
+        const sessionAmount = session.price || 0
         
         if (!menteeMap.has(menteeUlid)) {
           menteeMap.set(menteeUlid, {
