@@ -620,7 +620,7 @@ function MenteeDashboard() {
               </CardDescription>
             </div>
             <Button asChild size="sm" className="ml-auto gap-1 hover:scale-105 transition-transform">
-              <Link href="/dashboard/mentee/profile?tab=goals">
+              <Link href="/dashboard/mentee/goals">
                 View All
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
@@ -640,7 +640,7 @@ function MenteeDashboard() {
                     Setting clear goals helps you track progress and achieve success in your real estate career.
                   </p>
                   <Button asChild variant="outline" className="hover:scale-105 transition-transform">
-                    <Link href="/dashboard/mentee/profile?tab=goals">
+                    <Link href="/dashboard/mentee/goals">
                       Set Your First Goal
                     </Link>
                   </Button>
