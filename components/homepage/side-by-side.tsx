@@ -49,7 +49,7 @@ export default function SideBySide() {
           </div>
           <div className="relative">
             <Image
-              src="/coach-zoom-lrg-no_fill-crop.png"
+              src="/coach-zoom-lrg-no_fill-crop-web.jpg"
               alt="Real estate coaching session in progress"
               width={800}
               height={600}
