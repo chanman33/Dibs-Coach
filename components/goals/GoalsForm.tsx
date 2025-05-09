@@ -283,8 +283,8 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
       target: 0,
       current: 0,
       status: GOAL_STATUS.IN_PROGRESS,
-      type: GOAL_TYPE.CUSTOM,
-      deadline: new Date().toISOString().split('T')[0],
+      type: undefined,
+      deadline: "",
       milestones: [],
       growthPlan: ""
     },
@@ -761,8 +761,8 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
       target: 0,
       current: 0,
       status: GOAL_STATUS.IN_PROGRESS,
-      type: GOAL_TYPE.CUSTOM,
-      deadline: new Date().toISOString().split('T')[0],
+      type: undefined,
+      deadline: "",
       milestones: [],
       growthPlan: ""
     })
@@ -776,8 +776,8 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
       target: 0,
       current: 0,
       status: GOAL_STATUS.IN_PROGRESS,
-      type: GOAL_TYPE.CUSTOM,
-      deadline: new Date().toISOString().split('T')[0],
+      type: undefined,
+      deadline: "",
       milestones: [],
       growthPlan: ""
     })
@@ -1158,11 +1158,11 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
                         form.setValue("target", 0)
                         form.setValue("current", 0)
                       }}
-                      defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select a goal type" />
+                          <SelectValue placeholder="Select a goal type or choose Custom Goal" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -1289,7 +1289,13 @@ const GoalsForm = ({ open, onClose, onSubmit, onGoalUpdated }: GoalsFormProps) =
                   <FormItem>
                     <FormLabel>Deadline <span className="text-destructive">*</span></FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input
+                        type="date"
+                        {...field}
+                        value={field.value || ""}
+                        placeholder="Select a deadline date"
+                        className="placeholder:text-muted-foreground"
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -56,4 +56,8 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.goal-type-select-trigger[data-placeholder] > span {
+  @apply text-muted-foreground;
 } 
