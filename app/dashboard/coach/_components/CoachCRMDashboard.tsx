@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input"
 import { MenteeList } from './MenteeList'
 import { MenteeDetails } from './MenteeDetails'
 import { Button } from "@/components/ui/button"
-import { PlusCircle, Users, Calendar, MessageSquare, Activity } from "lucide-react"
+import { PlusCircle, Users, Calendar, MessageSquare, Activity, Loader2 } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { fetchMentees } from '@/utils/actions/mentee-actions'
@@ -58,7 +58,7 @@ export function CoachCRMDashboard() {
           throw new Error(result.error.message)
         }
         
-        setMentees(result.data || [])
+        setMentees(Array.isArray(result.data) ? result.data : [])
       } catch (error) {
         console.error('[CRM_ERROR] Failed to fetch mentees:', error)
         toast.error('Failed to load mentees data')
@@ -72,8 +72,8 @@ export function CoachCRMDashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[500px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     )
   }
