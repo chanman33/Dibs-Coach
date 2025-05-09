@@ -42,16 +42,20 @@ export function SimilarCoaches({ currentCoachId, skills, domains }: SimilarCoach
             slogan,
             profileSlug,
             isActive,
+            profileStatus,
             User (
               firstName,
               lastName,
               displayName,
               profileImageUrl,
-              bio
+              bio,
+              status
             )
           `)
           .neq('ulid', currentCoachId) // Exclude current coach
-          .eq('isActive', true) // Only active coaches
+          .eq('isActive', true) // Only active coach profiles
+          .eq('profileStatus', 'PUBLISHED') // Only published profiles
+          .eq('User.status', 'ACTIVE') // Only users with ACTIVE status
           .limit(6); // Limit to 6 similar coaches
         
         if (error) {
@@ -189,16 +193,10 @@ export function SimilarCoaches({ currentCoachId, skills, domains }: SimilarCoach
       </div>
       
       <div className="relative">
-        {/* Left fade gradient */}
-        <div className={`absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showLeftArrow ? 'opacity-100' : 'opacity-0'}`}></div>
-        
-        {/* Right fade gradient */}
-        <div className={`absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showRightArrow ? 'opacity-100' : 'opacity-0'}`}></div>
-        
         {/* Scrollable container */}
         <div 
           ref={scrollContainerRef}
-          className="flex overflow-x-auto pb-4 gap-5 pt-1 -mx-4 px-4 overflow-y-hidden" 
+          className="flex overflow-x-auto pb-4 gap-5 pt-1 px-4 overflow-y-hidden" 
           style={{ 
             scrollbarWidth: 'none', /* Firefox */
             msOverflowStyle: 'none',  /* IE and Edge */
@@ -232,6 +230,10 @@ export function SimilarCoaches({ currentCoachId, skills, domains }: SimilarCoach
             </div>
           ))}
         </div>
+        {/* Left fade gradient */}
+        <div className={`pointer-events-none absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-background to-transparent z-10 transition-opacity duration-300 ${showLeftArrow ? 'opacity-100' : 'opacity-0'}`}></div>
+        {/* Right fade gradient */}
+        <div className={`pointer-events-none absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-background to-transparent z-10 transition-opacity duration-300 ${showRightArrow ? 'opacity-100' : 'opacity-0'}`}></div>
       </div>
     </div>
   );
