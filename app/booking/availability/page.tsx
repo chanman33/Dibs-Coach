@@ -181,9 +181,9 @@ export default function BookingAvailabilityPage() {
               {!selectedDate ? (
                 <EmptyState message="Select a date to see available times" />
               ) : !selectedEventTypeId && eventTypes && eventTypes.length > 0 ? (
-                <EmptyState message="Please select a session type first" />
+                <EmptyState message="Please select a session type first ☝️" />
               ) : timeSlotGroups.length === 0 ? (
-                <EmptyState message="No available times on this date, please try a different day." />
+                <EmptyState message="No available times on this date, please try a different day 👈" />
               ) : (
                 <TimeSlotsSection
                   timeSlotGroups={timeSlotGroups}
