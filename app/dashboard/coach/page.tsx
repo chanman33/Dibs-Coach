@@ -958,7 +958,7 @@ export default function CoachDashboard() {
               </CardDescription>
             </div>
             <Button asChild size="sm" className="ml-auto gap-1 hover:scale-105 transition-transform">
-              <Link href="/dashboard/coach/profile?tab=goals">
+              <Link href="/dashboard/coach/goals">
                 View All
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
@@ -978,7 +978,7 @@ export default function CoachDashboard() {
                     Setting clear goals helps you track progress and achieve success in your coaching career.
                   </p>
                   <Button asChild variant="outline" className="hover:scale-105 transition-transform">
-                    <Link href="/dashboard/coach/profile?tab=goals">
+                    <Link href="/dashboard/coach/goals">
                       Set Your First Goal
                     </Link>
                   </Button>
