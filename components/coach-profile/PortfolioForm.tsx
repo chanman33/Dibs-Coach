@@ -18,7 +18,9 @@ import {
   Info,
   FileText,
   BarChart,
-  ImageIcon
+  ImageIcon,
+  Star,
+  Edit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -643,108 +645,108 @@ export function PortfolioForm({
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="flex gap-6 overflow-x-auto pb-4 -mx-2 px-2 snap-x">
             {portfolioItems.map((item) => (
-              <Card key={item.ulid} className="overflow-hidden group hover:shadow-md transition-all">
-                <div className="relative">
-                  {/* Display Image: Use item.imageUrls directly from the fetched data */}
-                  {Array.isArray(item.imageUrls) && item.imageUrls.length > 0 ? (
-                    <div className="h-48 overflow-hidden bg-muted">
-                      <img
-                        src={item.imageUrls[0]} // Assuming first image is the primary one
-                        alt={item.title}
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      />
-                    </div>
+              <Card
+                key={item.ulid}
+                className={cn(
+                  "relative rounded-xl bg-white shadow-md hover:shadow-lg transition-all overflow-hidden group border min-w-[315px] md:min-w-[405px] max-w-[405px] h-[340px] flex flex-col border-l-4 snap-start",
+                  item.type === 'PROPERTY_SALE' ? 'border-l-blue-400' :
+                  item.type === 'PROPERTY_PURCHASE' ? 'border-l-green-400' :
+                  item.type === 'LOAN_ORIGINATION' ? 'border-l-amber-400' :
+                  item.type === 'PROPERTY_MANAGEMENT' ? 'border-l-violet-400' :
+                  item.type === 'INSURANCE_POLICY' ? 'border-l-cyan-400' :
+                  item.type === 'COMMERCIAL_DEAL' ? 'border-l-indigo-400' :
+                  item.type === 'PRIVATE_LENDING' ? 'border-l-orange-400' :
+                  item.type === 'TITLE_SERVICE' ? 'border-l-red-400' :
+                  'border-l-gray-300'
+                )}
+                tabIndex={0}
+                aria-label={`Portfolio item: ${item.title}`}
+              >
+                {/* Image with reduced height */}
+                <div className="relative w-full h-[160px] bg-muted overflow-hidden">
+                  {Array.isArray(item.imageUrls) && item.imageUrls[0] ? (
+                    <img
+                      src={item.imageUrls[0]}
+                      alt={item.title || 'Portfolio image'}
+                      className="object-cover w-full h-full"
+                    />
                   ) : (
-                    <div className="h-48 bg-muted flex items-center justify-center">
-                      <Building2 className="h-16 w-16 text-muted-foreground/30" />
+                    <div className="w-full h-full flex items-center justify-center bg-muted">
+                      <Building2 className="h-12 w-12 text-muted-foreground/30" />
                     </div>
                   )}
-                  {/* Actions Dropdown */}
-                  <div className="absolute top-2 right-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="rounded-full bg-black/20 hover:bg-black/30 text-white">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => {
-                             // Reset handled by useEffect watching isAddDialogOpen
-                            setEditingItem(item);
-                            setIsAddDialogOpen(true);
-                          }}
-                        >
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-red-600"
-                          onClick={() => handleDelete(item)}
-                        >
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  {/* Featured Badge */}
+                  {/* Featured badge */}
                   {item.featured && (
-                    <div className="absolute top-2 left-2">
-                      <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white">
-                        Featured
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-                <CardContent className="p-6">
-                   {/* Type Badge and Tags */}
-                  <div className="mb-3 flex items-center gap-2 flex-wrap">
-                    <Badge className={cn("", getTypeColor(item.type))}>
-                      {PORTFOLIO_ITEM_TYPE_LABELS[item.type]}
+                    <Badge className="absolute top-2 left-2 flex items-center gap-1 bg-yellow-500 text-white shadow">
+                      <Star className="h-4 w-4 mr-1" /> Featured
                     </Badge>
-                    {Array.isArray(item.tags) && item.tags.length > 0 && (
-                      <div className="flex gap-1 flex-wrap">
-                        {item.tags.slice(0, 2).map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                        {item.tags.length > 2 && (
-                          <Badge variant="outline" className="text-xs">
-                            +{item.tags.length - 2}
-                          </Badge>
-                        )}
-                      </div>
-                    )}
+                  )}
+                  {/* Type badge */}
+                  <Badge className={cn("absolute top-2 right-2", getTypeColor(item.type))}>
+                    {PORTFOLIO_ITEM_TYPE_LABELS[item.type]}
+                  </Badge>
+                </div>
+                <CardContent className="p-3 flex flex-col justify-between flex-1">
+                  <div>
+                    <div className="flex flex-wrap gap-1 mb-0.5">
+                      {Array.isArray(item.tags) && item.tags.slice(0, 2).map((tag) => (
+                        <Badge key={tag} variant="outline" className="text-xs px-2 py-0.5">
+                          {tag}
+                        </Badge>
+                      ))}
+                      {item.tags && item.tags.length > 2 && (
+                        <Badge variant="outline" className="text-xs px-2 py-0.5">
+                          +{item.tags.length - 2} more
+                        </Badge>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold truncate mt-0.5" title={item.title}>{item.title}</h3>
+                    {/* Description with Read More */}
+                    <div className="mt-0.5">
+                      <p
+                        className="text-muted-foreground text-sm line-clamp-3"
+                        title={item.description || ''}
+                      >
+                        {item.description}
+                      </p>
+                    </div>
                   </div>
-                   {/* Title and Description */}
-                  <h3 className="text-lg font-semibold mb-2">{item.title}</h3>
-                  <p className="text-muted-foreground text-sm line-clamp-2 mb-4">
-                    {item.description}
-                  </p>
-                   {/* Details: Amount, Location, Date */}
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="mt-1">
                     {item.financialDetails?.amount && (
-                      <div className="flex items-center gap-1">
-                        <DollarSign className="h-4 w-4 text-green-600" />
+                      <div className="flex items-center gap-1 text-green-700 font-semibold text-base">
+                        <DollarSign className="h-4 w-4" />
                         <span>{formatCurrency(item.financialDetails.amount)}</span>
                       </div>
                     )}
-                    {item.location?.city && item.location?.state && (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4 text-red-500" />
-                        <span>{item.location.city}, {item.location.state}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-1 ml-auto">
-                      <Calendar className="h-4 w-4 text-blue-500" />
-                      <span>{formatDate(item.date)}</span>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground mt-0.5">
+                      {item.location?.city && item.location?.state && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-4 w-4" />
+                          {item.location.city}, {item.location.state}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        {formatDate(item.date)}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
+                {/* Edit button in bottom right corner, outlined style */}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 p-0 rounded-full absolute bottom-3 right-3"
+                  onClick={() => {
+                    setEditingItem(item);
+                    setIsAddDialogOpen(true);
+                  }}
+                  aria-label="Edit portfolio item"
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
               </Card>
             ))}
           </div>
@@ -1382,15 +1384,18 @@ export function PortfolioForm({
 
                 {/* Action Buttons */}
                 <div className="flex gap-2">
-                  {/* Delete Button */}
+                  {/* Delete Button (only show in edit mode) */}
                   {editingItem && (
                     <Button
                       type="button"
                       variant="destructive"
                       onClick={() => handleDelete(editingItem)}
                       disabled={isFormSubmitting} // Disable during submission
+                      className="flex items-center gap-2"
                     >
-                      {/* Consider adding a loading state for delete? */}
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-4 w-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
                       Delete
                     </Button>
                   )}

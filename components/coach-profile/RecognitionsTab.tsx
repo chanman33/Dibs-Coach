@@ -52,7 +52,8 @@ import {
   FileText,
   FileCheck,
   Shield,
-  Building2
+  Building2,
+  Pencil
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/utils/cn";
@@ -495,99 +496,96 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
           <CardDescription>Your certifications, awards, and other professional achievements</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-6">
             {recognitions.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex gap-6 overflow-x-auto pb-4 -mx-2 px-2 snap-x">
                 {recognitions.map((recognition, index) => {
-                  // Choose appropriate icon based on recognition type
                   let icon;
                   switch(recognition.type) {
                     case RecognitionType.AWARD:
-                      icon = <Trophy className="h-4 w-4 text-primary" />;
+                      icon = <Trophy className="h-6 w-6 text-amber-500" />;
                       break;
                     case RecognitionType.CERTIFICATION:
+                      icon = <Award className="h-6 w-6 text-blue-500" />;
+                      break;
                     case RecognitionType.DESIGNATION:
+                      icon = <Award className="h-6 w-6 text-purple-500" />;
+                      break;
                     case RecognitionType.LICENSE:
-                      icon = <Award className="h-4 w-4 text-primary" />;
+                      icon = <Award className="h-6 w-6 text-green-500" />;
                       break;
                     case RecognitionType.EDUCATION:
-                      icon = <BookOpen className="h-4 w-4 text-primary" />;
+                      icon = <BookOpen className="h-6 w-6 text-indigo-500" />;
                       break;
                     case RecognitionType.MEMBERSHIP:
-                      icon = <Building className="h-4 w-4 text-primary" />;
+                      icon = <Building className="h-6 w-6 text-cyan-500" />;
                       break;
                     case RecognitionType.ACHIEVEMENT:
                     default:
-                      icon = <Trophy className="h-4 w-4 text-primary" />;
+                      icon = <Trophy className="h-6 w-6 text-orange-500" />;
                   }
-                  
                   const isVisible = recognition.isVisible !== false;
                   const industryType = recognition.industryType;
-                  
                   return (
-                    <Card 
-                      key={index} 
+                    <Card
+                      key={index}
                       className={cn(
-                        "transition-all duration-200 hover:shadow-md",
+                        "transition-all duration-200 hover:shadow-md border-l-4 group min-w-[320px] max-w-[380px] snap-start relative",
+                        recognition.type === RecognitionType.AWARD ? "border-l-amber-400" :
+                        recognition.type === RecognitionType.CERTIFICATION ? "border-l-blue-400" :
+                        recognition.type === RecognitionType.DESIGNATION ? "border-l-purple-400" :
+                        recognition.type === RecognitionType.LICENSE ? "border-l-green-400" :
+                        recognition.type === RecognitionType.EDUCATION ? "border-l-indigo-400" :
+                        recognition.type === RecognitionType.MEMBERSHIP ? "border-l-cyan-400" :
+                        "border-l-orange-400",
                         !isVisible && "opacity-60"
                       )}
                     >
-                      <CardHeader className="pb-3">
+                      <CardHeader className="pb-4">
                         <div className="flex justify-between items-start">
-                          <div className="flex items-center gap-2 max-w-[80%]">
-                            {icon}
-                            <CardTitle className="text-base truncate">{recognition.title}</CardTitle>
+                          <div className="flex items-center gap-3 max-w-[85%]">
+                            <div className="p-2 rounded-full bg-muted/50 group-hover:bg-muted transition-colors">
+                              {icon}
+                            </div>
+                            <CardTitle className="text-lg truncate">{recognition.title}</CardTitle>
                           </div>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={(e) => {
-                              handleEditRecognition(index);
-                            }}
-                            className="h-8 w-8 p-0 rounded-full"
-                            aria-label="Edit recognition"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
                         </div>
-                        
-                        <div className="flex items-center flex-wrap gap-2 mt-3">
-                          <Badge 
+                        <div className="flex justify-between items-center mt-4 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            {recognition.issuer && (
+                              <>
+                                <Building className="h-4 w-4" />
+                                <span className="font-medium">{recognition.issuer}</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4" />
+                            <span>{formatYear(recognition.issueDate)}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center flex-wrap gap-2 mt-4">
+                          <Badge
                             variant={getBadgeVariant(recognition.type)}
-                            className={getBadgeClassName(recognition.type)}
+                            className={cn(getBadgeClassName(recognition.type), "px-3 py-1")}
                           >
                             {getBadgeLabel(recognition.type)}
                           </Badge>
                           {industryType && (
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge variant="secondary" className="text-xs px-3 py-1">
                               {getDomainLabel(industryType)}
                             </Badge>
                           )}
-                        </div>
-                        
-                        <div className="flex justify-between items-center mt-3">
-                          <div className="text-sm text-muted-foreground flex items-center gap-1">
-                            {recognition.issuer && (
-                              <>
-                                <Building className="h-3.5 w-3.5" />
-                                <span className="font-medium">{recognition.issuer}</span>
-                                <span className="mx-1">•</span>
-                              </>
-                            )}
-                            <Calendar className="h-3.5 w-3.5" />
-                            <span>{formatYear(recognition.issueDate)}</span>
-                          </div>
-                          <Badge variant={isVisible ? "outline" : "secondary"} className="text-xs">
+                          <Badge variant={isVisible ? "outline" : "secondary"} className="text-xs px-3 py-1">
                             {isVisible ? "Visible" : "Hidden"}
                           </Badge>
                         </div>
                       </CardHeader>
-                      
                       {recognition.description && (
-                        <CardContent className="pt-0 pb-3">
+                        <CardContent className="pt-0 pb-4">
                           <div className={cn(
                             "relative",
-                            !expandedDescriptions[recognition.ulid || ''] && "line-clamp-2 max-h-[3rem] overflow-hidden"
+                            !expandedDescriptions[recognition.ulid || ''] && "line-clamp-3 max-h-[4.5rem] overflow-hidden"
                           )}>
                             <p className="text-sm text-muted-foreground">
                               {recognition.description}
@@ -608,15 +606,25 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
                           )}
                         </CardContent>
                       )}
+                      {/* Edit button in bottom right corner */}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8 p-0 rounded-full absolute bottom-3 right-3"
+                        onClick={() => handleEditRecognition(index)}
+                        aria-label="Edit recognition"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
                     </Card>
                   );
                 })}
               </div>
             ) : (
-              <div className="text-center py-12 border rounded-lg bg-muted/10">
-                <Award className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                <p className="text-lg font-medium">No professional recognitions found</p>
-                <p className="text-sm text-muted-foreground mt-1">
+              <div className="text-center py-16 border rounded-lg bg-muted/10">
+                <Award className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                <p className="text-xl font-medium">No professional recognitions found</p>
+                <p className="text-sm text-muted-foreground mt-2">
                   Add your certifications, awards, and achievements to showcase your expertise
                 </p>
               </div>

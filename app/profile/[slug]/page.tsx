@@ -18,8 +18,12 @@ import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { fetchUserCapabilities } from '@/utils/actions/user-profile-actions'
 import { fetchPublicCoachProfileBySlug, PublicCoachProfile } from '@/utils/actions/public-coach-profile-actions'
 import { SimilarCoaches } from '@/components/coaching/coach-profiles/SimilarCoaches'
+import { fetchCoachPortfolioItems } from '@/utils/actions/portfolio-actions'
+import { PublicPortfolioGrid } from '@/components/coach-profile/PublicPortfolioGrid'
+import { PublicRecognitionsGrid } from '@/components/coach-profile/PublicRecognitionsGrid'
 // import { ProfessionalRecognitionCard } from '@/components/coaching/shared/recognitions/ProfessionalRecognitionCard'
 // import { SocialLinks } from '@/components/shared/SocialLinks'
+import type { PortfolioItem } from '@/utils/types/portfolio'
 
 interface CoachProfilePageProps {
   params: {
@@ -28,36 +32,43 @@ interface CoachProfilePageProps {
   searchParams?: { [key: string]: string | string[] | undefined };
 }
 
-// Portfolio Item interface (simplified version of the actual type)
-interface PortfolioItem {
-  ulid: string;
-  title: string;
-  description?: string;
-  type?: string;
-  date: string;
-  imageUrls?: string[];
-  featured?: boolean;
-  tags?: string[];
-}
-
-// Extended PublicCoachProfile interface to include portfolio items
-interface ExtendedPublicCoachProfile extends PublicCoachProfile {
-  portfolioItems?: PortfolioItem[];
-}
-
 export default async function CoachProfilePage({ params, searchParams }: CoachProfilePageProps) {
   const slug = params.slug;
   // const router = useRouter(); // Can't use useRouter in Server Components
   
   // Fetch data server-side
   const coachResult = await fetchPublicCoachProfileBySlug({ slug });
-  const coach = coachResult.data as ExtendedPublicCoachProfile; // Cast to extended profile type
+  const coach = coachResult.data as PublicCoachProfile;
   const error = coachResult.error;
   
   // Fetch logged-in user data
   const user = await currentUser();
   const userCapabilitiesResult = user ? await fetchUserCapabilities({ skipProfileCheck: true }) : { data: { capabilities: [] } };
   const loggedInUserCapabilities = userCapabilitiesResult.data?.capabilities || [];
+  
+  // Fetch portfolio items for the coach (public, visible only)
+  let portfolioItems: PortfolioItem[] = [];
+  if (coach && coach.userUlid) {
+    const portfolioResult = await fetchCoachPortfolioItems(coach.userUlid);
+    if (portfolioResult.data) {
+      // Ensure all dates are strings and all required fields are present
+      portfolioItems = portfolioResult.data.map((item: any) => ({
+        ...item,
+        date: (typeof item.date === 'string') ? item.date : (item.date instanceof Date ? item.date.toISOString() : String(item.date)),
+        createdAt: (typeof item.createdAt === 'string') ? item.createdAt : (item.createdAt instanceof Date ? item.createdAt.toISOString() : String(item.createdAt)),
+        updatedAt: (typeof item.updatedAt === 'string') ? item.updatedAt : (item.updatedAt instanceof Date ? item.updatedAt.toISOString() : String(item.updatedAt)),
+        // Defensive: ensure isVisible is boolean
+        isVisible: typeof item.isVisible === 'boolean' ? item.isVisible : true,
+        // Defensive: ensure tags is array
+        tags: Array.isArray(item.tags) ? item.tags : [],
+        // Defensive: ensure imageUrls is array
+        imageUrls: Array.isArray(item.imageUrls) ? item.imageUrls : [],
+      }));
+    } else {
+      // Optionally log or handle error
+      console.error('[PROFILE_PAGE_PORTFOLIO_ERROR]', portfolioResult.error);
+    }
+  }
   
   // Handle coach not found or error
   if (error && error.code === 'NOT_FOUND') {
@@ -303,82 +314,12 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
             
             {/* Portfolio Tab */}
             <TabsContent value="portfolio">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Portfolio</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {coach.portfolioItems && coach.portfolioItems.length > 0 ? (
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {coach.portfolioItems.map((item: PortfolioItem) => (
-                        <div key={item.ulid} className="rounded-lg border overflow-hidden group hover:shadow-md transition-all">
-                          {item.imageUrls && item.imageUrls.length > 0 ? (
-                            <div className="h-48 overflow-hidden bg-muted">
-                              <Image
-                                src={item.imageUrls[0]}
-                                alt={item.title}
-                                width={400}
-                                height={200}
-                                className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                              />
-                            </div>
-                          ) : (
-                            <div className="h-48 bg-muted flex items-center justify-center">
-                              <Loader2 className="h-16 w-16 text-muted-foreground/30" />
-                            </div>
-                          )}
-                          <div className="p-4">
-                            <div className="flex flex-wrap gap-2 mb-2">
-                              {item.type && (
-                                <Badge variant="secondary">
-                                  {item.type.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}
-                                </Badge>
-                              )}
-                              {item.featured && (
-                                <Badge variant="default" className="bg-yellow-500 text-white">
-                                  Featured
-                                </Badge>
-                              )}
-                            </div>
-                            <h3 className="font-semibold text-lg mb-2">{item.title}</h3>
-                            <p className="text-muted-foreground text-sm line-clamp-2 mb-3">
-                              {item.description}
-                            </p>
-                            <div className="flex items-center text-sm text-muted-foreground">
-                              <Calendar className="h-4 w-4 mr-1" />
-                              {new Date(item.date).toLocaleDateString()}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground italic">No portfolio items available.</p>
-                  )}
-                </CardContent>
-              </Card>
+              <PublicPortfolioGrid portfolioItems={portfolioItems} />
             </TabsContent>
 
             {/* Recognitions Tab */}
             <TabsContent value="recognitions">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Professional Recognitions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {recognitions.length > 0 ? (
-                    <div className="space-y-4">
-                      {recognitions.map((rec) => (
-                        // Wrapping the commented-out component in parentheses
-                        // <ProfessionalRecognitionCard key={rec.ulid} recognition={rec} />
-                         <div key={rec.ulid}> {/* Placeholder */}</div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground italic">No professional recognitions listed.</p>
-                  )}
-                </CardContent>
-              </Card>
+              <PublicRecognitionsGrid recognitions={coach.recognitions || []} />
             </TabsContent>
           </Tabs>
           
