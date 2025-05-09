@@ -116,6 +116,7 @@ const coachBasicInfoSchema = z.object({
   linkedinUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
   youtubeUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
   tiktokUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  xUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
 });
 
 type CoachBasicInfoValues = z.infer<typeof coachBasicInfoSchema>;
@@ -146,6 +147,7 @@ export interface CoachProfileFormProps {
     linkedinUrl?: string;
     youtubeUrl?: string;
     tiktokUrl?: string;
+    xUrl?: string;
     [key: string]: any;
   };
   onSubmit: (data: ExtendedCoachProfileFormValues) => Promise<void>;
@@ -204,6 +206,7 @@ export function CoachProfileForm({
       linkedinUrl: initialData?.linkedinUrl,
       youtubeUrl: initialData?.youtubeUrl,
       tiktokUrl: initialData?.tiktokUrl,
+      xUrl: initialData?.xUrl,
     },
     defaultValues: {
       slogan: initialData?.slogan || "",
@@ -219,6 +222,7 @@ export function CoachProfileForm({
       linkedinUrl: initialData?.linkedinUrl || "",
       youtubeUrl: initialData?.youtubeUrl || "",
       tiktokUrl: initialData?.tiktokUrl || "",
+      xUrl: initialData?.xUrl || "",
     },
     hasYearsCoaching: initialData?.yearsCoaching !== undefined,
     hasHourlyRate: initialData?.hourlyRate !== undefined,
@@ -254,6 +258,7 @@ export function CoachProfileForm({
       linkedinUrl: initialData?.linkedinUrl || "",
       youtubeUrl: initialData?.youtubeUrl || "",
       tiktokUrl: initialData?.tiktokUrl || "",
+      xUrl: initialData?.xUrl || "",
     },
     mode: "onChange",
   });
@@ -298,6 +303,7 @@ export function CoachProfileForm({
         linkedinUrl: initialData.linkedinUrl || "",
         youtubeUrl: initialData.youtubeUrl || "",
         tiktokUrl: initialData.tiktokUrl || "",
+        xUrl: initialData.xUrl || "",
       };
       
       console.log("[COACH_FORM_INITIAL_RESET]", {
@@ -432,6 +438,7 @@ export function CoachProfileForm({
           linkedinUrl: data.linkedinUrl,
           youtubeUrl: data.youtubeUrl,
           tiktokUrl: data.tiktokUrl,
+          xUrl: data.xUrl,
         },
         initialData: {
           coachSkills: initialData?.coachSkills,
@@ -451,6 +458,7 @@ export function CoachProfileForm({
           linkedinUrl: initialData?.linkedinUrl,
           youtubeUrl: initialData?.youtubeUrl,
           tiktokUrl: initialData?.tiktokUrl,
+          xUrl: initialData?.xUrl,
         },
         formState: {
           isDirty: form.formState.isDirty,
@@ -540,7 +548,8 @@ export function CoachProfileForm({
         instagramUrl: data.instagramUrl,
         linkedinUrl: data.linkedinUrl,
         youtubeUrl: data.youtubeUrl,
-        tiktokUrl: data.tiktokUrl,
+        tiktokUrl: data.tiktokUrl ?? undefined,
+        xUrl: data.xUrl ?? undefined,
       };
 
       console.log("[COACH_BASIC_INFO_SUBMIT_MERGED]", {
@@ -563,6 +572,7 @@ export function CoachProfileForm({
           linkedinUrl: mergedData.linkedinUrl,
           youtubeUrl: mergedData.youtubeUrl,
           tiktokUrl: mergedData.tiktokUrl,
+          xUrl: mergedData.xUrl,
         },
         timestamp: new Date().toISOString()
       });
@@ -593,7 +603,8 @@ export function CoachProfileForm({
         instagramUrl: data.instagramUrl,
         linkedinUrl: data.linkedinUrl,
         youtubeUrl: data.youtubeUrl,
-        tiktokUrl: data.tiktokUrl,
+        tiktokUrl: data.tiktokUrl ?? undefined,
+        xUrl: data.xUrl ?? undefined,
       };
       
       console.log("[COACH_BASIC_INFO_BEFORE_RESET]", {
@@ -613,6 +624,7 @@ export function CoachProfileForm({
           linkedinUrl: resetValues.linkedinUrl,
           youtubeUrl: resetValues.youtubeUrl,
           tiktokUrl: resetValues.tiktokUrl,
+          xUrl: resetValues.xUrl,
         },
         timestamp: new Date().toISOString()
       });
@@ -636,6 +648,7 @@ export function CoachProfileForm({
           linkedinUrl: form.getValues().linkedinUrl,
           youtubeUrl: form.getValues().youtubeUrl,
           tiktokUrl: form.getValues().tiktokUrl,
+          xUrl: form.getValues().xUrl,
         },
         timestamp: new Date().toISOString()
       });
@@ -661,6 +674,7 @@ export function CoachProfileForm({
           linkedinUrl: data.linkedinUrl,
           youtubeUrl: data.youtubeUrl,
           tiktokUrl: data.tiktokUrl,
+          xUrl: data.xUrl,
         },
         timestamp: new Date().toISOString()
       });
@@ -1109,30 +1123,6 @@ export function CoachProfileForm({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <FormField
                   control={form.control}
-                  name="websiteUrl"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Website URL</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="https://yourwebsite.com" 
-                          {...field} 
-                          value={field.value || ''} 
-                          onChange={(e) => {
-                            let value = e.target.value;
-                            if (value && value.trim() !== '' && !value.startsWith('http://') && !value.startsWith('https://')) {
-                              value = `https://${value}`;
-                            }
-                            field.onChange(value);
-                          }}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
                   name="linkedinUrl"
                   render={({ field }) => (
                     <FormItem>
@@ -1236,6 +1226,30 @@ export function CoachProfileForm({
                       <FormControl>
                         <Input 
                           placeholder="https://tiktok.com/@yourprofile" 
+                          {...field} 
+                          value={field.value || ''} 
+                          onChange={(e) => {
+                            let value = e.target.value;
+                            if (value && value.trim() !== '' && !value.startsWith('http://') && !value.startsWith('https://')) {
+                              value = `https://${value}`;
+                            }
+                            field.onChange(value);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="xUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>X / Twitter URL</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="https://x.com/yourprofile" 
                           {...field} 
                           value={field.value || ''} 
                           onChange={(e) => {

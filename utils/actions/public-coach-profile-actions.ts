@@ -37,6 +37,7 @@ export interface PublicCoachProfile {
   linkedinUrl?: string | null;
   youtubeUrl?: string | null;
   tiktokUrl?: string | null;
+  xUrl?: string | null;
 }
 
 // Define the server action to fetch public profile data by slug
@@ -77,7 +78,8 @@ export const fetchPublicCoachProfileBySlug = withServerAction<PublicCoachProfile
           instagramUrl,
           linkedinUrl,
           youtubeUrl,
-          tiktokUrl
+          tiktokUrl,
+          xUrl
         `)
         .eq('profileSlug', slug)
         .eq('profileStatus', PROFILE_STATUS.PUBLISHED) // Ensure only published profiles are fetched
@@ -223,6 +225,7 @@ export const fetchPublicCoachProfileBySlug = withServerAction<PublicCoachProfile
         linkedinUrl: profileData.linkedinUrl,
         youtubeUrl: profileData.youtubeUrl,
         tiktokUrl: profileData.tiktokUrl,
+        xUrl: profileData.xUrl,
       };
 
       console.log('[FETCH_PUBLIC_COACH_PROFILE_SUCCESS]', {

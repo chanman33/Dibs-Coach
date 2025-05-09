@@ -135,6 +135,7 @@ model CoachProfile {
   linkedinUrl              String?                   @db.VarChar(2048) // Added
   youtubeUrl               String?                   @db.VarChar(2048) // Added
   tiktokUrl                String?                   @db.VarChar(2048) // Added
+  xUrl                     String?                   @db.VarChar(2048) // Added (X/Twitter)
   
   user                     User                      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
   professionalRecognitions ProfessionalRecognition[]

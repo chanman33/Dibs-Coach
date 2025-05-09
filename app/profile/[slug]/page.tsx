@@ -21,6 +21,7 @@ import { SimilarCoaches } from '@/components/coaching/coach-profiles/SimilarCoac
 import { fetchCoachPortfolioItems } from '@/utils/actions/portfolio-actions'
 import { PublicPortfolioGrid } from '@/components/coach-profile/PublicPortfolioGrid'
 import { PublicRecognitionsGrid } from '@/components/coach-profile/PublicRecognitionsGrid'
+import { SocialLinks } from '@/components/coach-profile/SocialLinks'
 // import { ProfessionalRecognitionCard } from '@/components/coaching/shared/recognitions/ProfessionalRecognitionCard'
 // import { SocialLinks } from '@/components/shared/SocialLinks'
 import type { PortfolioItem } from '@/utils/types/portfolio'
@@ -130,12 +131,13 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
   
   // Social links data
   const socialLinks = {
-    website: coach.websiteUrl,
-    facebook: coach.facebookUrl,
-    instagram: coach.instagramUrl,
-    linkedin: coach.linkedinUrl,
-    youtube: coach.youtubeUrl,
-    tiktok: coach.tiktokUrl, // Assuming this field exists in PublicCoachProfile
+    website: coach.websiteUrl ?? undefined,
+    facebook: coach.facebookUrl ?? undefined,
+    instagram: coach.instagramUrl ?? undefined,
+    linkedin: coach.linkedinUrl ?? undefined,
+    youtube: coach.youtubeUrl ?? undefined,
+    tiktok: coach.tiktokUrl ?? undefined,
+    xUrl: coach.xUrl ?? undefined,
   };
 
   // Authentication prompt component (can remain a simple functional component)
@@ -229,9 +231,6 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
                 )}
               </div>
               
-              {/* Social Links */}
-              {/* <SocialLinks links={socialLinks} className="mt-6" /> */}
-              
               {/* Booking Button / Sign In Prompt */}
               <div className="mt-6">
                 {shouldShowBookingButton ? (
@@ -252,6 +251,8 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
               </div>
             </CardContent>
           </Card>
+          {/* Social Links Card - now a unique card below the profile card and booking button */}
+          <SocialLinks links={socialLinks} className="mt-6" />
         </div>
         
         {/* Right Column - Details */}

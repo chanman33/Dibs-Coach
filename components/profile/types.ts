@@ -74,7 +74,9 @@ export const coachProfileFormSchema = z.object({
 });
 
 // Type for form values
-export type CoachProfileFormValues = z.infer<typeof coachProfileFormSchema>;
+export type CoachProfileFormValues = z.infer<typeof coachProfileFormSchema> & {
+  xUrl?: string;
+};
 
 // Initial data structure
 export interface CoachProfileInitialData {
