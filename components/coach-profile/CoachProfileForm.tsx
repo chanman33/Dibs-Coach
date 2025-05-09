@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -101,7 +100,7 @@ const DOMAIN_OPTIONS = Object.entries(REAL_ESTATE_DOMAINS).map(([key, value]) =>
 
 // Update the Zod schema to include new URL fields
 const coachBasicInfoSchema = z.object({
-  slogan: z.string().optional(),
+  slogan: z.string().min(1, "Byline or Slogan is required"),
   coachPrimaryDomain: z.string().nullable().optional(),
   coachRealEstateDomains: z.array(z.string()).optional().default([]),
   yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater")
@@ -752,7 +751,10 @@ export function CoachProfileForm({
                     name="slogan"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Byline or Slogan</FormLabel>
+                        <FormLabel>
+                          Byline or Slogan
+                          <span className="text-red-500 ml-1">*</span>
+                        </FormLabel>
                         <FormControl>
                           <Input 
                             {...field} 

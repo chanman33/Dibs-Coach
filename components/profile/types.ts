@@ -20,7 +20,7 @@ export const DOMAIN_SPECIALTIES = [
 export const coachProfileFormSchema = z.object({
   // Coach Profile Fields
   displayName: z.string().min(1, "Display name is required").optional(),
-  slogan: z.string().optional(),
+  slogan: z.string().min(1, "Byline or Slogan is required"),
   profileSlug: z.string().nullable().optional(),
   specialties: z.array(z.string()).optional(),
   coachSkills: z.array(z.string()).default([]),
@@ -83,7 +83,7 @@ export interface CoachProfileInitialData {
   displayName?: string;
   bio?: string | null;
   profileImageUrl?: string | null;
-  slogan?: string;
+  slogan: string;
   profileSlug?: string | null;
   coachingSpecialties?: string[] | null;
   coachSkills?: string[] | null;

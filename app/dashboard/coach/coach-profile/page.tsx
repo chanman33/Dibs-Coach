@@ -29,7 +29,7 @@ interface ExtendedCoachData extends Omit<CoachProfileInitialData, 'displayName' 
   coachRealEstateDomains?: string[];
   coachSkills: string[];
   displayName?: string;
-  slogan?: string;
+  slogan: string;
   profileSlug?: string | null;
 }
 
@@ -331,7 +331,7 @@ function ProfilePageContent() {
     coachRealEstateDomains: coachData?.coachRealEstateDomains || [],
     coachSkills: coachData?.coachSkills || [],
     displayName: coachData?.displayName || undefined,
-    slogan: coachData?.slogan || undefined,
+    slogan: coachData?.slogan || "",
     profileSlug: coachData?.profileSlug || null,
   };
 

@@ -275,7 +275,7 @@ export const CoachProfileSchema = z.object({
   coachSkills: z.array(z.string()).optional().default([]),
   coachRealEstateDomains: z.array(z.enum(Object.values(REAL_ESTATE_DOMAINS) as [string, ...string[]])).optional().default([]),
   coachPrimaryDomain: z.enum(Object.values(REAL_ESTATE_DOMAINS) as [string, ...string[]]).optional().nullable(),
-  slogan: z.string().optional().nullable(),
+  slogan: z.string().min(1, "Byline or Slogan is required"),
   displayName: z.string().optional().nullable(),
   yearsCoaching: z.number().min(0, "Years of coaching must be 0 or greater").optional(),
   certifications: z.array(z.string()).optional(),
@@ -412,7 +412,7 @@ export interface PublicCoach {
   displayName: string | null
   bio: string | null
   profileImageUrl: string | null
-  slogan: string | null
+  slogan: string
   profileSlug: string | null
   coachSkills: string[]
   coachRealEstateDomains: RealEstateDomain[]
