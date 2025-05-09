@@ -268,9 +268,6 @@ export function FilterSidebar({
                   )}
                 >
                   <span>{range.label}</span>
-                  <Badge variant="secondary" className="ml-2">
-                    {range.count}
-                  </Badge>
                 </button>
               ))}
             </div>

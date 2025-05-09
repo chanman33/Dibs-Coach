@@ -23,9 +23,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
     isLoading,
     error,
     filteredBookedCoaches,
-    filteredRecommendedCoaches,
-    handleSearch,
-    handleFilter,
+    recommendedCoaches,
     allSpecialties,
   } = useBrowseCoaches({ role });
 
@@ -33,6 +31,31 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filters, setFilters] = useState<CoachFilters>({});
   const router = useRouter();
+
+  // Filtering logic for all three filters
+  const filterCoaches = (coaches: BrowseCoachData[]) => {
+    return coaches.filter(coach => {
+      // Real Estate Domain filter
+      const domainMatch = !filters.realEstateDomain || filters.realEstateDomain.length === 0
+        ? true
+        : filters.realEstateDomain.some(domain => coach.coachRealEstateDomains?.includes(domain));
+
+      // Price Range filter
+      const priceMatch = !filters.priceRange
+        ? true
+        : (coach.hourlyRate ?? 0) >= (filters.priceRange.min ?? 0) && (coach.hourlyRate ?? 0) <= (filters.priceRange.max ?? Infinity);
+
+      // Rating filter
+      const ratingMatch = !filters.rating
+        ? true
+        : (coach.averageRating ?? 0) >= filters.rating;
+
+      return domainMatch && priceMatch && ratingMatch;
+    });
+  };
+
+  const filteredRecommendedCoaches = filterCoaches(recommendedCoaches || []);
+  const filteredBookedCoachesList = filterCoaches(filteredBookedCoaches || []);
 
   const handleCoachClick = (coach: BrowseCoachData) => {
     try {
@@ -72,9 +95,6 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
 
   const handleFiltersChange = (newFilters: CoachFilters) => {
     setFilters(newFilters);
-    if (newFilters.domain?.length) {
-      handleFilter(newFilters.domain[0]);
-    }
   };
 
   if (error) {
@@ -137,7 +157,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
 
   const getTopRecommendedCoaches = (coaches: BrowseCoachData[], count: number = 10): BrowseCoachData[] => {
     const availableCoaches = coaches.filter(coach => 
-      !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid) &&
+      !filteredBookedCoachesList.some(booked => booked.ulid === coach.ulid) &&
       coach.coachSkills && 
       coach.coachSkills.length > 0
     );
@@ -162,11 +182,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
           <h2 className="text-lg font-semibold">Search Coaches</h2>
         </CardHeader>
         <CardContent className="pt-4">
-          <SearchBar
-            onSearch={handleSearch}
-            placeholder="Search coaches by name, specialty, or expertise..."
-            className="w-full"
-          />
+          {/* Remove SearchBar for now, or refactor to update filters.searchTerm if needed */}
         </CardContent>
       </Card>
 
@@ -187,7 +203,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
             </CardContent>
           </Card>
 
-          <Categories onCategoryClick={(category) => handleFilter(category)} />
+          {/* Remove Categories for now, or refactor if needed */}
         </div>
         
         <div className="lg:col-span-3">
@@ -202,13 +218,13 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
                 </div>
               ) : filteredRecommendedCoaches.length > 0 ? (
                 <div className="w-full">
-                  {renderCoaches(filteredRecommendedCoaches 
-                    .filter(coach => 
-                      !filteredBookedCoaches.some(booked => booked.ulid === coach.ulid)
+                  {renderCoaches(filteredRecommendedCoaches
+                    .filter(coach =>
+                      !filteredBookedCoachesList.some(booked => booked.ulid === coach.ulid)
                     )
-                    .map(coach => ({ 
+                    .map(coach => ({
                       ...coach,
-                      specialty: coach.coachSkills?.[0] || 'General Coach' 
+                      specialty: coach.coachSkills?.[0] || 'General Coach'
                     }))
                   )}
                 </div>
