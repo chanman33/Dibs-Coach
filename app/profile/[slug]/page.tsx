@@ -116,11 +116,15 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
   const shouldShowContactInfo = isAuthenticated && (isMentee || isCoach); // Example: Show contact if mentee/coach
   const shouldShowBookingButton = isAuthenticated && !isOwnProfile; // Example: Show booking if logged in & not own profile
   
-  // Determine back link (simplified server-side)
-  // TODO: Refine this logic if needed, maybe pass 'from' via searchParams?
-  const referrer = searchParams?.from && typeof searchParams.from === 'string' && searchParams.from.startsWith('/') 
-    ? searchParams.from 
-    : '/coaches'; // Default back link
+  // Determine back link (configurable by user capabilities)
+  let defaultBackLink = '/coaches';
+  if (isAuthenticated) {
+    if (isCoach) defaultBackLink = '/dashboard/coach/browse-coaches';
+    else if (isMentee) defaultBackLink = '/dashboard/mentee/browse-coaches';
+  }
+  const referrer = searchParams?.from && typeof searchParams.from === 'string' && searchParams.from.startsWith('/')
+    ? searchParams.from
+    : defaultBackLink;
     
   // Prepare data for rendering
   const fullName = `${coach.firstName} ${coach.lastName}`.trim();

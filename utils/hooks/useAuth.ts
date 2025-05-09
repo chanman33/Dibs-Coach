@@ -59,6 +59,30 @@ export function useAuth(): UseAuthReturn {
   const organizationRole = orgContext?.organizationRole ?? null;
   const isOrgLoading = !orgContext || orgContext.isLoading;
 
+  // --- PUBLIC PAGE SHORT-CIRCUIT ---
+  // If Clerk is loaded and user is not signed in, immediately return a public/unauthenticated state.
+  // This prevents infinite loading on public pages for unauthenticated users.
+  if (isClerkLoaded && !isSignedIn) {
+    return {
+      isLoading: false,
+      isSignedIn: false,
+      userId: null,
+      userUlid: null,
+      systemRole: 'USER',
+      capabilities: [],
+      organizationUlid: null,
+      organizationName: null,
+      organizationRole: null,
+      isOrgLoading: false,
+      isFullyLoaded: true,
+      hasPermission: () => false,
+      canAccessBusinessDashboard: () => false,
+      canAccessCoachDashboard: () => false,
+      canAccessMenteeDashboard: () => false,
+      canAccessSystemDashboard: () => false,
+    };
+  }
+
   // Calculate fully loaded state - ensures we've verified all three levels
   // Now includes the check for orgContext itself
   const isFullyLoaded = isClerkLoaded && !isAuthLoading && !isOrgLoading;

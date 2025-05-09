@@ -12,7 +12,7 @@ export default function MenteeBrowseCoachesPage() {
   const role = "MENTEE" as keyof typeof USER_CAPABILITIES;
   
   // Use the same hook as BrowseCoaches to access booked coaches and loading state
-  const { isLoading, filteredBookedCoaches } = useBrowseCoaches({ role });
+  const { isLoading, filteredBookedCoaches } = useBrowseCoaches({ role, isSignedIn: true });
   
   // Coach click handler for navigation
   const handleCoachClick = (coach: BrowseCoachData) => {
@@ -33,7 +33,7 @@ export default function MenteeBrowseCoachesPage() {
       
       {/* All coaches browse section */}
       <div className="flex-grow">
-        <BrowseCoaches role={role} />
+        <BrowseCoaches role={role} isSignedIn={true} />
       </div>
     </div>
   );

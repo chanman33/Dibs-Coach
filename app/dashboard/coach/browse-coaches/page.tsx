@@ -13,7 +13,7 @@ export default function CoachBrowseCoachesPage() {
   const role = "COACH" as keyof typeof USER_CAPABILITIES;
   
   // Use the same hook as BrowseCoaches to access booked coaches and loading state
-  const { isLoading, filteredBookedCoaches } = useBrowseCoaches({ role });
+  const { isLoading, filteredBookedCoaches } = useBrowseCoaches({ role, isSignedIn: true });
   
   // Coach click handler for navigation
   const handleCoachClick = (coach: BrowseCoachData) => {
@@ -39,7 +39,7 @@ export default function CoachBrowseCoachesPage() {
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         }>
-          <BrowseCoaches role={role} />
+          <BrowseCoaches role={role} isSignedIn={true} />
         </Suspense>
       </div>
     </div>

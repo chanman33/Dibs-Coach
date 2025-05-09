@@ -14,7 +14,7 @@ type CoachWithProfile = Database['public']['Tables']['User']['Row'] & {
 export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
   try {
     const supabase = createAuthClient()
-    
+    console.log('[GET_PUBLIC_COACHES] Querying Supabase for public coaches...');
     const { data: coaches, error } = await supabase
       .from('User')
       .select(`
@@ -39,6 +39,7 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
       `)
       .eq('status', 'ACTIVE')
       .order('createdAt', { ascending: false }) as { data: CoachWithProfile[] | null, error: any }
+    console.log('[GET_PUBLIC_COACHES] Supabase query result:', { coaches, error });
 
     if (error) {
       console.error('[GET_PUBLIC_COACHES_ERROR]', error)
@@ -52,28 +53,30 @@ export async function getPublicCoaches(): Promise<ApiResponse<PublicCoach[]>> {
     }
 
     const publicCoaches = coaches
-      ?.filter(coach => 
-        (Array.isArray(coach.capabilities) && coach.capabilities.includes('COACH')) || 
-        coach.isCoach === true
-      )
-      ?.filter(coach => coach.CoachProfile && coach.CoachProfile.profileStatus === 'PUBLISHED')
-      .map(coach => ({
-        ulid: coach.ulid,
-        userUlid: coach.ulid, // Using ulid as userUlid for compatibility
-        firstName: coach.firstName,
-        lastName: coach.lastName,
-        displayName: coach.displayName,
-        bio: coach.bio,
-        profileImageUrl: coach.profileImageUrl,
-        slogan: coach.CoachProfile?.slogan || null,
-        profileSlug: coach.CoachProfile?.profileSlug || null,
-        coachSkills: coach.CoachProfile?.coachSkills || [],
-        coachRealEstateDomains: coach.CoachProfile?.coachRealEstateDomains || [],
-        coachPrimaryDomain: coach.CoachProfile?.coachPrimaryDomain || null,
-        hourlyRate: coach.CoachProfile?.hourlyRate ?? null,
-        averageRating: coach.CoachProfile?.averageRating ?? null,
-        totalSessions: coach.CoachProfile?.totalSessions || 0
-      })) || []
+      ?.filter(coach => {
+        const profile = Array.isArray(coach.CoachProfile) ? coach.CoachProfile[0] : coach.CoachProfile;
+        return profile && profile.profileStatus === 'PUBLISHED';
+      })
+      .map(coach => {
+        const profile = Array.isArray(coach.CoachProfile) ? coach.CoachProfile[0] : coach.CoachProfile;
+        return {
+          ulid: coach.ulid,
+          userUlid: coach.ulid, // Using ulid as userUlid for compatibility
+          firstName: coach.firstName,
+          lastName: coach.lastName,
+          displayName: coach.displayName,
+          bio: coach.bio,
+          profileImageUrl: coach.profileImageUrl,
+          slogan: profile?.slogan || '',
+          profileSlug: profile?.profileSlug || null,
+          coachSkills: profile?.coachSkills || [],
+          coachRealEstateDomains: profile?.coachRealEstateDomains || [],
+          coachPrimaryDomain: profile?.coachPrimaryDomain || null,
+          hourlyRate: profile?.hourlyRate ?? null,
+          averageRating: profile?.averageRating ?? null,
+          totalSessions: profile?.totalSessions || 0
+        }
+      }) || []
 
     return { data: publicCoaches, error: null }
   } catch (error) {

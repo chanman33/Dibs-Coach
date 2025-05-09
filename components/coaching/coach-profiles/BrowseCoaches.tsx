@@ -16,16 +16,18 @@ import { useRouter } from 'next/navigation'
 
 export interface BrowseCoachesProps {
   role: keyof typeof USER_CAPABILITIES;
+  isSignedIn: boolean;
 }
 
-export function BrowseCoaches({ role }: BrowseCoachesProps) {
+export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
   const {
     isLoading,
     error,
     filteredBookedCoaches,
     recommendedCoaches,
     allSpecialties,
-  } = useBrowseCoaches({ role });
+    handleSearch,
+  } = useBrowseCoaches({ role, isSignedIn });
 
   const [selectedCoach, setSelectedCoach] = useState<BrowseCoachData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -182,7 +184,7 @@ export function BrowseCoaches({ role }: BrowseCoachesProps) {
           <h2 className="text-lg font-semibold">Search Coaches</h2>
         </CardHeader>
         <CardContent className="pt-4">
-          {/* Remove SearchBar for now, or refactor to update filters.searchTerm if needed */}
+          <SearchBar onSearch={handleSearch} placeholder="Search coaches by name, specialty, or expertise..." />
         </CardContent>
       </Card>
 
