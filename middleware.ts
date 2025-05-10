@@ -9,6 +9,7 @@ const publicPaths = [
   '/',
   '/sign-in(.*)',
   '/sign-up(.*)',
+  '/profile/(.*)',
   '/api/webhooks(.*)',      // Public webhooks
   '/api/auth/(.*)',       // Clerk auth routes
   '/api/cal/webhook(.*)', // Public Cal webhooks

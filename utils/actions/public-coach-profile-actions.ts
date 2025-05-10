@@ -251,5 +251,6 @@ export const fetchPublicCoachProfileBySlug = withServerAction<PublicCoachProfile
         }
       };
     }
-  }
+  },
+  { allowPublicAccess: true }
 ); 

@@ -112,9 +112,9 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
   const isOwnProfile = isAuthenticated && user?.publicMetadata?.userUlid === coach.userUlid;
   
   // Determine what content to show based on authentication status
-  const shouldShowFullProfile = isAuthenticated; // Example: Show more details if logged in
-  const shouldShowContactInfo = isAuthenticated && (isMentee || isCoach); // Example: Show contact if mentee/coach
-  const shouldShowBookingButton = isAuthenticated && !isOwnProfile; // Example: Show booking if logged in & not own profile
+  // const shouldShowFullProfile = isAuthenticated; // Example: Show more details if logged in
+  // const shouldShowContactInfo = isAuthenticated && (isMentee || isCoach); // Example: Show contact if mentee/coach
+  // REMOVE: const shouldShowBookingButton = isAuthenticated && !isOwnProfile; // Example: Show booking if logged in & not own profile
   
   // Determine back link (configurable by user capabilities)
   let defaultBackLink = '/coaches';
@@ -143,22 +143,6 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
     tiktok: coach.tiktokUrl ?? undefined,
     xUrl: coach.xUrl ?? undefined,
   };
-
-  // Authentication prompt component (can remain a simple functional component)
-  const AuthPrompt = () => (
-    !isAuthenticated ? (
-      <Card className="bg-muted/30 border-dashed mt-6">
-        <CardContent className="pt-6 text-center">
-          <p className="text-sm text-muted-foreground mb-3">
-            Sign in to see full coach details and book a session
-          </p>
-          <Link href={`/sign-in?return_url=${encodeURIComponent(`/profile/${slug}`)}`}>
-            <Button size="sm">Sign In</Button>
-          </Link>
-        </CardContent>
-      </Card>
-    ) : null
-  );
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -237,21 +221,27 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
               
               {/* Booking Button / Sign In Prompt */}
               <div className="mt-6">
-                {shouldShowBookingButton ? (
-                  <Link href={`/booking/${coach.profileSlug || coach.ulid}`} className="w-full">
-                    <Button className="w-full">
-                      <Calendar className="mr-2 h-4 w-4" /> Book a Session
-                    </Button>
-                  </Link>
-                ) : isOwnProfile ? (
+                {isOwnProfile ? (
                   <Link href="/dashboard/coach/profile" className="w-full">
                     <Button variant="outline" className="w-full">
                       Edit Your Profile
                     </Button>
                   </Link>
-                ) : !isAuthenticated ? (
-                  <AuthPrompt />
-                ) : null}
+                ) : (
+                  // Not the user's own profile, so show "Book a Session"
+                  <Link 
+                    href={
+                      isAuthenticated 
+                        ? `/booking/${coach.profileSlug || coach.ulid}` 
+                        : `/sign-in?return_url=${encodeURIComponent(`/booking/${coach.profileSlug || coach.ulid}`)}`
+                    } 
+                    className="w-full"
+                  >
+                    <Button className="w-full">
+                      <Calendar className="mr-2 h-4 w-4" /> Book a Session
+                    </Button>
+                  </Link>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -328,13 +318,6 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
             </TabsContent>
           </Tabs>
           
-          {/* Authentication Prompt (if not already shown in button area) */}
-          {!isAuthenticated && !shouldShowBookingButton && (
-             <div className="mt-8">
-               <AuthPrompt />
-             </div>
-           )}
-           
           {/* TODO: Consider re-adding Similar Coaches section if needed */}
           <div className="mt-12">
             <SimilarCoaches currentCoachId={coach.ulid} skills={skills} domains={domains} />
