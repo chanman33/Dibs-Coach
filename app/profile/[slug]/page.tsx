@@ -25,6 +25,7 @@ import { SocialLinks } from '@/components/coach-profile/SocialLinks'
 // import { ProfessionalRecognitionCard } from '@/components/coaching/shared/recognitions/ProfessionalRecognitionCard'
 // import { SocialLinks } from '@/components/shared/SocialLinks'
 import type { PortfolioItem } from '@/utils/types/portfolio'
+import { createAuthClient } from '@/utils/auth'
 
 interface CoachProfilePageProps {
   params: {
@@ -107,9 +108,72 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
   
   // Determine user context for display logic
   const isAuthenticated = !!user;
+  const loggedInUserClerkId = user?.id;
+  const loggedInUserDbUlidFromMetadata = user?.publicMetadata?.userUlid as string | undefined;
+  const coachUserDbUlid = coach.userUlid;
+
+  let loggedInUserActualDbUlid = loggedInUserDbUlidFromMetadata;
+
+  if (isAuthenticated && loggedInUserClerkId && !loggedInUserDbUlidFromMetadata) {
+    console.log('[PROFILE_PAGE_AUTH_CHECK_FALLBACK] User ULID missing from metadata, attempting DB query.', {
+      loggedInUserClerkId,
+      slug,
+      timestamp: new Date().toISOString()
+    });
+    try {
+      const supabase = await createAuthClient();
+      const { data: userData, error: userError } = await supabase
+        .from('User')
+        .select('ulid')
+        .eq('userId', loggedInUserClerkId)
+        .single();
+      
+      if (userError) {
+        console.error('[PROFILE_PAGE_AUTH_CHECK_FALLBACK_ERROR] Error fetching user ULID from DB:', {
+          loggedInUserClerkId,
+          error: userError,
+          slug,
+          timestamp: new Date().toISOString()
+        });
+      } else if (userData && userData.ulid) {
+        loggedInUserActualDbUlid = userData.ulid;
+        console.log('[PROFILE_PAGE_AUTH_CHECK_FALLBACK_SUCCESS] Successfully fetched user ULID from DB.', {
+          loggedInUserClerkId,
+          fetchedUserUlid: loggedInUserActualDbUlid,
+          slug,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        console.warn('[PROFILE_PAGE_AUTH_CHECK_FALLBACK_NOT_FOUND] User ULID not found in DB for Clerk ID.', {
+          loggedInUserClerkId,
+          slug,
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (e) {
+      console.error('[PROFILE_PAGE_AUTH_CHECK_FALLBACK_EXCEPTION] Exception during fallback DB query:', {
+        loggedInUserClerkId,
+        exception: e,
+        slug,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  // Log values for debugging isOwnProfile
+  console.log('[PROFILE_PAGE_AUTH_CHECK]', {
+    isAuthenticated,
+    loggedInUserClerkId, // Clerk's own user.id
+    loggedInUserDbUlidFromMetadata, // ULID from Clerk's public metadata
+    loggedInUserActualDbUlid, // ULID used for comparison (potentially from fallback)
+    coachUserDbUlid, // ULID of the coach profile being viewed
+    slug,
+    timestamp: new Date().toISOString()
+  });
+
   const isMentee = loggedInUserCapabilities.includes(USER_CAPABILITIES.MENTEE);
-  const isCoach = loggedInUserCapabilities.includes(USER_CAPABILITIES.COACH);
-  const isOwnProfile = isAuthenticated && user?.publicMetadata?.userUlid === coach.userUlid;
+  const isCoachCapability = loggedInUserCapabilities.includes(USER_CAPABILITIES.COACH);
+  const isOwnProfile = isAuthenticated && loggedInUserActualDbUlid === coachUserDbUlid;
   
   // Determine what content to show based on authentication status
   // const shouldShowFullProfile = isAuthenticated; // Example: Show more details if logged in
@@ -119,7 +183,7 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
   // Determine back link (configurable by user capabilities)
   let defaultBackLink = '/coaches';
   if (isAuthenticated) {
-    if (isCoach) defaultBackLink = '/dashboard/coach/browse-coaches';
+    if (isCoachCapability) defaultBackLink = '/dashboard/coach/browse-coaches';
     else if (isMentee) defaultBackLink = '/dashboard/mentee/browse-coaches';
   }
   const referrer = searchParams?.from && typeof searchParams.from === 'string' && searchParams.from.startsWith('/')
@@ -222,7 +286,7 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
               {/* Booking Button / Sign In Prompt */}
               <div className="mt-6">
                 {isOwnProfile ? (
-                  <Link href="/dashboard/coach/profile" className="w-full">
+                  <Link href="/dashboard/coach/coach-profile" className="w-full">
                     <Button variant="outline" className="w-full">
                       Edit Your Profile
                     </Button>
