@@ -6,8 +6,12 @@ import { BarChart3, Users, Shield, Briefcase, Layers } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
+import React, { useState } from "react"
 
 export default function BusinessSolutions() {
+  const [imgError, setImgError] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+
   const features = [
     {
       icon: Users,
@@ -30,6 +34,15 @@ export default function BusinessSolutions() {
     //   description: "Seamlessly integrate with your existing tools and workflows for maximum efficiency.",
     // },
   ]
+
+  // Retry up to 3 times, with a delay
+  const handleImageError = () => {
+    if (retryCount < 3) {
+      setTimeout(() => setRetryCount(retryCount + 1), 1000) // 1 second delay
+    } else {
+      setImgError(true)
+    }
+  }
 
   return (
     <div className="container px-4 md:px-6">
@@ -83,15 +96,23 @@ export default function BusinessSolutions() {
 
         <div className="relative">
           <div className="absolute -z-10 inset-0 bg-gradient-to-tr from-blue-500/10 via-transparent to-transparent rounded-2xl" />
-          <Image
-            src="/goal-mngt-dashboard.jpg"
-            alt="Team coaching dashboard"
-            width={600}
-            height={388}
-            priority={true}
-            unoptimized={true}
-            className="rounded-xl shadow-lg border border-gray-200 dark:border-gray-800"
-          />
+          {!imgError ? (
+            <Image
+              key={retryCount}
+              src="/goal-mngt-dashboard.jpg"
+              alt="Team coaching dashboard"
+              width={600}
+              height={388}
+              priority={true}
+              unoptimized={true}
+              className="rounded-xl shadow-lg border border-gray-200 dark:border-gray-800"
+              onError={handleImageError}
+            />
+          ) : (
+            <div className="rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 flex items-center justify-center w-[600px] h-[388px] bg-gray-100 dark:bg-gray-900">
+              <span className="text-gray-500 dark:text-gray-400">Image unavailable</span>
+            </div>
+          )}
           <div className="absolute -top-4 -right-4 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl -z-20" />
         </div>
 

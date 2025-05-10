@@ -5,6 +5,8 @@ import { BrowseCoachData } from '@/utils/types/browse-coaches'
 import { withServerAction } from '@/utils/middleware/withServerAction'
 import { ACTIVE_DOMAINS, REAL_ESTATE_DOMAINS, RealEstateDomain } from '@/utils/types/coach'
 import crypto from 'crypto'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
 interface DbCoach {
   ulid: string
@@ -37,23 +39,16 @@ interface DbCoach {
 
 export const fetchCoaches = withServerAction<BrowseCoachData[]>(
   async (_, { userUlid }) => {
-    console.log('[BROWSE_COACHES_START]', { userUlid, timestamp: new Date().toISOString() });
+    console.log('[BROWSE_COACHES_START]', { userUlid, isPublicCall: !userUlid, timestamp: new Date().toISOString() });
     
     try {
-      const supabase = await createAuthClient()
+      const supabase = await createAuthClient(); // Always uses anon key
       console.log('[BROWSE_COACHES_AUTH_CLIENT_CREATED]');
-      
-      // Directly query CoachProfiles with User join in a single efficient query
-      console.log('[BROWSE_COACHES_QUERY_START]', { 
-        table: 'CoachProfile',
-        filters: { isActive: true },
-        joins: ['User'],
-        timestamp: new Date().toISOString()
-      });
       
       const { data: coachProfilesWithUsers, error: queryError } = await supabase
         .from('CoachProfile')
-        .select(`
+        .select(
+          `
           ulid,
           userUlid,
           coachSkills,
@@ -83,10 +78,11 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
             isCoach,
             status
           )
-        `)
+        `
+        )
         .eq('isActive', true)
         .eq('profileStatus', 'PUBLISHED')
-        .eq('User.status', 'ACTIVE');
+        ; 
         
       console.log('[BROWSE_COACHES_QUERY_COMPLETE]', {
         count: coachProfilesWithUsers?.length || 0,
@@ -130,9 +126,7 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
       const transformedCoaches: BrowseCoachData[] = coachProfilesWithUsers
         .map((profile) => {
           const user = profile.User;
-          
-          // Skip if user is not found or not active
-          if (!user || user.status !== 'ACTIVE') return null;
+          if (!user || user.status !== 'ACTIVE') return null; // Still good to keep this client-side check
           
           return {
             ulid: user.ulid,
@@ -193,5 +187,6 @@ export const fetchCoaches = withServerAction<BrowseCoachData[]>(
         }
       }
     }
-  }
+  },
+  { allowPublicAccess: true }
 ) 

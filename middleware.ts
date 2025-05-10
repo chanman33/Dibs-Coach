@@ -142,16 +142,14 @@ export default authMiddleware({
 // Updated config matcher
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - api/webhooks (public API routes)
-     * - api/cal/webhook (public API routes)
-     * Match the root path "/" explicitly.
-     */
-    '/((?!_next/static|_next/image|favicon.ico|api/webhooks|api/cal/webhook).*)', // Main pattern
+    // Exclude:
+    // - _next/static (Next.js internals)
+    // - _next/image (image optimization)
+    // - favicon.ico
+    // - api/webhooks, api/cal/webhook (public APIs)
+    // - any file with an extension (e.g., .jpg, .png, .css, .js, etc.)
+    // - root path "/"
+    '/((?!_next/static|_next/image|favicon.ico|api/webhooks|api/cal/webhook|.*\\..*).*)',
     '/', // Explicitly match root
   ],
 };

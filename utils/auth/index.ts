@@ -23,7 +23,11 @@ export {
 export type { AuthResult, AuthorizationResult } from './auth-utils'
 
 // Auth Permission Service for centralized permission logic
-export { permissionService } from './permission-service'
+export { 
+  permissionService,
+  systemRoleHierarchy,
+  orgLevelHierarchy
+} from './permission-service'
 
 // Cal.com authentication helpers
 export {

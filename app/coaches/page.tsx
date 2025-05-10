@@ -6,6 +6,7 @@ import { useAuth } from '@/utils/hooks/useAuth'
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { Loader2 } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { useBrowseCoaches } from '@/utils/hooks/useBrowseCoaches'
 
 export default function CoachesPage() {
   const { isLoading, isSignedIn, capabilities, isFullyLoaded } = useAuth();

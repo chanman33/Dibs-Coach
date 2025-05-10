@@ -100,6 +100,7 @@ export interface AuthOptions {
   requireAll?: boolean;
   requireOrganization?: boolean;
   businessDashboard?: boolean;
+  allowPublicAccess?: boolean;
 }
 
 export const authContextSchema = z.object({

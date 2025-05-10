@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowseCoachData } from '../types/browse-coaches';
 import { fetchCoaches } from '@/utils/actions/browse-coaches';
-import { getPublicCoaches } from '@/utils/actions/coaches';
+// import { getPublicCoaches } from '@/utils/actions/coaches'; // No longer needed
 import { logCoachDataQuality } from '@/utils/logging/coach-logger';
 
 interface PostgrestError {
@@ -45,45 +45,11 @@ export function useBrowseCoaches({ role, isSignedIn }: UseBrowseCoachesProps): U
       setError(null);
       setIsLoading(true);
       try {
-        let coachesData: BrowseCoachData[] = [];
-        let fetchError: any = null;
-        if (!isSignedIn) {
-          // Public fetch
-          const { data, error } = await getPublicCoaches();
-          console.log('[PUBLIC_FETCH_RESULT]', { data, error });
-          // Map PublicCoach to BrowseCoachData
-          coachesData = (data || []).map((coach) => ({
-            ulid: coach.ulid,
-            userId: coach.userUlid, // userUlid as userId for compatibility
-            firstName: coach.firstName || '',
-            lastName: coach.lastName || '',
-            profileImageUrl: coach.profileImageUrl || null,
-            bio: coach.bio || null,
-            coachSkills: coach.coachSkills || [],
-            coachRealEstateDomains: coach.coachRealEstateDomains || [],
-            coachPrimaryDomain: coach.coachPrimaryDomain || null,
-            hourlyRate: coach.hourlyRate ?? null,
-            isActive: true, // Assume public coaches are active
-            yearsCoaching: null, // Not available in PublicCoach
-            totalSessions: coach.totalSessions || 0,
-            averageRating: coach.averageRating ?? null,
-            defaultDuration: coach.sessionConfig?.defaultDuration || 60,
-            minimumDuration: coach.sessionConfig?.minimumDuration || 30,
-            maximumDuration: coach.sessionConfig?.maximumDuration || 90,
-            allowCustomDuration: coach.sessionConfig?.allowCustomDuration || false,
-            slogan: coach.slogan || null,
-            profileStatus: 'PUBLISHED',
-            completionPercentage: 100, // Assume 100 for public
-            profileSlug: coach.profileSlug || null,
-          }));
-          fetchError = error;
-        } else {
-          // Authenticated fetch
-          const { data, error } = await fetchCoaches(null);
-          coachesData = data || [];
-          fetchError = error;
-        }
+        // Always use fetchCoaches. It handles auth context internally.
+        const { data: coachesData, error: fetchError } = await fetchCoaches(null);
+
         if (fetchError) {
+          console.error('[USE_BROWSE_COACHES_FETCH_ERROR]', { fetchError, isSignedIn, role });
           setError('Unable to fetch coaches. Please try again later.');
           setBookedCoaches([]);
           setRecommendedCoaches([]);
@@ -92,7 +58,9 @@ export function useBrowseCoaches({ role, isSignedIn }: UseBrowseCoachesProps): U
           setAllSpecialties([]);
           return;
         }
+
         if (!coachesData || !Array.isArray(coachesData)) {
+          console.error('[USE_BROWSE_COACHES_INVALID_DATA]', { coachesData, isSignedIn, role });
           setError('Invalid data received from server');
           setBookedCoaches([]);
           setRecommendedCoaches([]);
@@ -101,6 +69,7 @@ export function useBrowseCoaches({ role, isSignedIn }: UseBrowseCoachesProps): U
           setAllSpecialties([]);
           return;
         }
+
         // Extract all unique specialties
         const specialties = new Set<string>();
         coachesData.forEach(coach => {
@@ -111,12 +80,22 @@ export function useBrowseCoaches({ role, isSignedIn }: UseBrowseCoachesProps): U
           }
         });
         setAllSpecialties(Array.from(specialties).sort());
-        // For public users, treat all as recommended
-        setBookedCoaches([]);
+
+        // For public users (or all users now), treat all as recommended initially
+        // Further differentiation can happen in the BrowseCoaches component if needed
+        setBookedCoaches([]); // Assuming no coaches are "booked" by default for browsing
         setRecommendedCoaches(coachesData);
         setFilteredBookedCoaches([]);
         setFilteredRecommendedCoaches(coachesData);
-      } catch (error) {
+
+      } catch (err) {
+        const castError = err as Error;
+        console.error('[USE_BROWSE_COACHES_UNEXPECTED_ERROR]', {
+          error: castError.message,
+          stack: castError.stack,
+          isSignedIn,
+          role
+        });
         setError('An unexpected error occurred. Please try again later.');
         setBookedCoaches([]);
         setRecommendedCoaches([]);
@@ -128,25 +107,24 @@ export function useBrowseCoaches({ role, isSignedIn }: UseBrowseCoachesProps): U
       }
     };
     getCoaches();
-  }, [role, isSignedIn]);
+  }, [role, isSignedIn]); // Keep isSignedIn dependency if other logic in the hook might use it,
+                          // otherwise, it could be removed if fetchCoaches truly handles all context.
 
   // Filter coaches based on search term and specialty
   useEffect(() => {
-    const filterCoaches = (coaches: BrowseCoachData[]) => {
+    const filterLogic = (coaches: BrowseCoachData[]) => {
       return coaches.filter(coach => {
-        // Filter by search term
-        const nameMatch = searchTerm 
+        const nameMatch = searchTerm
           ? `${coach.firstName} ${coach.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
           : true;
-        // Filter by specialty
         const specialtyMatch = selectedSpecialty
           ? coach.coachSkills?.includes(selectedSpecialty)
           : true;
         return nameMatch && specialtyMatch;
       });
     };
-    setFilteredBookedCoaches(filterCoaches(bookedCoaches));
-    setFilteredRecommendedCoaches(filterCoaches(recommendedCoaches));
+    setFilteredBookedCoaches(filterLogic(bookedCoaches));
+    setFilteredRecommendedCoaches(filterLogic(recommendedCoaches));
   }, [searchTerm, selectedSpecialty, bookedCoaches, recommendedCoaches]);
 
   const handleSearch = (term: string) => {
