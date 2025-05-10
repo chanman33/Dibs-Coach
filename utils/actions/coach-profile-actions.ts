@@ -94,6 +94,13 @@ interface ProfessionalRecognitionData {
 
 export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
   async (_, { userUlid }) => {
+    if (!userUlid) {
+      console.error('[FETCH_COACH_PROFILE_ERROR]', 'userUlid is undefined');
+      return {
+        data: null,
+        error: { code: 'UNAUTHORIZED', message: 'User ULID is required for this action.' }
+      };
+    }
     try {
       console.log("[FETCH_COACH_PROFILE_START]", {
         userUlid,
@@ -393,6 +400,13 @@ interface UpdateCoachProfileResponse {
 
 export const updateCoachProfile = withServerAction<UpdateCoachProfileResponse, CoachProfileFormData>(
   async (formData, { userUlid }) => {
+    if (!userUlid) {
+      console.error('[UPDATE_COACH_PROFILE_ERROR]', 'userUlid is undefined');
+      return {
+        data: null,
+        error: { code: 'UNAUTHORIZED', message: 'User ULID is required for this action.' }
+      };
+    }
     try {
       // Ensure numeric values are properly typed before any operations
       // This is crucial as JavaScript might convert these values to strings during JSON serialization
@@ -707,6 +721,13 @@ interface CoachProfileRecord {
 
 export const updateProfileStatus = withServerAction<UpdateProfileStatusResponse, UpdateProfileStatusParams>(
   async (data, { userUlid }) => {
+    if (!userUlid) {
+      console.error('[UPDATE_STATUS_ERROR]', 'userUlid is undefined');
+      return {
+        data: null,
+        error: { code: 'UNAUTHORIZED', message: 'User ULID is required for this action.' }
+      };
+    }
     try {
       const supabase = await createAuthClient()
       
@@ -1005,6 +1026,13 @@ export async function createCoachProfileIfNeeded(userUlid: string) {
 
 export const saveCoachSkills = withServerAction<{ skills: string[] }, { skills: string[] }>(
   async ({ skills }, { userUlid }) => {
+    if (!userUlid) {
+      console.error('[SAVE_COACH_SKILLS_ERROR]', 'userUlid is undefined');
+      return {
+        data: null,
+        error: { code: 'UNAUTHORIZED', message: 'User ULID is required for this action.' }
+      };
+    }
     try {
       const supabase = await createAuthClient();
 
