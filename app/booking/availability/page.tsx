@@ -14,6 +14,7 @@ import { ErrorState } from "./ErrorState";
 import { DebugPanel } from "./DebugPanel";
 import { CoachProfileSection } from "./CoachProfileSection";
 import { EventTypeSelector } from "./EventTypeSelector";
+import { SuccessModal } from "./SuccessModal";
 
 /**
  * Booking Availability Page
@@ -58,7 +59,10 @@ export default function BookingAvailabilityPage() {
     eventTypes,
     selectedEventTypeId,
     setSelectedEventTypeId,
-    coachSlogan
+    coachSlogan,
+    showSuccessModal,
+    redirectCountdown,
+    bookingDetails
   } = useBookingUI();
 
   // Format the date for display
@@ -116,6 +120,18 @@ export default function BookingAvailabilityPage() {
   return (
     <div className="container max-w-5xl py-10">
       <h1 className="text-2xl font-bold mb-6">Book a Session with {coachName}</h1>
+      
+      {/* Success Modal */}
+      {bookingDetails && showSuccessModal && (
+        <SuccessModal
+          isOpen={showSuccessModal}
+          startTime={bookingDetails.startTime}
+          endTime={bookingDetails.endTime}
+          coachName={coachName}
+          eventTypeName={bookingDetails.eventTypeName}
+          redirectCountdown={redirectCountdown}
+        />
+      )}
       
       <div className="grid md:grid-cols-3 gap-6">
         {/* Left Column - Coach Profile & Date Selection */}

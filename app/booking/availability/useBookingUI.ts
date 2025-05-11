@@ -74,6 +74,15 @@ export function useBookingUI() {
   const [error, setError] = useState<string | null>(null);
   const [coachTimezone, setCoachTimezone] = useState<string | undefined>(undefined);
   
+  // Success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [redirectCountdown, setRedirectCountdown] = useState(4);
+  const [bookingDetails, setBookingDetails] = useState<{
+    startTime: string;
+    endTime: string;
+    eventTypeName: string;
+  } | null>(null);
+  
   // Event type related state
   const [eventTypes, setEventTypes] = useState<CalEventType[]>([]);
   const [selectedEventTypeId, setSelectedEventTypeId] = useState<string | null>(null);
@@ -799,29 +808,20 @@ export function useBookingUI() {
         throw new Error(result.error || 'Failed to create booking');
       }
       
-      // Success!
-      toast({
-        title: "Booking confirmed!",
-        description: "Your session has been booked successfully.",
-        variant: "default"
+      // Format times for display
+      const formattedStartTime = format(selectedTimeSlot.startTime, "EEEE, MMMM d, yyyy 'at' h:mm a");
+      const formattedEndTime = format(selectedTimeSlot.endTime, "h:mm a");
+      
+      // Set booking details for success modal
+      setBookingDetails({
+        startTime: formattedStartTime,
+        endTime: formattedEndTime,
+        eventTypeName: selectedEventType?.title || selectedEventType?.name || "Coaching Session"
       });
       
-      // Determine where to redirect based on user capabilities
-      const { data: userResponse } = await supabase
-        .from('User')
-        .select('isCoach, isMentee')
-        .eq('userId', user.id)
-        .single();
-      
-      let redirectPath = "/dashboard/mentee/sessions";
-      
-      // Check if the user is a coach
-      if (userResponse?.isCoach) {
-        redirectPath = "/dashboard/coach/sessions";
-      }
-      
-      // Redirect to the session detail page if available
-      router.push(redirectPath);
+      // Show success modal
+      setShowSuccessModal(true);
+      setRedirectCountdown(4);
     } catch (error) {
       console.error("[BOOKING_ERROR]", {
         error,
@@ -837,6 +837,23 @@ export function useBookingUI() {
       setIsBooking(false);
     }
   };
+
+  // Add this useEffect below your function definitions, inside useBookingUI
+  useEffect(() => {
+    if (!showSuccessModal) return;
+    setRedirectCountdown(4);
+    const intervalId = setInterval(() => {
+      setRedirectCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(intervalId);
+          router.push("/dashboard/mentee/sessions");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(intervalId);
+  }, [showSuccessModal]);
 
   // Format time for display (kept for BookingSummary, should ideally be updated there too)
   const formatTime = useCallback((time: string | Date) => {
@@ -1011,5 +1028,9 @@ export function useBookingUI() {
 
     // Alias the correct state variable for consumption by DatePickerSection
     availableDates: datesWithActualSlots, 
+
+    showSuccessModal,
+    redirectCountdown,
+    bookingDetails
   };
 } 

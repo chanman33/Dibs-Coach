@@ -117,4 +117,36 @@
 
 .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
   border-color: hsl(var(--foreground));
+}
+
+/* Hide the close (X) button in shadcn/ui dialog */
+[data-dialog-close] {
+  display: none !important;
+}
+
+.no-close [data-dialog-close] {
+  display: none !important;
+}
+
+/* More specific selectors to hide dialog close button */
+button[aria-label="Close"],
+.Dialog__CloseButton,
+[data-radix-dialog-close],
+.DialogClose,
+.dialog-close-btn,
+div[role="dialog"] button:first-of-type {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Target the specific success modal close button */
+.success-modal button[aria-label="Close"],
+.success-modal [data-dialog-close],
+.success-modal button:has(svg) {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 } 
