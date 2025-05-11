@@ -378,11 +378,13 @@ export function CoachingCalendar({
               {calendarActionText}
             </Button>
           )}
-          <Link href="/dashboard/coach/availability">
-            <Button variant="outline" size="sm">
-              Manage Availability
-            </Button>
-          </Link>
+          {isCalendlyConnected && (
+            <Link href="/dashboard/coach/availability">
+              <Button variant="outline" size="sm">
+                Manage Availability
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
