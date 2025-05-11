@@ -57,7 +57,8 @@ export default function BookingAvailabilityPage() {
     coachTimezone,
     eventTypes,
     selectedEventTypeId,
-    setSelectedEventTypeId
+    setSelectedEventTypeId,
+    coachSlogan
   } = useBookingUI();
 
   // Format the date for display
@@ -125,6 +126,7 @@ export default function BookingAvailabilityPage() {
             profileImageUrl={coachProfileImage}
             specialty={coachSpecialty}
             domains={coachDomains}
+            slogan={coachSlogan}
           />
           
           {/* Date Picker Section */}

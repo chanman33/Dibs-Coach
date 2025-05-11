@@ -42,6 +42,7 @@ export interface CoachInfo {
   profileImageUrl?: string | null;
   coachPrimaryDomain?: string | null;
   coachRealEstateDomains?: string[] | null;
+  slogan?: string | null;
 }
 
 // Response type for getCoachAvailability

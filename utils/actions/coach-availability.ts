@@ -81,7 +81,8 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
           CoachProfile(
             ulid,
             coachPrimaryDomain,
-            coachRealEstateDomains
+            coachRealEstateDomains,
+            slogan
           )
         `)
         .eq("ulid", coachUlid)
@@ -128,7 +129,8 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
               lastName: coachData.lastName || '',
               profileImageUrl: coachData.profileImageUrl || null,
               coachPrimaryDomain: coachData.CoachProfile?.[0]?.coachPrimaryDomain || null,
-              coachRealEstateDomains: coachData.CoachProfile?.[0]?.coachRealEstateDomains || null
+              coachRealEstateDomains: coachData.CoachProfile?.[0]?.coachRealEstateDomains || null,
+              slogan: coachData.CoachProfile?.[0]?.slogan || null
             }, 
             schedule: null 
           },
@@ -153,7 +155,8 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
               lastName: coachData.lastName || '',
               profileImageUrl: coachData.profileImageUrl || null,
               coachPrimaryDomain: coachData.CoachProfile?.[0]?.coachPrimaryDomain || null,
-              coachRealEstateDomains: coachData.CoachProfile?.[0]?.coachRealEstateDomains || null
+              coachRealEstateDomains: coachData.CoachProfile?.[0]?.coachRealEstateDomains || null,
+              slogan: coachData.CoachProfile?.[0]?.slogan || null
             }, 
             schedule: null 
           },
@@ -221,7 +224,8 @@ export const getCoachAvailability = withServerAction<CoachAvailabilityResponse, 
             lastName: coachData.lastName || '',
             profileImageUrl: coachData.profileImageUrl || null,
             coachPrimaryDomain: coachData.CoachProfile?.[0]?.coachPrimaryDomain || null,
-            coachRealEstateDomains: coachData.CoachProfile?.[0]?.coachRealEstateDomains || null
+            coachRealEstateDomains: coachData.CoachProfile?.[0]?.coachRealEstateDomains || null,
+            slogan: coachData.CoachProfile?.[0]?.slogan || null
           },
           schedule: {
             ulid: scheduleData.ulid,

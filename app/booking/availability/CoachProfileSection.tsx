@@ -7,13 +7,15 @@ interface CoachProfileSectionProps {
   profileImageUrl?: string | null;
   specialty?: string | null;
   domains?: string[] | null;
+  slogan?: string | null;
 }
 
 export function CoachProfileSection({
   coachName,
   profileImageUrl,
   specialty,
-  domains
+  domains,
+  slogan
 }: CoachProfileSectionProps) {
   // Extract first initials for avatar fallback
   const initials = coachName
@@ -21,6 +23,11 @@ export function CoachProfileSection({
     .map(name => name.charAt(0))
     .join('')
     .toUpperCase();
+
+  // Filter out the primary domain from the domains list to avoid duplication
+  const filteredDomains = domains && specialty 
+    ? domains.filter(domain => domain !== specialty)
+    : domains;
 
   return (
     <Card className="mb-6">
@@ -34,12 +41,18 @@ export function CoachProfileSection({
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">{coachName}</h2>
             
+            {slogan && (
+              <p className="text-sm text-muted-foreground">{slogan}</p>
+            )}
+            
             <div className="flex flex-wrap gap-2">
+              {/* Primary domain displayed first with a different variant */}
               {specialty && (
                 <Badge variant="secondary">{specialty}</Badge>
               )}
               
-              {domains && domains.length > 0 && domains.map((domain, index) => (
+              {/* Other domains displayed with outline variant, excluding primary domain */}
+              {filteredDomains && filteredDomains.length > 0 && filteredDomains.map((domain, index) => (
                 <Badge key={index} variant="outline">{domain}</Badge>
               ))}
             </div>

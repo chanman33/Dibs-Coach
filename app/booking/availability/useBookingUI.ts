@@ -65,6 +65,7 @@ export function useBookingUI() {
   const [coachProfileImage, setCoachProfileImage] = useState<string | null>(null);
   const [coachSpecialty, setCoachSpecialty] = useState<string | null>(null);
   const [coachDomains, setCoachDomains] = useState<string[] | null>(null);
+  const [coachSlogan, setCoachSlogan] = useState<string | null>(null);
   const [isBooking, setIsBooking] = useState(false);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
   const [actualCoachId, setActualCoachId] = useState<string | null>(null);
@@ -160,6 +161,7 @@ export function useBookingUI() {
         setCoachProfileImage(coach.profileImageUrl || null);
         setCoachSpecialty(coach.coachPrimaryDomain || null);
         setCoachDomains(coach.coachRealEstateDomains || null);
+        setCoachSlogan(coach.slogan || null);
         
         // Fetch event types from our new server action
         const eventTypesResult = await getCoachEventTypes({
@@ -955,6 +957,7 @@ export function useBookingUI() {
     coachProfileImage,
     coachSpecialty,
     coachDomains,
+    coachSlogan,
     selectedDate,
     setSelectedDate: handleDateChange,
     potentialDatesInWindow,
