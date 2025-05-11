@@ -30,19 +30,21 @@ export function SearchBar({
     <div className={cn('w-full', className)}>
       <div className={cn(
         'relative flex items-center rounded-lg bg-background border shadow-sm',
-        'transition-shadow duration-200 hover:shadow-md'
+        'transition-all duration-200 hover:shadow-md',
+        'focus-within:ring-1 focus-within:ring-ring focus-within:ring-offset-0'
       )}>
         <Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
         <Input
-          type="search"
+          type="text"
           placeholder={placeholder}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className={cn(
-            'pl-9 pr-12 py-6 border-0',
+            'h-12 pl-9 pr-12',
+            'border-0 shadow-none',
             'placeholder:text-muted-foreground/70',
-            'focus-visible:ring-0',
-            'text-base'
+            'focus-visible:ring-0 focus-visible:ring-offset-0',
+            'text-base bg-transparent'
           )}
         />
         {searchQuery && (

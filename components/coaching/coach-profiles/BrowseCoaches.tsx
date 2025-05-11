@@ -14,6 +14,7 @@ import { BrowseCoachData } from '@/utils/types/browse-coaches'
 import { CoachFilters } from '@/components/coaching/shared/SearchAndFilter/types'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { COACH_SPECIALTIES, SpecialtyCategory } from '@/utils/types/coach'
+import { RecommendedCoaches } from '../shared/RecommendedCoaches'
 
 // Define focus area to skill category mappings
 const FOCUS_TO_CATEGORIES: Record<string, SpecialtyCategory[]> = {
@@ -43,6 +44,7 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
   const [selectedCoach, setSelectedCoach] = useState<BrowseCoachData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filters, setFilters] = useState<CoachFilters>({});
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const router = useRouter();
 
   // Set initial filters based on focus parameter
@@ -58,6 +60,17 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
   // Filtering logic for coaches
   const filterCoaches = (coaches: BrowseCoachData[]) => {
     return coaches.filter(coach => {
+      // Search query filter
+      const searchMatch = !searchQuery 
+        ? true 
+        : [
+            coach.firstName,
+            coach.lastName, 
+            ...(coach.coachSkills || [])
+          ].some(field => 
+            field?.toLowerCase().includes(searchQuery.toLowerCase())
+          );
+
       // Real Estate Domain filter
       const domainMatch = !filters.realEstateDomain || filters.realEstateDomain.length === 0
         ? true
@@ -86,7 +99,7 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
         ? true
         : (coach.averageRating ?? 0) >= filters.rating;
 
-      return domainMatch && skillCategoriesMatch && skillsMatch && priceMatch && ratingMatch;
+      return searchMatch && domainMatch && skillCategoriesMatch && skillsMatch && priceMatch && ratingMatch;
     });
   };
 
@@ -131,6 +144,11 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
 
   const handleFiltersChange = (newFilters: CoachFilters) => {
     setFilters(newFilters);
+  };
+
+  const handleLocalSearch = (query: string) => {
+    setSearchQuery(query);
+    handleSearch(query); // Also call API search if needed
   };
 
   if (error) {
@@ -191,26 +209,6 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
     </div>
   );
 
-  const getTopRecommendedCoaches = (coaches: BrowseCoachData[], count: number = 10): BrowseCoachData[] => {
-    const availableCoaches = coaches.filter(coach => 
-      !filteredBookedCoachesList.some(booked => booked.ulid === coach.ulid) &&
-      coach.coachSkills && 
-      coach.coachSkills.length > 0
-    );
-    
-    return availableCoaches
-      .sort((a, b) => {
-        const ratingDiff = (b.averageRating || 0) - (a.averageRating || 0);
-        if (ratingDiff !== 0) return ratingDiff;
-        
-        const experienceDiff = (b.yearsCoaching || 0) - (a.yearsCoaching || 0);
-        if (experienceDiff !== 0) return experienceDiff;
-        
-        return (b.totalSessions || 0) - (a.totalSessions || 0);
-      })
-      .slice(0, count);
-  };
-
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
       <Card className="shadow-sm">
@@ -218,7 +216,11 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
           <h2 className="text-lg font-semibold">Search Coaches</h2>
         </CardHeader>
         <CardContent className="pt-4">
-          <SearchBar onSearch={handleSearch} placeholder="Search coaches by name, specialty, or expertise..." />
+          <SearchBar 
+            onSearch={handleLocalSearch} 
+            placeholder="Search coaches by name, specialty, or expertise..." 
+            initialQuery={searchQuery}
+          />
         </CardContent>
       </Card>
 
@@ -275,73 +277,11 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
         </div>
       </div>
 
-      <Card className="shadow-sm">
-        <CardHeader className="pb-2">
-          <h2 className="text-2xl font-bold tracking-tight">Recommended Coaches</h2>
-        </CardHeader>
-        <CardContent className="pt-4 overflow-hidden">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-48">
-              <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-          ) : filteredRecommendedCoaches.length > 0 ? (
-            <div className="relative">
-              <div className="overflow-x-auto pb-4 -mx-4 px-4" 
-                   style={{ scrollbarWidth: 'thin' }}>
-                <div className="flex gap-6">
-                  {getTopRecommendedCoaches(filteredRecommendedCoaches).map(coach => (
-                    <div key={coach.ulid} className="flex-shrink-0 w-[320px]">
-                      <CoachCard
-                        id={coach.ulid}
-                        userId={coach.userId}
-                        name={`${coach.firstName} ${coach.lastName}`}
-                        imageUrl={coach.profileImageUrl || ''}
-                        specialty={coach.coachSkills?.[0] || 'General Coach'}
-                        bio={coach.bio || ''}
-                        experience={coach.yearsCoaching 
-                          ? `${coach.yearsCoaching} years of coaching experience` 
-                          : null}
-                        availability={coach.isActive ? "Available" : "Unavailable"}
-                        sessionLength={`${coach.defaultDuration} minutes`}
-                        coachSkills={coach.coachSkills || []}
-                        coachRealEstateDomains={coach.coachRealEstateDomains || []}
-                        coachPrimaryDomain={coach.coachPrimaryDomain}
-                        isBooked={false}
-                        onProfileClick={() => handleCoachClick(coach)}
-                        sessionConfig={{
-                          durations: [
-                            coach.minimumDuration,
-                            coach.defaultDuration,
-                            coach.maximumDuration
-                          ].filter(Boolean),
-                          rates: {
-                            [coach.minimumDuration]: (coach.hourlyRate || 0) * (coach.minimumDuration / 60),
-                            [coach.defaultDuration]: (coach.hourlyRate || 0) * (coach.defaultDuration / 60),
-                            [coach.maximumDuration]: (coach.hourlyRate || 0) * (coach.maximumDuration / 60)
-                          },
-                          currency: 'USD',
-                          defaultDuration: coach.defaultDuration || 60,
-                          allowCustomDuration: coach.allowCustomDuration || false,
-                          minimumDuration: coach.minimumDuration || 30,
-                          maximumDuration: coach.maximumDuration || 90,
-                          isActive: coach.isActive
-                        }}
-                        profileSlug={coach.profileSlug}
-                        isPublic={false}
-                        showBookButton={true}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <p className="text-center text-muted-foreground py-12">
-              No recommended coaches available at the moment.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      <RecommendedCoaches 
+        recommendedCoaches={recommendedCoaches || []}
+        isLoading={isLoading}
+        onCoachClick={handleCoachClick}
+      />
 
       {selectedCoach && (
         <CoachProfileModal
