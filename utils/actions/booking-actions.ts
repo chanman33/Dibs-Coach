@@ -18,7 +18,15 @@ const CreateBookingSchema = z.object({
   timeZone: z.string().default('UTC')
 });
 
-type CreateBookingParams = z.infer<typeof CreateBookingSchema>;
+// Extended type for our server action that includes additional fields
+interface CreateBookingParams {
+  coachId: string;
+  startTime: string;
+  endTime: string;
+  eventTypeId: number | string;
+  duration?: number;
+  sessionTopic?: string;
+}
 
 // Types for response
 export interface CalendarLink {
@@ -44,10 +52,61 @@ export interface BookingResult {
  * It handles all the necessary authentication, validation, and error handling.
  */
 export const createBooking = withServerAction<BookingResult, CreateBookingParams>(
-  async (data: CreateBookingParams, { userUlid }: ServerActionContext) => {
+  async (params: CreateBookingParams, context: ServerActionContext) => {
     try {
+      const { userUlid } = context;
+      const { coachId, startTime, endTime, eventTypeId, duration, sessionTopic } = params;
+      
+      if (!userUlid) {
+        return {
+          data: null,
+          error: { 
+            code: 'UNAUTHORIZED', 
+            message: 'You must be logged in to book a session' 
+          }
+        };
+      }
+      
+      // Get user information for attendee details
+      const supabase = createAuthClient();
+      const { data: userData, error: userError } = await supabase
+        .from('User')
+        .select('email, firstName, lastName, displayName')
+        .eq('ulid', userUlid)
+        .single();
+      
+      if (userError || !userData) {
+        console.error('[CREATE_BOOKING_ACTION_ERROR] User not found', {
+          userUlid,
+          error: userError,
+          timestamp: new Date().toISOString()
+        });
+        
+        return {
+          data: null,
+          error: {
+            code: 'NOT_FOUND',
+            message: 'User information not found'
+          }
+        };
+      }
+      
+      // Construct attendee name from user data
+      const attendeeName = userData.displayName || 
+        `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || 
+        'User';
+      
       // Validate the request data
-      const validationResult = CreateBookingSchema.safeParse(data);
+      const validationResult = CreateBookingSchema.safeParse({
+        eventTypeId: Number(eventTypeId),
+        startTime,
+        endTime,
+        attendeeName,
+        attendeeEmail: userData.email,
+        notes: sessionTopic,
+        customInputs: {},
+        timeZone: 'UTC'
+      });
       
       if (!validationResult.success) {
         console.error('[CREATE_BOOKING_ACTION_ERROR] Validation error', {

@@ -732,7 +732,7 @@ export function useBookingUI() {
   }, [timeSlots, coachTimezone]);
 
   // Handle booking confirmation - Pass UTC ISO strings if needed by API
-  const handleConfirmBooking = async () => {
+  const handleConfirmBooking = async (sessionTopic?: string) => {
     if (!selectedTimeSlot || !actualCoachId || !selectedEventTypeId) {
       toast({
         title: "Unable to book session",
@@ -758,7 +758,8 @@ export function useBookingUI() {
         endTime: selectedTimeSlot.endTime.toISOString(),
         eventTypeId: selectedEventTypeId,
         eventTypeName: selectedEventType?.title || selectedEventType?.name,
-        eventTypeDuration
+        eventTypeDuration,
+        sessionTopic: sessionTopic || 'No topic provided'
       });
       
       // Simulate a delay
@@ -780,7 +781,8 @@ export function useBookingUI() {
       //   startTime: selectedTimeSlot.startTime.toISOString(),
       //   endTime: selectedTimeSlot.endTime.toISOString(),
       //   eventTypeId: parseInt(selectedEventTypeId, 10),
-      //   duration: eventTypeDuration
+      //   duration: eventTypeDuration,
+      //   sessionTopic: sessionTopic
       // });
       // 
       // if (result.error) {
@@ -949,6 +951,22 @@ export function useBookingUI() {
 
   }, [potentialDatesInWindow, busyTimesCache, coachSchedule, coachTimezone]); // Dependencies that trigger recalculation of dates with slots
 
+  // Add a wrapper for setSelectedTimeSlot to ensure consistent state
+  const handleTimeSlotSelection = useCallback((timeSlot: TimeSlot | null) => {
+    // Only update if the selection is actually changing
+    if (JSON.stringify(timeSlot) !== JSON.stringify(selectedTimeSlot)) {
+      console.log('[DEBUG][BOOKING] Selecting time slot:', timeSlot ? 
+        `${timeSlot.startTime.toISOString()} - ${timeSlot.endTime.toISOString()}` : 'none');
+      
+      // If we're selecting a new time slot, ensure eventType is selected
+      if (timeSlot && !selectedEventTypeId && eventTypes.length > 0) {
+        setSelectedEventTypeId(eventTypes[0].id);
+      }
+      
+      setSelectedTimeSlot(timeSlot);
+    }
+  }, [selectedTimeSlot, selectedEventTypeId, eventTypes]);
+
   return {
     loading,
     loadingState,
@@ -963,7 +981,7 @@ export function useBookingUI() {
     potentialDatesInWindow,
     timeSlots, // Now contains UTC Date objects
     selectedTimeSlot,
-    setSelectedTimeSlot,
+    setSelectedTimeSlot: handleTimeSlotSelection,
     isBooking,
     coachSchedule,
     coachTimezone, // Ensure this is returned

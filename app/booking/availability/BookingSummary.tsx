@@ -6,11 +6,14 @@ import { format } from "date-fns";
 import { TimeSlot } from "@/utils/types/booking";
 import { Clock, Loader2 } from "lucide-react";
 import { convertTimeSlotToUserTimezone, getUserTimezone } from "@/utils/timezone-utils";
+import { useState } from "react";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
 interface BookingSummaryProps {
   selectedDate: Date | null;
   selectedTimeSlot: { startTime: Date; endTime: Date } | null;
-  onConfirm: () => void;
+  onConfirm: (sessionTopic?: string) => void;
   canBook: boolean;
   isBooking: boolean;
   coachName: string;
@@ -38,6 +41,9 @@ export function BookingSummary({
   const userTimeSlot = selectedTimeSlot 
     ? convertTimeSlotToUserTimezone(selectedTimeSlot, coachTimezone, userTimezone)
     : null;
+  
+  // State for session topic
+  const [sessionTopic, setSessionTopic] = useState("");
 
   // Calculate duration in minutes - use eventTypeDuration if provided, otherwise calculate from time slot
   const durationMinutes = eventTypeDuration || (userTimeSlot 
@@ -97,6 +103,21 @@ export function BookingSummary({
             </p>
           </div>
         )}
+        
+        <div className="space-y-2">
+          <Label htmlFor="session-topic" className="font-medium">Session Topic</Label>
+          <Textarea 
+            id="session-topic" 
+            placeholder="Briefly describe your topic..."
+            value={sessionTopic}
+            onChange={(e) => setSessionTopic(e.target.value)}
+            className="resize-none h-8 min-h-0 py-1"
+            rows={1}
+          />
+          <p className="text-xs text-muted-foreground">
+            This helps your coach prepare for the session
+          </p>
+        </div>
 
         <Alert variant="default" className="bg-muted/50">
           <AlertTitle>Test Mode</AlertTitle>
@@ -108,7 +129,7 @@ export function BookingSummary({
       <CardFooter>
         <Button 
           className="w-full" 
-          onClick={onConfirm} 
+          onClick={() => onConfirm(sessionTopic)}
           disabled={!canBook || isBooking}
         >
           {isBooking ? (
