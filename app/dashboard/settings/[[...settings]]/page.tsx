@@ -232,10 +232,10 @@ export default function Settings() {
               You don't belong to any organizations yet
             </p>
             <Button
-              onClick={() => router.push('/dashboard/organizations/create')}
+              onClick={() => router.push('/business-solutions')}
               className="gap-2"
             >
-              <Building2 className="h-4 w-4" /> Create Organization
+              <ArrowRight className="h-4 w-4" /> Learn More
             </Button>
           </div>
         ) : (

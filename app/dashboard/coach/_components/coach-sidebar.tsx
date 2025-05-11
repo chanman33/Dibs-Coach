@@ -181,14 +181,14 @@ export function CoachSidebar() {
             <NavLink href="/dashboard/coach/goals" icon={Target}>
               Goals & Plans
             </NavLink>
-            <NavLink href="/dashboard/coach/library" icon={BookOpen}>
+            {/* <NavLink href="/dashboard/coach/library" icon={BookOpen}>
               <div className="flex items-center gap-2">
                 <span className="font-semibold">Library</span>
                 <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-0.5 rounded dark:bg-green-900 dark:text-green-300">
                   Learn
                 </span>
               </div>
-            </NavLink>
+            </NavLink> */}
 
             {/* Coach Tools */}
             <Separator className="my-3" />
