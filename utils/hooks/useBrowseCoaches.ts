@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowseCoachData } from '../types/browse-coaches';
 import { fetchCoaches } from '@/utils/actions/browse-coaches';
+import { fetchBookedCoaches } from '@/utils/actions/your-coaches';
 // import { getPublicCoaches } from '@/utils/actions/coaches'; // No longer needed
 import { logCoachDataQuality } from '@/utils/logging/coach-logger';
 
@@ -45,7 +46,7 @@ export function useBrowseCoaches({ role, isSignedIn }: UseBrowseCoachesProps): U
       setError(null);
       setIsLoading(true);
       try {
-        // Always use fetchCoaches. It handles auth context internally.
+        // Fetch all coaches
         const { data: coachesData, error: fetchError } = await fetchCoaches(null);
 
         if (fetchError) {
@@ -81,13 +82,44 @@ export function useBrowseCoaches({ role, isSignedIn }: UseBrowseCoachesProps): U
         });
         setAllSpecialties(Array.from(specialties).sort());
 
-        // For public users (or all users now), treat all as recommended initially
-        // Further differentiation can happen in the BrowseCoaches component if needed
-        setBookedCoaches([]); // Assuming no coaches are "booked" by default for browsing
-        setRecommendedCoaches(coachesData);
-        setFilteredBookedCoaches([]);
-        setFilteredRecommendedCoaches(coachesData);
-
+        // If user is signed in, fetch their booked coaches
+        if (isSignedIn) {
+          const { data: bookedCoachesData, error: bookedCoachesError } = await fetchBookedCoaches(null);
+          
+          if (bookedCoachesError) {
+            console.error('[USE_BROWSE_COACHES_BOOKED_COACHES_ERROR]', { 
+              error: bookedCoachesError, 
+              isSignedIn, 
+              role,
+              timestamp: new Date().toISOString()
+            });
+            // Continue without booked coaches
+            setBookedCoaches([]);
+            setFilteredBookedCoaches([]);
+          } else {
+            console.log('[USE_BROWSE_COACHES_BOOKED_COACHES]', {
+              bookedCoachesCount: bookedCoachesData?.length || 0,
+              isSignedIn,
+              role,
+              timestamp: new Date().toISOString()
+            });
+            
+            setBookedCoaches(bookedCoachesData || []);
+            setFilteredBookedCoaches(bookedCoachesData || []);
+            
+            // Filter recommended coaches to exclude already booked ones
+            const bookedCoachIds = new Set((bookedCoachesData || []).map(coach => coach.ulid));
+            const filteredRecommended = coachesData.filter(coach => !bookedCoachIds.has(coach.ulid));
+            setRecommendedCoaches(filteredRecommended);
+            setFilteredRecommendedCoaches(filteredRecommended);
+          }
+        } else {
+          // For public users, no booked coaches
+          setBookedCoaches([]);
+          setFilteredBookedCoaches([]);
+          setRecommendedCoaches(coachesData);
+          setFilteredRecommendedCoaches(coachesData);
+        }
       } catch (err) {
         const castError = err as Error;
         console.error('[USE_BROWSE_COACHES_UNEXPECTED_ERROR]', {
@@ -107,8 +139,7 @@ export function useBrowseCoaches({ role, isSignedIn }: UseBrowseCoachesProps): U
       }
     };
     getCoaches();
-  }, [role, isSignedIn]); // Keep isSignedIn dependency if other logic in the hook might use it,
-                          // otherwise, it could be removed if fetchCoaches truly handles all context.
+  }, [role, isSignedIn]);
 
   // Filter coaches based on search term and specialty
   useEffect(() => {

@@ -114,6 +114,11 @@ export function CoachCard({
     }
   }
 
+  // Filter domains to avoid duplicating the primary domain in secondary domains list
+  const secondaryDomains = coachRealEstateDomains.filter(
+    domain => domain !== coachPrimaryDomain
+  );
+
   return (
     <>
       <BaseCoachCard
@@ -134,13 +139,28 @@ export function CoachCard({
               />
             )}
             
-            {/* Primary Domain (displayed in both modes) */}
-            {coachPrimaryDomain && (
-              <div className="flex items-start">
-                <Badge variant="outline" className="text-xs flex items-center gap-1">
-                  {getDomainIcon(coachPrimaryDomain)}
-                  <span>{formatDomain(coachPrimaryDomain)}</span>
-                </Badge>
+            {/* Domains section - showing primary and secondary domains in one row */}
+            {(coachPrimaryDomain || secondaryDomains.length > 0) && (
+              <div className="flex flex-wrap items-start gap-2">
+                {/* Primary Domain Badge */}
+                {coachPrimaryDomain && (
+                  <Badge variant="outline" className="text-xs flex items-center gap-1">
+                    {getDomainIcon(coachPrimaryDomain)}
+                    <span>{formatDomain(coachPrimaryDomain)}</span>
+                  </Badge>
+                )}
+                
+                {/* Secondary Domains Badges */}
+                {secondaryDomains.map(domain => (
+                  <Badge 
+                    key={domain} 
+                    variant="secondary" 
+                    className="text-xs flex items-center gap-1 bg-muted text-muted-foreground"
+                  >
+                    {getDomainIcon(domain)}
+                    <span>{formatDomain(domain)}</span>
+                  </Badge>
+                ))}
               </div>
             )}
             
@@ -174,22 +194,6 @@ export function CoachCard({
                     +{coachSkills.length - 3} more
                   </span>
                 )}
-              </div>
-            )}
-            
-            {/* Real Estate Domains section (more detailed in private mode) */}
-            {coachRealEstateDomains && coachRealEstateDomains.length > 0 && !isPublic && (
-              <div className="flex flex-wrap gap-2 mb-2">
-                {coachRealEstateDomains.slice(0, 2).map(domain => (
-                  <span
-                    key={domain}
-                    className={`inline-flex items-center gap-1 rounded-full ${domain === coachPrimaryDomain ? 'bg-secondary/20 text-secondary-foreground' : 'bg-muted text-muted-foreground'} px-2.5 py-0.5 text-xs font-medium`}
-                  >
-                    {getDomainIcon(domain)}
-                    {domain.charAt(0) + domain.slice(1).toLowerCase().replace('_', ' ')}
-                    {domain === coachPrimaryDomain && ' (Primary)'}
-                  </span>
-                ))}
               </div>
             )}
 
