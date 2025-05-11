@@ -19,7 +19,7 @@ const mockMentees: Mentee[] = [
     ulid: "1",
     firstName: "Sarah",
     lastName: "Johnson",
-    email: "sarah.j@example.com",
+    email: "user@example.com",
     profileImageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=sarah",
     status: 'ACTIVE',
     menteeProfile: null,
@@ -34,7 +34,7 @@ const mockMentees: Mentee[] = [
       primaryMarket: null,
       type: 'REALTOR',
       phoneNumber: "(555) 123-4567",
-      yearsExperience: null,
+      totalYearsRE: null,
       propertyTypes: []
     },
     notes: [],
@@ -47,20 +47,28 @@ export function CoachCRMDashboard() {
   const [mentees, setMentees] = useState<Mentee[]>([])
   const [selectedMenteeId, setSelectedMenteeId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadMentees = async () => {
       try {
         setIsLoading(true)
+        setError(null)
         const result = await fetchMentees({})
         
         if (result.error) {
+          console.error('[CRM_ERROR]', result.error)
           throw new Error(result.error.message)
         }
         
-        setMentees(Array.isArray(result.data) ? result.data : [])
+        if (result.data !== null) {
+          setMentees(Array.isArray(result.data) ? result.data : [])
+        } else {
+          setMentees([])
+        }
       } catch (error) {
         console.error('[CRM_ERROR] Failed to fetch mentees:', error)
+        setError('Unable to load mentee data. Please try again later.')
         toast.error('Failed to load mentees data')
       } finally {
         setIsLoading(false)
@@ -74,6 +82,24 @@ export function CoachCRMDashboard() {
     return (
       <div className="flex items-center justify-center py-8">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8 gap-4">
+        <div className="text-center">
+          <Activity className="h-12 w-12 text-red-500/50 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold mb-2">Something went wrong</h3>
+          <p className="text-muted-foreground">{error}</p>
+        </div>
+        <Button 
+          variant="outline"
+          onClick={() => window.location.reload()}
+        >
+          Try Again
+        </Button>
       </div>
     )
   }

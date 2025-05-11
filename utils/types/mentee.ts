@@ -8,6 +8,7 @@ export interface BaseProfile {
   languages: string[]
   geographicFocus: any
   primaryMarket: string | null
+  licensedStates: string[]
 }
 
 // Interface for top mentees in coach dashboard
@@ -34,7 +35,6 @@ export interface LoanOfficerProfile extends BaseProfile {
   lenderName: string | null
   branchLocation: string | null
   loanTypes: string[]
-  licensedStates: string[]
 }
 
 export interface InvestorProfile extends BaseProfile {
@@ -52,13 +52,40 @@ export interface PropertyManagerProfile extends BaseProfile {
 export interface TitleEscrowProfile extends BaseProfile {
   type: 'TITLE_OFFICER'
   titleEscrowTypes: string[]
-  licensedStates: string[]
 }
 
 export interface InsuranceProfile extends BaseProfile {
   type: 'INSURANCE'
   insuranceTypes: string[]
-  licensedStates: string[]
+}
+
+// New interface for the restructured domain profile data
+export interface DomainProfileData {
+  ulid: string; // User ULID
+  type: string | null; // e.g., 'REALTOR', 'LOAN_OFFICER', or from User.primaryDomain
+
+  // Fields from User model
+  phoneNumber: string | null;
+  totalYearsRE: number | null; // Corresponds to what was 'yearsExperience' in some old profiles
+  languages: string[];
+  primaryMarket: string | null;
+
+  // Fields that were part of BaseProfile or specific profiles, now potentially absent
+  // UI must handle their absence by showing "Not specified" or similar.
+  companyName?: string | null;
+  licenseNumber?: string | null;
+  specializations?: string[];
+  certifications?: string[];
+  geographicFocus?: any | null; 
+
+  // Domain-specific fields that might be absent or set to default values
+  propertyTypes?: string[]; // e.g., for Realtor
+  nmls?: string | null; // e.g., for LoanOfficer
+  investmentStrategies?: string[]; // e.g., for Investor
+  managerTypes?: string[]; // e.g., for PropertyManager
+  titleEscrowTypes?: string[]; // e.g., for TitleEscrow
+  insuranceTypes?: string[]; // e.g., for Insurance
+  // Add other common fields as optional if they were used across multiple old profiles
 }
 
 export interface MenteeProfile {
@@ -67,7 +94,7 @@ export interface MenteeProfile {
   learningStyle: string | null
   sessionsCompleted: number
   lastSessionDate: string | null
-  activeDomains: string[]
+  isActive: boolean
 }
 
 export interface Note {
@@ -75,7 +102,7 @@ export interface Note {
   content: string
   createdAt: string
   updatedAt: string
-  menteeUlid: string
+  menteeUlid: string | null
   coachUlid: string
 }
 
@@ -99,14 +126,7 @@ export interface Mentee {
   profileImageUrl: string | null
   status: 'ACTIVE' | 'INACTIVE'
   menteeProfile: MenteeProfile | null
-  domainProfile: (
-    | RealtorProfile 
-    | LoanOfficerProfile 
-    | InvestorProfile 
-    | PropertyManagerProfile 
-    | TitleEscrowProfile 
-    | InsuranceProfile
-  ) | null
+  domainProfile: DomainProfileData | null
   notes: Note[]
   sessions: Session[]
 } 

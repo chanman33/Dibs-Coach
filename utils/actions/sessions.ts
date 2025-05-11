@@ -93,6 +93,13 @@ export const fetchCoachSessions = withServerAction<any>(
         capabilities: roleContext?.capabilities || []
       });
       
+      if (!userUlid) {
+        return {
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: 'User not authenticated' }
+        };
+      }
+      
       console.log('[DEBUG_COACH_SESSIONS] Starting fetchCoachSessions', { userUlid })
       
       // Verify the user has coach capability
@@ -263,6 +270,13 @@ export const fetchCoachSessions = withServerAction<any>(
 export const fetchUpcomingSessions = withServerAction<any>(
   async (_, { userUlid, roleContext }) => {
     try {
+      if (!userUlid) {
+        return {
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: 'User not authenticated' }
+        };
+      }
+
       // Verify the user has coach capability
       if (!roleContext.capabilities?.includes('COACH')) {
         return {
@@ -378,6 +392,13 @@ export const fetchUpcomingSessions = withServerAction<any>(
 export const fetchUserSessions = withServerAction<any>(
   async (params, { userUlid, roleContext }) => {
     try {
+      if (!userUlid) {
+        return {
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: 'User not authenticated' }
+        };
+      }
+
       console.log('[DEBUG_USER_SESSIONS] Starting fetchUserSessions', { userUlid, capabilities: roleContext?.capabilities })
       
       const supabase = await createAuthClient()

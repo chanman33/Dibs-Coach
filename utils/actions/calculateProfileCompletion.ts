@@ -60,10 +60,10 @@ export function calculateProfileCompletion(profile: CoachProfileData): {
   canPublish: boolean;
   validationMessages: Record<string, string>;
 } {
-  console.log('[PROFILE_COMPLETION_CALC] Starting calculation with profile:', {
+  /* console.debug('[PROFILE_COMPLETION_CALC] Starting calculation with profile:', {
     ...profile,
     timestamp: new Date().toISOString()
-  });
+  }); */
 
   let totalRequiredWeight = 0;
   let completedRequiredWeight = 0;
@@ -79,14 +79,14 @@ export function calculateProfileCompletion(profile: CoachProfileData): {
     totalRequiredWeight += config.weight;
 
     // Log field check
-    console.log("[PROFILE_FIELD_CHECK]", {
+    /* console.debug("[PROFILE_FIELD_CHECK]", {
       field,
       value: profile[field],
       isComplete: isFieldComplete(field, profile[field]),
       weight: config.weight,
       required: config.required,
       timestamp: new Date().toISOString()
-    });
+    }); */
 
     if (isFieldComplete(field, profile[field])) {
       completedRequiredWeight += config.weight;
@@ -133,7 +133,7 @@ export function calculateProfileCompletion(profile: CoachProfileData): {
   const canPublish = percentage >= PUBLICATION_THRESHOLD && missingRequiredFields.length === 0;
 
   // Log completion result
-  console.log("[PROFILE_COMPLETION_RESULT]", {
+  /* console.log("[PROFILE_COMPLETION_RESULT]", {
     totalRequiredWeight,
     completedRequiredWeight,
     totalOptionalWeight,
@@ -146,7 +146,7 @@ export function calculateProfileCompletion(profile: CoachProfileData): {
     optionalMissingFields,
     canPublish,
     timestamp: new Date().toISOString()
-  });
+  }); */
 
   return {
     percentage,

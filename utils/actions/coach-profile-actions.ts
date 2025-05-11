@@ -102,10 +102,10 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       };
     }
     try {
-      console.log("[FETCH_COACH_PROFILE_START]", {
+      /* console.log("[FETCH_COACH_PROFILE_START]", {
         userUlid,
         timestamp: new Date().toISOString()
-      });
+      }); */
 
       const supabase = await createAuthClient();
 
@@ -204,12 +204,12 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       }
 
       // Log the raw query results for debugging
-      console.log("[FETCH_RECOGNITIONS_QUERY_RESULT]", {
+      /* console.log("[FETCH_RECOGNITIONS_QUERY_RESULT]", {
         userUlid,
         count: recognitionsData?.length || 0,
         data: recognitionsData,
         timestamp: new Date().toISOString()
-      });
+      }); */
 
       // Check for availability schedule
       const { data: availabilitySchedules, error: availabilityError } = await supabase
@@ -232,10 +232,10 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       }
 
       // Filter active recognitions and convert dates
-      console.log("[FETCH_COACH_PROFILE_RECOGNITIONS]", {
+      /* console.log("[FETCH_COACH_PROFILE_RECOGNITIONS]", {
         rawRecognitions: recognitionsData || [],
         timestamp: new Date().toISOString()
-      });
+      }); */
 
       const activeRecognitions = ((recognitionsData || []) as any[])
         .filter(rec => {
@@ -244,7 +244,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           const isVisible = rec.isVisible !== false; // Default to true if not specified
           const status = rec.status || 'ACTIVE'; // Default to ACTIVE if no status
           
-          console.log("[RECOGNITION_FILTER]", {
+          /* console.log("[RECOGNITION_FILTER]", {
             ulid: rec.ulid,
             title: rec.title,
             isVisible,
@@ -252,7 +252,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
             status,
             include: (status === 'ACTIVE' || !rec.status) && isVisible,
             timestamp: new Date().toISOString()
-          });
+          }); */
           
           // Include recognitions that are active AND visible
           return (status === 'ACTIVE' || !rec.status) && isVisible;
@@ -280,7 +280,7 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           } satisfies ProfessionalRecognition;
         });
 
-      console.log("[FETCH_COACH_PROFILE_ACTIVE_RECOGNITIONS]", {
+      /* console.debug("[FETCH_COACH_PROFILE_ACTIVE_RECOGNITIONS]", {
         activeCount: activeRecognitions.length,
         activeRecognitions: JSON.stringify(activeRecognitions, (key, value) => {
           if (value instanceof Date) {
@@ -289,17 +289,17 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
           return value;
         }, 2),
         timestamp: new Date().toISOString()
-      });
+      }); */
 
       // Log the coach profile data for debugging
-      console.log("[PROFILE_FIELD_CHECK]", {
+      /* console.debug("[PROFILE_FIELD_CHECK]", {
         slogan: safeCoachProfile?.slogan,
         coachSkills: safeCoachProfile?.coachSkills,
         coachRealEstateDomains: safeCoachProfile?.coachRealEstateDomains,
         coachPrimaryDomain: safeCoachProfile?.coachPrimaryDomain,
         profileSlug: safeCoachProfile?.profileSlug,
         timestamp: new Date().toISOString()
-      });
+      }); */
 
       const profileData = {
         firstName: userData?.firstName,
@@ -358,11 +358,11 @@ export const fetchCoachProfile = withServerAction<CoachProfileResponse, void>(
       };
 
       // Log the exact status being returned
-      console.log("[FETCH_COACH_PROFILE_RETURN]", {
+      /* console.log("[FETCH_COACH_PROFILE_RETURN]", {
         returnedStatus: responseData.profileStatus,
         fetchedStatus: safeCoachProfile?.profileStatus,
         timestamp: new Date().toISOString()
-      });
+      }); */
 
       return { data: responseData, error: null };
     } catch (error) {

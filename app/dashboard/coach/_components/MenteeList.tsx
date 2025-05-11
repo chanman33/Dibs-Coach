@@ -16,8 +16,8 @@ export function MenteeList({ mentees, searchTerm, selectedMenteeId, onSelectMent
     return (
       mentee.firstName?.toLowerCase().includes(searchLower) ||
       mentee.lastName?.toLowerCase().includes(searchLower) ||
-      mentee.email.toLowerCase().includes(searchLower) ||
-      mentee.domainProfile?.companyName?.toLowerCase().includes(searchLower)
+      mentee.domainProfile?.companyName?.toLowerCase().includes(searchLower) ||
+      mentee.domainProfile?.type?.toLowerCase().includes(searchLower)
     )
   })
 
@@ -41,11 +41,6 @@ export function MenteeList({ mentees, searchTerm, selectedMenteeId, onSelectMent
               alt={`${mentee.firstName} ${mentee.lastName}`}
               className="w-10 h-10 rounded-full"
             />
-            <div 
-              className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background
-                ${mentee.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-400'}
-              `}
-            />
           </div>
           
           <div className="flex-1 min-w-0">
@@ -60,7 +55,8 @@ export function MenteeList({ mentees, searchTerm, selectedMenteeId, onSelectMent
               )}
             </div>
             <p className="text-sm text-muted-foreground truncate">
-              {mentee.domainProfile?.companyName || mentee.email}
+              {mentee.domainProfile?.companyName || 
+               (mentee.domainProfile?.type ? `${mentee.domainProfile.type} Professional` : 'Mentee')}
             </p>
           </div>
         </div>
