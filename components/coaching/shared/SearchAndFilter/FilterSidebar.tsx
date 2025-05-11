@@ -12,7 +12,13 @@ import {
   FileText, 
   Building2,
   Landmark,
-  Briefcase
+  Briefcase,
+  TrendingUp,
+  HeartHandshake,
+  Award,
+  Lightbulb,
+  BarChart,
+  Share2
 } from 'lucide-react';
 import {
   Collapsible,
@@ -22,7 +28,7 @@ import {
 import { FilterSidebarProps, CoachFilters } from './types';
 import { cn } from '@/lib/utils';
 import { ChevronDown, X } from 'lucide-react';
-import { REAL_ESTATE_DOMAINS, ACTIVE_DOMAINS, RealEstateDomain } from '@/utils/types/coach';
+import { REAL_ESTATE_DOMAINS, ACTIVE_DOMAINS, RealEstateDomain, SpecialtyCategory, COACH_SPECIALTIES } from '@/utils/types/coach';
 
 const INDUSTRY_DOMAINS = [
   { label: 'Realtor', value: 'realtor', icon: Home },
@@ -57,6 +63,53 @@ const REAL_ESTATE_DOMAIN_DISPLAY: Record<RealEstateDomain, { label: string, icon
   [REAL_ESTATE_DOMAINS.INSURANCE]: { label: 'Insurance', icon: Briefcase },
 };
 
+// Define skill category icons
+const SKILL_CATEGORY_ICONS: Record<SpecialtyCategory, React.ComponentType<{ className?: string }>> = {
+  BUSINESS_DEVELOPMENT: TrendingUp,
+  BUSINESS_OPERATIONS: Building2,
+  CLIENT_RELATIONS: HeartHandshake,
+  PROFESSIONAL_DEVELOPMENT: Award,
+  MARKET_INNOVATION: Lightbulb,
+  ECONOMIC_MASTERY: BarChart,
+  SOCIAL_MEDIA: Share2,
+  REALTOR: Home,
+  MORTGAGE_OFFICER: Landmark,
+  COMMERCIAL_RE: Building,
+  PROPERTY_MANAGER: LandPlot,
+  INVESTOR: PiggyBank,
+  PRIVATE_CREDIT: FileText,
+  TITLE_ESCROW: Building2,
+};
+
+// Helper to convert category names to display format
+const formatCategoryLabel = (category: string): string => {
+  const baseLabel = category
+    .split('_')
+    .map(word => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(' ');
+
+  // Add "Skills" to real estate domain categories
+  const realEstateDomains = [
+    'REALTOR',
+    'MORTGAGE_OFFICER',
+    'COMMERCIAL_RE',
+    'PROPERTY_MANAGER',
+    'INVESTOR',
+    'PRIVATE_CREDIT',
+    'TITLE_ESCROW'
+  ];
+
+  // Special cases for shorter labels
+  if (category === 'COMMERCIAL_RE') {
+    return 'Commercial Skills';
+  }
+  if (category === 'MORTGAGE_OFFICER') {
+    return 'Mortgage Skills';
+  }
+
+  return realEstateDomains.includes(category) ? `${baseLabel} Skills` : baseLabel;
+};
+
 const PRICE_RANGES = [
   { label: '$50 - $100/hr', value: '50-100', count: 45 },
   { label: '$100 - $200/hr', value: '100-200', count: 38 },
@@ -76,6 +129,7 @@ export function FilterSidebar({
   initialFilters = {},
   className,
   domains,
+  skills = [],
 }: FilterSidebarProps) {
   const [filters, setFilters] = useState<CoachFilters>(initialFilters);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
@@ -83,12 +137,49 @@ export function FilterSidebar({
     realEstateDomains: true, // Real Estate Domains is open by default
     price: false,  // Price is collapsed by default
     rating: false, // Rating is collapsed by default
+    skillCategories: false, // Skill Categories is collapsed by default
   });
 
   // Get active real estate domains
   const activeRealEstateDomains = Object.entries(REAL_ESTATE_DOMAINS)
     .filter(([_, value]) => ACTIVE_DOMAINS[value])
     .map(([_, value]) => value);
+
+  // Get available skill categories
+  const availableSkillCategories = [
+    'BUSINESS_DEVELOPMENT',
+    'BUSINESS_OPERATIONS',
+    'CLIENT_RELATIONS',
+    'PROFESSIONAL_DEVELOPMENT',
+    'MARKET_INNOVATION',
+    'ECONOMIC_MASTERY',
+    'SOCIAL_MEDIA',
+    'REALTOR',
+    'MORTGAGE_OFFICER',
+    'COMMERCIAL_RE',
+    'PROPERTY_MANAGER',
+    'INVESTOR',
+    'PRIVATE_CREDIT',
+    'TITLE_ESCROW'
+  ] as SpecialtyCategory[];
+
+  // Update filters when initialFilters prop changes
+  useEffect(() => {
+    setFilters(initialFilters);
+    // Also update open sections based on what's selected
+    if (initialFilters.skillCategories?.length) {
+      setOpenSections(prev => ({ ...prev, skillCategories: true }));
+    }
+    if (initialFilters.realEstateDomain?.length) {
+      setOpenSections(prev => ({ ...prev, realEstateDomains: true }));
+    }
+    if (initialFilters.priceRange) {
+      setOpenSections(prev => ({ ...prev, price: true }));
+    }
+    if (initialFilters.rating) {
+      setOpenSections(prev => ({ ...prev, rating: true }));
+    }
+  }, [initialFilters]);
 
   useEffect(() => {
     const count = Object.values(filters).reduce((acc, value) => {
@@ -108,6 +199,17 @@ export function FilterSidebar({
     setFilters((prev) => ({
       ...prev,
       realEstateDomain: updatedRealEstateDomains,
+    }));
+  };
+
+  const handleSkillCategoryChange = (checked: boolean, category: SpecialtyCategory) => {
+    const updatedSkillCategories = checked
+      ? [...(filters.skillCategories || []), category]
+      : (filters.skillCategories || []).filter((c) => c !== category);
+
+    setFilters((prev) => ({
+      ...prev,
+      skillCategories: updatedSkillCategories,
     }));
   };
 
@@ -214,6 +316,7 @@ export function FilterSidebar({
       </div>
 
       <div className="space-y-4">
+        {/* Real Estate Domains Filter */}
         <Collapsible
           open={openSections.realEstateDomains}
           className="space-y-2"
@@ -299,6 +402,38 @@ export function FilterSidebar({
                   </div>
                 </button>
               ))}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        {/* Skill Categories Filter - Moved to bottom */}
+        <Collapsible
+          open={openSections.skillCategories}
+          className="space-y-2"
+        >
+          {renderFilterHeader('Skill Categories', 'skillCategories', filters.skillCategories?.length)}
+          <CollapsibleContent className="pt-2">
+            <div className="grid grid-cols-1 gap-1.5">
+              {availableSkillCategories.map((category) => {
+                const Icon = SKILL_CATEGORY_ICONS[category] || Lightbulb;
+                const isSelected = (filters.skillCategories || []).includes(category);
+                const label = formatCategoryLabel(category);
+                
+                return (
+                  <button
+                    key={category}
+                    onClick={() => handleSkillCategoryChange(!isSelected, category)}
+                    className={cn(
+                      "flex items-center w-full px-2 py-1.5 rounded-md text-sm",
+                      "hover:bg-muted/50 transition-colors",
+                      isSelected ? "bg-primary/10 text-primary font-medium" : "text-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4 mr-2 flex-shrink-0" />
+                    <span className="truncate">{label}</span>
+                  </button>
+                );
+              })}
             </div>
           </CollapsibleContent>
         </Collapsible>

@@ -14,6 +14,7 @@ import { Calendar, Clock, Search, Filter, Users, CheckCircle2, XCircle } from "l
 import { format } from 'date-fns'
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from 'next/link'
+import { SessionDetailsModal } from './SessionDetailsModal'
 
 // Status badge colors
 const statusColorMap: Record<string, string> = {
@@ -44,6 +45,8 @@ export function CoachSessionsDashboard() {
   const [filter, setFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTab, setSelectedTab] = useState('upcoming')
+  const [selectedSession, setSelectedSession] = useState<TransformedSession | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
   // Get current timestamp once for all comparisons
   const nowString = useMemo(() => new Date().toISOString(), [])
@@ -169,6 +172,16 @@ export function CoachSessionsDashboard() {
     }, { ...defaultAnalytics }) // Start with a fresh copy of defaultAnalytics
   }, [sessions])
 
+  // Handle view details
+  const handleViewDetails = (session: TransformedSession) => {
+    setSelectedSession(session)
+    setIsModalOpen(true)
+  }
+  
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+  }
+
   if (isLoading) {
     return <SessionsLoadingSkeleton />
   }
@@ -270,12 +283,23 @@ export function CoachSessionsDashboard() {
               </div>
             ) : (
               filteredSessions.map((session) => (
-                <SessionCard key={session.ulid} session={session} />
+                <SessionCard 
+                  key={session.ulid} 
+                  session={session} 
+                  onViewDetails={handleViewDetails}
+                />
               ))
             )}
           </div>
         </CardContent>
       </Card>
+      
+      {/* Session Details Modal */}
+      <SessionDetailsModal 
+        session={selectedSession} 
+        isOpen={isModalOpen} 
+        onClose={handleCloseModal} 
+      />
     </div>
   )
 }
@@ -320,9 +344,10 @@ function AnalyticsCard({ title, value, icon, percentage, badgeText, badgeColor, 
  */
 interface SessionCardProps {
   session: TransformedSession
+  onViewDetails: (session: TransformedSession) => void
 }
 
-function SessionCard({ session }: SessionCardProps) {
+function SessionCard({ session, onViewDetails }: SessionCardProps) {
   const mentee = session.otherParty
   const menteeName = [mentee.firstName, mentee.lastName].filter(Boolean).join(' ') || 'Unknown Mentee'
   const statusColor = statusColorMap[session.status] || 'bg-gray-500'
@@ -358,18 +383,14 @@ function SessionCard({ session }: SessionCardProps) {
                     </a>
                   </Button>
                 )}
-                <Button size="sm" asChild>
-                  <Link href={`/dashboard/coach/sessions/${session.ulid}`}>
-                    View Details
-                  </Link>
+                <Button size="sm" onClick={() => onViewDetails(session)}>
+                  View Details
                 </Button>
               </>
             )}
             {session.status !== 'SCHEDULED' && (
-              <Button size="sm" variant="outline" asChild>
-                <Link href={`/dashboard/coach/sessions/${session.ulid}`}>
-                  View Details
-                </Link>
+              <Button size="sm" variant="outline" onClick={() => onViewDetails(session)}>
+                View Details
               </Button>
             )}
           </div>

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { FilterSidebar, SearchBar } from '@/components/coaching/shared/SearchAndFilter'
 import { CoachCard } from '../shared/CoachCard'
 import { Categories } from '../shared/Categories'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CoachProfileModal } from '@/components/coach-profile/CoachProfileModal'
@@ -12,7 +12,15 @@ import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { useBrowseCoaches } from '@/utils/hooks/useBrowseCoaches'
 import { BrowseCoachData } from '@/utils/types/browse-coaches'
 import { CoachFilters } from '@/components/coaching/shared/SearchAndFilter/types'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { COACH_SPECIALTIES, SpecialtyCategory } from '@/utils/types/coach'
+
+// Define focus area to skill category mappings
+const FOCUS_TO_CATEGORIES: Record<string, SpecialtyCategory[]> = {
+  'sales': ['BUSINESS_DEVELOPMENT'],
+  'marketing': ['MARKET_INNOVATION', 'SOCIAL_MEDIA'],
+  'investing': ['INVESTOR']
+};
 
 export interface BrowseCoachesProps {
   role: keyof typeof USER_CAPABILITIES;
@@ -29,18 +37,44 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
     handleSearch,
   } = useBrowseCoaches({ role, isSignedIn });
 
+  const searchParams = useSearchParams();
+  const focusParam = searchParams.get('focus');
+  
   const [selectedCoach, setSelectedCoach] = useState<BrowseCoachData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filters, setFilters] = useState<CoachFilters>({});
   const router = useRouter();
 
-  // Filtering logic for all three filters
+  // Set initial filters based on focus parameter
+  useEffect(() => {
+    if (focusParam && FOCUS_TO_CATEGORIES[focusParam]) {
+      setFilters(prev => ({
+        ...prev,
+        skillCategories: FOCUS_TO_CATEGORIES[focusParam]
+      }));
+    }
+  }, [focusParam]);
+
+  // Filtering logic for coaches
   const filterCoaches = (coaches: BrowseCoachData[]) => {
     return coaches.filter(coach => {
       // Real Estate Domain filter
       const domainMatch = !filters.realEstateDomain || filters.realEstateDomain.length === 0
         ? true
         : filters.realEstateDomain.some(domain => coach.coachRealEstateDomains?.includes(domain));
+
+      // Skill Categories filter - matches coaches who have ANY skill from the selected categories
+      // This allows users to filter coaches by broader skill areas rather than specific skills
+      const skillCategoriesMatch = !filters.skillCategories || filters.skillCategories.length === 0
+        ? true
+        : filters.skillCategories.some(category => 
+            COACH_SPECIALTIES[category]?.some((skill: string) => coach.coachSkills?.includes(skill))
+          );
+
+      // Individual Coach Skills filter (keeping for backward compatibility)
+      const skillsMatch = !filters.coachSkills || filters.coachSkills.length === 0
+        ? true
+        : filters.coachSkills.some(skill => coach.coachSkills?.includes(skill));
 
       // Price Range filter
       const priceMatch = !filters.priceRange
@@ -52,7 +86,7 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
         ? true
         : (coach.averageRating ?? 0) >= filters.rating;
 
-      return domainMatch && priceMatch && ratingMatch;
+      return domainMatch && skillCategoriesMatch && skillsMatch && priceMatch && ratingMatch;
     });
   };
 
@@ -197,6 +231,7 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
             <CardContent className="pt-4">
               <FilterSidebar
                 onFiltersChange={handleFiltersChange}
+                initialFilters={filters}
                 domains={allSpecialties.map(specialty => ({
                   label: specialty,
                   value: specialty
@@ -205,7 +240,7 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
             </CardContent>
           </Card>
 
-          {/* Remove Categories for now, or refactor if needed */}
+          {/* Categories component has been replaced by the coachSkills filter in FilterSidebar and can be removed */}
         </div>
         
         <div className="lg:col-span-3">

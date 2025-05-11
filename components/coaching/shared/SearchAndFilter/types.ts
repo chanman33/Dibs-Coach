@@ -1,5 +1,5 @@
 import { LucideIcon } from 'lucide-react';
-import { RealEstateDomain } from '@/utils/types/coach';
+import { RealEstateDomain, SpecialtyCategory } from '@/utils/types/coach';
 
 export interface FilterOption {
   label: string;
@@ -16,6 +16,8 @@ export interface CoachFilters {
     max: number;
   };
   rating?: number;
+  coachSkills?: string[];
+  skillCategories?: SpecialtyCategory[];
 }
 
 export interface SearchBarProps {
@@ -30,6 +32,7 @@ export interface FilterSidebarProps {
   initialFilters?: CoachFilters;
   className?: string;
   domains?: FilterOption[];
+  skills?: FilterOption[];
 }
 
 export type FilterChangeHandler = (filters: CoachFilters) => void;

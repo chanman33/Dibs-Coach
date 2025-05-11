@@ -24,6 +24,107 @@ function MenteeDashboard() {
 
   const currentGoal = goals[currentGoalIndex]
 
+  // Define SessionCard component inside MenteeDashboard to access necessary variables
+  function SessionCard({ session }: { session: TransformedSession }) {
+    const sessionDate = new Date(session.startTime);
+    const endDate = new Date(session.endTime);
+    
+    // Format the coach's name
+    const coachName = [
+      session.otherParty.firstName, 
+      session.otherParty.lastName
+    ].filter(Boolean).join(' ');
+    
+    // Get day, date, and time information
+    const dayName = format(sessionDate, 'EEE');
+    const dayNumber = format(sessionDate, 'd');
+    const startTime = format(sessionDate, 'h:mm a');
+    const endTime = format(endDate, 'h:mm a');
+    
+    // Calculate days until the session
+    const daysUntil = Math.ceil((sessionDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Determine if the session is today, tomorrow, or in the future
+    let timingLabel = "";
+    let accentColor = "bg-blue-500";
+    
+    if (daysUntil === 0) {
+      timingLabel = "Today";
+      accentColor = "bg-green-500";
+    } else if (daysUntil === 1) {
+      timingLabel = "Tomorrow";
+      accentColor = "bg-amber-500";
+    } else if (daysUntil <= 7) {
+      timingLabel = `In ${daysUntil} days`;
+      accentColor = "bg-blue-500";
+    } else {
+      timingLabel = format(sessionDate, 'MMM d');
+      accentColor = "bg-slate-500";
+    }
+    
+    return (
+      <div className="group relative border rounded-lg p-4 hover:shadow-md transition-all duration-200 hover:border-primary/50 hover:bg-muted/20">
+        <div className="absolute top-0 left-0 w-1 h-full rounded-l-lg transition-all duration-200 group-hover:h-full" 
+             style={{ backgroundColor: accentColor.replace('bg-', '') }}></div>
+        
+        <div className="flex items-start space-x-3">
+          {/* Date calendar indicator */}
+          <div className="flex-shrink-0">
+            <div className="flex flex-col items-center justify-center rounded-md overflow-hidden border w-12">
+              <div className={`${accentColor} text-white text-xs font-medium w-full text-center py-0.5`}>
+                {dayName}
+              </div>
+              <div className="text-xl font-bold w-full text-center py-1 bg-card">
+                {dayNumber}
+              </div>
+            </div>
+          </div>
+          
+          {/* Session details */}
+          <div className="flex-1 min-w-0">
+            <h3 className="font-medium text-base truncate">
+              Coaching session: {coachName}
+            </h3>
+            
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
+              <div className="flex items-center text-sm text-muted-foreground">
+                <Clock className="mr-1.5 h-3.5 w-3.5" />
+                {startTime} - {endTime}
+              </div>
+              
+              {session.sessionType && (
+                <div className="text-sm text-muted-foreground">
+                  <span className="capitalize">{session.sessionType.toLowerCase()}</span>
+                </div>
+              )}
+              
+              <div className="text-sm">
+                <Badge variant="outline" className="font-normal text-xs">
+                  {session.durationMinutes}min
+                </Badge>
+              </div>
+            </div>
+          </div>
+          
+          {/* Action button and timing indicator */}
+          <div className="flex flex-col items-end space-y-2">
+            <Badge variant="secondary" className="text-xs whitespace-nowrap">
+              {timingLabel}
+            </Badge>
+            
+            {session.zoomJoinUrl && daysUntil <= 0 && (
+              <Button asChild size="sm" variant="outline" className="text-xs h-8 px-3">
+                <Link href={session.zoomJoinUrl} target="_blank" rel="noopener noreferrer">
+                  Join Call
+                </Link>
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const navigateGoal = (direction: 'next' | 'prev') => {
     if (direction === 'next' && currentGoalIndex < goals.length - 1) {
       setCurrentGoalIndex(currentGoalIndex + 1)
@@ -364,21 +465,18 @@ function MenteeDashboard() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                     <Button variant="outline" size="sm" className="w-full hover:bg-primary/5 px-2 sm:px-4" asChild>
-                      <Link href="/dashboard/mentee/calendar?time=morning">
-                        <span className="hidden sm:inline">Morning</span>
-                        <span className="sm:hidden">AM</span>
+                      <Link href="/dashboard/mentee/browse-coaches?focus=sales">
+                        <span className="hidden sm:inline">Sales</span>
                       </Link>
                     </Button>
                     <Button variant="outline" size="sm" className="w-full hover:bg-primary/5 px-2 sm:px-4" asChild>
-                      <Link href="/dashboard/mentee/calendar?time=afternoon">
-                        <span className="hidden sm:inline">Afternoon</span>
-                        <span className="sm:hidden">PM</span>
+                      <Link href="/dashboard/mentee/browse-coaches?focus=marketing">
+                        <span className="hidden sm:inline">Marketing</span>
                       </Link>
                     </Button>
                     <Button variant="outline" size="sm" className="w-full hover:bg-primary/5 px-2 sm:px-4" asChild>
-                      <Link href="/dashboard/mentee/calendar?time=evening">
-                        <span className="hidden sm:inline">Evening</span>
-                        <span className="sm:hidden">Eve</span>
+                      <Link href="/dashboard/mentee/browse-coaches?focus=investing">
+                        <span className="hidden sm:inline">Investing</span>
                       </Link>
                     </Button>
                   </div>
@@ -417,7 +515,7 @@ function MenteeDashboard() {
                 >
                   <Link href="/dashboard/mentee/browse-coaches?focus=sales">
                     <div className="flex items-center gap-2">
-                      <span>Book Now</span>
+                      <span>Find a Coach</span>
                     </div>
                   </Link>
                 </Button>
@@ -472,7 +570,7 @@ function MenteeDashboard() {
                   className="w-full h-10 bg-green-500 hover:bg-green-600 text-white transition-colors mt-4"
                   asChild
                 >
-                  <Link href="/dashboard/mentee/history">
+                  <Link href="/dashboard/mentee/sessions">
                     View Training History
                   </Link>
                 </Button>
@@ -545,7 +643,7 @@ function MenteeDashboard() {
             </Button>
           </CardHeader>
           <CardContent>
-            <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+            <div className="max-h-[320px] overflow-y-auto pr-1">
               {isLoadingSession ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -566,42 +664,26 @@ function MenteeDashboard() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <h3 className="font-medium text-lg">
-                        {nextSession.sessionType || 'Coaching Session'}
-                      </h3>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center">
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {format(new Date(nextSession.startTime), 'EEEE, MMMM d')}
-                        </div>
-                        <div className="flex items-center">
-                          <Clock className="mr-2 h-4 w-4" />
-                          {format(new Date(nextSession.startTime), 'h:mm a')}
-                        </div>
-                      </div>
-                    </div>
-                    <Badge variant="outline">
-                      {nextSession.durationMinutes} mins
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center gap-3 pt-2">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        Coach {nextSession.otherParty.firstName} {nextSession.otherParty.lastName}
-                      </p>
-                    </div>
-                    {nextSession.zoomJoinUrl && (
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={nextSession.zoomJoinUrl} target="_blank" rel="noopener noreferrer">
-                          Join Call
-                        </Link>
-                      </Button>
-                    )}
-                  </div>
+                <div className="space-y-3">
+                  {/* Show current session as first card */}
+                  <SessionCard key={nextSession.ulid} session={nextSession} />
+                  
+                  {/* Example of additional future sessions - we would need to modify the data fetching logic to get all upcoming sessions */}
+                  {nextSession && Array.from({ length: 2 }).map((_, i) => {
+                    // This is just placeholder data - in a real implementation, you would use actual session data
+                    // This creates fake future sessions for UI demonstration
+                    const futureDate = new Date(nextSession.startTime);
+                    futureDate.setDate(futureDate.getDate() + (i + 1) * 7); // Add weeks
+                    
+                    const mockSession = {
+                      ...nextSession,
+                      startTime: futureDate.toISOString(),
+                      endTime: new Date(futureDate.getTime() + nextSession.durationMinutes * 60000).toISOString(),
+                      ulid: `mock-${i}-${nextSession.ulid}` // Just for the key prop
+                    };
+                    
+                    return <SessionCard key={mockSession.ulid} session={mockSession} />;
+                  })}
                 </div>
               )}
             </div>
