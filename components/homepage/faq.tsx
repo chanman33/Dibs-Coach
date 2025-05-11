@@ -21,46 +21,28 @@ export function FAQ() {
                 <AccordionItem value="item-1">
                     <AccordionTrigger>How does the pay-as-you-go pricing work?</AccordionTrigger>
                     <AccordionContent>
-                        With our free tier, you can book individual coaching sessions at $149 per session. There's no subscription required - simply pay for the sessions you want. You'll also get limited access to our AI tools, including 3 AI listing generations per month.
+                        There's no subscription required - simply pay for the sessions you want. Coaches are paid directly by you. They set their own rates.
                     </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="item-2">
-                    <AccordionTrigger>What AI tools are included with subscriptions?</AccordionTrigger>
-                    <AccordionContent>
-                        Subscribers get access to our full suite of AI tools: AI listing generator for compelling property descriptions, AI email assistant for client communications, AI voicemail bot for lead management, and AI social media machine for content creation. The specific features and usage limits vary by plan.
-                    </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="item-3">
                     <AccordionTrigger>How are coaching sessions conducted?</AccordionTrigger>
                     <AccordionContent>
-                        Coaching sessions are conducted virtually through our integrated video platform. Each session is one-on-one with your chosen coach and typically lasts 45-60 minutes. You can schedule sessions at times that work best for you through our booking system.
+                        Coaching sessions are conducted virtually through our integrated video platform. Each session is one-on-one with your chosen coach and typically lasts 30-60 minutes. You can schedule sessions at times that work best for you through our booking system.
                     </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="item-4">
-                    <AccordionTrigger>What's the difference between subscription tiers?</AccordionTrigger>
+                    <AccordionTrigger>Can I switch coaches anytime? Are there any restrictions?</AccordionTrigger>
                     <AccordionContent>
-                        We offer two main options: a Free tier that lets you pay-as-you-go for individual coaching sessions, and our Team & Enterprise solution for brokerages and real estate teams. The Free tier gives you access to book individual sessions at standard rates, while the Team & Enterprise option includes custom coaching programs, volume-based session pricing, and dedicated support for your entire team.
+                        Yes! You can switch coaches at any time to find the best fit for your needs. 
                     </AccordionContent>
                 </AccordionItem>
                 <AccordionItem value="item-5">
-                    <AccordionTrigger>Can I switch coaches or cancel my subscription?</AccordionTrigger>
+                    <AccordionTrigger>Do you offer team or brokerage-wide solutions?</AccordionTrigger>
                     <AccordionContent>
-                        Yes! You can switch coaches at any time to find the best fit for your needs. Subscriptions can be canceled or modified monthly. For annual plans, you'll continue to have access until the end of your billing period.
+                        Yes! Our Elite Brokerage tier is designed for teams and brokerages. It includes custom coaching programs, volume-based session pricing, and team analytics. Contact us for custom pricing based on your team's size and needs.
                     </AccordionContent>
                 </AccordionItem>
-                <AccordionItem value="item-6">
-                    <AccordionTrigger>What makes your AI tools different from others?</AccordionTrigger>
-                    <AccordionContent>
-                        Our AI tools are specifically trained for real estate professionals and integrate seamlessly with your coaching experience. They're designed to automate routine tasks while maintaining a personal touch, and they're continuously updated based on industry best practices and coach feedback.
-                    </AccordionContent>
-                </AccordionItem>
-                <AccordionItem value="item-7">
-                    <AccordionTrigger>Do you offer team or brokerage solutions?</AccordionTrigger>
-                    <AccordionContent>
-                        Yes! Our Elite Brokerage tier is designed for teams and brokerages. It includes custom coaching programs, volume-based session pricing, white-labeled AI tools, and team analytics. Contact us for custom pricing based on your team's size and needs.
-                    </AccordionContent>
-                </AccordionItem>
-            </Accordion>
-        </div>
+            </Accordion >
+        </div >
     )
 }
