@@ -188,8 +188,8 @@ export async function createDefaultEventTypes(
         maxParticipants: 1,
         discountPercentage: null,
         locations: [{ type: 'link', link: 'https://dibs.coach/call/session', public: true }],
-        beforeEventBuffer: 5,
-        afterEventBuffer: 5,
+        beforeEventBuffer: 0,
+        afterEventBuffer: 0,
         minimumBookingNotice: 60,
         metadata: { isRequired: true }
       },
@@ -204,8 +204,8 @@ export async function createDefaultEventTypes(
         maxParticipants: 1,
         discountPercentage: null,
         locations: [{ type: 'link', link: 'https://dibs.coach/call/session', public: true }],
-        beforeEventBuffer: 5,
-        afterEventBuffer: 5,
+        beforeEventBuffer: 0,
+        afterEventBuffer: 0,
         minimumBookingNotice: 240,
         metadata: { isRequired: true }
       },
@@ -220,8 +220,8 @@ export async function createDefaultEventTypes(
         maxParticipants: 1,
         discountPercentage: null,
         locations: [{ type: 'link', link: 'https://dibs.coach/call/session', public: true }],
-        beforeEventBuffer: 5,
-        afterEventBuffer: 5,
+        beforeEventBuffer: 0,
+        afterEventBuffer: 0,
         minimumBookingNotice: 60,
         metadata: { isRequired: false }
       }

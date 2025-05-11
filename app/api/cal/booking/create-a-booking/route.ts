@@ -7,7 +7,7 @@ import { generateUlid } from '@/utils/ulid';
 
 // Schema for validating request body
 const CreateBookingSchema = z.object({
-  eventTypeId: z.number(),
+  eventTypeId: z.string(),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
   attendeeName: z.string(),
@@ -57,11 +57,48 @@ export async function POST(request: Request) {
     
     // Get the coach's ID from the event type
     const supabase = createAuthClient();
-    const { data: eventType, error: eventTypeError } = await supabase
-      .from('CalEventType')
-      .select('calendarIntegrationUlid')
-      .eq('calEventTypeId', bookingData.eventTypeId)
+    
+    // First, get the user's ULID from the User table using the Clerk ID
+    const { data: userData, error: userError } = await supabase
+      .from('User')
+      .select('ulid')
+      .eq('userId', userId)
       .single();
+    
+    if (userError || !userData) {
+      console.error('[CREATE_BOOKING_ERROR] Failed to find user', {
+        clerkUserId: userId,
+        error: userError
+      });
+      return NextResponse.json({ 
+        success: false, 
+        error: 'User not found in database' 
+      }, { status: 404 });
+    }
+    
+    // Now we have the proper ULID for the user
+    const userUlid = userData.ulid;
+    
+    // Log user information for debugging
+    console.log('[CREATE_BOOKING] User info', {
+      clerkUserId: userId,
+      userUlid,
+      userUlidLength: userUlid.length
+    });
+    
+    // Fetch the event type - could be identified by either ulid (string) or calEventTypeId (number)
+    let eventTypeQuery = supabase.from('CalEventType').select('ulid, calEventTypeId, calendarIntegrationUlid');
+    
+    // Check if the eventTypeId is a numeric string (likely a Cal.com event type ID)
+    if (/^\d+$/.test(bookingData.eventTypeId)) {
+      // If numeric, try to find by calEventTypeId
+      eventTypeQuery = eventTypeQuery.eq('calEventTypeId', parseInt(bookingData.eventTypeId));
+    } else {
+      // Otherwise, try to find by ulid
+      eventTypeQuery = eventTypeQuery.eq('ulid', bookingData.eventTypeId);
+    }
+    
+    const { data: eventType, error: eventTypeError } = await eventTypeQuery.single();
       
     if (eventTypeError || !eventType) {
       console.error('[CREATE_BOOKING_ERROR] Event type not found', {
@@ -73,6 +110,17 @@ export async function POST(request: Request) {
         error: 'Event type not found' 
       }, { status: 404 });
     }
+    
+    // Log the event type details for debugging
+    console.log('[CREATE_BOOKING] Found event type', {
+      eventTypeUlid: eventType.ulid,
+      eventTypeUlidLength: eventType.ulid ? eventType.ulid.length : 0,
+      calEventTypeId: eventType.calEventTypeId,
+      calendarIntegrationUlid: eventType.calendarIntegrationUlid
+    });
+    
+    // Use calEventTypeId for the Cal.com API request
+    const calEventTypeId = eventType.calEventTypeId;
     
     // Get the coach's Cal.com integration
     const { data: calIntegration, error: calIntegrationError } = await supabase
@@ -114,32 +162,36 @@ export async function POST(request: Request) {
     const bookingRescheduledUrl = `${process.env.NEXT_PUBLIC_APP_URL}/booking/booking-rescheduled`;
     const bookingCancelledUrl = `${process.env.NEXT_PUBLIC_APP_URL}/booking/booking-cancelled`;
     
-    // Create the booking through Cal.com API
+    // Format the request based on the new Cal.com API format
+    const calRequestBody = {
+      start: bookingData.startTime,
+      attendee: {
+        name: bookingData.attendeeName,
+        email: bookingData.attendeeEmail,
+        timeZone: bookingData.timeZone,
+        language: 'en'
+      },
+      eventTypeId: calEventTypeId,
+      location: 'link', // Default to link for online meetings
+      bookingFieldsResponses: {
+        'session-topic': bookingData.notes || bookingData.customInputs?.['session-topic'] || ''
+      },
+      // Metadata for our system
+      metadata: {
+        userUlid: userId,
+        coachUlid: coachUlid
+      }
+    };
+    
+    // Create the booking through Cal.com API with the exact headers specified
     const calResponse = await fetch('https://api.cal.com/v2/bookings', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${accessToken}`,
+        'cal-api-version': '2024-08-13'
       },
-      body: JSON.stringify({
-        eventTypeId: bookingData.eventTypeId,
-        start: bookingData.startTime,
-        end: bookingData.endTime,
-        name: bookingData.attendeeName,
-        email: bookingData.attendeeEmail,
-        timeZone: bookingData.timeZone,
-        language: 'en',
-        notes: bookingData.notes || '',
-        customInputs: bookingData.customInputs || {},
-        metadata: {
-          userUlid: userId,
-          coachUlid: coachUlid
-        },
-        // Redirect URLs
-        bookingRedirectUrl: bookingSuccessUrl,
-        rescheduleRedirectUrl: bookingRescheduledUrl,
-        cancellationRedirectUrl: bookingCancelledUrl
-      })
+      body: JSON.stringify(calRequestBody)
     });
     
     if (!calResponse.ok) {
@@ -157,10 +209,10 @@ export async function POST(request: Request) {
     
     const calData = await calResponse.json();
     console.log('[CREATE_BOOKING] Cal.com booking created successfully', {
-      bookingUid: calData.booking?.uid
+      bookingUid: calData.data?.uid
     });
     
-    if (!calData.booking?.uid) {
+    if (!calData.data?.uid) {
       return NextResponse.json({ 
         success: false, 
         error: 'Cal.com API response missing booking UID' 
@@ -169,42 +221,120 @@ export async function POST(request: Request) {
     
     // Store the booking in our database
     const bookingUlid = generateUlid();
+    const sessionUlid = generateUlid();
     const now = new Date().toISOString();
     
-    const { error: createBookingError } = await supabase
-      .from('CalBooking')
-      .insert({
+    // Get the booking details from Cal.com response
+    const calBooking = calData.data;
+    
+    // Log the generated ULIDs for debugging
+    console.log('[CREATE_BOOKING] Generated ULIDs for database insertion', {
+      bookingUlid,
+      bookingUlidLength: bookingUlid.length,
+      sessionUlid,
+      sessionUlidLength: sessionUlid.length,
+      calBookingUid: calBooking.uid,
+      calBookingUidLength: calBooking.uid.length
+    });
+    
+    // First, create the CalBooking record
+    try {
+      // Verify fields match expected formats before insertion
+      const bookingInsertData = {
         ulid: bookingUlid,
-        userUlid: userId,
-        calBookingUid: calData.booking.uid,
-        title: calData.booking.title || 'Coaching Session',
-        description: calData.booking.description || '',
+        userUlid: userUlid,
+        // Use a different field name for the Cal booking UID to match schema expectations
+        calBookingUid: calBooking.uid,
+        title: calBooking.title || 'Coaching Session',
+        description: calBooking.description || '',
         startTime: bookingData.startTime,
         endTime: bookingData.endTime,
         attendeeEmail: bookingData.attendeeEmail,
         attendeeName: bookingData.attendeeName,
         allAttendees: bookingData.attendeeEmail, // Single attendee for now
-        status: 'CONFIRMED',
+        status: 'CONFIRMED' as const, // Use literal type to match enum
         metadata: {
-          calEventTypeId: bookingData.eventTypeId,
+          calEventTypeId: calEventTypeId,
           notes: bookingData.notes,
           customInputs: bookingData.customInputs,
           coachUlid
         },
         createdAt: now,
         updatedAt: now
+      };
+      
+      // Log the exact data being inserted
+      console.log('[CREATE_BOOKING] CalBooking insert data', {
+        ...bookingInsertData,
+        metadata: JSON.stringify(bookingInsertData.metadata)
       });
       
-    if (createBookingError) {
-      console.error('[CREATE_BOOKING_ERROR] Failed to store booking in database', {
-        error: createBookingError,
-        bookingUid: calData.booking.uid
+      const { error: createBookingError } = await supabase
+        .from('CalBooking')
+        .insert(bookingInsertData);
+        
+      if (createBookingError) {
+        console.error('[CREATE_BOOKING_ERROR] Failed to store booking in database', {
+          error: createBookingError,
+          bookingUid: calBooking.uid
+        });
+        // Continue even if DB storage fails - the webhook will attempt to create it later
+      } else {
+        console.log('[CREATE_BOOKING] Successfully created CalBooking record', { bookingUlid });
+      }
+    } catch (error) {
+      console.error('[CREATE_BOOKING_ERROR] Exception during CalBooking insert', {
+        error,
+        bookingUlid,
+        calBookingUid: calBooking.uid
       });
-      // Continue even if DB storage fails - the webhook will attempt to create it later
+      // Continue even if DB storage fails
+    }
+    
+    // Now create the Session record
+    try {
+      const sessionInsertData = {
+        ulid: sessionUlid,
+        menteeUlid: userUlid,
+        coachUlid: coachUlid,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime,
+        status: 'SCHEDULED' as const, // Use literal type to match enum
+        sessionType: 'MANAGED' as const, // Use literal type to match enum
+        calBookingUlid: bookingUlid,
+        calEventTypeUlid: eventType.ulid && eventType.ulid.length <= 26 ? eventType.ulid : null,
+        createdAt: now,
+        updatedAt: now
+      };
+      
+      // Log the exact data being inserted
+      console.log('[CREATE_BOOKING] Session insert data', sessionInsertData);
+      
+      const { error: createSessionError } = await supabase
+        .from('Session')
+        .insert(sessionInsertData);
+      
+      if (createSessionError) {
+        console.error('[CREATE_BOOKING_ERROR] Failed to create session record', {
+          error: createSessionError,
+          bookingUid: calBooking.uid,
+          calBookingUlid: bookingUlid
+        });
+        // Continue anyway - we'll handle this in webhook or background job
+      } else {
+        console.log('[CREATE_BOOKING] Successfully created Session record', { sessionUlid });
+      }
+    } catch (error) {
+      console.error('[CREATE_BOOKING_ERROR] Exception during Session insert', {
+        error,
+        sessionUlid,
+        bookingUlid
+      });
+      // Continue anyway - we'll handle this in webhook or background job
     }
     
     // Get 'Add to Calendar' links for the booking
-    const calendarLinksResponse = await fetch(`https://api.cal.com/v2/bookings/${calData.booking.uid}/calendar-links`, {
+    const calendarLinksResponse = await fetch(`https://api.cal.com/v2/bookings/${calBooking.uid}/calendar-links`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
@@ -219,7 +349,7 @@ export async function POST(request: Request) {
     } else {
       console.error('[CREATE_BOOKING_WARNING] Failed to get calendar links', {
         status: calendarLinksResponse.status,
-        bookingUid: calData.booking.uid
+        bookingUid: calBooking.uid
       });
     }
     
@@ -229,8 +359,8 @@ export async function POST(request: Request) {
       data: {
         booking: {
           id: bookingUlid,
-          calBookingUid: calData.booking.uid,
-          title: calData.booking.title,
+          calBookingUid: calBooking.uid,
+          title: calBooking.title,
           startTime: bookingData.startTime,
           endTime: bookingData.endTime,
           attendeeName: bookingData.attendeeName,

@@ -24,6 +24,7 @@ import {
   formatUtcDateInTimezone
 } from '@/utils/timezone-utils';
 import { getCoachEventTypes } from "@/utils/actions/coach-event-types";
+import { useUser } from '@clerk/nextjs';
 
 export interface BusyTime {
   start: string;
@@ -43,6 +44,7 @@ export function useBookingUI() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createClientComponentClient();
+  const { user, isLoaded: isUserLoaded } = useUser();
   
   // Get coach identifiers from URL
   const coachId = searchParams.get("coachId") || undefined;
@@ -750,65 +752,76 @@ export function useBookingUI() {
     setIsBooking(true);
     
     try {
-      // --- TEST MODE --- //
-      // In development, we mock the booking creation
-      console.log("[DEBUG][BOOKING] Creating booking in test mode", {
+      // Check if user is authenticated using Clerk
+      if (!isUserLoaded || !user || !user.emailAddresses || user.emailAddresses.length === 0) {
+        throw new Error("User information not available. Please sign in again.");
+      }
+      
+      // Get the primary email
+      const primaryEmail = user.emailAddresses[0].emailAddress;
+      const userTimezone = getUserTimezone();
+      
+      console.log("[BOOKING] Creating booking through API", {
         coachId: actualCoachId,
         startTime: selectedTimeSlot.startTime.toISOString(),
-        endTime: selectedTimeSlot.endTime.toISOString(),
         eventTypeId: selectedEventTypeId,
-        eventTypeName: selectedEventType?.title || selectedEventType?.name,
-        eventTypeDuration,
-        sessionTopic: sessionTopic || 'No topic provided'
+        userEmail: primaryEmail
       });
       
-      // Simulate a delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Create booking through our backend API that will handle Cal.com integration
+      const response = await fetch('/api/cal/booking/create-a-booking', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventTypeId: selectedEventTypeId,
+          startTime: selectedTimeSlot.startTime.toISOString(),
+          endTime: selectedTimeSlot.endTime.toISOString(),
+          attendeeName: user.fullName || primaryEmail,
+          attendeeEmail: primaryEmail,
+          timeZone: userTimezone,
+          notes: sessionTopic || '',
+          customInputs: {
+            'session-topic': sessionTopic || 'No topic provided'
+          }
+        })
+      });
       
-      // Show success message
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create booking');
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create booking');
+      }
+      
+      // Success!
       toast({
-        title: "Booking confirmed! (Test Mode)",
-        description: "Your session has been booked successfully in test mode.",
+        title: "Booking confirmed!",
+        description: "Your session has been booked successfully.",
         variant: "default"
       });
       
-      // Redirect to a success page or dashboard
-      router.push("/dashboard/mentee/sessions");
+      // Determine where to redirect based on user capabilities
+      const { data: userResponse } = await supabase
+        .from('User')
+        .select('isCoach, isMentee')
+        .eq('userId', user.id)
+        .single();
       
-      // --- PRODUCTION MODE (Uncomment when ready) --- //
-      // const result = await createBooking({
-      //   coachId: actualCoachId,
-      //   startTime: selectedTimeSlot.startTime.toISOString(),
-      //   endTime: selectedTimeSlot.endTime.toISOString(),
-      //   eventTypeId: parseInt(selectedEventTypeId, 10),
-      //   duration: eventTypeDuration,
-      //   sessionTopic: sessionTopic
-      // });
-      // 
-      // if (result.error) {
-      //   console.error("[BOOKING_ERROR]", {
-      //     error: result.error,
-      //     timestamp: new Date().toISOString()
-      //   });
-      //   
-      //   toast({
-      //     title: "Booking failed",
-      //     description: result.error.message || "There was a problem creating your booking. Please try again.",
-      //     variant: "destructive"
-      //   });
-      //   
-      //   return;
-      // }
-      // 
-      // // Success!
-      // toast({
-      //   title: "Booking confirmed!",
-      //   description: "Your session has been booked successfully.",
-      //   variant: "default"
-      // });
-      // 
-      // // Redirect to the booking details or dashboard
-      // router.push("/dashboard/mentee/sessions");
+      let redirectPath = "/dashboard/mentee/sessions";
+      
+      // Check if the user is a coach
+      if (userResponse?.isCoach) {
+        redirectPath = "/dashboard/coach/sessions";
+      }
+      
+      // Redirect to the session detail page if available
+      router.push(redirectPath);
     } catch (error) {
       console.error("[BOOKING_ERROR]", {
         error,
@@ -817,7 +830,7 @@ export function useBookingUI() {
       
       toast({
         title: "Booking failed",
-        description: "An unexpected error occurred. Please try again.",
+        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
         variant: "destructive"
       });
     } finally {

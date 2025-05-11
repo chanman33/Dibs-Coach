@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { TimeSlot } from "@/utils/types/booking";
 import { Clock, Loader2 } from "lucide-react";
@@ -118,13 +117,6 @@ export function BookingSummary({
             This helps your coach prepare for the session
           </p>
         </div>
-
-        <Alert variant="default" className="bg-muted/50">
-          <AlertTitle>Test Mode</AlertTitle>
-          <AlertDescription>
-            This is running in test mode. No actual bookings will be created.
-          </AlertDescription>
-        </Alert>
       </CardContent>
       <CardFooter>
         <Button 
