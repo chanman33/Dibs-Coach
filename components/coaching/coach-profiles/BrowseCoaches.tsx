@@ -19,7 +19,7 @@ import { COACH_SPECIALTIES, SpecialtyCategory } from '@/utils/types/coach'
 const FOCUS_TO_CATEGORIES: Record<string, SpecialtyCategory[]> = {
   'sales': ['BUSINESS_DEVELOPMENT'],
   'marketing': ['MARKET_INNOVATION', 'SOCIAL_MEDIA'],
-  'investing': ['INVESTOR']
+  'investing': ['INVESTOR', 'ECONOMIC_MASTERY']
 };
 
 export interface BrowseCoachesProps {

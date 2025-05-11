@@ -268,14 +268,42 @@ export function CoachProfileForm({
 
   // Memoize specialty options
   const specialtyOptions = useMemo(() =>
-    Object.entries(COACH_SPECIALTIES).map(([category, specialties]) => ({
-      label: formatCategoryLabel(category),
-      options: specialties.map(specialty => ({
-        value: specialty,
-        label: specialty,
-        category: category
+    Object.entries(COACH_SPECIALTIES)
+      // Reorder categories to prioritize general skills, then market/economic/social, then industry-specific
+      .sort(([categoryA], [categoryB]) => {
+        // Define category priority order
+        const categoryOrder = [
+          // General business skills first
+          'BUSINESS_DEVELOPMENT',
+          'BUSINESS_OPERATIONS',
+          'CLIENT_RELATIONS',
+          'PROFESSIONAL_DEVELOPMENT',
+          
+          // Market/economic/social skills next
+          'MARKET_INNOVATION',
+          'ECONOMIC_MASTERY',
+          'SOCIAL_MEDIA',
+          
+          // Industry-specific skills last
+          'REALTOR',
+          'MORTGAGE_OFFICER',
+          'COMMERCIAL_RE',
+          'PROPERTY_MANAGER',
+          'INVESTOR',
+          'PRIVATE_CREDIT',
+          'TITLE_ESCROW'
+        ];
+        
+        return categoryOrder.indexOf(categoryA) - categoryOrder.indexOf(categoryB);
+      })
+      .map(([category, specialties]) => ({
+        label: formatCategoryLabel(category),
+        options: specialties.map(specialty => ({
+          value: specialty,
+          label: specialty,
+          category: category
+        }))
       }))
-    }))
     , []); // Empty dependency array since COACH_SPECIALTIES is constant
 
   useEffect(() => {
