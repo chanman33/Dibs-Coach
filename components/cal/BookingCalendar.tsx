@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { format, addDays, addMinutes } from 'date-fns';
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
-import { calApiClient, CalEventType, CalTimeSlot } from '@/lib/cal/cal-api';
+import { CalEventType, CalTimeSlot, CreateBookingData } from '@/lib/cal/cal-api';
+import { createCalClient, CalBookingClient } from '@/utils/cal';
+
+const calApiClient: CalBookingClient = createCalClient(/* pass userUlid here if available */);
 
 export function BookingCalendar() {
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -26,22 +29,27 @@ export function BookingCalendar() {
   }, []);
 
   // Fetch available slots when date or event type changes
-  const handleDateSelect = async (newDate: Date | undefined) => {
-    setDate(newDate);
-    if (newDate && selectedEventType) {
+  const handleDateSelect = async (newDate: Date | null) => {
+    const dateToSet = newDate === null ? undefined : newDate;
+    setDate(dateToSet);
+
+    if (dateToSet && selectedEventType) {
       setLoading(true);
       try {
         const slots = await calApiClient.getAvailability(
           selectedEventType.id,
-          format(newDate, 'yyyy-MM-dd'),
-          format(addDays(newDate, 1), 'yyyy-MM-dd')
+          format(dateToSet, 'yyyy-MM-dd'),
+          format(addDays(dateToSet, 1), 'yyyy-MM-dd')
         );
         setAvailableSlots(slots);
       } catch (error) {
         console.error('Failed to fetch availability:', error);
+        setAvailableSlots([]);
       } finally {
         setLoading(false);
       }
+    } else {
+      setAvailableSlots([]); // Clear slots if no date or no event type selected
     }
   };
 
@@ -49,16 +57,23 @@ export function BookingCalendar() {
   const handleBooking = async (slot: CalTimeSlot) => {
     if (!selectedEventType || !date) return;
 
+    setLoading(true);
     try {
-      await calApiClient.createBooking({
+      const bookingPayload: CreateBookingData = {
         eventTypeId: selectedEventType.id,
         start: slot.time,
         end: format(addMinutes(new Date(slot.time), selectedEventType.length), "yyyy-MM-dd'T'HH:mm:ss'Z'"),
         name: 'John Doe', // Replace with actual user input
         email: 'john@example.com', // Replace with actual user input
-      });
+      };
+      
+      await calApiClient.createBooking(bookingPayload);
+      alert('Booking successful!');
     } catch (error) {
       console.error('Failed to create booking:', error);
+      alert('Booking failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 

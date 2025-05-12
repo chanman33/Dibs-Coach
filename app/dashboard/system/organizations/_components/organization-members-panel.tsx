@@ -308,7 +308,8 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
         ulid,
         organizationUlid: orgId,
         email,
-        role: data.role
+        role: data.role,
+        status: 'ACTIVE'
       }).catch(error => {
         // Handle any unexpected errors from the API call
         console.error('[ADD_MEMBER_API_CALL_ERROR]', error)
@@ -386,6 +387,8 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
       
       const result = await updateOrganizationMember({
         memberUlid: editingMember.ulid,
+        organizationUlid: editingMember.organizationUlid,
+        userUlid: editingMember.userUlid,
         role: data.role,
         status: data.status
       })
@@ -436,7 +439,9 @@ export function OrganizationMembersPanel({ orgId }: OrganizationMembersPanelProp
       console.log('[REMOVE_MEMBER] Removing member:', editingMember.user.name, 'from organization:', orgId)
       
       const result = await removeOrganizationMember({
-        memberUlid: editingMember.ulid
+        memberUlid: editingMember.ulid,
+        organizationUlid: editingMember.organizationUlid,
+        userUlid: editingMember.userUlid
       })
       
       if (result.error) {

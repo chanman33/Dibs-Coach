@@ -33,12 +33,12 @@ export function DatePickerSection({
   };
 
   // Handle date selection with logging
-  const handleDateSelection = (date: Date | undefined) => {
+  const handleDateSelection = (date: Date | null) => {
     console.log('[DEBUG][DATE_PICKER] Date selected', {
       date: date ? format(date, 'yyyy-MM-dd') : null,
       day: date ? format(date, 'EEEE') : null
     });
-    setSelectedDate(date);
+    setSelectedDate(date || undefined);
   };
 
   return (
@@ -58,7 +58,7 @@ export function DatePickerSection({
         ) : (
           <div className="flex justify-center">
             <InlineDatePicker
-              date={selectedDate}
+              date={selectedDate || null}
               onSelect={handleDateSelection}
               disabledDates={handleIsDateDisabled}
               className="w-full"

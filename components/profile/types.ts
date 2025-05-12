@@ -39,6 +39,7 @@ export const coachProfileFormSchema = z.object({
   linkedinUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
   youtubeUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
   tiktokUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
+  xUrl: z.string().url("Invalid URL format").or(z.literal("")).nullable().optional(),
   
   // Coach Domain Expertise
   coachRealEstateDomains: z.array(z.string()).optional(),
@@ -74,9 +75,7 @@ export const coachProfileFormSchema = z.object({
 });
 
 // Type for form values
-export type CoachProfileFormValues = z.infer<typeof coachProfileFormSchema> & {
-  xUrl?: string;
-};
+export type CoachProfileFormValues = z.infer<typeof coachProfileFormSchema>;
 
 // Initial data structure
 export interface CoachProfileInitialData {
@@ -101,6 +100,7 @@ export interface CoachProfileInitialData {
   linkedinUrl?: string | null;
   youtubeUrl?: string | null;
   tiktokUrl?: string | null;
+  xUrl?: string | null;
   // Add completion-related fields
   status?: ProfileStatus;
   completionPercentage?: number;

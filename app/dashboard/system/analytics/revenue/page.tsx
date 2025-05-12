@@ -436,7 +436,23 @@ export default function RevenueAnalyticsPage() {
       <div className="flex justify-between items-center">
         <h2 className="text-3xl font-bold">Revenue Analytics</h2>
         <div className="flex gap-4">
-          <DateRangePicker value={dateRange} onChange={setDateRange} />
+          <DateRangePicker 
+            startDate={dateRange?.from}
+            endDate={dateRange?.to}
+            onRangeChange={(dates) => {
+              const [start, end] = dates;
+              const newFrom = start instanceof Date ? start : undefined;
+              const newTo = end instanceof Date ? end : undefined;
+              
+              if ((newFrom && newTo) || (!newFrom && !newTo)) {
+                setDateRange({ from: newFrom, to: newTo });
+              } else if (newFrom && !newTo) {
+                setDateRange({ from: newFrom, to: newFrom });
+              } else {
+                setDateRange({ from: undefined, to: undefined });
+              }
+            }}
+          />
           <Select value={timeframe} onValueChange={setTimeframe}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Select timeframe" />

@@ -31,6 +31,7 @@ interface ExtendedCoachData extends Omit<CoachProfileInitialData, 'displayName' 
   displayName?: string;
   slogan: string;
   profileSlug?: string | null;
+  xUrl?: string | null;
 }
 
 // Define the tab interface
@@ -230,6 +231,7 @@ function ProfilePageContent() {
             linkedinUrl: coachData.linkedinUrl ?? undefined,
             youtubeUrl: coachData.youtubeUrl ?? undefined,
             tiktokUrl: coachData.tiktokUrl ?? undefined,
+            xUrl: coachData.xUrl ?? undefined,
           }}
           onSubmit={handleProfileSubmit}
           isSubmitting={isSubmitting}
@@ -333,6 +335,7 @@ function ProfilePageContent() {
     displayName: coachData?.displayName || undefined,
     slogan: coachData?.slogan || "",
     profileSlug: coachData?.profileSlug || null,
+    xUrl: coachData?.xUrl || null,
   };
 
   console.log("[COACH_PROFILE_PAGE_RENDER]", {

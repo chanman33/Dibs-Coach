@@ -1,6 +1,7 @@
 const config = {
   auth: {
     enabled: true,
+    clerkPrimaryColor: '#6c47ff',
   },
   payments: {
     enabled: true,

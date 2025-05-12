@@ -174,7 +174,7 @@ export function OrganizationActivityPanel({ orgId }: OrganizationActivityPanelPr
     }
   }
 
-  const getActivityBadgeVariant = (type: Activity['type']) => {
+  const getActivityBadgeVariant = (type: Activity['type']): "default" | "secondary" | "destructive" | "outline" => {
     switch (type) {
       case 'MEMBER_ADDED':
         return 'default'
@@ -185,7 +185,7 @@ export function OrganizationActivityPanel({ orgId }: OrganizationActivityPanelPr
       case 'STATUS_CHANGED':
         return 'outline'
       case 'PAYMENT_PROCESSED':
-        return 'success'
+        return 'default'
       default:
         return 'secondary'
     }

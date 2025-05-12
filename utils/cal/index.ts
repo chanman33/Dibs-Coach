@@ -54,5 +54,8 @@ export interface TokenRefreshResult {
 // Re-export API utilities for easier imports
 export * from './cal-api-utils';
 
+// Re-export the new CalBookingClient and its factory function
+export * from './cal-client';
+
 // Server actions are exported directly from their files
 // to prevent 'use server' directive issues 

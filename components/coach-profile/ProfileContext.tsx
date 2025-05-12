@@ -70,6 +70,7 @@ interface ProfileContextType {
     linkedinUrl?: string | null;
     youtubeUrl?: string | null;
     tiktokUrl?: string | null;
+    xUrl?: string | null;
   };
   
   // Portfolio items
@@ -156,7 +157,40 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     linkedinUrl?: string | null;
     youtubeUrl?: string | null;
     tiktokUrl?: string | null;
-  }>({});
+    xUrl?: string | null;
+  }>({
+    // From CoachProfileInitialData
+    firstName: null,
+    lastName: null,
+    displayName: "",
+    bio: null,
+    profileImageUrl: null,
+    slogan: "", // Required
+    profileSlug: null,
+    coachingSpecialties: [],
+    coachSkills: [],
+    hourlyRate: undefined, // Or a default number if applicable
+    yearsCoaching: undefined, // Or a default number if applicable
+    // Coach Domain Expertise (already in CoachProfileInitialData, but ensuring defaults)
+    coachRealEstateDomains: [],
+    coachPrimaryDomain: null,
+    // Marketing URLs (already in CoachProfileInitialData, but ensuring defaults)
+    websiteUrl: null,
+    facebookUrl: null,
+    instagramUrl: null,
+    linkedinUrl: null,
+    youtubeUrl: null,
+    tiktokUrl: null,
+    xUrl: null,
+    // Completion-related fields (already in CoachProfileInitialData, but ensuring defaults)
+    status: "DRAFT", // Default status
+    completionPercentage: 0,
+    missingFields: [],
+    missingRequiredFields: [],
+    optionalMissingFields: [],
+    validationMessages: {},
+    canPublish: false,
+  });
   
   // Add portfolioItems state
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
@@ -545,6 +579,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         linkedinUrl: data.linkedinUrl ?? undefined,
         youtubeUrl: data.youtubeUrl ?? undefined,
         tiktokUrl: data.tiktokUrl ?? undefined,
+        xUrl: data.xUrl ?? undefined, // Add X/Twitter URL handling
         // ... other fields if needed ...
       };
 
@@ -571,6 +606,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           linkedinUrl: profileData.linkedinUrl,
           youtubeUrl: profileData.youtubeUrl,
           tiktokUrl: profileData.tiktokUrl,
+          xUrl: profileData.xUrl, // Add X/Twitter URL handling
           // Ensure numbers are numbers from response
           yearsCoaching: Number(profileData.yearsCoaching ?? prev.yearsCoaching),
           hourlyRate: Number(profileData.hourlyRate ?? prev.hourlyRate),

@@ -55,6 +55,26 @@ export const SystemAlertSchema = z.object({
 
 // User Analytics Schema
 export const UserAnalyticsSchema = z.object({
+  usersByRole: z.object({
+    mentee: z.number(),
+    coach: z.number(),
+    admin: z.number(),
+  }),
+  usersByStatus: z.object({
+    active: z.number(),
+    inactive: z.number(),
+    suspended: z.number(),
+  }),
+  revenueMetrics: z.object({
+    totalRevenue: z.number(),
+    monthlyRevenue: z.number(),
+    averageSessionValue: z.number(),
+  }),
+  sessionMetrics: z.object({
+    totalSessions: z.number(),
+    completionRate: z.number(),
+    cancelationRate: z.number(),
+  }),
   totalLogins: z.number(),
   averageSessionDuration: z.number(),
   activeUsers: z.object({
