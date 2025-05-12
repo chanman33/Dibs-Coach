@@ -387,4 +387,4 @@ export default function CreateOrganizationPageWrapper() {
       <CreateOrganizationPage />
     </Suspense>
   )
-} 
+}

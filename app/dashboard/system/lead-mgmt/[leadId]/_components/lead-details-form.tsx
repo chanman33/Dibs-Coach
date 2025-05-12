@@ -382,4 +382,4 @@ export function LeadDetailsForm({ lead }: LeadDetailsFormProps) {
       </form>
     </Form>
   )
-} 
+}

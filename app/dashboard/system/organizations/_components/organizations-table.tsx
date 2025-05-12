@@ -210,4 +210,4 @@ export function OrganizationsTable({ organizations, loading }: OrganizationsTabl
       </Table>
     </div>
   )
-} 
+}

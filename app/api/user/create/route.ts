@@ -6,6 +6,8 @@ import { SYSTEM_ROLES, USER_CAPABILITIES, type SystemRole, type UserCapability }
 import { z } from 'zod';
 import { generateUlid } from '@/utils/ulid';
 
+export const dynamic = 'force-dynamic';
+
 // Validation schema for user creation
 const CreateUserSchema = z.object({
   email: z.string().email('Invalid email format'),

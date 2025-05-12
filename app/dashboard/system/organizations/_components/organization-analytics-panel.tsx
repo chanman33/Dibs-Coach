@@ -608,4 +608,4 @@ export function OrganizationAnalyticsPanel({ orgId }: OrganizationAnalyticsPanel
       </Card>
     </div>
   )
-} 
+}

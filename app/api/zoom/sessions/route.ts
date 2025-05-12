@@ -7,6 +7,8 @@ import { ApiResponse } from '@/utils/types/api';
 import { z } from 'zod';
 import { ulidSchema } from '@/utils/types/auth';
 
+export const dynamic = 'force-dynamic';
+
 // Validation schemas
 const CreateSessionSchema = z.object({
   sessionName: z.string().min(1, 'Session name is required'),

@@ -260,4 +260,4 @@ export function RecentSessionNotes({ sessions, formatDate }: RecentSessionNotesP
       )}
     </Card>
   )
-} 
+}

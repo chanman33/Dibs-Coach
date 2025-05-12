@@ -6,6 +6,8 @@ import { generateZoomSignature } from '@/utils/zoom-token';
 import { z } from 'zod';
 import { ApiResponse } from '@/utils/types/api';
 
+export const dynamic = 'force-dynamic';
+
 // Response type definition
 const ZoomConfigSchema = z.object({
   sessionName: z.string(),

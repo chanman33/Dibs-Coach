@@ -1,4 +1,4 @@
-'use client';
+'use client'
 
 import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -99,4 +99,4 @@ export default function PaymentSuccessPage() {
       </div>
     </div>
   );
-} 
+}

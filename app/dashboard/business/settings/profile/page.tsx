@@ -377,4 +377,4 @@ export default function BusinessProfilePage() {
       </Tabs>
     </div>
   )
-} 
+}

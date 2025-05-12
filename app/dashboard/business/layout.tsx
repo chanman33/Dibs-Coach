@@ -47,4 +47,4 @@ function BusinessLayout({
 }
 
 // Export the layout
-export default BusinessLayout; 
+export default BusinessLayout;

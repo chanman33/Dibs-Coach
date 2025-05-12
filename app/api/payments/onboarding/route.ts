@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
 import { StripeService } from '@/lib/stripe';
 
+export const dynamic = 'force-dynamic';
+
 // Schema for onboarding request
 const onboardingSchema = z.object({
   country: z.string().min(2).max(2), // ISO 2-letter country code

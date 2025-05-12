@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server'
 import { createAuthClient } from '@/utils/auth'
 import { updateProfileCompletion } from '@/utils/actions/update-profile-completion'
 
+export const dynamic = 'force-dynamic';
+
 /**
  * API endpoint to manually update profile completion
  * Can be used from anywhere to trigger a profile completion update

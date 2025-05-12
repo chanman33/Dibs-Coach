@@ -3,6 +3,8 @@ import { createAuthClient } from '@/utils/auth'
 import { generateUlid } from '@/utils/ulid'
 import { SYSTEM_ROLES, USER_CAPABILITIES } from '@/utils/roles/roles'
 
+export const dynamic = 'force-dynamic';
+
 // Define types to match database schema
 type DbUser = {
   ulid: string

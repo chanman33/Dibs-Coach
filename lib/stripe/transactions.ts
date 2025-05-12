@@ -1,6 +1,6 @@
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createAuthClient } from '@/utils/auth/auth-client';
 import { feeCalculator } from './fees';
+import { randomUUID } from 'crypto';
 
 
 interface CreateTransactionParams {
@@ -17,30 +17,16 @@ interface CreateTransactionParams {
 export class TransactionService {
     private supabase;
 
-    // Make the constructor private to force usage of the async initializer.
-    private constructor(supabase: ReturnType<typeof createServerClient>) {
-        this.supabase = supabase;
+    constructor() {
+        // Use the cookie-free Supabase client - no need for cookies with Clerk auth
+        this.supabase = createAuthClient();
     }
 
     /**
      * Initializes the TransactionService instance asynchronously.
      */
     static async init() {
-        // Await cookies() to obtain the cookie store.
-        const cookieStore = await cookies();
-        const supabase = createServerClient(
-            process.env.SUPABASE_URL!,
-            process.env.SUPABASE_SERVICE_KEY!,
-            {
-                cookies: {
-                    // Safe to call `.get()` now that cookieStore is resolved
-                    get(name: string) {
-                        return cookieStore.get(name)?.value;
-                    },
-                },
-            }
-        );
-        return new TransactionService(supabase);
+        return new TransactionService();
     }
 
     async createTransaction({
@@ -59,19 +45,21 @@ export class TransactionService {
             .from('Transaction')
             .insert([
                 {
+                    ulid: randomUUID(),
                     type,
                     status: 'pending',
                     amount,
                     currency,
                     platformFee: fees.totalPlatformFee,
                     coachPayout: fees.coachPayout,
-                    sessionDbId,
-                    bundleDbId,
-                    payerDbId,
-                    coachDbId,
+                    sessionUlid: sessionDbId ? sessionDbId.toString() : null,
+                    payerUlid: payerDbId.toString(),
+                    coachUlid: coachDbId.toString(),
+                    updatedAt: new Date().toISOString(),
                     metadata: {
                         ...metadata,
-                        feeBreakdown: fees,
+                        bundleId: bundleDbId,
+                        feeBreakdown: JSON.parse(JSON.stringify(fees)),
                     },
                 },
             ])
@@ -91,7 +79,7 @@ export class TransactionService {
             .from('Transaction')
             .update({
                 status,
-                metadata: metadata ? { ...metadata } : undefined,
+                metadata: metadata ? JSON.parse(JSON.stringify(metadata)) : undefined,
                 updatedAt: new Date().toISOString(),
             })
             .eq('id', id);
@@ -107,18 +95,18 @@ export class TransactionService {
             .from('Transaction')
             .select(`
         *,
-        payer:User!Transaction_payerDbId_fkey (
+        payer:User!Transaction_payerUlid_fkey (
           firstName,
           lastName,
           email
         ),
-        coach:User!Transaction_coachDbId_fkey (
+        coach:User!Transaction_coachUlid_fkey (
           firstName,
           lastName,
           email
         )
       `)
-            .eq(role === 'payer' ? 'payerDbId' : 'coachDbId', userDbId)
+            .eq(role === 'payer' ? 'payerUlid' : 'coachUlid', userDbId.toString())
             .order('createdAt', { ascending: false });
 
         if (error) {

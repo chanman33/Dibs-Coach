@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createAuthClient } from '@/utils/auth';
 import { CalEventType } from '@/utils/types/coach-availability';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: Request,
   { params }: { params: { coachId: string } }

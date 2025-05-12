@@ -261,4 +261,4 @@ export function CoachSidebar() {
       </div>
     </div>
   )
-} 
+}

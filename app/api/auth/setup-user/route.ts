@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createUserIfNotExists } from '@/utils/auth/user-management'
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   const requestId = Math.random().toString(36).substring(7)
   const startTime = Date.now()

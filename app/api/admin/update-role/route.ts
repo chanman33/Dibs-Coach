@@ -6,6 +6,8 @@ import { SYSTEM_ROLES } from "@/utils/roles/roles";
 import { ulidSchema } from "@/utils/types/auth";
 import { generateUlid } from "@/utils/ulid";
 
+export const dynamic = 'force-dynamic';
+
 // Input validation schema
 const updateRoleSchema = z.object({
   userUlid: ulidSchema,

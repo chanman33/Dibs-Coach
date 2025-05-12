@@ -1,4 +1,4 @@
-'use client';
+'use client'
 
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -438,4 +438,4 @@ export default function CoachApplicationForm({ existingApplication, userData }: 
       </CardContent>
     </Card>
   );
-} 
+}

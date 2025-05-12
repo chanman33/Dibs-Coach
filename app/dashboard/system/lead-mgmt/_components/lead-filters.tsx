@@ -148,4 +148,4 @@ export function LeadFilters({ statusOptions, priorityOptions }: LeadFiltersProps
       </div>
     </div>
   )
-} 
+}

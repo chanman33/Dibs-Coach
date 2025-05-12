@@ -4,6 +4,8 @@ import { createAuthClient } from '@/utils/auth/auth-client' // Use your Supabase
 import type { AuthContext } from '@/utils/types/auth'
 import { SYSTEM_ROLES } from '@/utils/roles/roles' // Import roles if needed for default values
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const { userId } = auth()

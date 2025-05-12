@@ -1,12 +1,9 @@
 /**
  * Centralized Supabase client access
- * Redirects to the proper implementation in utils/auth/server-client.ts
+ * Uses auth-client.ts without cookie handling
  */
 
-import { createServerAuthClient } from '@/utils/auth/server-client'
-import { getSupabaseCookies } from '@/lib/cookies'
+import { createAuthClient, createServerAuthClient } from '@/utils/auth/auth-client'
 
-export const createSafeClient = async () => {
-  const cookieStore = await getSupabaseCookies()
-  return createServerAuthClient(cookieStore)
-} 
+// No need for cookies since we're using Clerk for auth
+export const createSafeClient = createServerAuthClient 

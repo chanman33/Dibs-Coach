@@ -7,6 +7,8 @@ import { ulidSchema } from "@/utils/types/auth"
 import { USER_CAPABILITIES, SYSTEM_ROLES } from "@/utils/roles/roles"
 import { generateUlid } from "@/utils/ulid"
 
+export const dynamic = 'force-dynamic';
+
 // Validation schemas
 const SessionRateSchema = z.object({
   baseRate: z.number().positive(),

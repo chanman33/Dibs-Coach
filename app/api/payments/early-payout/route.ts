@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { stripeService } from '@/lib/stripe';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();
@@ -28,7 +30,7 @@ export async function POST(request: Request) {
       .eq('paymentStatus', 'completed')
       .is('payoutStatus', null);
 
-    const availableAmount = sessions?.reduce((sum, session) => sum + session.coachPayoutAmount, 0) || 0;
+    const availableAmount = sessions?.reduce((sum: number, session: { coachPayoutAmount: number }) => sum + session.coachPayoutAmount, 0) || 0;
 
     if (availableAmount <= 0) {
       return new NextResponse('No available earnings for early payout', { status: 400 });

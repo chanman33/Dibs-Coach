@@ -3,6 +3,8 @@ import { createAuthClient } from '@/utils/auth'
 import type { CalendarIntegrationRecord } from '@/utils/types/cal-managed-user'
 import { getAuthenticatedUserUlid } from '@/utils/auth'
 
+export const dynamic = 'force-dynamic';
+
 /**
  * API endpoint to check calendar connection flags in CalendarIntegration table
  * Returns { success: true/false, data: { isConnected: boolean, googleCalendarConnected: boolean, office365CalendarConnected: boolean } }

@@ -2,6 +2,8 @@ import { createAuthClient } from '@/utils/auth';
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/organizations/[organizationUlid]/context
  * 

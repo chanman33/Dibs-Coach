@@ -309,4 +309,4 @@ export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
       </div>
     </div>
   );
-} 
+}

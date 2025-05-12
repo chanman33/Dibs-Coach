@@ -7,6 +7,8 @@ import { ApiResponse } from '@/utils/types/api';
 import { z } from 'zod';
 import { ZOOM_SESSION_STATUS } from '@/utils/types/zoom';
 
+export const dynamic = 'force-dynamic';
+
 // Response type
 interface JoinSessionResponse {
   token: string;

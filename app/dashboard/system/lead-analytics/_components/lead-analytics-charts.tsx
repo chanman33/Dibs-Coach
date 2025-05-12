@@ -258,4 +258,4 @@ export function LeadAnalyticsCharts({ stats, analytics }: LeadAnalyticsChartsPro
 
     </div>
   )
-} 
+}

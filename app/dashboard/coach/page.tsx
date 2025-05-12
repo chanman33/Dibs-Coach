@@ -1,4 +1,5 @@
 "use client"
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Target, Clock, ArrowUpRight, TrendingUp, DollarSign, Star, MessageSquare, Zap, BookOpen, Award, CalendarRange, AlertOctagon, Video, Calendar, Share2, Facebook, Twitter, Linkedin, Copy, X, Home, ChevronLeft, ChevronRight, Briefcase, Settings, Globe, Trophy, CreditCard, BarChart4, ArrowUpDown, FileText, Wallet } from "lucide-react"
@@ -1166,4 +1167,3 @@ export default function CoachDashboard() {
     </div>
   )
 }
-

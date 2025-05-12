@@ -1,6 +1,6 @@
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+import { createAuthClient } from '@/utils/auth/auth-client';
 import Stripe from 'stripe';
+import { randomUUID } from 'crypto';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16',
@@ -10,18 +10,8 @@ export class PaymentMethodService {
   private supabase;
 
   constructor() {
-    const cookieStore = cookies();
-    this.supabase = createServerClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          async get(name: string) {
-            return (await cookieStore).get(name)?.value;
-          },
-        },
-      }
-    );
+    // Use the cookie-free Supabase client - no need for cookies with Clerk auth
+    this.supabase = createAuthClient();
   }
 
   async createSetupIntent(userDbId: number, paymentMethodTypes: string[]) {
@@ -42,9 +32,11 @@ export class PaymentMethodService {
         .from('SetupIntent')
         .insert([
           {
-            userDbId,
+            userUlid: userDbId.toString(),
             stripeSetupIntentId: setupIntent.id,
             status: setupIntent.status,
+            ulid: randomUUID(),
+            updatedAt: new Date().toISOString(),
           },
         ]);
 

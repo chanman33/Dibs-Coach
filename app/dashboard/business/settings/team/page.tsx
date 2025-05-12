@@ -322,4 +322,4 @@ export default function TeamDirectoryPage() {
       </div>
     </div>
   )
-} 
+}

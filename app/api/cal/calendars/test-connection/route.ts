@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server';
 import { createAuthClient } from '@/utils/auth';
 import { ensureValidCalToken } from '@/utils/actions/cal/cal-tokens';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * Test Cal.com API Connection
  * 

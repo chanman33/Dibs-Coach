@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import { useState, useEffect, useCallback } from "react";
 import { GoalFormValues } from "@/utils/types/goals";
@@ -236,4 +236,4 @@ function GoalsPageContent() {
 
 export default function CoachGoalsPage() {
   return <GoalsPageContent />;
-} 
+}

@@ -108,4 +108,4 @@ export function LeadInteractionHistory({ lead }: LeadInteractionHistoryProps) {
       )}
     </div>
   )
-} 
+}

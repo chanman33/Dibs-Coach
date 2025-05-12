@@ -5,6 +5,8 @@ import { CalTokenService } from '@/lib/cal/cal-service';
 import { env } from '@/lib/env';
 import { getAuthenticatedUserUlid, getAuthenticatedCalUser } from '@/utils/auth';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET - List all webhooks for the current user
  */

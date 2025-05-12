@@ -92,4 +92,4 @@ export default function SettingsLayout({ children }: { children: ReactNode }) {
       </div>
     </div>
   )
-} 
+}

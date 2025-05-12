@@ -6,6 +6,8 @@ import { SYSTEM_ROLES } from '@/utils/roles/roles';
 import { StripeService } from '@/lib/stripe';
 import { z } from 'zod';
 
+export const dynamic = 'force-dynamic';
+
 const stripeService = new StripeService();
 
 // Validation schema for query parameters

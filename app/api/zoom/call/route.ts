@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { ApiResponse } from '@/utils/types/api';
 import { getUserById } from '@/utils/auth/user-management';
 
+export const dynamic = 'force-dynamic';
+
 const callSessionSchema = z.object({
   sessionId: z.string(),
   displayName: z.string()

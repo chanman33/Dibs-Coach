@@ -7,6 +7,8 @@ import { ulidSchema } from "@/utils/types/auth"
 import { StripeDisputeService } from '@/lib/stripe/stripe-disputes'
 import { SYSTEM_ROLES } from "@/utils/roles/roles"
 
+export const dynamic = 'force-dynamic';
+
 const disputeService = new StripeDisputeService()
 
 // Validation schemas

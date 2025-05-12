@@ -303,4 +303,4 @@ export function OrganizationActivityPanel({ orgId }: OrganizationActivityPanelPr
       </Card>
     </div>
   )
-} 
+}

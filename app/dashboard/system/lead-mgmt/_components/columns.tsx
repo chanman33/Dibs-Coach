@@ -160,4 +160,4 @@ export const columns: ColumnDef<LeadListItem>[] = [
       )
     },
   },
-] 
+]

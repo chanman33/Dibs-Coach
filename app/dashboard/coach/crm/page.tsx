@@ -1,4 +1,5 @@
 "use client"
+
 import { CoachCRMDashboard } from '../_components/CoachCRMDashboard'
 import { Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
@@ -14,4 +15,3 @@ export default function CoachCRMPage() {
     </Suspense>
   )
 }
-

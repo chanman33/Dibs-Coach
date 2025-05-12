@@ -6,6 +6,8 @@ import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { type AuthContext } from '@/utils/types/auth'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic';
+
 // Type definitions
 interface RealtorProfile {
   ulid: string

@@ -3,6 +3,8 @@ import { createAuthClient } from '@/utils/auth'
 import { getAuthenticatedUserUlid } from '@/utils/auth'
 import { CalTokenService } from '@/lib/cal/cal-service'
 
+export const dynamic = 'force-dynamic';
+
 /**
  * API endpoint to get all calendars for a user from Cal.com
  * 

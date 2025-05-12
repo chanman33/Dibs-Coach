@@ -147,4 +147,4 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
       </DialogContent>
     </Dialog>
   )
-} 
+}

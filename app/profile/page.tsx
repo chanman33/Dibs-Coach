@@ -17,4 +17,4 @@ export default function ProfileIndexPage() {
       <p>Redirecting to coaches...</p>
     </div>
   );
-} 
+}

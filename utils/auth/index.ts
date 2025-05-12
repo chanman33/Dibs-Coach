@@ -2,8 +2,7 @@
 export { getAuthContext, getCurrentUserId, UnauthorizedError } from './auth-context'
 
 // Auth client exports
-export { createAuthClient } from './auth-client'
-export { createServerAuthClient } from './server-client'
+export { createAuthClient, createServerAuthClient } from './auth-client'
 
 // Auth utilities exports
 export {

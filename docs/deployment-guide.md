@@ -32,7 +32,7 @@ CRON_SECRET=your_generated_cron_secret
 
 # Optional Environment Variables
 NODE_ENV=production
-NEXT_PUBLIC_APP_URL=your_app_url
+FRONTEND_URL=your_app_url
 ```
 
 ### 2. Database Setup

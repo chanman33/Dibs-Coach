@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
@@ -112,4 +114,4 @@ export default function OnboardingPage() {
       </div>
     </div>
   )
-} 
+}

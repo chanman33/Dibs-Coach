@@ -552,4 +552,4 @@ export function OrganizationSettingsPanel({ organization, onUpdate }: Organizati
       </Card>
     </div>
   )
-} 
+}

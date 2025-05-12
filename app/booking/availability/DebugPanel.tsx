@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import { format } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,4 +120,4 @@ export function DebugPanel({
       </CardContent>
     </Card>
   );
-} 
+}

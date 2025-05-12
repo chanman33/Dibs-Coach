@@ -1,4 +1,6 @@
-"use client";
+"use client"
+
+export const dynamic = 'force-dynamic';
 
 import { useProfileContext, ProfileProvider } from "@/components/coach-profile/ProfileContext";
 import { CoachProfileForm } from "@/components/coach-profile/CoachProfileForm";

@@ -9,6 +9,8 @@ import {
 import { ApiResponse } from '@/utils/types/api';
 import { z } from 'zod';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/zoom/meetings/config - Get meeting configuration
 export const GET = withApiAuth<SessionMeetingConfig>(async (req: Request, { userUlid }) => {
   try {

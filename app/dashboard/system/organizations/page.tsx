@@ -404,4 +404,4 @@ export default function OrganizationsPage() {
       </Card>
     </div>
   )
-} 
+}

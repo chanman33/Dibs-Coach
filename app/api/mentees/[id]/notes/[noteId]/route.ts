@@ -7,6 +7,8 @@ import { type AuthContext } from '@/utils/types/auth'
 import { z } from 'zod'
 import { ulidSchema } from '@/utils/types/auth'
 
+export const dynamic = 'force-dynamic';
+
 // Validation schemas
 const NoteParamsSchema = z.object({
   id: ulidSchema,

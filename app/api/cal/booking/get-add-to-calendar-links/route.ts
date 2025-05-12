@@ -3,6 +3,8 @@ import { createAuthClient } from '@/utils/auth';
 import { auth } from '@clerk/nextjs/server';
 import { ensureValidCalToken } from '@/utils/actions/cal/cal-tokens';
 
+export const dynamic = 'force-dynamic';
+
 interface CalendarLink {
   label: string;
   link: string;

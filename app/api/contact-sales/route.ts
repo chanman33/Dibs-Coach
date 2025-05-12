@@ -5,6 +5,8 @@ import { OrgIndustry } from "@prisma/client"
 import { z } from "zod"
 import { LEAD_PRIORITY, LEAD_SOURCE } from "@/utils/types/leads"
 
+export const dynamic = 'force-dynamic';
+
 // Extended schema for API validation
 const apiSchema = z.object({
   companyName: z.string().min(2, "Company name must be at least 2 characters"),

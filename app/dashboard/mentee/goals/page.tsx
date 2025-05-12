@@ -348,4 +348,4 @@ function GoalsPageContent() {
 
 export default function MenteeGoalsPage() {
   return <GoalsPageContent />
-} 
+}

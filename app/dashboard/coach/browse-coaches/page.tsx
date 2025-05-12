@@ -1,4 +1,5 @@
 "use client"
+
 import { BrowseCoaches } from '@/components/coaching/coach-profiles/BrowseCoaches'
 import { YourCoaches } from '@/components/coaching/coach-profiles/YourCoaches'
 import { Suspense, useState } from 'react'
@@ -44,4 +45,4 @@ export default function CoachBrowseCoachesPage() {
       </div>
     </div>
   )
-} 
+}

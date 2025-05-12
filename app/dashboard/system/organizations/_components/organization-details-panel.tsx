@@ -222,4 +222,4 @@ export function OrganizationDetailsPanel({ organization, onUpdate }: Organizatio
       </div>
     </div>
   )
-} 
+}

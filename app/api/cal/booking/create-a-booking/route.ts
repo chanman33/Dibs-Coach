@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { ensureValidCalToken } from '@/utils/actions/cal/cal-tokens';
 import { generateUlid } from '@/utils/ulid';
 
+export const dynamic = 'force-dynamic';
+
 // Schema for validating request body
 const CreateBookingSchema = z.object({
   eventTypeId: z.string(),
@@ -158,9 +160,9 @@ export async function POST(request: Request) {
     const accessToken = tokenResult.accessToken;
     
     // Build redirect URLs
-    const bookingSuccessUrl = `${process.env.NEXT_PUBLIC_APP_URL}/booking/booking-success`;
-    const bookingRescheduledUrl = `${process.env.NEXT_PUBLIC_APP_URL}/booking/booking-rescheduled`;
-    const bookingCancelledUrl = `${process.env.NEXT_PUBLIC_APP_URL}/booking/booking-cancelled`;
+    const bookingSuccessUrl = `${process.env.FRONTEND_URL || 'https://dibs.vercel.app'}/booking/booking-success`;
+    const bookingRescheduledUrl = `${process.env.FRONTEND_URL || 'https://dibs.vercel.app'}/booking/booking-rescheduled`;
+    const bookingCancelledUrl = `${process.env.FRONTEND_URL || 'https://dibs.vercel.app'}/booking/booking-cancelled`;
     
     // Format the request based on the new Cal.com API format
     const calRequestBody = {

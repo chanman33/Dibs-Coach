@@ -272,4 +272,4 @@ export default function OrganizationDetailPageWrapper(props: OrganizationDetailP
       <OrganizationDetailPage {...props} />
     </Suspense>
   )
-} 
+}

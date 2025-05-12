@@ -4,6 +4,8 @@ import { ensureValidCalToken } from '@/utils/actions/cal/cal-tokens'
 import { getCalendarIntegration } from '@/utils/auth'
 import { CalTokenService } from '@/lib/cal/cal-service'
 
+export const dynamic = 'force-dynamic';
+
 // Helper function to handle Cal.com API responses, with token refresh if needed
 async function handleCalApiResponse(
   response: Response, 

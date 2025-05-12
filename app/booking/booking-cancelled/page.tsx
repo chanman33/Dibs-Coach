@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,4 +37,4 @@ export default function BookingCancelledPage() {
       </Card>
     </div>
   );
-} 
+}

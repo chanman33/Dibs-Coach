@@ -1,4 +1,4 @@
-'use client';
+'use client'
 
 import React, { useState, useCallback, useRef } from 'react';
 import { 
@@ -355,4 +355,4 @@ export default function GoalFormDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}

@@ -3,6 +3,8 @@ import { createAuthClient } from '@/utils/auth'
 import { auth } from '@clerk/nextjs'
 import { ensureValidCalToken as serverActionEnsureValidToken } from '@/utils/actions/cal/cal-tokens'
 
+export const dynamic = 'force-dynamic';
+
 /**
  * API Route to finalize Google Calendar connection after the user
  * returns from the Cal.com OAuth flow to the UI callback page.

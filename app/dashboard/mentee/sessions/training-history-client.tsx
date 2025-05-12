@@ -471,4 +471,4 @@ export function TrainingHistoryClient({ initialData }: TrainingHistoryClientProp
       </div>
     </div>
   )
-} 
+}

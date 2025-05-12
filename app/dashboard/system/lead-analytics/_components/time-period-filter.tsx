@@ -87,4 +87,4 @@ export function TimePeriodFilter({ initialPeriod = "30d", onChange }: TimePeriod
       </DropdownMenu>
     </Card>
   )
-} 
+}

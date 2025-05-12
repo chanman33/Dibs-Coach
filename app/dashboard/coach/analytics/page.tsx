@@ -1,4 +1,5 @@
 "use client"
+
 import { CoachAnalyticsDashboard } from '../_components/CoachAnalyticsDashboard'
 import { Suspense } from 'react'
 import { Loader2 } from 'lucide-react'
@@ -17,4 +18,4 @@ export default function CoachAnalyticsPage() {
       {userUlid ? <CoachAnalyticsDashboard userUlid={userUlid} /> : null}
     </Suspense>
   )
-} 
+}

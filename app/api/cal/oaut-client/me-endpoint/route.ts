@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { makeCalApiRequest, getCalOAuthHeaders } from '@/utils/cal/cal-api-utils';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     // Only allow in development or for system owners

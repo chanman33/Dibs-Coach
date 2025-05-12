@@ -3,6 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 import { createAuthClient } from "@/utils/auth";
 import { SYSTEM_ROLES } from "@/utils/roles/roles";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     // Check authentication

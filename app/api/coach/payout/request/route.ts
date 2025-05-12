@@ -13,6 +13,8 @@ import {
 import { generateUlid } from '@/utils/ulid'
 import * as z from 'zod'
 
+export const dynamic = 'force-dynamic';
+
 export const POST = withApiAuth<PayoutResponse>(async (req, { userUlid }) => {
   try {
     const supabase = await createAuthClient()

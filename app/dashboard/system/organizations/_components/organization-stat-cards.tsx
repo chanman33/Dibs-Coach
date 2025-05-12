@@ -99,4 +99,4 @@ export function OrganizationStatCards({ data }: OrganizationStatCardsProps) {
       </Card>
     </div>
   )
-} 
+}

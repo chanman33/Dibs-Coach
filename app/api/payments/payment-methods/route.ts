@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
-import { StripePaymentMethodService } from '@/lib/stripe/stripe-payment-methods'
+import { StripePaymentMethodsService } from '@/lib/stripe/stripe-payment-methods'
 import { z } from 'zod'
 
-const paymentMethodService = new StripePaymentMethodService()
+export const dynamic = 'force-dynamic';
+
+const paymentMethodService = new StripePaymentMethodsService()
 
 // Validation schemas
 const savePaymentMethodSchema = z.object({

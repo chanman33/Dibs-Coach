@@ -8,6 +8,8 @@ import { z } from 'zod'
 import { ulidSchema } from '@/utils/types/auth'
 import { generateUlid } from '@/utils/ulid'
 
+export const dynamic = 'force-dynamic';
+
 // Validation schemas
 const MenteeParamsSchema = z.object({
   id: ulidSchema

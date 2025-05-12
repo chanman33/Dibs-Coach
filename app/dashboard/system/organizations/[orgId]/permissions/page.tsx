@@ -330,4 +330,4 @@ export default function OrganizationPermissionsPage({ params }: OrganizationPerm
       </Tabs>
     </div>
   )
-} 
+}

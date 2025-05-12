@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 /**
  * Cal.com Managed Users API - Update User
  * 

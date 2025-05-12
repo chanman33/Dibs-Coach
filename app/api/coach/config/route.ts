@@ -6,6 +6,8 @@ import { withApiAuth } from '@/utils/middleware/withApiAuth';
 import { createAuthClient } from '@/utils/auth';
 import { generateUlid } from '@/utils/ulid';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
   try {
     const supabase = await createAuthClient();

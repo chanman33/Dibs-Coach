@@ -1,3 +1,5 @@
+'use server'
+
 import { notFound } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { CoachProfileStatusManager } from '@/components/system/CoachProfileStatusManager'
@@ -42,8 +44,7 @@ export default async function CoachProfilePage({ params }: CoachProfilePageProps
 
   // Server action to update profile status
   async function updateProfileStatus(coachId: string, newStatus: typeof PROFILE_STATUS[keyof typeof PROFILE_STATUS]) {
-    'use server'
-    
+        
     const { data } = await updateCoachProfileStatus({
       coachUlid: coachId,
       status: newStatus
@@ -242,4 +243,4 @@ export default async function CoachProfilePage({ params }: CoachProfilePageProps
       </div>
     </div>
   )
-} 
+}

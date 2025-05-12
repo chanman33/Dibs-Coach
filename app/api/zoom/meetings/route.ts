@@ -9,6 +9,8 @@ import {
 } from '@/utils/types/zoom'
 import { createUserIfNotExists } from '@/utils/auth'
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   const { userId } = await auth()
   if (!userId) {

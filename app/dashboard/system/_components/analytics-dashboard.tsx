@@ -151,4 +151,4 @@ export function AnalyticsDashboard({ analytics }: AnalyticsDashboardProps) {
       </Card>
     </div>
   )
-} 
+}

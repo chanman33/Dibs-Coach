@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { useUser } from '@clerk/nextjs'
 import { Button } from '@/components/ui/button'
 import { useState, useEffect } from 'react'
@@ -934,4 +936,4 @@ export default function CalendarIntegrationPage() {
       </div>
     </div>
   );
-} 
+}

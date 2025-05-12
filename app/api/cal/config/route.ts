@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { calConfig } from '@/lib/cal/cal'
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     // Check if required environment variables are set

@@ -3,6 +3,8 @@ import { auth } from '@clerk/nextjs/server';
 import { stripeService } from '@/lib/stripe';
 import { TransactionService } from '@/lib/stripe/transactions';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
     const { userId } = await auth();

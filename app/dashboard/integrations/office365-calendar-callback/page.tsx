@@ -1,5 +1,7 @@
 "use client"
 
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react'
@@ -230,4 +232,4 @@ export default function Office365CalendarCallback() {
       </div>
     </div>
   );
-} 
+}

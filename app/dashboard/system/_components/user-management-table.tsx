@@ -297,4 +297,4 @@ export function UserManagementTable({ users, onRefresh }: UserManagementTablePro
       </AlertDialog>
     </>
   )
-} 
+}

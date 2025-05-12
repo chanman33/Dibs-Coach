@@ -1,4 +1,5 @@
 "use client"
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Target, CalendarClock, GraduationCap, AlertCircle } from "lucide-react"
@@ -69,4 +70,3 @@ export default function BusinessDashboard() {
     </RouteGuardProvider>
   )
 }
-

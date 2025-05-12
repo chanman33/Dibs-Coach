@@ -3,6 +3,8 @@ import { createAuthClient } from '@/utils/auth'
 import { getAuthenticatedCalUser } from '@/utils/auth'
 import { CalTokenService } from '@/lib/cal/cal-service'
 
+export const dynamic = 'force-dynamic';
+
 // Define a simple interface just for what we need
 interface CalendarIntegration {
   calAccessToken: string;

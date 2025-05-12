@@ -6,6 +6,8 @@ import { createAuthClient } from "@/utils/auth";
 import { SYSTEM_ROLES, USER_CAPABILITIES } from "@/utils/roles/roles";
 import type { Database } from "@/types/supabase";
 
+export const dynamic = 'force-dynamic';
+
 type UserRecord = Database["public"]["Tables"]["User"]["Row"];
 
 export async function GET(req: NextRequest) {

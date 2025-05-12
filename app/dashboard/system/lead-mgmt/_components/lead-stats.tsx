@@ -330,4 +330,4 @@ export function LeadStats({ stats }: LeadStatsProps) {
       </div>
     </div>
   )
-} 
+}

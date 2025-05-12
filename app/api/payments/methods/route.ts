@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { StripeService } from '@/lib/stripe';
 
+export const dynamic = 'force-dynamic'; // Force dynamic rendering for API routes
+
 const stripeService = new StripeService();
 
 // Get all payment methods

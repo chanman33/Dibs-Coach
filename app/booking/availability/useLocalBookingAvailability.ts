@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -750,4 +750,4 @@ export function useLocalBookingAvailability() {
     isDateDisabled,
     formatTime
   };
-} 
+}

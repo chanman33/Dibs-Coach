@@ -5,6 +5,8 @@ import { USER_CAPABILITIES } from '@/utils/roles/roles';
 import { withApiAuth } from '@/utils/middleware/withApiAuth';
 import { createAuthClient } from '@/utils/auth';
 
+export const dynamic = 'force-dynamic';
+
 export const GET = withApiAuth<CoachMetrics>(async (req, { userUlid }) => {
   try {
     const supabase = await createAuthClient();

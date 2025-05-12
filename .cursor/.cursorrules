@@ -25,19 +25,25 @@ database:
     required: true
     usage: "All data operations must use Supabase client"
     client_init:
-      import: "import { createServerClient } from '@supabase/ssr'"
-      cookies: "await cookies() from next/headers"
+      import: "import { createAuthClient } from '@/utils/auth/auth-client'"
+      cookies: "NO COOKIES - Clerk handles auth, Supabase is database only"
       config:
-        url: "process.env.SUPABASE_URL"
-        key: "process.env.SUPABASE_SERVICE_KEY"
-      implementation: "Use createAuthClient from utils/auth.ts"
+        url: "process.env.NEXT_PUBLIC_SUPABASE_URL"
+        key: "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY"
+      implementation: "Use createAuthClient/createServerAuthClient from utils/auth/auth-client.ts"
+      auth_notes: "Supabase auth features are disabled, use Clerk for auth"
+      key_requirements:
+        - "persistSession: false in auth config"
+        - "No cookie handling for Supabase client"
+        - "Never use cookies() with Supabase since we use Clerk for auth"
+        - "Static generation compatibility required (no headers/cookies in build)"
   
   cal:
     required: true
     usage: "All data operations must use Cal.com client"
     client_init:
       import: "import { createCalClient } from '@/utils/cal'"
-      cookies: "await cookies() from next/headers"
+      cookies: "Use dynamic API routes that access cookies at runtime, not build time"
       config:
 
     Always confirm that the user has a valid Cal.com token before performing any actions.
@@ -203,6 +209,11 @@ database:
 server:
   components:
     directives: ["'use server'", "authentication check", "try-catch blocks", "error logging"]
+    static_generation:
+      - "Avoid using cookies() or headers() in files that might be statically generated"
+      - "Defer cookie/header access to runtime in dynamic routes"
+      - "Never use cookies with Supabase client - use Clerk auth instead"
+      - "API routes should be dynamic, not statically generated"
   
   actions:
     location: "utils/actions"
@@ -211,21 +222,26 @@ server:
       - "Separate file per resource type"
       - "Named exports for each action"
       - "User ID resolution before operations"
+      - "Avoid cookies() and headers() in shared utility functions"
     naming:
       prefix: ["fetch", "create", "update", "delete"]
       format: "prefixResourceName (e.g., fetchUsers, createPost)"
   
   api:
     required_steps:
-      - "Authentication check"
+      - "Authentication check with Clerk, not Supabase"
       - "Database user ID lookup"
       - "Data validation"
-      - "Database operation"
+      - "Database operation via Supabase"
       - "Error handling"
       - "Response formatting"
     response_format:
       success: "NextResponse.json({ data })"
       error: "new NextResponse('message', { status: code })"
+    static_generation:
+      - "API routes should be dynamic, not static"
+      - "Use export const dynamic = 'force-dynamic' to prevent static generation"
+      - "Access cookies/headers only in API routes, not in shared utilities"
 
 # Type System
 types:

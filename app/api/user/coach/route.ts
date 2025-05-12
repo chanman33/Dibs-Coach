@@ -4,6 +4,8 @@ import { withApiAuth } from '@/utils/middleware/withApiAuth'
 import { createAuthClient } from '@/utils/auth'
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
 
+export const dynamic = 'force-dynamic';
+
 interface CoachUserResponse {
   ulid: string
   systemRole: string

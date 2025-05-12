@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { z } from 'zod';
 
+export const dynamic = 'force-dynamic';
+
 const setActiveSchema = z.object({
   organizationUlid: z.string().length(26)
 });

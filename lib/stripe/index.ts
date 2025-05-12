@@ -1,6 +1,5 @@
 import Stripe from 'stripe';
-import { cookies } from 'next/headers';
-import { createServerClient } from '@supabase/ssr';
+import { createAuthClient } from '@/utils/auth/auth-client';
 import { feeCalculator } from './fees';
 
 // Initialize Stripe with the secret key
@@ -17,7 +16,7 @@ export interface StripeServiceError extends Error {
 }
 
 // Database types
-type Database = {
+export interface StripeDatabase {
   Session: {
     id: number;
     coachDbId: number;
@@ -146,35 +145,16 @@ interface CreateSessionPaymentIntentParams {
  */
 export class StripeService {
   private stripe: Stripe;
-  public supabase!: ReturnType<typeof createServerClient<Database>>;
+  public supabase: any; // Using any to satisfy TypeScript since we're using Clerk for auth, not Supabase auth
 
   constructor() {
     this.stripe = stripe;
     this.initSupabase();
   }
 
-  private async initSupabase() {
-    const cookieStore = await cookies();
-    this.supabase = createServerClient<Database>(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            const cookie = cookieStore.get(name);
-            return cookie?.value;
-          },
-          set(name: string, value: string, options: any) {
-            // Server components can't set cookies
-            return;
-          },
-          remove(name: string, options: any) {
-            // Server components can't remove cookies
-            return;
-          },
-        },
-      }
-    );
+  private initSupabase() {
+    // Use the cookie-free Supabase client - no need for cookies with Clerk auth
+    this.supabase = createAuthClient();
   }
 
   /**

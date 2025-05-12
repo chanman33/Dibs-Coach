@@ -70,4 +70,3 @@ export function MenteeList({ mentees, searchTerm, selectedMenteeId, onSelectMent
     </div>
   )
 }
-

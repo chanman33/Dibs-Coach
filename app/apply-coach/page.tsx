@@ -5,6 +5,8 @@ import { getCoachApplication } from '@/utils/actions/coach-application';
 import { createAuthClient } from '@/utils/auth';
 import { type CoachApplicationStatus } from '@/utils/types/coach-application';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ApplyCoachPage() {
   const { userId } = await auth();
   const user = await currentUser();

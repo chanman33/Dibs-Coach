@@ -17,13 +17,13 @@ const sharedSchema = {
 
   // Cal.com Client-Side
   NEXT_PUBLIC_CAL_CLIENT_ID: z.string().optional().default(''),
-  NEXT_PUBLIC_CAL_REDIRECT_URL: z.string().url().optional(),
-  NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL: z.string().url().optional(),
-  NEXT_PUBLIC_CAL_BOOKING_CANCEL_URL: z.string().url().optional(),
-  NEXT_PUBLIC_CAL_BOOKING_RESCHEDULE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_CAL_REDIRECT_URL: z.string().optional(),
+  NEXT_PUBLIC_CAL_BOOKING_SUCCESS_URL: z.string().optional(),
+  NEXT_PUBLIC_CAL_BOOKING_CANCEL_URL: z.string().optional(),
+  NEXT_PUBLIC_CAL_BOOKING_RESCHEDULE_URL: z.string().optional(),
 
   // Supabase Public
-  NEXT_PUBLIC_SUPABASE_URL: isDevelopment ? z.string().optional() : z.string().url(),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().optional(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: isDevelopment ? z.string().optional() : z.string().min(1),
 
   // Stripe Public
@@ -42,7 +42,7 @@ const serverOnlySchema = {
   CAL_ORGANIZATION_ID: z.string().optional().default(''),
 
   // Supabase Server
-  SUPABASE_URL: isDevelopment ? z.string().optional() : z.string().url(),
+  SUPABASE_URL: z.string().optional(),
   SUPABASE_SERVICE_KEY: isDevelopment ? z.string().optional() : z.string().min(1),
   DATABASE_URL: isDevelopment ? z.string().optional() : z.string().min(1),
   DIRECT_URL: isDevelopment ? z.string().optional() : z.string().min(1),
@@ -82,12 +82,19 @@ const envSchema = isClient
 
 // Create a function to generate Cal.com URLs based on FRONTEND_URL
 const getCalComUrls = (frontendUrl: string) => {
+  // Make sure the base URL is properly formatted
   const baseUrl = frontendUrl || 'http://localhost:3000';
+  
+  // Ensure the URL has a protocol
+  const formattedBaseUrl = baseUrl.startsWith('http') 
+    ? baseUrl 
+    : `https://${baseUrl}`;
+    
   return {
-    redirectUrl: baseUrl,
-    bookingSuccessUrl: `${baseUrl}/booking-success`,
-    bookingCancelUrl: `${baseUrl}/booking-cancelled`,
-    bookingRescheduleUrl: `${baseUrl}/booking-rescheduled`
+    redirectUrl: formattedBaseUrl,
+    bookingSuccessUrl: `${formattedBaseUrl}/booking-success`,
+    bookingCancelUrl: `${formattedBaseUrl}/booking-cancelled`,
+    bookingRescheduleUrl: `${formattedBaseUrl}/booking-rescheduled`
   };
 };
 

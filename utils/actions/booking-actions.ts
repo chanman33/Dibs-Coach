@@ -126,7 +126,7 @@ export const createBooking = withServerAction<BookingResult, CreateBookingParams
       
       // Make API request to our internal endpoint
       const bookingData = validationResult.data;
-      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cal/booking/create-a-booking`, {
+      const response = await fetch(`${process.env.FRONTEND_URL || 'https://dibs.vercel.app'}/api/cal/booking/create-a-booking`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -223,7 +223,7 @@ export const getCalendarLinks = withServerAction<CalendarLink[], string>(
       }
       
       // Make API request to our internal endpoint
-      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/cal/booking/get-add-to-calendar-links/${bookingUid}`, {
+      const response = await fetch(`${process.env.FRONTEND_URL || 'https://dibs.vercel.app'}/api/cal/booking/get-add-to-calendar-links/${bookingUid}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'

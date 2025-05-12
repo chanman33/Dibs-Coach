@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { StripeService } from '@/lib/stripe';
 
+export const dynamic = 'force-dynamic';
+
 const stripeService = new StripeService();
 
 // Transaction types

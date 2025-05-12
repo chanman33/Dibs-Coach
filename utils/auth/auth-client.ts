@@ -18,3 +18,11 @@ export function createAuthClient() {
     }
   )
 }
+
+/**
+ * This is the same as createAuthClient, just aliased for server components.
+ * We don't need cookies for Supabase when using Clerk auth.
+ */
+export function createServerAuthClient() {
+  return createAuthClient()
+}

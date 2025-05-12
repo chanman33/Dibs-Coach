@@ -682,4 +682,3 @@ export function MenteeDetails({ menteeId }: MenteeDetailsProps) {
     </div>
   )
 }
-

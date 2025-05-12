@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { addDays, startOfDay, endOfDay, nextFriday, addWeeks } from 'date-fns';
 
+export const dynamic = 'force-dynamic';
+
 type SessionWithPayment = {
   Payment: {
     amount: number;
