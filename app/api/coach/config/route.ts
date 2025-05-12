@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
 import { ApiResponse } from '@/utils/types/api';
 import { CoachConfigSchema, type CoachConfig } from '@/utils/types/coach';
-import { ROLES } from '@/utils/roles/roles';
+import { CAPABILITIES } from '@/utils/permissions';
 import { withApiAuth } from '@/utils/middleware/withApiAuth';
 import { createAuthClient } from '@/utils/auth';
+import { generateUlid } from '@/utils/ulid';
 
 export const GET = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
   try {
     const supabase = await createAuthClient();
 
     const { data, error } = await supabase
-      .from("CoachConfig")
+      .from("CoachConfig" as any)
       .select("*")
       .eq("userUlid", userUlid)
       .single();
@@ -37,7 +38,7 @@ export const GET = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
     }
 
     return NextResponse.json<ApiResponse<CoachConfig>>({ 
-      data,
+      data: data as unknown as CoachConfig,
       error: null
     });
   } catch (error) {
@@ -50,7 +51,7 @@ export const GET = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
       }
     }, { status: 500 });
   }
-}, { requiredRoles: [ROLES.COACH] });
+}, { requiredCapabilities: [CAPABILITIES.COACH] });
 
 export const POST = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
   const supabase = await createAuthClient();
@@ -61,7 +62,7 @@ export const POST = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
 
     // Check if config already exists
     const { data: existingConfig, error: checkError } = await supabase
-      .from("CoachConfig")
+      .from("CoachConfig" as any)
       .select("ulid")
       .eq("userUlid", userUlid)
       .single();
@@ -71,7 +72,7 @@ export const POST = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
       return NextResponse.json<ApiResponse<never>>({ 
         data: null,
         error: {
-          code: 'DB_ERROR',
+          code: 'DATABASE_ERROR',
           message: 'Failed to check existing configuration'
         }
       }, { status: 500 });
@@ -80,7 +81,7 @@ export const POST = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
     if (existingConfig) {
       // Update existing config
       const { data: updatedConfig, error: updateError } = await supabase
-        .from("CoachConfig")
+        .from("CoachConfig" as any)
         .update({
           ...validatedData,
           updatedAt: new Date().toISOString()
@@ -101,23 +102,28 @@ export const POST = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
       }
 
       return NextResponse.json<ApiResponse<CoachConfig>>({ 
-        data: updatedConfig,
+        data: updatedConfig as unknown as CoachConfig,
         error: null
       });
     } else {
       // Create new config
+      const newUlid = generateUlid();
+      const insertPayload = {
+        ulid: newUlid,
+        userUlid,
+        ...validatedData,
+        updatedAt: new Date().toISOString()
+        // createdAt will be handled by DB default or should be added if not
+      };
+      
       const { data: newConfig, error: createError } = await supabase
-        .from("CoachConfig")
-        .insert({
-          ...validatedData,
-          userUlid,
-          updatedAt: new Date().toISOString()
-        })
+        .from("CoachConfig" as any)
+        .insert(insertPayload as any) // Cast payload to any if complex type issues persist
         .select()
         .single();
 
       if (createError) {
-        console.error("[COACH_CONFIG_ERROR] Failed to create config:", { userUlid, error: createError });
+        console.error("[COACH_CONFIG_ERROR] Failed to create config:", { userUlid, error: createError, payload: insertPayload });
         return NextResponse.json<ApiResponse<never>>({ 
           data: null,
           error: {
@@ -128,7 +134,7 @@ export const POST = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
       }
 
       return NextResponse.json<ApiResponse<CoachConfig>>({ 
-        data: newConfig,
+        data: newConfig as unknown as CoachConfig,
         error: null
       });
     }
@@ -151,4 +157,4 @@ export const POST = withApiAuth<CoachConfig>(async (req, { userUlid }) => {
       }
     }, { status: 500 });
   }
-}, { requiredRoles: [ROLES.COACH] }); 
+}, { requiredCapabilities: [CAPABILITIES.COACH] }); 

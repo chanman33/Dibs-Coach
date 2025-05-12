@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ApiResponse } from '@/utils/types/api';
 import { CoachMetricsSchema, type CoachMetrics } from '@/utils/types/coach';
-import { ROLES } from '@/utils/roles/roles';
+import { USER_CAPABILITIES } from '@/utils/roles/roles';
 import { withApiAuth } from '@/utils/middleware/withApiAuth';
 import { createAuthClient } from '@/utils/auth';
 
@@ -11,7 +11,7 @@ export const GET = withApiAuth<CoachMetrics>(async (req, { userUlid }) => {
 
     // Get metrics from CoachSessionMetrics
     const { data: metrics, error: metricsError } = await supabase
-      .from('CoachSessionMetrics')
+      .from('CoachProfile')
       .select('*')
       .eq('userUlid', userUlid)
       .single();
@@ -29,11 +29,11 @@ export const GET = withApiAuth<CoachMetrics>(async (req, { userUlid }) => {
 
     // Get count of upcoming sessions
     const { count: upcomingSessions, error: sessionsError } = await supabase
-      .from('CoachSession')
+      .from('Session')
       .select('*', { count: 'exact', head: true })
       .eq('coachUlid', userUlid)
       .gt('startTime', new Date().toISOString())
-      .eq('status', 'CONFIRMED');
+      .eq('status', 'SCHEDULED');
 
     if (sessionsError) {
       console.error('[COACH_METRICS_ERROR] Failed to fetch upcoming sessions:', { userUlid, error: sessionsError });
@@ -77,4 +77,4 @@ export const GET = withApiAuth<CoachMetrics>(async (req, { userUlid }) => {
       }
     }, { status: 500 });
   }
-}, { requiredRoles: [ROLES.COACH] }); 
+}, { requiredCapabilities: [USER_CAPABILITIES.COACH] }); 

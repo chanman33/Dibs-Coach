@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { ApiResponse } from '@/utils/types/api'
 import { withApiAuth } from '@/utils/middleware/withApiAuth'
 import { createAuthClient } from '@/utils/auth'
-import { ROLES } from '@/utils/roles/roles'
+import { USER_CAPABILITIES } from '@/utils/roles/roles'
+import { type AuthContext } from '@/utils/types/auth'
 import { z } from 'zod'
 import { ulidSchema } from '@/utils/types/auth'
 
@@ -27,25 +28,26 @@ interface Note {
   updatedAt: string
 }
 
-export const PATCH = withApiAuth<Note>(async (request: Request, ctx) => {
-  const { userUlid, role } = ctx
-  const urlParts = request.url.split('/')
-  const noteId = urlParts.pop()
-  const menteeId = urlParts[urlParts.length - 2]
+export const PATCH = withApiAuth<Note>(async (request: Request, ctx: AuthContext) => {
+  const { userUlid } = ctx
+  const urlSegments = request.url.split('/')
+  const noteIdParam = urlSegments.pop()
+  const menteeIdParam = urlSegments[urlSegments.length - 2]
 
   try {
     // Validate IDs
-    const validationResult = NoteParamsSchema.safeParse({ id: menteeId, noteId })
+    const validationResult = NoteParamsSchema.safeParse({ id: menteeIdParam, noteId: noteIdParam })
     if (!validationResult.success) {
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
-          code: 'INVALID_ID',
+          code: 'INVALID_INPUT',
           message: 'Invalid mentee ID or note ID format',
           details: validationResult.error.flatten()
         }
       }, { status: 400 })
     }
+    const { id: menteeId, noteId } = validationResult.data
 
     // Validate request body
     const body = await request.json()
@@ -59,16 +61,6 @@ export const PATCH = withApiAuth<Note>(async (request: Request, ctx) => {
           details: bodyValidation.error.flatten()
         }
       }, { status: 400 })
-    }
-
-    if (role !== ROLES.COACH) {
-      return NextResponse.json<ApiResponse<never>>({
-        data: null,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only coaches can update notes'
-        }
-      }, { status: 403 })
     }
 
     const supabase = await createAuthClient()
@@ -115,7 +107,7 @@ export const PATCH = withApiAuth<Note>(async (request: Request, ctx) => {
     }
 
     return NextResponse.json<ApiResponse<Note>>({
-      data: updatedNote,
+      data: updatedNote as Note,
       error: null
     })
   } catch (error) {
@@ -129,37 +121,28 @@ export const PATCH = withApiAuth<Note>(async (request: Request, ctx) => {
       }
     }, { status: 500 })
   }
-}, { requiredRoles: [ROLES.COACH] })
+}, { requiredCapabilities: [USER_CAPABILITIES.COACH] })
 
-export const DELETE = withApiAuth(async (request: Request, ctx) => {
-  const { userUlid, role } = ctx
-  const urlParts = request.url.split('/')
-  const noteId = urlParts.pop()
-  const menteeId = urlParts[urlParts.length - 2]
+export const DELETE = withApiAuth(async (request: Request, ctx: AuthContext) => {
+  const { userUlid } = ctx
+  const urlSegments = request.url.split('/')
+  const noteIdParam = urlSegments.pop()
+  const menteeIdParam = urlSegments[urlSegments.length - 2]
 
   try {
     // Validate IDs
-    const validationResult = NoteParamsSchema.safeParse({ id: menteeId, noteId })
+    const validationResult = NoteParamsSchema.safeParse({ id: menteeIdParam, noteId: noteIdParam })
     if (!validationResult.success) {
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
-          code: 'INVALID_ID',
+          code: 'INVALID_INPUT',
           message: 'Invalid mentee ID or note ID format',
           details: validationResult.error.flatten()
         }
       }, { status: 400 })
     }
-
-    if (role !== ROLES.COACH) {
-      return NextResponse.json<ApiResponse<never>>({
-        data: null,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only coaches can delete notes'
-        }
-      }, { status: 403 })
-    }
+    const { id: menteeId, noteId } = validationResult.data
 
     const supabase = await createAuthClient()
 
@@ -214,4 +197,4 @@ export const DELETE = withApiAuth(async (request: Request, ctx) => {
       }
     }, { status: 500 })
   }
-}, { requiredRoles: [ROLES.COACH] }) 
+}, { requiredCapabilities: [USER_CAPABILITIES.COACH] }) 

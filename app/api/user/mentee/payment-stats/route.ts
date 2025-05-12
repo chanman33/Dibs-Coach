@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { ApiResponse } from '@/utils/types/api';
 import { withApiAuth } from '@/utils/middleware/withApiAuth';
 import { createAuthClient } from '@/utils/auth';
-import { ROLES } from '@/utils/roles/roles';
+import { SYSTEM_ROLES } from '@/utils/roles/roles';
 import { StripeService } from '@/lib/stripe';
 import { z } from 'zod';
 
@@ -38,7 +38,7 @@ export const GET = withApiAuth<PaymentStats>(async (req, { userId }) => {
     // Verify the requesting user is the same as the userUlid or is an admin
     const { data: userData, error: userError } = await supabase
       .from('User')
-      .select('ulid, role')
+      .select('ulid, systemRole')
       .eq('userId', userId)
       .single();
 
@@ -55,7 +55,8 @@ export const GET = withApiAuth<PaymentStats>(async (req, { userId }) => {
     }
 
     // Only allow access to own stats unless admin
-    if (userData.ulid !== validatedParams.userUlid && userData.role !== ROLES.ADMIN) {
+    if (userData.ulid !== validatedParams.userUlid && 
+        (userData.systemRole !== SYSTEM_ROLES.SYSTEM_MODERATOR && userData.systemRole !== SYSTEM_ROLES.SYSTEM_OWNER)) {
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
@@ -71,7 +72,7 @@ export const GET = withApiAuth<PaymentStats>(async (req, { userId }) => {
       .from('Transaction')
       .select('amount')
       .eq('payerUlid', validatedParams.userUlid)
-      .eq('status', 'completed')
+      .eq('status', 'COMPLETED')
       .in('type', ['session_payment', 'bundle_payment']);
 
     if (completedError) {
@@ -97,7 +98,7 @@ export const GET = withApiAuth<PaymentStats>(async (req, { userId }) => {
       .from('Transaction')
       .select('amount')
       .eq('payerUlid', validatedParams.userUlid)
-      .eq('status', 'completed')
+      .eq('status', 'COMPLETED')
       .in('type', ['session_payment', 'bundle_payment'])
       .gte('createdAt', startOfMonth.toISOString());
 
@@ -118,9 +119,9 @@ export const GET = withApiAuth<PaymentStats>(async (req, { userId }) => {
     // Get total completed sessions
     const { count: totalSessions, error: totalSessionsError } = await supabase
       .from('Session')
-      .select('*', { count: 'exact', head: true })
+      .select('* ', { count: 'exact', head: true })
       .eq('menteeUlid', validatedParams.userUlid)
-      .eq('status', 'completed');
+      .eq('status', 'COMPLETED');
 
     if (totalSessionsError) {
       console.error('[PAYMENT_STATS_ERROR] Failed to fetch total sessions:', totalSessionsError);
@@ -137,9 +138,9 @@ export const GET = withApiAuth<PaymentStats>(async (req, { userId }) => {
     // Get upcoming sessions
     const { count: upcomingSessions, error: upcomingError } = await supabase
       .from('Session')
-      .select('*', { count: 'exact', head: true })
+      .select('* ', { count: 'exact', head: true })
       .eq('menteeUlid', validatedParams.userUlid)
-      .eq('status', 'scheduled')
+      .eq('status', 'SCHEDULED')
       .gt('startTime', new Date().toISOString());
 
     if (upcomingError) {
@@ -157,18 +158,22 @@ export const GET = withApiAuth<PaymentStats>(async (req, { userId }) => {
     // Get default payment method
     let defaultPaymentMethod = null;
     try {
-      // Get user's numeric ID
-      const { data: user, error: userIdError } = await supabase
-        .from('User')
-        .select('id')
-        .eq('ulid', validatedParams.userUlid)
-        .single();
+      // Get user's numeric ID for Stripe - AWAITING CLARIFICATION ON HOW TO FETCH THIS NUMERIC ID
+      // const { data: userDataForStripe, error: userStripeError } = await supabase
+      //   .from('User')
+      //   .select('id') // This causes: "Property 'id' does not exist on type 'SelectQueryError<"column 'id' does not exist on 'User'.">" 
+      //   .eq('ulid', validatedParams.userUlid)
+      //   .single();
 
-      if (userIdError || !user) {
-        throw new Error('Failed to get user ID');
-      }
-
-      defaultPaymentMethod = await stripeService.getDefaultPaymentMethod(user.id);
+      // if (userStripeError || !userDataForStripe) {
+      //   console.warn('[PAYMENT_STATS_ERROR] Failed to get user numeric id for Stripe or user not found:', { userUlid: validatedParams.userUlid, error: userStripeError });
+      // } else if (userDataForStripe.id) { 
+      //   // Assuming userDataForStripe.id is the numeric ID StripeService expects (e.g. 12345)
+      //   // defaultPaymentMethod = await stripeService.getDefaultPaymentMethod(userDataForStripe.id);
+      // } else {
+      //   console.warn('[PAYMENT_STATS_ERROR] User found but no numeric id present for Stripe:', { userUlid: validatedParams.userUlid });
+      // }
+      console.warn('[PAYMENT_STATS_ERROR] Stripe getDefaultPaymentMethod call is commented out pending clarification on numeric User ID.');
     } catch (error) {
       console.error('[PAYMENT_STATS_ERROR] Failed to fetch stripe payment methods:', error);
       // Don't fail the entire request if Stripe call fails

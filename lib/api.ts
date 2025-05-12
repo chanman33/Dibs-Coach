@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { ApiResponse } from '@/utils/types'
-import { getUserUlidAndRole } from '@/utils/auth'
+import { getUserById } from '@/utils/auth/user-management'
 
 type ApiHandler<T> = (req: NextRequest, context: { userUlid: string }) => Promise<NextResponse<ApiResponse<T>>>
 
@@ -27,8 +27,8 @@ export function withApiAuth<T>(
       }
 
       // Get user's database ID and role
-      const { userUlid, role } = await getUserUlidAndRole(userId)
-      if (!userUlid) {
+      const userContext = await getUserById(userId)
+      if (!userContext) {
         return NextResponse.json<ApiResponse<never>>({
           data: null,
           error: {
@@ -37,9 +37,10 @@ export function withApiAuth<T>(
           }
         }, { status: 404 })
       }
+      const { userUlid, systemRole } = userContext
 
       // Check role requirements if specified
-      if (options.requiredRoles && !options.requiredRoles.includes(role)) {
+      if (options.requiredRoles && !options.requiredRoles.includes(systemRole)) {
         return NextResponse.json<ApiResponse<never>>({
           data: null,
           error: {

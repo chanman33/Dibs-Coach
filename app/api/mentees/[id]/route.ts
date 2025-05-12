@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { ApiResponse } from '@/utils/types/api'
 import { withApiAuth } from '@/utils/middleware/withApiAuth'
 import { createAuthClient } from '@/utils/auth'
-import { ROLES } from '@/utils/roles/roles'
+import { USER_CAPABILITIES } from '@/utils/roles/roles'
+import { type AuthContext } from '@/utils/types/auth'
 import { z } from 'zod'
 import { ulidSchema } from '@/utils/types/auth'
 
@@ -31,7 +32,6 @@ interface MenteeDetails {
   }>
   sessions: Array<{
     ulid: string
-    durationMinutes: number
     status: string
     createdAt: string
     notes: Array<{
@@ -48,8 +48,8 @@ interface MenteeDetails {
   }>
 }
 
-export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx) => {
-  const { userUlid, role } = ctx
+export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx: AuthContext) => {
+  const { userUlid } = ctx
   const id = request.url.split('/').slice(-1)[0]
 
   try {
@@ -59,21 +59,11 @@ export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx) => {
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
-          code: 'INVALID_ID',
+          code: 'INVALID_INPUT',
           message: 'Invalid mentee ID format',
           details: validationResult.error.flatten()
         }
       }, { status: 400 })
-    }
-
-    if (role !== ROLES.COACH) {
-      return NextResponse.json<ApiResponse<never>>({
-        data: null,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only coaches can access mentee details'
-        }
-      }, { status: 403 })
     }
 
     const supabase = await createAuthClient()
@@ -106,7 +96,7 @@ export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx) => {
         lastName,
         email,
         profileImageUrl,
-        RealtorProfile!userUlid (
+        realtorProfile:RealtorProfile!userUlid (
           ulid,
           companyName,
           licenseNumber,
@@ -140,7 +130,6 @@ export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx) => {
       .from('Session')
       .select(`
         ulid,
-        durationMinutes,
         status,
         createdAt,
         notes:Note (
@@ -151,7 +140,6 @@ export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx) => {
       `)
       .eq('menteeUlid', id)
       .eq('coachUlid', userUlid)
-      .order('createdAt', { ascending: false })
 
     if (sessionQueryError) {
       console.error('[MENTEE_DETAILS_ERROR] Session lookup:', sessionQueryError)
@@ -168,7 +156,7 @@ export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx) => {
 
     const response: MenteeDetails = {
       ...menteeData,
-      realtorProfile: menteeData.RealtorProfile ? menteeData.RealtorProfile[0] || null : null,
+      realtorProfile: menteeData.realtorProfile ? (menteeData.realtorProfile as any)[0] || null : null,
       goals: goals || [],
       sessions: sessions || [],
       notes: notes || []
@@ -189,4 +177,4 @@ export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx) => {
       }
     }, { status: 500 })
   }
-}, { requiredRoles: [ROLES.COACH] }) 
+}, { requiredCapabilities: [USER_CAPABILITIES.COACH] }) 

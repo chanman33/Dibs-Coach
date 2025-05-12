@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server'
 import { ApiResponse } from '@/utils/types/api'
 import { withApiAuth } from '@/utils/middleware/withApiAuth'
 import { createAuthClient } from '@/utils/auth'
-import { ROLES } from '@/utils/roles/roles'
+import { USER_CAPABILITIES } from '@/utils/roles/roles'
+import { type AuthContext } from '@/utils/types/auth'
 import { z } from 'zod'
 import { ulidSchema } from '@/utils/types/auth'
+import { generateUlid } from '@/utils/ulid'
 
 // Validation schemas
 const MenteeParamsSchema = z.object({
@@ -26,8 +28,8 @@ interface Note {
   updatedAt: string
 }
 
-export const POST = withApiAuth<Note>(async (request: Request, ctx) => {
-  const { userUlid, role } = ctx
+export const POST = withApiAuth<Note>(async (request: Request, ctx: AuthContext) => {
+  const { userUlid } = ctx
   const id = request.url.split('/').slice(-2)[0] // Get mentee ID from URL
 
   try {
@@ -37,7 +39,7 @@ export const POST = withApiAuth<Note>(async (request: Request, ctx) => {
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
-          code: 'INVALID_ID',
+          code: 'INVALID_INPUT',
           message: 'Invalid mentee ID format',
           details: validationResult.error.flatten()
         }
@@ -56,16 +58,6 @@ export const POST = withApiAuth<Note>(async (request: Request, ctx) => {
           details: bodyValidation.error.flatten()
         }
       }, { status: 400 })
-    }
-
-    if (role !== ROLES.COACH) {
-      return NextResponse.json<ApiResponse<never>>({
-        data: null,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only coaches can add notes'
-        }
-      }, { status: 403 })
     }
 
     const supabase = await createAuthClient()
@@ -94,6 +86,7 @@ export const POST = withApiAuth<Note>(async (request: Request, ctx) => {
     const { data: note, error: noteError } = await supabase
       .from('Note')
       .insert({
+        ulid: generateUlid(),
         content: bodyValidation.data.content,
         relatedUserUlid: id,
         authorUlid: userUlid,
@@ -117,7 +110,7 @@ export const POST = withApiAuth<Note>(async (request: Request, ctx) => {
     }
 
     return NextResponse.json<ApiResponse<Note>>({
-      data: note,
+      data: note as Note,
       error: null
     })
   } catch (error) {
@@ -131,4 +124,4 @@ export const POST = withApiAuth<Note>(async (request: Request, ctx) => {
       }
     }, { status: 500 })
   }
-}, { requiredRoles: [ROLES.COACH] }) 
+}, { requiredCapabilities: [USER_CAPABILITIES.COACH] }) 

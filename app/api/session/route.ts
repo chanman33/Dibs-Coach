@@ -4,12 +4,13 @@ import { withApiAuth } from "@/utils/middleware/withApiAuth"
 import { createAuthClient } from "@/utils/auth"
 import { z } from "zod"
 import { ulidSchema } from "@/utils/types/auth"
-import { ROLES } from "@/utils/roles/roles"
+import { USER_CAPABILITIES, SYSTEM_ROLES } from "@/utils/roles/roles"
+import { generateUlid } from "@/utils/ulid"
 
 // Validation schemas
 const SessionRateSchema = z.object({
   baseRate: z.number().positive(),
-  amount: z.number().positive(),
+  amount: z.number().positive().nullable(),
   currency: z.enum(["USD", "EUR", "GBP"])
 })
 
@@ -19,19 +20,21 @@ const SessionSchema = z.object({
   menteeUlid: ulidSchema,
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
-  durationMinutes: z.number().int().positive(),
-  status: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED", "NO_SHOW"]),
-  notes: z.string().optional(),
-  zoomMeetingId: z.string().optional(),
-  zoomJoinUrl: z.string().url().optional(),
+  status: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED", "ABSENT", "RESCHEDULED"]),
+  zoomMeetingId: z.string().nullable(),
+  zoomJoinUrl: z.string().url().nullable(),
+  sessionType: z.enum(["MANAGED", "OFFICE_HOURS", "GROUP_SESSION"]),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 })
 
-const CreateSessionSchema = SessionSchema.omit({ 
+const CreateSessionSchema = SessionSchema.omit({
   ulid: true,
   createdAt: true,
-  updatedAt: true 
+  updatedAt: true
+}).extend({
+  zoomMeetingId: z.string().nullable().optional(),
+  zoomJoinUrl: z.string().url().nullable().optional(),
 })
 
 const UpdateSessionSchema = SessionSchema.partial().extend({
@@ -43,7 +46,7 @@ type CreateSession = z.infer<typeof CreateSessionSchema>
 type UpdateSession = z.infer<typeof UpdateSessionSchema>
 
 // Helper function to calculate session rate
-async function calculateSessionRate(coachUlid: string, durationMinutes: number) {
+async function calculateSessionRate(coachUlid: string) {
   const supabase = await createAuthClient()
 
   const { data: coach } = await supabase
@@ -56,20 +59,39 @@ async function calculateSessionRate(coachUlid: string, durationMinutes: number) 
 
   return {
     baseRate: Number(coach.hourlyRate),
-    amount: (Number(coach.hourlyRate) / 60) * durationMinutes,
-    currency: "USD"
+    amount: null,
+    currency: "USD" as "USD" | "EUR" | "GBP"
   }
 }
 
-export const GET = withApiAuth<Session[]>(async (req, { userUlid, role }) => {
+export const GET = withApiAuth<Session[]>(async (req, { userUlid }) => {
   try {
     const supabase = await createAuthClient()
 
-    // Build query based on role
+    const { data: userProfile, error: userProfileError } = await supabase
+      .from("User")
+      .select("systemRole, capabilities")
+      .eq("ulid", userUlid)
+      .single()
+
+    if (userProfileError || !userProfile) {
+      console.error("[SESSION_ERROR] Failed to fetch user profile:", { userUlid, error: userProfileError })
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: 'FETCH_ERROR',
+          message: 'Failed to fetch user profile'
+        }
+      }, { status: 500 })
+    }
+
+    const { systemRole, capabilities } = userProfile
+    const userCapabilities = (capabilities as string[] | null) || []
+
     let query = supabase
       .from("Session")
       .select(`
-        *,
+        ulid, coachUlid, menteeUlid, startTime, endTime, status, zoomMeetingId, zoomJoinUrl, sessionType, createdAt, updatedAt,
         coach:coachUlid(
           ulid,
           firstName,
@@ -92,12 +114,19 @@ export const GET = withApiAuth<Session[]>(async (req, { userUlid, role }) => {
         )
       `)
 
-    if (role === ROLES.COACH) {
+    if (systemRole === SYSTEM_ROLES.SYSTEM_OWNER || systemRole === SYSTEM_ROLES.SYSTEM_MODERATOR) {
+      // System admins can see all sessions (or define more specific logic if needed)
+    } else if (userCapabilities.includes(USER_CAPABILITIES.COACH) && userCapabilities.includes(USER_CAPABILITIES.MENTEE)) {
+      // User is both Coach and Mentee
+      query = query.or(`coachUlid.eq.${userUlid},menteeUlid.eq.${userUlid}`)
+    } else if (userCapabilities.includes(USER_CAPABILITIES.COACH)) {
       query = query.eq("coachUlid", userUlid)
-    } else if (role === ROLES.MENTEE) {
+    } else if (userCapabilities.includes(USER_CAPABILITIES.MENTEE)) {
       query = query.eq("menteeUlid", userUlid)
     } else {
-      query = query.or(`coachUlid.eq.${userUlid},menteeUlid.eq.${userUlid}`)
+      // User is not a coach or mentee, but might be associated with sessions directly
+      // Or, if they should not see any sessions, return empty or error
+      query = query.or(`coachUlid.eq.${userUlid},menteeUlid.eq.${userUlid}`) // Default: can see sessions they are part of
     }
 
     const { data, error } = await query.order("startTime", { ascending: false })
@@ -160,24 +189,23 @@ export const POST = withApiAuth<Session>(async (req, { userUlid }) => {
     }
 
     const supabase = await createAuthClient()
+    const newSessionUlid = generateUlid()
 
     // Calculate session rate
-    const rate = await calculateSessionRate(
-      sessionData.coachUlid,
-      sessionData.durationMinutes
-    )
+    const rate = await calculateSessionRate(sessionData.coachUlid)
 
     // Create session
     const { data: session, error: sessionError } = await supabase
       .from("Session")
       .insert({
+        ulid: newSessionUlid,
         ...sessionData,
         status: "SCHEDULED",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       })
       .select(`
-        *,
+        ulid, coachUlid, menteeUlid, startTime, endTime, status, zoomMeetingId, zoomJoinUrl, sessionType, createdAt, updatedAt,
         coach:coachUlid(
           ulid,
           firstName,
@@ -196,7 +224,7 @@ export const POST = withApiAuth<Session>(async (req, { userUlid }) => {
       .single()
 
     if (sessionError) {
-      console.error("[SESSION_ERROR] Failed to create session:", { userUlid, error: sessionError })
+      console.error("[SESSION_ERROR] Failed to create session:", { userUlid, error: sessionError, sessionData })
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
@@ -207,11 +235,13 @@ export const POST = withApiAuth<Session>(async (req, { userUlid }) => {
     }
 
     // Create payment if rate exists
-    if (rate) {
+    if (rate && rate.amount !== null) {
+      const newPaymentUlid = generateUlid()
       const { error: paymentError } = await supabase
         .from("Payment")
         .insert({
-          sessionUlid: session.ulid,
+          ulid: newPaymentUlid,
+          sessionUlid: newSessionUlid,
           payerUlid: sessionData.menteeUlid,
           payeeUlid: sessionData.coachUlid,
           amount: rate.amount,
@@ -222,12 +252,14 @@ export const POST = withApiAuth<Session>(async (req, { userUlid }) => {
         })
 
       if (paymentError) {
-        console.error("[SESSION_ERROR] Failed to create payment:", { 
+        console.error("[SESSION_ERROR] Failed to create payment:", {
           userUlid,
-          sessionUlid: session.ulid,
-          error: paymentError 
+          sessionUlid: newSessionUlid,
+          error: paymentError
         })
       }
+    } else if (rate && rate.amount === null) {
+      console.warn("[SESSION_ERROR] Payment not created because session amount could not be calculated (durationMinutes missing?)", { sessionUlid: newSessionUlid });
     }
 
     return NextResponse.json<ApiResponse<Session>>({
@@ -302,7 +334,7 @@ export const PUT = withApiAuth<Session>(async (req, { userUlid }) => {
       })
       .eq("ulid", sessionData.ulid)
       .select(`
-        *,
+        ulid, coachUlid, menteeUlid, startTime, endTime, status, zoomMeetingId, zoomJoinUrl, sessionType, createdAt, updatedAt,
         coach:coachUlid(
           ulid,
           firstName,
@@ -327,10 +359,10 @@ export const PUT = withApiAuth<Session>(async (req, { userUlid }) => {
       .single()
 
     if (updateError) {
-      console.error("[SESSION_ERROR] Failed to update session:", { 
+      console.error("[SESSION_ERROR] Failed to update session:", {
         userUlid,
         sessionUlid: sessionData.ulid,
-        error: updateError 
+        error: updateError
       })
       return NextResponse.json<ApiResponse<never>>({
         data: null,

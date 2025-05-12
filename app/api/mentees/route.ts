@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { ApiResponse } from '@/utils/types/api'
 import { withApiAuth } from '@/utils/middleware/withApiAuth'
 import { createAuthClient } from '@/utils/auth'
-import { ROLES } from '@/utils/roles/roles'
+import { USER_CAPABILITIES } from '@/utils/roles/roles'
+import { type AuthContext } from '@/utils/types/auth'
 import { z } from 'zod'
 
 // Type definitions
@@ -22,21 +23,11 @@ interface Mentee {
   realtorProfile: RealtorProfile | null
 }
 
-export const GET = withApiAuth<Mentee[]>(async (req, { userUlid, role }) => {
+export const GET = withApiAuth<Mentee[]>(async (req, ctx: AuthContext) => {
+  const { userUlid } = ctx
   try {
-    // Role check
-    if (role !== ROLES.COACH) {
-      return NextResponse.json<ApiResponse<never>>({ 
-        data: null,
-        error: {
-          code: 'FORBIDDEN',
-          message: 'Only coaches can access mentee information'
-        }
-      }, { status: 403 })
-    }
-
     const supabase = await createAuthClient()
-    
+
     // First get all mentee ULIDs from sessions
     const { data: sessionMentees, error: sessionError } = await supabase
       .from("Session")
@@ -116,4 +107,4 @@ export const GET = withApiAuth<Mentee[]>(async (req, { userUlid, role }) => {
       }
     }, { status: 500 })
   }
-}, { requiredRoles: [ROLES.COACH] }) 
+}, { requiredCapabilities: [USER_CAPABILITIES.COACH] }) 
