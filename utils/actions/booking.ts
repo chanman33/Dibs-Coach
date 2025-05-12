@@ -1,7 +1,6 @@
 "use server"
 
-import { createClient } from '@/lib/supabase/server'
-import { cookies } from 'next/headers'
+import { createServerAuthClient } from '@/utils/auth/server-client'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { env } from '@/lib/env'
@@ -21,9 +20,9 @@ const bookingSchema = z.object({
 })
 
 export async function createBooking(formData: FormData) {
-  const supabase = createClient(cookies())
-
   try {
+    const supabase = await createServerAuthClient()
+
     // Validate form data
     const validatedData = bookingSchema.parse({
       coachId: formData.get('coachId'),

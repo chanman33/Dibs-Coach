@@ -6,7 +6,7 @@
 import { createServerAuthClient } from '@/utils/auth/server-client'
 import { getSupabaseCookies } from '@/lib/cookies'
 
-export const createClient = async () => {
+export const createSafeClient = async () => {
   const cookieStore = await getSupabaseCookies()
   return createServerAuthClient(cookieStore)
 } 
