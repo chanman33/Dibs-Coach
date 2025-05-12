@@ -10,67 +10,7 @@ import { createAuthClient } from '@/utils/auth';
 import { env } from '@/lib/env';
 import crypto from 'crypto';
 import { generateUlid } from '@/utils/ulid';
-
-// Cal.com webhook event types
-export enum CalWebhookEventType {
-  BOOKING_CREATED = 'BOOKING_CREATED',
-  BOOKING_RESCHEDULED = 'BOOKING_RESCHEDULED',
-  BOOKING_CANCELLED = 'BOOKING_CANCELLED',
-  BOOKING_REJECTED = 'BOOKING_REJECTED',
-  BOOKING_REQUESTED = 'BOOKING_REQUESTED',
-  BOOKING_PAYMENT_INITIATED = 'BOOKING_PAYMENT_INITIATED',
-  BOOKING_PAYMENT_CONFIRMED = 'BOOKING_PAYMENT_CONFIRMED',
-  BOOKING_UPDATED = 'BOOKING_UPDATED',
-  FORM_SUBMITTED = 'FORM_SUBMITTED',
-  MEETING_ENDED = 'MEETING_ENDED',
-  RECORDING_READY = 'RECORDING_READY'
-}
-
-// Payload interfaces
-interface CalBookingPayload {
-  uid: string;
-  title: string;
-  eventTypeId: number;
-  startTime: string;
-  endTime: string;
-  description?: string;
-  attendees: {
-    email: string;
-    name: string;
-    timeZone: string;
-    language: {
-      locale: string;
-    };
-  }[];
-  organizer: {
-    id: number;
-    name: string;
-    email: string;
-    username?: string;
-    timeZone: string;
-    language: {
-      locale: string;
-    };
-  };
-  status?: string;
-  responses?: Record<string, any>;
-  metadata?: Record<string, any>;
-  location?: string;
-  cancellationReason?: string;
-  rejectionReason?: string;
-  payment?: {
-    amount: number;
-    currency: string;
-    status: string;
-  };
-}
-
-interface CalWebhookEvent {
-  triggerEvent: CalWebhookEventType;
-  type?: string;
-  createdAt: string;
-  payload: CalBookingPayload;
-}
+import { CalWebhookEventType, CalWebhookEvent } from './types'; // Import from the new types file
 
 /**
  * Verify the Cal.com webhook signature
