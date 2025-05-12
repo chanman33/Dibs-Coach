@@ -22,7 +22,7 @@ export const GET = withApiAuth<ZoomConfig>(async (req: Request, { userUlid }) =>
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
-          code: 'CONFIG_ERROR',
+          code: 'INTERNAL_ERROR',
           message: 'Zoom SDK credentials are not configured'
         }
       }, { status: 500 });
@@ -42,7 +42,7 @@ export const GET = withApiAuth<ZoomConfig>(async (req: Request, { userUlid }) =>
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
-          code: 'USER_ERROR',
+          code: 'DATABASE_ERROR',
           message: 'Failed to fetch user details'
         }
       }, { status: 500 });

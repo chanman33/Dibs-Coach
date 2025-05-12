@@ -203,27 +203,47 @@ export class ZoomService {
     if (!targetUlid) throw new Error('User ULID is required');
 
     const { data } = await this.supabase
-      .from('ZoomMeetingConfig')
-      .select('*')
+      .from('CoachZoomConfig')
+      .select('defaultSettings')
       .eq('userUlid', targetUlid)
-      .single();
+      .maybeSingle();
 
-    return data;
+    if (data && data.defaultSettings) {
+      return data.defaultSettings as SessionMeetingConfig;
+    }
+    return null;
   }
 
   async updateMeetingConfig(config: SessionMeetingConfig, userUlid?: string): Promise<void> {
     const targetUlid = userUlid || this.userUlid;
     if (!targetUlid) throw new Error('User ULID is required');
 
-    const { error } = await this.supabase
-      .from('ZoomMeetingConfig')
-      .upsert({
-        userUlid: targetUlid,
-        ...config,
-        updatedAt: new Date().toISOString()
-      });
+    const { data: existingConfig, error: fetchError } = await this.supabase
+      .from('CoachZoomConfig')
+      .select('ulid')
+      .eq('userUlid', targetUlid)
+      .maybeSingle();
 
-    if (error) throw error;
+    if (fetchError) {
+      console.error("[ZOOM_SERVICE_UPDATE_CONFIG_ERROR] Fetching existing config failed:", fetchError);
+      throw fetchError;
+    }
+
+    const recordToUpsert = {
+      userUlid: targetUlid,
+      defaultSettings: config,
+      updatedAt: new Date().toISOString(),
+      ...(existingConfig ? { ulid: existingConfig.ulid } : { ulid: generateUlid(), createdAt: new Date().toISOString() })
+    };
+
+    const { error } = await this.supabase
+      .from('CoachZoomConfig')
+      .upsert(recordToUpsert);
+
+    if (error) {
+      console.error("[ZOOM_SERVICE_UPDATE_CONFIG_ERROR] Upsert failed:", error);
+      throw error;
+    }
   }
 
   async syncMeetingDuration(

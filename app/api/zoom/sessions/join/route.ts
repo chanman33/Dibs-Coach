@@ -5,6 +5,7 @@ import { generateZoomSignature } from '@/utils/zoom-token';
 import { withApiAuth } from '@/utils/middleware/withApiAuth';
 import { ApiResponse } from '@/utils/types/api';
 import { z } from 'zod';
+import { ZOOM_SESSION_STATUS } from '@/utils/types/zoom';
 
 // Response type
 interface JoinSessionResponse {
@@ -38,18 +39,18 @@ export const POST = withApiAuth<JoinSessionResponse>(async (req: Request, { user
     }
     
     // Generate token
-    const token = await generateZoomSignature(session.topic, session.hostId === userUlid ? 1 : 0);
+    const token = await generateZoomSignature(session.sessionName, session.hostUlid === userUlid ? 1 : 0);
     
     // If host is joining, update session status
-    if (session.hostId === userUlid) {
-      await updateZoomSessionStatus(validatedData.sessionId, 'started');
+    if (session.hostUlid === userUlid) {
+      await updateZoomSessionStatus(validatedData.sessionId, ZOOM_SESSION_STATUS.STARTED);
     }
 
     return NextResponse.json<ApiResponse<JoinSessionResponse>>({
       data: {
         token,
-        sessionName: session.topic,
-        role: session.hostId === userUlid ? 'host' : 'participant'
+        sessionName: session.sessionName,
+        role: session.hostUlid === userUlid ? 'host' : 'participant'
       },
       error: null
     });

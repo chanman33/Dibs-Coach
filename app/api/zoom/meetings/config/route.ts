@@ -14,28 +14,10 @@ export const GET = withApiAuth<SessionMeetingConfig>(async (req: Request, { user
   try {
     const supabase = await createAuthClient();
 
-    // Get user's numeric ID from ULID
-    const { data: user, error: userError } = await supabase
-      .from('User')
-      .select('id')
-      .eq('ulid', userUlid)
-      .single();
-
-    if (userError || !user) {
-      console.error('[GET_ZOOM_CONFIG_ERROR] User fetch error:', { userUlid, error: userError });
-      return NextResponse.json<ApiResponse<never>>({
-        data: null,
-        error: {
-          code: 'USER_ERROR',
-          message: 'Failed to fetch user details'
-        }
-      }, { status: 500 });
-    }
-
     const zoomService = new ZoomService();
     await zoomService.init();
 
-    const config = await zoomService.getMeetingConfig(user.id);
+    const config = await zoomService.getMeetingConfig(userUlid);
     
     if (!config) {
       return NextResponse.json<ApiResponse<never>>({
@@ -69,31 +51,13 @@ export const POST = withApiAuth<{ success: true }>(async (req: Request, { userUl
   try {
     const supabase = await createAuthClient();
 
-    // Get user's numeric ID from ULID
-    const { data: user, error: userError } = await supabase
-      .from('User')
-      .select('id')
-      .eq('ulid', userUlid)
-      .single();
-
-    if (userError || !user) {
-      console.error('[UPDATE_ZOOM_CONFIG_ERROR] User fetch error:', { userUlid, error: userError });
-      return NextResponse.json<ApiResponse<never>>({
-        data: null,
-        error: {
-          code: 'USER_ERROR',
-          message: 'Failed to fetch user details'
-        }
-      }, { status: 500 });
-    }
-
     const body = await req.json();
     const validatedData = SessionMeetingConfigSchema.parse(body);
 
     const zoomService = new ZoomService();
     await zoomService.init();
 
-    await zoomService.updateMeetingConfig(user.id, validatedData);
+    await zoomService.updateMeetingConfig(validatedData, userUlid);
 
     return NextResponse.json<ApiResponse<{ success: true }>>({
       data: { success: true },

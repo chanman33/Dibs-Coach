@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createZoomSession, getZoomSession, updateZoomSessionStatus, deleteZoomSession } from '@/lib/zoom/zoom-service';
-import { ZoomSessionConfig, ZoomSession } from '@/utils/types/zoom';
+import { ZoomSessionConfig, ZoomSession, ZOOM_SESSION_STATUS } from '@/utils/types/zoom';
 import { withApiAuth } from '@/utils/middleware/withApiAuth';
 import { ApiResponse } from '@/utils/types/api';
 import { z } from 'zod';
@@ -16,7 +16,12 @@ const CreateSessionSchema = z.object({
 });
 
 const UpdateSessionSchema = z.object({
-  status: z.enum(['scheduled', 'started', 'ended', 'failed']),
+  status: z.enum([
+    ZOOM_SESSION_STATUS.SCHEDULED,
+    ZOOM_SESSION_STATUS.STARTED,
+    ZOOM_SESSION_STATUS.ENDED,
+    ZOOM_SESSION_STATUS.CANCELLED
+  ]),
   sessionId: z.string()
 });
 

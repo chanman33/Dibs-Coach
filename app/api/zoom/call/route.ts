@@ -5,6 +5,7 @@ import { withApiAuth } from '@/utils/middleware/withApiAuth';
 import { generateZoomSignature } from '@/utils/zoom-token';
 import { z } from 'zod';
 import { ApiResponse } from '@/utils/types/api';
+import { getUserById } from '@/utils/auth/user-management';
 
 const callSessionSchema = z.object({
   sessionId: z.string(),
@@ -21,8 +22,8 @@ type CallSessionResponse = {
 
 export const POST = withApiAuth<CallSessionResponse>(async (req: Request) => {
   try {
-    const session = await auth();
-    if (!session?.userId) {
+    const sessionAuth = await auth();
+    if (!sessionAuth?.userId) {
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
@@ -49,14 +50,27 @@ export const POST = withApiAuth<CallSessionResponse>(async (req: Request) => {
     const { sessionId, displayName } = result.data;
     const supabase = await createAuthClient();
 
-    // Get session details
-    const { data: zoomSession, error: sessionError } = await supabase
-      .from("ZoomSession")
-      .select("*")
-      .eq("id", sessionId)
+    // Get the current user's context (which includes ULID) from their Clerk ID
+    const userContext = await getUserById(sessionAuth.userId);
+    if (!userContext) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: "USER_NOT_FOUND",
+          message: "Authenticated user not found in database"
+        }
+      }, { status: 404 });
+    }
+    const userUlid = userContext.userUlid;
+
+    // Get session details from the Session table
+    const { data: dbSession, error: sessionError } = await supabase
+      .from("Session")
+      .select("ulid, coachUlid, zoomMeetingId, zoomStartUrl, zoomJoinUrl")
+      .eq("ulid", sessionId)
       .single();
 
-    if (sessionError || !zoomSession) {
+    if (sessionError || !dbSession) {
       return NextResponse.json<ApiResponse<never>>({
         data: null,
         error: {
@@ -67,27 +81,38 @@ export const POST = withApiAuth<CallSessionResponse>(async (req: Request) => {
     }
 
     // Check if user is host or participant
-    const isHost = zoomSession.hostUlid === session.userId;
+    const isHost = dbSession.coachUlid === userUlid;
     const role = isHost ? 1 : 0; // 1 for host, 0 for participant
 
-    // Generate Zoom token
-    const token = await generateZoomSignature(zoomSession.sessionName, role);
+    // Generate Zoom token using zoomMeetingId as the sessionName/topic
+    if (!dbSession.zoomMeetingId) {
+      return NextResponse.json<ApiResponse<never>>({
+        data: null,
+        error: {
+          code: "INVALID_INPUT",
+          message: "Zoom meeting ID not found for this session, which is required."
+        }
+      }, { status: 400 });
+    }
+    const token = await generateZoomSignature(dbSession.zoomMeetingId, role);
 
-    // If host is joining, update session status
+    // If host is joining, update session status (Commented out as SessionStatus doesn't have 'active')
+    /*
     if (isHost) {
       await supabase
-        .from("ZoomSession")
+        .from("Session")
         .update({ status: "active", updatedAt: new Date().toISOString() })
-        .eq("id", sessionId);
+        .eq("ulid", sessionId);
     }
+    */
 
     return NextResponse.json<ApiResponse<CallSessionResponse>>({
       data: {
         token,
-        sessionName: zoomSession.sessionName,
+        sessionName: dbSession.zoomMeetingId,
         role,
-        startUrl: zoomSession.startUrl,
-        joinUrl: zoomSession.joinUrl
+        startUrl: dbSession.zoomStartUrl || '',
+        joinUrl: dbSession.zoomJoinUrl || ''
       },
       error: null
     });

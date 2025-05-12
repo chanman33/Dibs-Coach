@@ -37,8 +37,7 @@ export async function POST(request: Request) {
       phone: validatedData.phone,
       teamSize: validatedData.teamSize,
       multipleOffices: validatedData.multipleOffices,
-      userId: validatedData.userId,
-      source: validatedData.source,
+      assignedToUlid: validatedData.userId,
       priority: validatedData.source === LEAD_SOURCE.CONTACT_FORM_AUTH ? LEAD_PRIORITY.HIGH : LEAD_PRIORITY.LOW,
       status: "NEW",
       notes: [{
