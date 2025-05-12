@@ -61,6 +61,27 @@ interface ProfessionalRecognition {
 export const fetchUserProfile = withServerAction<UserProfileResponse, void>(
   async (_, { userUlid }): Promise<ApiResponse<UserProfileResponse>> => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: {
+            displayName: "",
+            bio: null,
+            totalYearsRE: 0,
+            realEstateDomains: [],
+            primaryDomain: null,
+            primaryMarket: "",
+            languages: [],
+            capabilities: [],
+            coachProfile: null
+          },
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       const supabase = await createAuthClient();
 
       const { data, error } = await supabase
@@ -149,6 +170,17 @@ export const fetchUserProfile = withServerAction<UserProfileResponse, void>(
 export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormData>(
   async (data, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       // Log the incoming update data
       console.log("[USER_PROFILE_UPDATE_START]", {
         userUlid,
@@ -340,10 +372,25 @@ const CAPABILITIES_CACHE_TTL = 10000; // 10 seconds
 export const fetchUserCapabilities = withServerAction<UserCapabilitiesResponse, { skipProfileCheck?: boolean }>(
   async ({ skipProfileCheck = false } = {}, { userUlid }): Promise<ApiResponse<UserCapabilitiesResponse>> => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: {
+            capabilities: [],
+            realEstateDomains: [],
+            primaryRealEstateDomain: null
+          },
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       const now = Date.now();
       
       // Check cache first
-      if (capabilitiesCache[userUlid] && 
+      if (userUlid in capabilitiesCache && 
           now - capabilitiesCache[userUlid].timestamp < CAPABILITIES_CACHE_TTL) {
         // Log cache hit in development
         if (process.env.NODE_ENV === 'development') {
@@ -436,6 +483,17 @@ export interface LanguageUpdateData {
 export const updateUserLanguages = withServerAction<{ success: boolean }, LanguageUpdateData>(
   async (data, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       console.log("[UPDATE_LANGUAGES_START]", {
         userUlid,
         languages: data.languages,
@@ -532,6 +590,17 @@ export interface UserLanguagesResponse {
 export const fetchUserLanguages = withServerAction<UserLanguagesResponse, void>(
   async (_, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       console.log("[FETCH_USER_LANGUAGES_START]", {
         userUlid,
         timestamp: new Date().toISOString()
@@ -607,6 +676,17 @@ export interface ProfileImageData {
 export const updateProfileImage = withServerAction<ProfileImageData, ProfileImageData>(
   async (data, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       const supabase = await createAuthClient();
 
       const { error } = await supabase
@@ -654,6 +734,17 @@ export interface UserStatusData {
 export const updateUserStatus = withServerAction<UserStatusData, UserStatusData>(
   async (data, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       console.log("[UPDATE_STATUS_START]", {
         userUlid,
         status: data.status,
@@ -749,10 +840,32 @@ export interface DomainUpdateData {
 export const updateUserDomains = withServerAction<DomainUpdateData, DomainUpdateData>(
   async (data, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       const supabase = await createAuthClient();
       
       // Use targetUserUlid if provided, otherwise use the context userUlid
       const targetUlid = data.targetUserUlid || userUlid;
+      
+      // Validate that target ID is defined
+      if (!targetUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'Target user ID is required'
+          }
+        };
+      }
 
       // First check if the user is a coach
       const { data: userData, error: userError } = await supabase

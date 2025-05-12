@@ -475,6 +475,17 @@ export const saveCoachAvailability = withServerAction<{ success: true }, SaveAva
 export const fetchBookedSessions = withServerAction<BookedSession[]>(
   async (params: { startDate: string, endDate: string }, { userUlid, roleContext }) => {
     try {
+      // Add early check for userUlid
+      if (!userUlid) {
+        return {
+          data: [],
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User not authenticated or ID not found'
+          }
+        }
+      }
+
       const supabase = await createAuthClient()
       const query = supabase
         .from('Session')

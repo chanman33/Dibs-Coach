@@ -41,6 +41,17 @@ interface UserDbResponse {
 export const fetchBasicUserData = withServerAction<{ firstName: string | null; lastName: string | null; bio: string | null }, EmptyParams>(
   async (_, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       const supabase = await createAuthClient()
 
       const { data, error } = await supabase
@@ -82,6 +93,17 @@ export const fetchBasicUserData = withServerAction<{ firstName: string | null; l
 export const fetchUserProfile = withServerAction<UserDbResponse, EmptyParams>(
   async (_, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       const supabase = await createAuthClient()
 
       const { data, error } = await supabase
@@ -155,6 +177,17 @@ interface BasicUserUpdate {
 export const updateBasicUserData = withServerAction<UserDbResponse, BasicUserUpdate>(
   async (params, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       const supabase = await createAuthClient()
 
       // Add updatedAt timestamp and use type assertion to avoid type conflicts

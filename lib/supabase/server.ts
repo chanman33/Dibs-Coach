@@ -5,8 +5,8 @@ import { Database } from '@/types/supabase'
 
 export function createClient(cookieStore: ReturnType<typeof cookies>) {
   return createServerClient<Database>(
-    env.NEXT_PUBLIC_SUPABASE_URL,
-    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    env.NEXT_PUBLIC_SUPABASE_URL!,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get: (name: string) => {
@@ -19,7 +19,10 @@ export function createClient(cookieStore: ReturnType<typeof cookies>) {
         },
         remove: (name: string, options: CookieOptions) => {
           const cookieStore = cookies()
-          cookieStore.delete(name, options)
+          cookieStore.delete({
+            name,
+            ...options
+          })
         },
       },
     }

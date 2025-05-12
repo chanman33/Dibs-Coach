@@ -19,6 +19,17 @@ interface RatingResponse {
 export const submitRating = withServerAction<RatingResponse, RatingData>(
   async (data, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+
       const supabase = await createAuthClient()
 
       // First verify the session exists and belongs to the user
@@ -161,6 +172,17 @@ export const fetchCoachRatings = withServerAction<{
 }, void>(
   async (_, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+
       const supabase = await createAuthClient()
 
       // Get coach profile to verify coach status

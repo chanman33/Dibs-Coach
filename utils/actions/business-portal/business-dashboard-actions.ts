@@ -784,14 +784,14 @@ export const fetchUpcomingTrainings = withServerAction<UpcomingTraining[]>(
         let title = session.sessionType || 'Coaching Session'
         
         // Capitalize title and make it more readable
-        title = title
+        const displayTitle = title
           .split('_')
           .map(word => word.charAt(0) + word.slice(1).toLowerCase())
           .join(' ')
           
         return {
           id: session.ulid,
-          title,
+          title: displayTitle,
           date,
           timeWithTZ: timeWithTZ.replace(/:\d+ /, ' '), // Remove seconds from time
           attendees: 1, // Default to 1 attendee per session

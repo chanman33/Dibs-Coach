@@ -1,16 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
 import getSupabaseConfig from './config'
-import type { SupabaseClient } from './types'
+import type { Database } from '@/types/supabase'
 
 /**
  * Creates an admin Supabase client with service role access
  * This should only be used in trusted server contexts
  */
-export async function createAdminClient(): Promise<SupabaseClient> {
+export async function createAdminClient() {
   try {
     const { supabaseUrl, supabaseServiceKey } = getSupabaseConfig()
     
-    return createClient(
+    if (!supabaseUrl) throw new Error('Missing SUPABASE_URL')
+    if (!supabaseServiceKey) throw new Error('Missing SUPABASE_SERVICE_KEY')
+    
+    return createClient<Database>(
       supabaseUrl,
       supabaseServiceKey,
       {

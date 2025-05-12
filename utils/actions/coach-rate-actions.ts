@@ -20,6 +20,17 @@ export const fetchCoachHourlyRate = withServerAction<CoachHourlyRateResponse>(
         timestamp: new Date().toISOString()
       })
 
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        }
+      }
+
       const supabase = createAuthClient()
 
       const { data: coachProfile, error } = await supabase

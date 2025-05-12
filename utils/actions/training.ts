@@ -44,6 +44,17 @@ export type TrainingHistoryResponse = {
 export const fetchTrainingHistory = withServerAction<TrainingHistoryResponse>(
   async (_, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: { sessions: [] },
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       // Log the userUlid for debugging
       console.log('[TRAINING_HISTORY] Fetching sessions for user:', userUlid)
 

@@ -41,6 +41,17 @@ export const fetchGoals = withServerAction<GoalWithRelations[], GetGoals>(
       });
     }
     
+    // Validate that userUlid is defined
+    if (!context.userUlid) {
+      return {
+        data: null,
+        error: {
+          code: 'AUTH_ERROR',
+          message: 'User ID is required'
+        }
+      };
+    }
+    
     // Retry configuration
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 500; // ms

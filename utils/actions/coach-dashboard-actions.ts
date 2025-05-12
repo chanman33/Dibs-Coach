@@ -39,6 +39,17 @@ export const fetchCoachDashboardStats = withServerAction<CoachDashboardStats>(
         }
       }
 
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        }
+      }
+
       const supabase = await createAuthClient()
 
       // Initialize default stats for a coach with no mentees
@@ -289,6 +300,17 @@ export const fetchTopMentees = withServerAction<TopMentee[]>(
           error: {
             code: 'FORBIDDEN',
             message: 'Only coaches can access this endpoint'
+          }
+        }
+      }
+
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
           }
         }
       }

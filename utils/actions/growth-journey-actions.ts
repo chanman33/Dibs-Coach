@@ -52,6 +52,17 @@ export const fetchGrowthJourneyStats = withServerAction<GrowthJourneyStats>(
         timestamp: new Date().toISOString()
       });
 
+      // Validate that userUlid is defined
+      if (!context.userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+
       const supabase = await createAuthClient();
 
       // Fetch all active goals with their progress and target values

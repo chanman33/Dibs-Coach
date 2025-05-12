@@ -106,6 +106,17 @@ async function validateCoachApplicationData(formData: FormData) {
 export const submitCoachApplication = withServerAction<ApplicationResponse>(
   async (formData: FormData, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+
       const validatedData = await validateCoachApplicationData(formData);
       const supabase = await createAuthClient();
       
@@ -211,7 +222,23 @@ export const submitCoachApplication = withServerAction<ApplicationResponse>(
         // Insert new application
         const { data, error } = await supabase
           .from('CoachApplication')
-          .insert(applicationData)
+          .insert({
+            ulid: applicationData.ulid,
+            applicantUlid: userUlid,
+            status: applicationData.status,
+            isDraft: applicationData.isDraft,
+            yearsOfExperience: applicationData.yearsOfExperience,
+            superPower: applicationData.superPower,
+            aboutYou: applicationData.aboutYou,
+            realEstateDomains: applicationData.realEstateDomains,
+            primaryDomain: applicationData.primaryDomain,
+            resumeUrl: applicationData.resumeUrl,
+            linkedIn: applicationData.linkedIn,
+            primarySocialMedia: applicationData.primarySocialMedia,
+            createdAt: applicationData.createdAt,
+            updatedAt: applicationData.updatedAt,
+            lastSavedAt: applicationData.lastSavedAt
+          })
           .select(`
             ulid,
             status,
@@ -401,6 +428,17 @@ export const getCoachApplication = withServerAction<ApplicationResponse>(
     });
 
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+
       const supabase = await createAuthClient()
       console.log('[GET_COACH_APPLICATION_QUERY_START]', {
         timestamp: new Date().toISOString()

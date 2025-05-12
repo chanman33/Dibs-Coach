@@ -40,6 +40,16 @@ export const fetchOrganizationMembers = withServerAction<OrganizationMemberWithU
         throw new Error("Organization ID is required");
       }
       
+      if (!context.userUlid) {
+        return {
+          data: null,
+          error: {
+            code: "AUTH_ERROR" as ApiErrorCode,
+            message: "User ID is required"
+          }
+        };
+      }
+      
       const supabase = await createAuthClient();
       
       // Check if the user is a member of the organization

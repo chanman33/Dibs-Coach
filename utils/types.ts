@@ -1,10 +1,27 @@
-// Re-export all types from domain-specific files
-export * from './types/user';
+// Re-export selected types from domain-specific files
+// Import specific types from user to avoid naming conflicts
+import { 
+  UserRole, 
+  UserCapability, 
+  UserStatus,
+  userCreateSchema,
+  userUpdateSchema
+} from './types/user';
+
+// Re-export the imports
+export { 
+  UserRole, 
+  UserCapability, 
+  UserStatus,
+  userCreateSchema,
+  userUpdateSchema
+};
+
+// Re-export other type modules (avoiding conflicts with imports above)
 export * from './types/session';
 export * from './types/payment';
 export * from './types/coach';
 export * from './types/zoom';
-export * from './types/realtor';
 export * from './types/review';
 
 // Common type utilities

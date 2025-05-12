@@ -2,58 +2,40 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import {
-  Session,
-  SessionCreate,
-  SessionUpdate,
-  SessionMetrics,
+import { 
+  TransformedSession, 
+  SessionsAnalytics,
+  defaultAnalytics
 } from "../types/session";
+import { ApiResponse } from "../types/api";
 
 interface UseSessionReturn {
-  sessions: Session[];
-  metrics: SessionMetrics | null;
+  sessions: TransformedSession[];
+  metrics: SessionsAnalytics;
   isLoading: boolean;
   error: Error | null;
   fetchSessions: () => Promise<void>;
-  createSession: (data: SessionCreate) => Promise<Session | null>;
-  updateSession: (data: SessionUpdate) => Promise<Session | null>;
-  calculateMetrics: (sessions: Session[]) => SessionMetrics;
 }
 
 export function useSession(): UseSessionReturn {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [metrics, setMetrics] = useState<SessionMetrics | null>(null);
+  const [sessions, setSessions] = useState<TransformedSession[]>([]);
+  const [metrics, setMetrics] = useState<SessionsAnalytics>(defaultAnalytics);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const calculateMetrics = (sessions: Session[]): SessionMetrics => {
-    const totalSessions = sessions.length;
-    const completedSessions = sessions.filter(
-      (s) => s.status === "completed"
-    ).length;
-    const cancelledSessions = sessions.filter(
-      (s) => s.status === "cancelled"
-    ).length;
-    const noShows = sessions.filter((s) => s.status === "no_show").length;
-
-    const totalMinutes = sessions.reduce(
-      (acc, curr) => acc + curr.durationMinutes,
-      0
-    );
-    const totalHours = totalMinutes / 60;
-    const averageDuration =
-      totalSessions > 0 ? totalMinutes / totalSessions : 0;
-    const completionRate =
-      totalSessions > 0 ? (completedSessions / totalSessions) * 100 : 0;
+  const calculateMetrics = (sessions: TransformedSession[]): SessionsAnalytics => {
+    const total = sessions.length;
+    const scheduled = sessions.filter(s => s.status === 'SCHEDULED').length;
+    const completed = sessions.filter(s => s.status === 'COMPLETED').length;
+    const cancelled = sessions.filter(s => s.status === 'CANCELLED').length;
+    const no_show = sessions.filter(s => s.status === 'NO_SHOW').length;
 
     return {
-      totalSessions,
-      completedSessions,
-      cancelledSessions,
-      noShows,
-      totalHours,
-      averageDuration,
-      completionRate,
+      total,
+      scheduled,
+      completed,
+      cancelled,
+      no_show
     };
   };
 
@@ -61,104 +43,31 @@ export function useSession(): UseSessionReturn {
     try {
       setIsLoading(true);
       setError(null);
-      const response = await fetch("/api/session");
+      
+      // Use the server action to fetch sessions
+      const response = await fetch('/api/sessions');
+      
       if (!response.ok) {
         throw new Error("Failed to fetch sessions");
       }
-      const { data } = await response.json();
+      
+      const result = await response.json() as ApiResponse<TransformedSession[]>;
 
-      // Add durationMinutes to each session
-      const sessionsWithDuration = data.map((session: Session) => ({
-        ...session,
-        durationMinutes: Math.round(
-          (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)
-        ),
-      }));
+      if (result.error) {
+        throw new Error(result.error.message || "Failed to fetch sessions");
+      }
 
-      setSessions(sessionsWithDuration);
-
-      // Calculate and set metrics
-      const newMetrics = calculateMetrics(sessionsWithDuration);
-      setMetrics(newMetrics);
+      // Use the data if it exists
+      if (result.data) {
+        setSessions(result.data);
+        
+        // Calculate and set metrics
+        const newMetrics = calculateMetrics(result.data);
+        setMetrics(newMetrics);
+      }
     } catch (err) {
       setError(err as Error);
       toast.error("Failed to fetch sessions");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const createSession = async (data: SessionCreate) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch("/api/session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to create session");
-      }
-
-      const { data: newSession } = await response.json();
-      setSessions((prev) => [newSession, ...prev]);
-
-      // Update metrics
-      const newMetrics = calculateMetrics([...sessions, newSession]);
-      setMetrics(newMetrics);
-
-      toast.success("Session created successfully");
-      return newSession;
-    } catch (err) {
-      setError(err as Error);
-      toast.error("Failed to create session");
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateSession = async (data: SessionUpdate) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const response = await fetch("/api/session", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update session");
-      }
-
-      const { data: updatedSession } = await response.json();
-      setSessions((prev) =>
-        prev.map((session) =>
-          session.id === data.id ? updatedSession : session
-        )
-      );
-
-      // Update metrics
-      const newMetrics = calculateMetrics(
-        sessions.map((session) =>
-          session.id === data.id ? updatedSession : session
-        )
-      );
-      setMetrics(newMetrics);
-
-      toast.success("Session updated successfully");
-      return updatedSession;
-    } catch (err) {
-      setError(err as Error);
-      toast.error("Failed to update session");
-      return null;
     } finally {
       setIsLoading(false);
     }
@@ -169,9 +78,6 @@ export function useSession(): UseSessionReturn {
     metrics,
     isLoading,
     error,
-    fetchSessions,
-    createSession,
-    updateSession,
-    calculateMetrics,
+    fetchSessions
   };
 } 

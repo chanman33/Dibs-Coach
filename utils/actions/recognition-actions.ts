@@ -322,6 +322,16 @@ export const updateRecognitions = withServerAction<UpdateRecognitionsResponse, S
 export const fetchRecognitions = withServerAction<ProfessionalRecognition[], void>(
   async (_, { userUlid }) => {
     try {
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: "AUTH_ERROR",
+            message: "User ID is required"
+          }
+        };
+      }
+
       const supabase = createAuthClient();
 
       const { data: recognitions, error } = await supabase

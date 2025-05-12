@@ -8,7 +8,7 @@ export const paymentSchema = z.object({
   payeeDbId: z.number(),
   amount: z.number(),
   currency: z.nativeEnum(Currency).default("USD"),
-  status: z.nativeEnum(PaymentStatus).default("pending"),
+  status: z.nativeEnum(PaymentStatus).default(PaymentStatus.PENDING),
   stripePaymentId: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),

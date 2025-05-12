@@ -35,6 +35,17 @@ interface UpdateUserRolesResult {
 export const fetchUserCapabilities = withServerAction<UserCapabilitiesResult, void>(
   async (_, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       const supabase = await createAuthClient();
       
       // Get user capabilities
@@ -67,13 +78,13 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResult, vo
         const { data: coachData, error: coachError } = await supabase
           .from("CoachProfile")
           .select(`
-            domainSpecialties
+            coachRealEstateDomains
           `)
           .eq("userUlid", userUlid)
           .single();
 
         if (!coachError && coachData) {
-          specialties = coachData.domainSpecialties || [];
+          specialties = coachData.coachRealEstateDomains || [];
         }
       }
 
@@ -122,6 +133,17 @@ export const fetchUserCapabilities = withServerAction<UserCapabilitiesResult, vo
 export const getUserRoles = withServerAction<GetUserRolesResult, { isInitialSignup?: boolean }>(
   async ({ isInitialSignup = false }, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       const { userId } = await auth();
       
       if (!userId) {
@@ -173,6 +195,17 @@ export const getUserRoles = withServerAction<GetUserRolesResult, { isInitialSign
 export const updateUserRoles = withServerAction<UpdateUserRolesResult, UpdateUserRolesParams>(
   async ({ systemRole, capabilities }, { userUlid }) => {
     try {
+      // Validate that userUlid is defined
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'AUTH_ERROR',
+            message: 'User ID is required'
+          }
+        };
+      }
+      
       const { userId } = await auth();
       
       if (!userId) {
@@ -237,7 +270,7 @@ export const updateUserRoles = withServerAction<UpdateUserRolesResult, UpdateUse
       return { 
         data: {
           systemRole: data.systemRole,
-          capabilities: data.capabilities
+          capabilities: data.capabilities || []
         },
         error: null
       };

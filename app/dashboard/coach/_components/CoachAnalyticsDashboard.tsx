@@ -256,7 +256,7 @@ export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
               </TableHeader>
               <TableBody>
                 {analytics.recentPayments.map((payment) => (
-                  <TableRow key={payment.id}>
+                  <TableRow key={payment.ulid}>
                     <TableCell>{format(new Date(payment.createdAt), 'MMM d, yyyy')}</TableCell>
                     <TableCell>{payment.sessionType || 'Weekly Payout'}</TableCell>
                     <TableCell className="text-right">{formatCurrency(payment.amount)}</TableCell>

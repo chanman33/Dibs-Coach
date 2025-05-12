@@ -34,7 +34,7 @@ export type CoachAnalytics = {
   recentEarningsTotal: number
   uniqueMenteeCount: number
   recentPayments: {
-    id: number
+    ulid: string
     amount: number
     status: string
     createdAt: string
@@ -63,6 +63,17 @@ export const fetchCoachAnalytics = withServerAction<CoachAnalytics>(
           error: {
             code: 'FORBIDDEN',
             message: 'User is not a coach'
+          }
+        }
+      }
+
+      // Ensure we have a userUlid
+      if (!context.userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'User ID not found'
           }
         }
       }
@@ -152,13 +163,21 @@ export const fetchCoachAnalytics = withServerAction<CoachAnalytics>(
       const nextPayoutDate = isPayoutWeek ? nextFriday : new Date(nextFriday.setDate(nextFriday.getDate() + 7))
 
       // Get recent payouts (completed)
-      const { data: recentPayments } = await supabase
+      const { data: recentPayouts } = await supabase
         .from('Payout')
-        .select('id, amount, status, createdAt, type')
+        .select('ulid, amount, status, createdAt, stripeTransferId')
         .eq('payeeUlid', context.userUlid)
         .eq('status', 'PROCESSED' satisfies PayoutStatus)
         .order('createdAt', { ascending: false })
         .limit(10)
+
+      // Transform payouts to the expected format
+      const recentPayments = (recentPayouts || []).map(payout => ({
+        ulid: payout.ulid,
+        amount: Number(payout.amount),
+        status: payout.status,
+        createdAt: payout.createdAt
+      }))
 
       // Get upcoming sessions
       const { data: upcomingSessions } = await supabase
@@ -190,7 +209,7 @@ export const fetchCoachAnalytics = withServerAction<CoachAnalytics>(
           availableBalance,
           nextPayoutAmount: availableBalance,
           nextPayoutDate: nextPayoutDate.toISOString(),
-          recentPayments: recentPayments || [],
+          recentPayments,
           pendingPayments,
         },
         error: null
@@ -222,6 +241,18 @@ export const requestEarlyPayout = withServerAction<{ success: boolean }, EarlyPa
   async (params, { userUlid }) => {
     try {
       const { amount } = params
+      
+      // Ensure we have a userUlid
+      if (!userUlid) {
+        return {
+          data: null,
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: 'User ID not found'
+          }
+        }
+      }
+      
       console.log('[REQUEST_EARLY_PAYOUT]', { userUlid, amount, timestamp: new Date().toISOString() })
       
       // Here you would implement the actual payout request logic
@@ -243,7 +274,7 @@ export const requestEarlyPayout = withServerAction<{ success: boolean }, EarlyPa
       return {
         data: null,
         error: {
-          code: 'PAYOUT_ERROR',
+          code: 'INTERNAL_ERROR',
           message: error instanceof Error ? error.message : 'Failed to request payout'
         }
       }

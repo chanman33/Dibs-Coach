@@ -20,25 +20,6 @@ export type CoachingSession = {
   updatedAt: string
 }
 
-// Define ZoomSession response type for better type safety
-type ZoomSessionData = {
-  id: string
-  topic: string
-  startTime: string
-  duration: number
-  status: string
-  notes: string | null
-  organizationId: string
-  User: {
-    id: string
-    firstName: string | null
-    lastName: string | null
-    profileImageUrl: string | null
-  } | null
-  createdAt: string
-  updatedAt: string
-}
-
 // Response type
 type CoachingSessionsResponse = {
   data: {
@@ -79,38 +60,77 @@ export async function fetchOrganizationCoachingSessions(organizationId: string):
     const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString()
     const lastDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString()
     
-    // Query sessions for the organization from ZoomSession table
-    const { data: sessionsData, error } = await supabase
-      .from('ZoomSession')
+    // Query sessions for the organization from Session table
+    // First, get the organization member IDs
+    const { data: orgMembers, error: orgMembersError } = await supabase
+      .from('OrganizationMember')
+      .select('userUlid')
+      .eq('organizationUlid', organizationId)
+      .eq('status', 'ACTIVE')
+    
+    if (orgMembersError) {
+      console.error('[COACHING_SESSIONS_ERROR] Failed to fetch organization members', orgMembersError)
+      return {
+        data: null,
+        error: {
+          code: 'DATABASE_ERROR',
+          message: 'Failed to fetch organization members',
+          details: orgMembersError
+        }
+      }
+    }
+    
+    if (!orgMembers || orgMembers.length === 0) {
+      // No members in this organization
+      return {
+        data: {
+          sessions: [],
+          stats: {
+            totalSessions: 0,
+            completedSessions: 0,
+            upcomingSessions: 0,
+            totalHours: 0,
+            completionRate: 0
+          }
+        },
+        error: null
+      }
+    }
+    
+    // Get the member ULIDs
+    const memberUlids = orgMembers.map(member => member.userUlid)
+    
+    // Get sessions for these members
+    const { data: sessionsData, error: sessionsError } = await supabase
+      .from('Session')
       .select(`
         ulid,
-        sessionName,
+        startTime,
+        endTime,
         status,
-        createdAt,
-        updatedAt,
-        session:sessionUlid(
+        sessionType,
+        sessionNotes,
+        mentee:menteeUlid(
           ulid,
-          startTime,
-          endTime,
-          status,
-          sessionNotes,
-          mentee:menteeUlid(
-            ulid,
-            firstName,
-            lastName,
-            profileImageUrl
-          )
-        )
+          firstName,
+          lastName,
+          profileImageUrl
+        ),
+        createdAt,
+        updatedAt
       `)
+      .in('menteeUlid', memberUlids)
+      .gte('startTime', firstDayOfMonth)
+      .lte('startTime', lastDayOfMonth)
     
-    if (error) {
-      console.error('[COACHING_SESSIONS_ERROR]', error)
+    if (sessionsError) {
+      console.error('[COACHING_SESSIONS_ERROR]', sessionsError)
       return {
         data: null,
         error: {
           code: 'DATABASE_ERROR',
           message: 'Failed to fetch coaching sessions',
-          details: error
+          details: sessionsError
         }
       }
     }
@@ -157,52 +177,63 @@ export async function fetchOrganizationCoachingSessions(organizationId: string):
     
     // Transform data to the expected format with careful type handling
     const sessions = sessionsData
-      .filter((zoomSession: any) => {
-        // For new accounts, they won't have sessions yet, so we need to handle this case
-        if (!zoomSession.session) return false;
-        
-        // Filter for sessions by date range
-        return new Date(zoomSession.session.startTime) >= new Date(firstDayOfMonth) &&
-               new Date(zoomSession.session.startTime) <= new Date(lastDayOfMonth);
-      })
-      .map((zoomSession: any) => {
+      .map((session: any) => {
         // Handle potential missing data
-        if (!zoomSession || typeof zoomSession !== 'object') {
-          console.warn('[COACHING_SESSIONS_WARNING] Invalid session data found', zoomSession);
+        if (!session || typeof session !== 'object') {
+          console.warn('[COACHING_SESSIONS_WARNING] Invalid session data found', session);
           return null;
         }
         
         try {
-          // Access the session nested object to get required data
-          const session = zoomSession.session || {};
           const mentee = session.mentee || {};
           
           // For startTime, use session.startTime if available, otherwise fallback
-          const startTime = new Date(session.startTime || zoomSession.createdAt || new Date());
+          const startTime = new Date(session.startTime || session.createdAt || new Date());
           
           // Calculate duration from start and end time if available
           const duration = session.startTime && session.endTime
             ? Math.round((new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / 60000)
             : 60; // Default to 60 minutes
           
+          // Map session status to expected format
+          let mappedStatus: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+          
+          switch (session.status) {
+            case 'COMPLETED':
+              mappedStatus = 'COMPLETED';
+              break;
+            case 'CANCELLED':
+              mappedStatus = 'CANCELLED';
+              break;
+            default:
+              mappedStatus = 'SCHEDULED';
+          }
+          
+          // Create a formatted session topic
+          const sessionType = session.sessionType || 'MANAGED';
+          const topic = sessionType === 'GROUP_SESSION' 
+            ? 'Group Coaching Session' 
+            : sessionType === 'OFFICE_HOURS' 
+              ? 'Office Hours' 
+              : 'Coaching Session';
+          
           return {
-            id: zoomSession.ulid || '',
+            id: session.ulid || '',
             memberId: mentee.ulid || '',
             memberName: `${mentee.firstName || ''} ${mentee.lastName || ''}`.trim() || 'Unknown User',
             memberAvatar: mentee.profileImageUrl || '',
-            topic: zoomSession.sessionName || 'Untitled Session',
+            topic: topic,
             date: startTime.toISOString().split('T')[0],
             time: startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
             duration: duration,
-            status: session.status === 'COMPLETED' ? 'COMPLETED' : 
-                    session.status === 'CANCELLED' ? 'CANCELLED' : 'SCHEDULED',
+            status: mappedStatus,
             notes: session.sessionNotes || null,
             organizationId: organizationId,
-            createdAt: zoomSession.createdAt || new Date().toISOString(),
-            updatedAt: zoomSession.updatedAt || new Date().toISOString()
+            createdAt: session.createdAt || new Date().toISOString(),
+            updatedAt: session.updatedAt || new Date().toISOString()
           }
         } catch (err) {
-          console.error('[COACHING_SESSION_MAPPING_ERROR]', err, zoomSession);
+          console.error('[COACHING_SESSION_MAPPING_ERROR]', err, session);
           return null;
         }
       }).filter(Boolean) as CoachingSession[];

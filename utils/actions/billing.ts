@@ -4,7 +4,7 @@ import { createAuthClient } from "@/utils/auth";
 import { withServerAction } from "@/utils/middleware/withServerAction";
 import { generateUlid } from "@/utils/ulid";
 import { z } from "zod";
-import { BillingPeriodSchema, UpdateSubscriptionSchema } from "@/utils/types/billing";
+import { BillingPeriodSchema, UpdateSubscriptionSchema, CreateBudgetAllocationSchema, UpdateBudgetAllocationSchema } from "@/utils/types/billing";
 import { ApiError } from "@/utils/types/api";
 
 // Subscription management
@@ -141,7 +141,7 @@ export const updateSubscription = withServerAction<{ success: boolean }, z.infer
       }
       
       // Check if reducing seats below used count
-      if (totalSeats < subscription.usedSeats) {
+      if (totalSeats !== undefined && totalSeats < subscription.usedSeats) {
         return {
           data: null,
           error: {
@@ -177,6 +177,7 @@ export const updateSubscription = withServerAction<{ success: boolean }, z.infer
       };
       
       // Perform updates in a transaction
+      // @ts-ignore - RPC function not found in type definition
       const { error: updateError } = await supabase.rpc('update_subscription_with_event', {
         p_subscription_ulid: subscriptionUlid,
         p_subscription_updates: updates,
@@ -375,8 +376,7 @@ export const assignSeatLicense = withServerAction<{ success: boolean }, { userUl
         console.error('[ASSIGN_SEAT_LICENSE_ERROR]', {
           error: subError,
           organizationUlid,
-          assignerUlid,
-          userUlid,
+          userUlid: assignerUlid,
           timestamp: new Date().toISOString()
         });
         
@@ -506,8 +506,7 @@ export const assignSeatLicense = withServerAction<{ success: boolean }, { userUl
           error: createError,
           subscriptionUlid: subscription.ulid,
           organizationUlid,
-          assignerUlid,
-          userUlid,
+          userUlid: assignerUlid,
           timestamp
         });
         
@@ -534,8 +533,7 @@ export const assignSeatLicense = withServerAction<{ success: boolean }, { userUl
           error: updateError,
           subscriptionUlid: subscription.ulid,
           organizationUlid,
-          assignerUlid,
-          userUlid,
+          userUlid: assignerUlid,
           timestamp
         });
       }
@@ -559,7 +557,6 @@ export const assignSeatLicense = withServerAction<{ success: boolean }, { userUl
           error: eventError,
           subscriptionUlid: subscription.ulid,
           organizationUlid,
-          assignerUlid,
           userUlid,
           timestamp
         });
@@ -574,7 +571,7 @@ export const assignSeatLicense = withServerAction<{ success: boolean }, { userUl
         error,
         params,
         organizationUlid,
-        userUlid,
+        userUlid: assignerUlid,
         timestamp: new Date().toISOString()
       });
       
@@ -638,7 +635,7 @@ export const revokeSeatLicense = withServerAction<{ success: boolean }, { licens
           error: licenseError,
           licenseUlid,
           organizationUlid,
-          revokerUlid,
+          userUlid: revokerUlid,
           timestamp: new Date().toISOString()
         });
         
@@ -690,7 +687,7 @@ export const revokeSeatLicense = withServerAction<{ success: boolean }, { licens
           error: revokeError,
           licenseUlid,
           organizationUlid,
-          revokerUlid,
+          userUlid: revokerUlid,
           timestamp
         });
         
@@ -717,7 +714,7 @@ export const revokeSeatLicense = withServerAction<{ success: boolean }, { licens
           error: updateError,
           subscriptionUlid: license.subscription.ulid,
           organizationUlid,
-          revokerUlid,
+          userUlid: revokerUlid,
           timestamp
         });
       }
