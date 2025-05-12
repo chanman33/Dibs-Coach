@@ -8,7 +8,8 @@ import { NextRequest } from 'next/server';
  */
 export async function getSecureHeaders() {
   try {
-    // In Node.js environment
+    // Return empty headers object to avoid static generation errors
+    // related to headers() usage during build time
     return {};
   } catch (error) {
     console.error('[CLERK_HELPER] Error getting headers:', error);

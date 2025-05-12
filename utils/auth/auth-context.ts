@@ -17,6 +17,9 @@ export class UnauthorizedError extends Error {
  */
 async function safeAuth() {
   try {
+    // In Next.js 14+ with static generation, headers() can cause errors
+    // during build time. We'll try to get auth, but if it fails with a headers error,
+    // we'll return an empty auth object.
     return await auth()
   } catch (error) {
     console.error('[AUTH_CONTEXT] Error in auth():', {
@@ -24,8 +27,11 @@ async function safeAuth() {
       stack: error instanceof Error ? error.stack : undefined
     })
     
-    if (error instanceof Error && error.message.includes('headers()')) {
-      console.warn('[AUTH_CONTEXT] Next.js 15 headers() error detected, returning empty auth')
+    if (error instanceof Error && 
+        (error.message.includes('headers()') || 
+         error.message.includes('Dynamic server usage') ||
+         error.message.includes('DYNAMIC_SERVER_USAGE'))) {
+      console.warn('[AUTH_CONTEXT] Next.js headers() error detected, returning empty auth')
     }
     
     return { userId: null }

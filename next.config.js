@@ -89,7 +89,20 @@ const nextConfig = {
         ]
       }
     ];
-  }
+  },
+  
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '100mb',
+    },
+    serverComponentsExternalPackages: ['@clerk/backend'],
+    optimizePackageImports: ['@headlessui/react', 'date-fns', 'react-icons']
+  },
+  
+  // Force all pages to be server-side rendered (no static generation)
+  // This will ensure that pages using headers() will work properly
+  output: 'standalone',
+  reactStrictMode: true,
 };
 
 module.exports = nextConfig;
