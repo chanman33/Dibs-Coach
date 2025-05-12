@@ -2,14 +2,8 @@
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// Next.js 13+ App Router route config
-export const config = {
-  matcher: ['/api/cal/webhooks/receiver'],
-};
-
 // Cal.com treats webhook endpoints as public and authenticates via the signature
 // This must NOT be protected by auth middleware
-export const middleware = ['cors']; // Only apply CORS middleware, skip auth
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuthClient } from '@/utils/auth';
