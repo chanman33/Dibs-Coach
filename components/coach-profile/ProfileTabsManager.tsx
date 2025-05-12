@@ -2,16 +2,11 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Award, Building, User, Briefcase, Globe } from "lucide-react";
-import { CoachProfileFormValues } from "../types";
+import { Award, Building, User, Briefcase } from "lucide-react";
+import { CoachProfileFormValues } from "@/components/profile/types";
 import { ProfessionalRecognition } from "@/utils/types/recognition";
-import GeneralForm from "./GeneralForm";
-import { RecognitionsTab } from "../../coach-profile/RecognitionsTab";
-import MarketingInfo from "../coach/MarketingInfo";
-import { MarketingInfo as MarketingInfoType } from "@/utils/types/marketing";
 import { type ApiResponse } from "@/utils/types/api";
 import { type GeneralFormData } from "@/utils/actions/user-profile-actions";
-import { PortfolioPage } from "../../coach-profile/PortfolioPage";
 
 // Define the tab interface
 export interface ProfileTab {
@@ -34,8 +29,10 @@ interface ProfileTabsManagerProps {
   };
   onSubmitGeneral?: (data: GeneralFormData) => Promise<ApiResponse<GeneralFormData>>;
   onSubmitCoach?: (data: CoachProfileFormValues) => Promise<void>;
+  generalFormContent?: React.ReactNode;
   coachFormContent: React.ReactNode;
   portfolioContent?: React.ReactNode;
+  recognitionsContent?: React.ReactNode;
   initialRecognitions?: ProfessionalRecognition[];
   onSubmitRecognitions?: (recognitions: ProfessionalRecognition[]) => Promise<void>;
   isSubmitting?: boolean;
@@ -46,8 +43,10 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
   generalUserInfo,
   onSubmitGeneral,
   onSubmitCoach,
+  generalFormContent,
   coachFormContent,
   portfolioContent,
+  recognitionsContent,
   initialRecognitions = [],
   onSubmitRecognitions,
   isSubmitting = false,
@@ -62,12 +61,10 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
       id: "general",
       label: "General Profile",
       icon: <User className="h-4 w-4" />,
-      content: (
-        <GeneralForm
-          initialData={generalUserInfo}
-          onSubmit={onSubmitGeneral || (async () => ({ data: null, error: null }))}
-          isSubmitting={isSubmitting}
-        />
+      content: generalFormContent || (
+        <div>
+          <p>General form content will be injected here</p>
+        </div>
       ),
     },
     {
@@ -81,28 +78,26 @@ export const ProfileTabsManager: React.FC<ProfileTabsManagerProps> = ({
       id: "portfolio",
       label: "Portfolio",
       icon: <Building className="h-4 w-4" />,
-      content: portfolioContent || <PortfolioPage />,
+      content: portfolioContent || <div>Portfolio content will be displayed here</div>,
       requiredCapabilities: ["COACH"],
     },
     {
       id: "recognitions",
       label: "Recognitions",
       icon: <Award className="h-4 w-4" />,
-      content: (
-        <RecognitionsTab 
-          initialRecognitions={initialRecognitions}
-          onSubmit={onSubmitRecognitions || (async () => {})}
-          isSubmitting={isSubmitting}
-        />
+      content: recognitionsContent || (
+        <div>
+          <p>Recognitions content will be injected here</p>
+        </div>
       ),
       requiredCapabilities: ["COACH"],
     },
   ],
   [
-    generalUserInfo,
-    onSubmitGeneral,
+    generalFormContent,
     coachFormContent,
     portfolioContent,
+    recognitionsContent,
     initialRecognitions,
     onSubmitRecognitions,
     isSubmitting

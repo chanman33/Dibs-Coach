@@ -62,7 +62,7 @@ export function DateTimeSelector({ coachId, duration, onSelect }: DateTimeSelect
           mode="single"
           selected={selectedDate}
           onSelect={(date) => date && setSelectedDate(startOfDay(date))}
-          disabled={(date) => date < startOfDay(new Date())}
+          disabledDates={(date) => date < startOfDay(new Date())}
           className="rounded-md border"
         />
       </div>

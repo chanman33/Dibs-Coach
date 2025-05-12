@@ -97,9 +97,20 @@ export function Coach(props: CoachProps) {
       </div>
       <Button onClick={() => setIsModalOpen(true)}>View Profile</Button>
       <CoachProfileModal
-        isOpen={isModalOpen}
+        open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        coach={props}
+        coach={{
+          ulid: props.id,
+          userUlid: props.userId,
+          firstName: props.name.split(' ')[0] || '',
+          lastName: props.name.split(' ').slice(1).join(' ') || '',
+          displayName: props.name,
+          bio: props.bio,
+          profileImageUrl: props.imageUrl,
+          coachSkills: props.specialties,
+          hourlyRate: props.sessionConfig?.rates?.["60"] || null,
+          sessionConfig: props.sessionConfig
+        }}
       />
     </div>
   )

@@ -33,6 +33,11 @@ export function MetricsGrid({ metrics }: MetricsGridProps) {
     return null
   }
 
+  // Default value for monthlyRevenue if not available
+  const monthlyRevenue = metrics.monthlyRevenue || metrics.totalRevenue / 12;
+  // Default value for revenueGrowth if not available
+  const revenueGrowth = metrics.metrics.revenueGrowth || 0;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       <Card>
@@ -78,15 +83,15 @@ export function MetricsGrid({ metrics }: MetricsGridProps) {
           <div className="flex justify-between items-start">
             <div>
               <p className="text-sm font-medium text-gray-500">Monthly Revenue</p>
-              <h3 className="text-2xl font-bold">{formatCurrency(metrics.monthlyRevenue)}</h3>
+              <h3 className="text-2xl font-bold">{formatCurrency(monthlyRevenue)}</h3>
               <p className="text-sm text-gray-500">Total: {formatCurrency(metrics.totalRevenue)}</p>
             </div>
             <DollarSign className="h-5 w-5 text-gray-400" />
           </div>
-          {metrics.metrics.revenueGrowth > 0 && (
+          {revenueGrowth > 0 && (
             <div className="mt-2 flex items-center gap-1 text-sm text-green-500">
               <TrendingUp className="h-4 w-4" />
-              <span>+{metrics.metrics.revenueGrowth}%</span>
+              <span>+{revenueGrowth}%</span>
             </div>
           )}
         </CardContent>

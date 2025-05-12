@@ -160,4 +160,24 @@ export interface ClientGoal {
 
 // Input types
 export type GoalInput = z.infer<typeof GoalSchema>;
-export type UpdateGoalInput = z.infer<typeof UpdateGoalSchema>; 
+export type UpdateGoalInput = z.infer<typeof UpdateGoalSchema>;
+
+// Mentee-specific goal types
+export interface MenteeGoal {
+  id: number;
+  title: string;
+  target: number;
+  current: number;
+  deadline: string;
+  status: "completed" | "in_progress" | "overdue";
+  type: string;
+}
+
+export interface MenteeAchievement {
+  id: number;
+  title: string;
+  description: string;
+  date: string;
+  type: string;
+  icon: string;
+} 

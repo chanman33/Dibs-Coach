@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { Calendar, momentLocalizer, View, ToolbarProps } from 'react-big-calendar'
+import { momentLocalizer, View, ToolbarProps } from 'react-big-calendar'
+import * as RBC from 'react-big-calendar'
 import moment from 'moment'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import '@/styles/calendar.css'
@@ -19,6 +20,8 @@ import { VirtualizedList } from '../ui/virtualized-list'
 import { MenteeSessions } from './MenteeSessions'
 
 const localizer = momentLocalizer(moment)
+// Type assertion to fix the Calendar component type issue
+const Calendar = RBC.Calendar as any
 
 interface ExtendedSession {
   ulid: string

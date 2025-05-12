@@ -1,4 +1,6 @@
-import { FixedSizeList as List } from 'react-window'
+'use client'
+
+import React from 'react'
 
 // Define a generic session item type
 interface SessionItem {
@@ -24,37 +26,40 @@ interface VirtualizedListProps {
   renderItem: (item: SessionItem) => React.ReactNode
 }
 
+// Simple list implementation until we can fix the react-window integration
 export function VirtualizedList({
   items,
   height,
   itemHeight,
   renderItem
 }: VirtualizedListProps) {
-  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
-    const item = items[index]
-    return (
-      <div style={{
-        ...style,
-        paddingLeft: '0.25rem',
-        paddingRight: '0.25rem',
-        paddingTop: '0.25rem',
-        paddingBottom: '0.25rem',
-        height: 'auto', // Allow natural height
-      }}>
-        {renderItem(item)}
-      </div>
-    )
+  if (items.length === 0) {
+    return <div style={{ height }}>No items to display</div>
   }
 
   return (
-    <List
-      height={height}
-      itemCount={items.length}
-      itemSize={itemHeight}
-      width="100%"
-      className="!overflow-x-hidden"
+    <div 
+      style={{ 
+        height, 
+        width: '100%', 
+        overflowY: 'auto',
+        overflowX: 'hidden'
+      }}
     >
-      {Row}
-    </List>
+      {items.map((item) => (
+        <div 
+          key={item.ulid}
+          style={{
+            minHeight: itemHeight,
+            paddingLeft: '0.25rem',
+            paddingRight: '0.25rem',
+            paddingTop: '0.25rem',
+            paddingBottom: '0.25rem',
+          }}
+        >
+          {renderItem(item)}
+        </div>
+      ))}
+    </div>
   )
 } 

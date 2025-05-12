@@ -47,7 +47,7 @@ export function TimeSlotPicker({ coachId, onTimeSelected }: TimeSlotPickerProps)
     fetchAvailableSlots(selectedDate)
   }, [selectedDate, coachId])
 
-  const handleDateSelect = (date: Date | undefined) => {
+  const handleDateSelect = (date: Date | null) => {
     if (date) {
       setSelectedDate(startOfDay(date))
     }
@@ -72,7 +72,7 @@ export function TimeSlotPicker({ coachId, onTimeSelected }: TimeSlotPickerProps)
           mode="single"
           selected={selectedDate}
           onSelect={handleDateSelect}
-          disabled={{ before: new Date() }}
+          disabledDates={(date) => date < new Date()}
           className="rounded-md border"
         />
       </div>

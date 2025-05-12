@@ -10,11 +10,13 @@ export const SystemMetricsSchema = z.object({
   pendingCoaches: z.number(),
   totalGMV: z.number(),
   totalRevenue: z.number(),
+  monthlyRevenue: z.number(),
   metrics: z.object({
     userGrowth: z.number(),
     coachGrowth: z.number(),
     gmvGrowth: z.number(),
-    sessionGrowth: z.number()
+    sessionGrowth: z.number(),
+    revenueGrowth: z.number()
   }),
   lastUpdated: z.string().datetime()
 })
@@ -49,6 +51,8 @@ export const SystemAlertSchema = z.object({
   title: z.string(),
   message: z.string(),
   severity: z.string(),
+  source: z.string(),
+  isResolved: z.boolean().optional().default(false),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
 })

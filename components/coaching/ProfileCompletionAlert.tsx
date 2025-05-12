@@ -36,7 +36,7 @@ export function ProfileCompletionAlert({
   const handleStatusUpdate = async (status: ProfileStatus) => {
     try {
       setIsUpdating(true)
-      const { data, error } = await updateProfileStatus({ status })
+      const { data, error } = await updateProfileStatus({ status, isSystemOwner: false })
       
       if (error) {
         toast.error(error.message)
@@ -72,39 +72,6 @@ export function ProfileCompletionAlert({
           >
             <EyeOff className="mr-2 h-4 w-4" />
             Unpublish Profile
-          </Button>
-        </div>
-      </Alert>
-    )
-  }
-
-  if (profileStatus === PROFILE_STATUS.REVIEW) {
-    return (
-      <Alert className="bg-yellow-50 border-yellow-200">
-        <Clock className="h-4 w-4 text-yellow-600" />
-        <AlertTitle className="text-yellow-800">Your profile is being reviewed</AlertTitle>
-        <AlertDescription className="text-yellow-700">
-          Your profile is complete and awaiting approval. You'll be notified once it's published.
-        </AlertDescription>
-        <div className="mt-2 flex gap-2">
-          {onEdit && (
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={onEdit}
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              Edit Profile
-            </Button>
-          )}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => handleStatusUpdate(PROFILE_STATUS.DRAFT)}
-            disabled={isUpdating}
-          >
-            <EyeOff className="mr-2 h-4 w-4" />
-            Return to Draft
           </Button>
         </div>
       </Alert>

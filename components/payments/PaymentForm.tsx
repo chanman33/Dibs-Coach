@@ -20,7 +20,7 @@ export function PaymentFormWrapper({ clientSecret, returnUrl, amount, currency }
   const options = {
     clientSecret,
     appearance: {
-      theme: 'stripe',
+      theme: 'stripe' as const,
       variables: {
         colorPrimary: '#0F172A',
         colorBackground: '#ffffff',

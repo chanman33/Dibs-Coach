@@ -219,7 +219,7 @@ export function Library() {
         setUserRole(role)
 
         // Fetch user domains
-        const result = await fetchUserCapabilities()
+        const result = await fetchUserCapabilities({ skipProfileCheck: true })
         if (result.data) {
           const { realEstateDomains } = result.data
           setUserDomains(realEstateDomains || [])
