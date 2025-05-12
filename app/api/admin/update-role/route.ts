@@ -4,6 +4,7 @@ import { createAuthClient } from "@/utils/auth";
 import { z } from "zod";
 import { SYSTEM_ROLES } from "@/utils/roles/roles";
 import { ulidSchema } from "@/utils/types/auth";
+import { generateUlid } from "@/utils/ulid";
 
 // Input validation schema
 const updateRoleSchema = z.object({
@@ -112,7 +113,9 @@ export async function POST(req: Request) {
     }
 
     // Log the role change in admin audit log
+    const auditLogUlid = generateUlid();
     const { error: auditError } = await supabase.from("AdminAuditLog").insert({
+      ulid: auditLogUlid,
       adminUlid: adminCheck.ulid,
       action: "UPDATE_ROLE",
       targetType: "user",

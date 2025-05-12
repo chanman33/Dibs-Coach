@@ -1,14 +1,24 @@
-import { SignOutButton } from "@clerk/nextjs";
-import { Suspense } from "react";
+'use client';
 
-export default async function SignOutPage({
+import { Suspense } from "react";
+import { useRouter } from 'next/navigation';
+import { useClerk } from '@clerk/nextjs';
+
+export default function SignOutPage({
     searchParams,
 }: {
     searchParams: { forceRedirectUrl?: string }
 }) {
-    // Safely extract forceRedirectUrl from searchParams
-    const forceRedirectUrl = searchParams?.forceRedirectUrl;
-    
+    const router = useRouter();
+    const { signOut } = useClerk();
+    const forceRedirectUrl = searchParams?.forceRedirectUrl || '/';
+
+    const handleSignOut = async () => {
+        await signOut(() => {
+            router.push(forceRedirectUrl);
+        });
+    };
+
     return (
         <div className="flex min-h-screen items-center justify-center p-4">
             <Suspense fallback={
@@ -16,7 +26,12 @@ export default async function SignOutPage({
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 </div>
             }>
-                <SignOutButton redirectUrl={forceRedirectUrl} />
+                <button 
+                    onClick={handleSignOut} 
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                    Sign Out
+                </button>
             </Suspense>
         </div>
     );
