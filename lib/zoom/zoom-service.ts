@@ -1,5 +1,3 @@
-'use server';
-
 import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { auth } from '@clerk/nextjs/server';
@@ -46,15 +44,15 @@ export async function createZoomSession(config: Omit<ZoomSessionConfig, 'token'>
     };
 
     const { data: session, error } = await supabase
-      .from('ZoomSession')
-      .insert(sessionData)
+      .from('Session')
+      .insert(sessionData as any)
       .select()
       .single();
 
     if (error) throw error;
     if (!session) throw new Error('Failed to create session');
     
-    return session as ZoomSession;
+    return session as unknown as ZoomSession;
   } catch (error) {
     throw handleZoomError(error);
   }
@@ -68,15 +66,15 @@ export async function getZoomSession(sessionId: string): Promise<ZoomSession> {
     const supabase = await createAuthClient();
     
     const { data: session, error } = await supabase
-      .from('ZoomSession')
+      .from('Session')
       .select('*')
-      .eq('ulid', sessionId) // Use ulid instead of id
+      .eq('ulid', sessionId)
       .single();
 
     if (error) throw error;
     if (!session) throw new Error('Session not found');
 
-    return session;
+    return session as unknown as ZoomSession;
   } catch (error) {
     throw handleZoomError(error);
   }
@@ -90,9 +88,9 @@ export async function updateZoomSessionStatus(sessionId: string, status: ZoomSes
     const supabase = await createAuthClient();
     
     const { error } = await supabase
-      .from('ZoomSession')
+      .from('Session')
       .update({ 
-        status,
+        status: status as any,
         updatedAt: new Date().toISOString()
       })
       .eq('ulid', sessionId);
@@ -111,7 +109,7 @@ export async function deleteZoomSession(sessionId: string) {
     const supabase = await createAuthClient();
     
     const { error } = await supabase
-      .from('ZoomSession')
+      .from('Session')
       .delete()
       .eq('ulid', sessionId);
 
@@ -243,17 +241,17 @@ export class ZoomService {
     joinUrl: string;
   }> {
     const { data, error } = await this.supabase
-      .from('ZoomSession')
-      .select('startUrl, joinUrl')
-      .eq('meetingId', meetingId)
+      .from('Session')
+      .select('zoomStartUrl, zoomJoinUrl')
+      .eq('zoomMeetingId', String(meetingId))
       .single();
 
     if (error) throw error;
     if (!data) throw new Error('Meeting URLs not found');
 
     return {
-      startUrl: data.startUrl,
-      joinUrl: data.joinUrl,
+      startUrl: data.zoomStartUrl,
+      joinUrl: data.zoomJoinUrl,
     };
   }
 
@@ -263,11 +261,11 @@ export class ZoomService {
     urls: { startUrl: string; joinUrl: string }
   ): Promise<void> {
     const { error } = await this.supabase
-      .from('ZoomSession')
+      .from('Session')
       .update({
-        meetingId,
-        startUrl: urls.startUrl,
-        joinUrl: urls.joinUrl,
+        zoomMeetingId: String(meetingId),
+        zoomStartUrl: urls.startUrl,
+        zoomJoinUrl: urls.joinUrl,
         updatedAt: new Date().toISOString(),
       })
       .eq('ulid', sessionId);

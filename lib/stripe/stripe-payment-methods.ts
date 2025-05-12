@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import Stripe from 'stripe'
-import { env } from '@/env.mjs'
+import { env } from '@/lib/env'
 
 // Types
 export interface PaymentMethodError {
@@ -29,6 +29,9 @@ export interface SavedPaymentMethod {
 }
 
 // Initialize Stripe
+if (!env.STRIPE_SECRET_KEY) {
+  throw new Error('STRIPE_SECRET_KEY is not defined in environment variables');
+}
 const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
   apiVersion: '2023-10-16',
 })
@@ -36,6 +39,12 @@ const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
 export class StripePaymentMethodService {
   private async getSupabase() {
     const cookieStore = await cookies()
+    if (!env.NEXT_PUBLIC_SUPABASE_URL) {
+      throw new Error('NEXT_PUBLIC_SUPABASE_URL is not defined in environment variables');
+    }
+    if (!env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not defined in environment variables');
+    }
     return createServerClient(
       env.NEXT_PUBLIC_SUPABASE_URL,
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY,

@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { env } from '@/env.mjs';
+import { env } from '@/lib/env';
 
 export abstract class BaseWebhookHandler {
   protected stripe: Stripe;
   protected relevantEvents: Set<string>;
 
   constructor(events: string[]) {
+    if (!env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY is not defined in environment variables');
+    }
     this.stripe = new Stripe(env.STRIPE_SECRET_KEY, {
       apiVersion: '2023-10-16',
     });
@@ -24,6 +27,10 @@ export abstract class BaseWebhookHandler {
     if (!signature) {
       console.error('[STRIPE_WEBHOOK_ERROR] Missing signature');
       return new NextResponse('Missing signature', { status: 400 });
+    }
+
+    if (!env.STRIPE_WEBHOOK_SECRET) {
+      throw new Error('STRIPE_WEBHOOK_SECRET is not defined in environment variables');
     }
 
     try {

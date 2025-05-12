@@ -1,0 +1,30 @@
+# Vercel specific ignores
+
+# Ignore build outputs (Vercel handles this)
+.next/
+out/
+
+# Ignore node_modules (Vercel installs its own)
+node_modules/
+
+# Ignore local environment files
+.env*.local
+*.env.local
+.env.development.local
+.env.test.local
+
+# Ignore Git folder
+.git/
+
+# Ignore macOS system files
+.DS_Store
+
+# Ignore an archived folder
+archived/
+
+# Any other project-specific files or folders you don't want to deploy
+# For example:
+# tests/
+# cypress/
+# docs/
+# *.log
