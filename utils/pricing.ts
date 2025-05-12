@@ -37,7 +37,7 @@ export const ELITE_PLAN_FEATURES = [
 
 export const getDefaultPlans = (isUpgradePage: boolean = false): PricingPlan[] => [
   ...(!isUpgradePage ? [{
-    title: "Free",
+    title: "Individual",
     description: "Get started with pay-as-you-go coaching sessions",
     features: [
       "Book individual sessions",
