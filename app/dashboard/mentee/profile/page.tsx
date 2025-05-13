@@ -13,6 +13,8 @@ import { toast } from "sonner"
 import { fetchUserProfile } from "@/utils/actions/user-profile-actions"
 
 interface ProfileData {
+  firstName: string | null
+  lastName: string | null
   displayName: string | null
   bio: string | null
   realEstateDomains: string[]
@@ -58,6 +60,8 @@ export default function AgentProfilePage() {
           });
           
           setProfileData({
+            firstName: userProfileResponse.data.firstName,
+            lastName: userProfileResponse.data.lastName,
             displayName: userProfileResponse.data.displayName ?? "",
             bio: userProfileResponse.data.bio ?? null,
             realEstateDomains: userProfileResponse.data.realEstateDomains || [],
@@ -87,6 +91,8 @@ export default function AgentProfilePage() {
     try {
       // Update the user profile with all data
       const userProfileResponse = await updateUserProfile({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         displayName: formData.displayName,
         bio: formData.bio,
         totalYearsRE: formData.totalYearsRE,
@@ -108,6 +114,8 @@ export default function AgentProfilePage() {
       // Update local state to avoid refetch
       setProfileData(prev => prev ? {
         ...prev,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
         displayName: formData.displayName,
         bio: formData.bio,
         realEstateDomains: formData.realEstateDomains,
@@ -154,6 +162,8 @@ export default function AgentProfilePage() {
           onSubmit={handleGeneralSubmit} 
           isSubmitting={isSubmitting}
           initialData={{
+            firstName: profileData?.firstName || null,
+            lastName: profileData?.lastName || null,
             displayName: profileData?.displayName || "",
             bio: profileData?.bio || "",
             totalYearsRE: profileData?.totalYearsRE || 0,

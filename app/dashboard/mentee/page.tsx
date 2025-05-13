@@ -12,13 +12,73 @@ import { fetchGoals } from "@/utils/actions/goals"
 import { fetchUserSessions } from "@/utils/actions/sessions"
 import { SessionStatus, type TransformedSession } from "@/utils/types/session"
 import { toast } from "sonner"
-import type { ClientGoal } from "@/utils/types/goals"
+import type { ClientGoal, GoalType } from "@/utils/types/goals"
 import { format, isAfter } from "date-fns"
+
+// Helper function to map goal types to coach focus areas
+const getCoachFocusForGoal = (goalType?: GoalType): string => {
+  if (!goalType) return ''; // Default if no goal or type
+
+  switch (goalType) {
+    // Financial & Sales Volume Related
+    case 'sales_volume':
+    case 'commission_income':
+    case 'gci':
+    case 'avg_sale_price':
+      return 'BUSINESS_DEVELOPMENT'; // Skill Category
+    case 'session_revenue': // Could also be business development or a specific service focus
+      return 'BUSINESS_DEVELOPMENT'; 
+
+    // Transaction Related (Primarily Realtor focus)
+    case 'listings':
+    case 'buyer_transactions':
+    case 'closed_deals':
+      return 'REALTOR'; // Real Estate Domain & Skill Category
+    case 'days_on_market':
+      return 'REALTOR'; // Or potentially a more specific market analysis skill
+
+    // Client Relationship Focused
+    case 'new_clients':
+    case 'referrals':
+    case 'client_retention':
+    case 'reviews': // Client satisfaction aspect
+      return 'CLIENT_RELATIONS'; // Skill Category
+
+    // Market Presence & Marketing
+    case 'market_share':
+    case 'territory_expansion':
+      return 'BUSINESS_DEVELOPMENT'; // Broader business growth
+    case 'social_media':
+      return 'SOCIAL_MEDIA'; // Skill Category
+    case 'website_traffic':
+      return 'MARKET_INNOVATION'; // Skill Category (broader digital marketing)
+
+    // Professional Development
+    case 'certifications':
+    case 'training_hours':
+    case 'networking_events':
+      return 'PROFESSIONAL_DEVELOPMENT'; // Skill Category
+    
+    // Coaching specific goals (less relevant for mentee searching for coach)
+    // case 'coaching_sessions':
+    // case 'group_sessions':
+    // case 'active_mentees':
+    // case 'mentee_satisfaction':
+    // case 'response_time':
+    // case 'session_completion':
+    // case 'mentee_milestones':
+    //   return ''; // Or a general category if applicable
+
+    case 'custom':
+    default:
+      return ''; // Default to no specific focus or a general one
+  }
+};
 
 function MenteeDashboard() {
   const [goals, setGoals] = useState<ClientGoal[]>([])
   const [currentGoalIndex, setCurrentGoalIndex] = useState(0)
-  const [nextSession, setNextSession] = useState<TransformedSession | null>(null)
+  const [upcomingSessions, setUpcomingSessions] = useState<TransformedSession[]>([])
   const [isLoadingGoal, setIsLoadingGoal] = useState(true)
   const [isLoadingSession, setIsLoadingSession] = useState(true)
 
@@ -242,7 +302,7 @@ function MenteeDashboard() {
       }
     }
 
-    const loadNextSession = async () => {
+    const loadSessions = async () => {
       try {
         const { data, error } = await fetchUserSessions({})
         if (error) {
@@ -251,16 +311,16 @@ function MenteeDashboard() {
           return
         }
 
-        // Find the next upcoming session
+        // Find all upcoming sessions
         const now = new Date()
-        const upcomingSessions = data?.filter((session: TransformedSession) =>
+        const upcoming = data?.filter((session: TransformedSession) =>
           session.status === 'SCHEDULED' &&
           isAfter(new Date(session.startTime), now)
         ).sort((a: TransformedSession, b: TransformedSession) =>
           new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-        )
+        ) || []
 
-        setNextSession(upcomingSessions && upcomingSessions.length > 0 ? upcomingSessions[0] : null)
+        setUpcomingSessions(upcoming)
       } catch (error) {
         console.error('[FETCH_SESSIONS_ERROR]', error)
         toast.error('Failed to load session data')
@@ -270,7 +330,7 @@ function MenteeDashboard() {
     }
 
     loadGoals()
-    loadNextSession()
+    loadSessions()
   }, [])
 
   const getProgressPercentage = (current: number, target: number) => {
@@ -448,7 +508,7 @@ function MenteeDashboard() {
             <CardDescription className="line-clamp-2">
               {isLoadingSession ? (
                 <span className="animate-pulse">Loading recommendations...</span>
-              ) : nextSession ? (
+              ) : upcomingSessions.length > 0 ? (
                 "Book additional sessions to accelerate growth"
               ) : (
                 "Find the perfect time with top coaches"
@@ -465,17 +525,17 @@ function MenteeDashboard() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                     <Button variant="outline" size="sm" className="w-full hover:bg-primary/5 px-2 sm:px-4" asChild>
-                      <Link href="/dashboard/mentee/browse-coaches?focus=sales">
+                      <Link href="/dashboard/mentee/browse-coaches?focus=BUSINESS_DEVELOPMENT">
                         <span className="hidden sm:inline">Sales</span>
                       </Link>
                     </Button>
                     <Button variant="outline" size="sm" className="w-full hover:bg-primary/5 px-2 sm:px-4" asChild>
-                      <Link href="/dashboard/mentee/browse-coaches?focus=marketing">
+                      <Link href="/dashboard/mentee/browse-coaches?focus=SOCIAL_MEDIA">
                         <span className="hidden sm:inline">Marketing</span>
                       </Link>
                     </Button>
                     <Button variant="outline" size="sm" className="w-full hover:bg-primary/5 px-2 sm:px-4" asChild>
-                      <Link href="/dashboard/mentee/browse-coaches?focus=investing">
+                      <Link href="/dashboard/mentee/browse-coaches?focus=INVESTOR">
                         <span className="hidden sm:inline">Investing</span>
                       </Link>
                     </Button>
@@ -513,7 +573,7 @@ function MenteeDashboard() {
                   className="w-full h-10 justify-center hover:bg-primary/90 transition-colors mt-4"
                   asChild
                 >
-                  <Link href="/dashboard/mentee/browse-coaches?focus=sales">
+                  <Link href={`/dashboard/mentee/browse-coaches${currentGoal ? '?focus=' + getCoachFocusForGoal(currentGoal.type as GoalType) : ''}`}>
                     <div className="flex items-center gap-2">
                       <span>Find a Coach</span>
                     </div>
@@ -550,20 +610,20 @@ function MenteeDashboard() {
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-semibold text-foreground">Monthly Sessions</span>
                       <span className="font-medium">
-                        {nextSession ? "1" : "0"} / 2 completed
+                        {upcomingSessions.length > 0 ? "1" : "0"} / 2 completed
                       </span>
                     </div>
-                    <Progress value={nextSession ? 50 : 0} className="h-2 [&>div]:bg-green-500 bg-green-100" />
+                    <Progress value={upcomingSessions.length > 0 ? 50 : 0} className="h-2 [&>div]:bg-green-500 bg-green-100" />
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-semibold text-foreground">Coaching Hours</span>
                       <span className="font-medium">
-                        {nextSession ? "1" : "0"} / 1 hr
+                        {upcomingSessions.length > 0 ? "1" : "0"} / 1 hr
                       </span>
                     </div>
-                    <Progress value={nextSession ? 100 : 0} className="h-2 [&>div]:bg-green-500 bg-green-100" />
+                    <Progress value={upcomingSessions.length > 0 ? 100 : 0} className="h-2 [&>div]:bg-green-500 bg-green-100" />
                   </div>
                 </div>
                 <Button
@@ -648,7 +708,7 @@ function MenteeDashboard() {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
-              ) : !nextSession ? (
+              ) : upcomingSessions.length === 0 ? (
                 <div className="text-center py-6 bg-muted/30 rounded-lg">
                   <Calendar className="h-10 w-10 text-muted-foreground mx-auto mb-4 animate-bounce" />
                   <h3 className="font-semibold mb-2">No Upcoming Sessions</h3>
@@ -665,25 +725,10 @@ function MenteeDashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {/* Show current session as first card */}
-                  <SessionCard key={nextSession.ulid} session={nextSession} />
-                  
-                  {/* Example of additional future sessions - we would need to modify the data fetching logic to get all upcoming sessions */}
-                  {nextSession && Array.from({ length: 2 }).map((_, i) => {
-                    // This is just placeholder data - in a real implementation, you would use actual session data
-                    // This creates fake future sessions for UI demonstration
-                    const futureDate = new Date(nextSession.startTime);
-                    futureDate.setDate(futureDate.getDate() + (i + 1) * 7); // Add weeks
-                    
-                    const mockSession = {
-                      ...nextSession,
-                      startTime: futureDate.toISOString(),
-                      endTime: new Date(futureDate.getTime() + nextSession.durationMinutes * 60000).toISOString(),
-                      ulid: `mock-${i}-${nextSession.ulid}` // Just for the key prop
-                    };
-                    
-                    return <SessionCard key={mockSession.ulid} session={mockSession} />;
-                  })}
+                  {/* Show all real upcoming sessions */}
+                  {upcomingSessions.map(session => (
+                    <SessionCard key={session.ulid} session={session} />
+                  ))}
                 </div>
               )}
             </div>

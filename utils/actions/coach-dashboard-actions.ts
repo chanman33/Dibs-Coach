@@ -338,7 +338,8 @@ export const fetchTopMentees = withServerAction<TopMentee[]>(
           )
         `)
         .eq('coachUlid', userUlid)
-        .eq('status', 'COMPLETED')
+        // Include all session statuses, not just COMPLETED
+        // .eq('status', 'COMPLETED')
         .order('startTime', { ascending: false })
         .gte('startTime', filterDate)
       

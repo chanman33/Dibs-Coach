@@ -89,7 +89,7 @@ export default function Settings() {
 
     // Determine the target tab
     let targetTab = activeTab;
-    if (tab && ['account', 'organizations', 'notifications', 'subscription'].includes(tab)) {
+    if (tab && ['account', 'organizations', 'notifications', 'payments'].includes(tab)) {
       targetTab = tab;
     } else if (success === 'true') {
       // Default to account tab on generic success if no tab is specified, or adjust as needed
@@ -331,10 +331,10 @@ export default function Settings() {
             Notifications
           </TabsTrigger>
           <TabsTrigger
-            value="subscription"
+            value="payments"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent"
           >
-            Subscription
+            Payments
           </TabsTrigger>
         </TabsList>
 
@@ -374,7 +374,12 @@ export default function Settings() {
           <div className="border rounded-lg p-6 bg-background">
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Notification Preferences</h2>
+                <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-3">
+                  Notification Preferences
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                    Implementation Coming Soon
+                  </Badge>
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Choose what notifications you want to receive
                 </p>
@@ -412,13 +417,18 @@ export default function Settings() {
           </div>
         </TabsContent>
 
-        <TabsContent value="subscription" className="mt-0">
+        <TabsContent value="payments" className="mt-0">
           <div className="border rounded-lg p-6 bg-background">
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Subscription Details</h2>
+                <h2 className="text-2xl font-semibold tracking-tight flex items-center gap-3">
+                  Payment Details
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                    Integration Coming Soon
+                  </Badge>
+                </h2>
                 <p className="text-sm text-muted-foreground">
-                  Manage your subscription and billing
+                  Manage your payment and billing information
                 </p>
               </div>
 
@@ -426,14 +436,13 @@ export default function Settings() {
                 <div className="flex items-center justify-between space-x-2 py-4">
                   <div>
                     <h3 className="font-medium">Current Plan</h3>
-                    <p className="text-sm text-muted-foreground">Free Tier</p>
+                    <p className="text-sm text-muted-foreground">Individual (Pay-as-You-Go)</p>
                   </div>
-                  <Button variant="outline">Upgrade Plan</Button>
                 </div>
                 <Separator />
                 <div className="py-4">
-                  <h3 className="font-medium mb-2">Billing History</h3>
-                  <p className="text-sm text-muted-foreground">No billing history available</p>
+                  <h3 className="font-medium mb-2">Payment History</h3>
+                  <p className="text-sm text-muted-foreground">No payment history available</p>
                 </div>
               </div>
             </div>

@@ -317,7 +317,6 @@ export const fetchUpcomingSessions = withServerAction<any>(
         .eq('status', SESSION_STATUS.SCHEDULED)
         .gt('startTime', now)
         .order('startTime', { ascending: true })
-        .limit(5)
 
       if (sessionsError) {
         return {
@@ -516,6 +515,142 @@ export const fetchUserSessions = withServerAction<any>(
       }
     } catch (error) {
       console.error('[DEBUG_USER_SESSIONS] Unexpected error', { 
+        error,
+        errorType: error?.constructor?.name,
+        errorJSON: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+        timestamp: new Date().toISOString()
+      })
+      
+      return {
+        data: null,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An unexpected error occurred',
+          details: error instanceof Error ? { message: error.message } : undefined
+        }
+      }
+    }
+  }
+)
+
+/**
+ * Fetches sessions for a specific mentee
+ */
+export const fetchSessionsByMenteeId = withServerAction<any>(
+  async (menteeId: string, { userUlid, roleContext }) => {
+    try {
+      if (!userUlid) {
+        return {
+          data: null,
+          error: { code: 'UNAUTHORIZED', message: 'User not authenticated' }
+        };
+      }
+      
+      if (!menteeId) {
+        return {
+          data: null,
+          error: { code: 'INTERNAL_ERROR', message: 'Mentee ID is required' }
+        };
+      }
+
+      console.log('[DEBUG_MENTEE_SESSIONS] Starting fetchSessionsByMenteeId', { menteeId, userUlid })
+      
+      const supabase = await createAuthClient()
+      
+      // Only coaches should be able to view mentee sessions
+      if (!roleContext.capabilities?.includes('COACH')) {
+        return {
+          data: null,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Only coaches can access mentee sessions'
+          }
+        }
+      }
+
+      // Query sessions for the specific mentee
+      const { data: sessions, error: sessionsError } = await supabase
+        .from('Session')
+        .select(`
+          ulid,
+          menteeUlid,
+          coachUlid,
+          startTime,
+          endTime,
+          status,
+          sessionType,
+          zoomJoinUrl,
+          paymentStatus,
+          price,
+          createdAt,
+          mentee:User!Session_menteeUlid_fkey (
+            ulid,
+            firstName,
+            lastName,
+            email,
+            profileImageUrl
+          ),
+          coach:User!Session_coachUlid_fkey (
+            ulid,
+            firstName,
+            lastName,
+            email,
+            profileImageUrl
+          )
+        `)
+        .eq('menteeUlid', menteeId)
+        .eq('coachUlid', userUlid)
+        .order('startTime', { ascending: false })
+
+      if (sessionsError) {
+        console.error('[DEBUG_MENTEE_SESSIONS] Supabase error', { error: sessionsError })
+        return {
+          data: null,
+          error: {
+            code: 'FETCH_ERROR',
+            message: 'Failed to fetch mentee sessions'
+          }
+        }
+      }
+
+      // Handle empty sessions case
+      if (!sessions || sessions.length === 0) {
+        console.log('[DEBUG_MENTEE_SESSIONS] No sessions found')
+        return { data: [], error: null }
+      }
+
+      // Transform sessions into client-friendly format
+      const transformedSessions = sessions.map((session: any) => {
+        return {
+          ulid: String(session.ulid),
+          durationMinutes: Math.round(
+            (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)
+          ),
+          status: String(session.status || 'SCHEDULED'),
+          startTime: String(session.startTime),
+          endTime: String(session.endTime),
+          createdAt: String(session.createdAt),
+          userRole: 'coach' as const,
+          otherParty: {
+            ulid: String(session.mentee.ulid),
+            firstName: session.mentee.firstName ? String(session.mentee.firstName) : null,
+            lastName: session.mentee.lastName ? String(session.mentee.lastName) : null,
+            email: session.mentee.email ? String(session.mentee.email) : null,
+            profileImageUrl: session.mentee.profileImageUrl ? String(session.mentee.profileImageUrl) : null
+          },
+          sessionType: session.sessionType ? String(session.sessionType) : null,
+          zoomJoinUrl: session.zoomJoinUrl ? String(session.zoomJoinUrl) : null,
+          paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null,
+          price: session.price || 0
+        }
+      })
+
+      return {
+        data: transformedSessions,
+        error: null
+      }
+    } catch (error) {
+      console.error('[DEBUG_MENTEE_SESSIONS] Unexpected error', { 
         error,
         errorType: error?.constructor?.name,
         errorJSON: JSON.stringify(error, Object.getOwnPropertyNames(error)),

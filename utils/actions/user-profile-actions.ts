@@ -11,6 +11,8 @@ import { calculateProfileCompletion } from '@/utils/actions/calculateProfileComp
 import { User } from "@/utils/types/user"
 
 export interface GeneralFormData {
+  firstName: string | null
+  lastName: string | null
   displayName: string
   bio: string | null
   totalYearsRE: number
@@ -21,6 +23,8 @@ export interface GeneralFormData {
 }
 
 export interface UserProfileResponse {
+  firstName: string | null;
+  lastName: string | null;
   displayName: string | null;
   bio: string | null;
   totalYearsRE: number;
@@ -65,12 +69,14 @@ export const fetchUserProfile = withServerAction<UserProfileResponse, void>(
       if (!userUlid) {
         return {
           data: {
-            displayName: "",
+            firstName: null,
+            lastName: null,
+            displayName: null,
             bio: null,
             totalYearsRE: 0,
             realEstateDomains: [],
             primaryDomain: null,
-            primaryMarket: "",
+            primaryMarket: null,
             languages: [],
             capabilities: [],
             coachProfile: null
@@ -87,6 +93,8 @@ export const fetchUserProfile = withServerAction<UserProfileResponse, void>(
       const { data, error } = await supabase
         .from('User')
         .select(`
+          firstName,
+          lastName,
           displayName,
           bio,
           totalYearsRE,
@@ -108,12 +116,14 @@ export const fetchUserProfile = withServerAction<UserProfileResponse, void>(
         });
         return {
           data: {
-            displayName: "",
+            firstName: null,
+            lastName: null,
+            displayName: null,
             bio: null,
             totalYearsRE: 0,
             realEstateDomains: [],
             primaryDomain: null,
-            primaryMarket: "",
+            primaryMarket: null,
             languages: [],
             capabilities: [],
             coachProfile: null
@@ -128,6 +138,8 @@ export const fetchUserProfile = withServerAction<UserProfileResponse, void>(
 
       return {
         data: {
+          firstName: data.firstName || null,
+          lastName: data.lastName || null,
           displayName: data.displayName || "",
           bio: data.bio || null,
           totalYearsRE: data.totalYearsRE || 0,
@@ -147,12 +159,14 @@ export const fetchUserProfile = withServerAction<UserProfileResponse, void>(
       });
       return {
         data: {
-          displayName: "",
+          firstName: null,
+          lastName: null,
+          displayName: null,
           bio: null,
           totalYearsRE: 0,
           realEstateDomains: [],
           primaryDomain: null,
-          primaryMarket: "",
+          primaryMarket: null,
           languages: [],
           capabilities: [],
           coachProfile: null
@@ -217,6 +231,8 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
 
       // Update user data with explicit type checking
       const updateData: {
+        firstName: string | null;
+        lastName: string | null;
         displayName: string | null;
         bio: string | null;
         totalYearsRE: number;
@@ -226,6 +242,8 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
         primaryDomain?: any;
         languages?: any;
       } = {
+        firstName: data.firstName || null,
+        lastName: data.lastName || null,
         displayName: data.displayName || null,
         bio: data.bio || null,
         totalYearsRE: typeof data.totalYearsRE === 'number' ? data.totalYearsRE : 0,
@@ -289,6 +307,8 @@ export const updateUserProfile = withServerAction<GeneralFormData, GeneralFormDa
       // Return the updated data
       return {
         data: {
+          firstName: updatedUser.firstName || null,
+          lastName: updatedUser.lastName || null,
           displayName: updatedUser.displayName || "",
           bio: updatedUser.bio,
           totalYearsRE: updatedUser.totalYearsRE || 0,
