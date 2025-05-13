@@ -8,6 +8,8 @@ export type PricingPlan = {
   popular?: boolean;
   exclusive?: boolean;
   href?: string;
+  payAsYouGo?: boolean;
+  priceSubtext?: string;
 }
 
 export type PricingCardProps = PricingPlan & {
@@ -26,19 +28,19 @@ export const MONTHLY_COACHING_CREDITS = 150;
 export const MONTHLY_PRICE = MONTHLY_SOFTWARE_PRICE + MONTHLY_COACHING_CREDITS;
 
 export const ELITE_PLAN_FEATURES = [
-  "**All Free plan benefits included for every team member**",
-  "Enterprise dashboard with team controls",
-  "Team-wide goal setting and performance tracking",
-  "Custom group coaching and session booking",
-  "Learning management system with custom content",
-  "Team retention and growth toolkit",
-  "Dedicated enterprise support team"
+  "All Individual plan benefits",
+  "Admin dashboard & team controls",
+  "Company-wide goal tracking",
+  "Group coaching and custom workshops",
+  "Built-in LMS for custom content",
+  "Retention and growth analytics",
+  "Priority support"
 ];
 
 export const getDefaultPlans = (isUpgradePage: boolean = false): PricingPlan[] => [
   ...(!isUpgradePage ? [{
     title: "Individual",
-    description: "Get started with pay-as-you-go coaching sessions",
+    description: "Only pay when you book 1-on-1 coaching sessions (custom price per session)",
     features: [
       "Book individual sessions",
       "Pay per session pricing",
@@ -47,6 +49,7 @@ export const getDefaultPlans = (isUpgradePage: boolean = false): PricingPlan[] =
     ],
     actionLabel: "Sign Up Free",
     priceIdMonthly: null,
+    payAsYouGo: true,
   }] : []),
   {
     title: "Team and Enterprise",

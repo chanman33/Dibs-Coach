@@ -49,7 +49,9 @@ export const PricingCard = ({
   popular, 
   exclusive,
   priceIdMonthly,
-  href 
+  href,
+  payAsYouGo,
+  priceSubtext
 }: PricingCardProps) => {
   return (
     <Card
@@ -64,12 +66,17 @@ export const PricingCard = ({
             <h2 className="text-3xl font-bold">
               {monthlyPrice 
                 ? "$" + monthlyPrice
-                : "Custom"}
+                : payAsYouGo 
+                  ? "Pay-As-You-Go"
+                  : "Custom"}
             </h2>
             <span className="flex flex-col justify-end text-sm mb-1">
               {monthlyPrice ? "/month" : ""}
             </span>
           </div>
+          {priceSubtext && (
+            <p className="text-xs text-muted-foreground mt-1">{priceSubtext}</p>
+          )}
           <div className="pt-1.5 text-sm text-muted-foreground" dangerouslySetInnerHTML={{ __html: description }} />
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
