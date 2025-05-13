@@ -3,7 +3,6 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { FilterSidebar, SearchBar } from '@/components/coaching/shared/SearchAndFilter'
 import { CoachCard } from '../shared/CoachCard'
-import { Categories } from '../shared/Categories'
 import { useState, useEffect } from 'react'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -13,22 +12,16 @@ import { useBrowseCoaches } from '@/utils/hooks/useBrowseCoaches'
 import { BrowseCoachData } from '@/utils/types/browse-coaches'
 import { CoachFilters } from '@/components/coaching/shared/SearchAndFilter/types'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { COACH_SPECIALTIES, SpecialtyCategory } from '@/utils/types/coach'
+import { COACH_SPECIALTIES, SpecialtyCategory, REAL_ESTATE_DOMAINS, RealEstateDomain } from '@/utils/types/coach'
 import { RecommendedCoaches } from '../shared/RecommendedCoaches'
-
-// Define focus area to skill category mappings
-const FOCUS_TO_CATEGORIES: Record<string, SpecialtyCategory[]> = {
-  'sales': ['BUSINESS_DEVELOPMENT'],
-  'marketing': ['MARKET_INNOVATION', 'SOCIAL_MEDIA'],
-  'investing': ['INVESTOR', 'ECONOMIC_MASTERY']
-};
 
 export interface BrowseCoachesProps {
   role: keyof typeof USER_CAPABILITIES;
   isSignedIn: boolean;
+  initialFocus?: string | null;
 }
 
-export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
+export function BrowseCoaches({ role, isSignedIn, initialFocus }: BrowseCoachesProps) {
   const {
     isLoading,
     error,
@@ -39,7 +32,6 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
   } = useBrowseCoaches({ role, isSignedIn });
 
   const searchParams = useSearchParams();
-  const focusParam = searchParams.get('focus');
   
   const [selectedCoach, setSelectedCoach] = useState<BrowseCoachData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -47,15 +39,36 @@ export function BrowseCoaches({ role, isSignedIn }: BrowseCoachesProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const router = useRouter();
 
-  // Set initial filters based on focus parameter
+  // Set initial filters based on initialFocus prop or focus URL parameter
   useEffect(() => {
-    if (focusParam && FOCUS_TO_CATEGORIES[focusParam]) {
-      setFilters(prev => ({
-        ...prev,
-        skillCategories: FOCUS_TO_CATEGORIES[focusParam]
-      }));
+    const focusParamFromUrl = searchParams.get('focus');
+    const effectiveFocus = initialFocus || focusParamFromUrl;
+
+    if (effectiveFocus) {
+      const focusValues = effectiveFocus.split(',').map(val => val.trim()).filter(val => val);
+      const validRealEstateDomains: string[] = Object.values(REAL_ESTATE_DOMAINS);
+      
+      const domainsToSet: RealEstateDomain[] = [];
+      const categoriesToSet: SpecialtyCategory[] = [];
+
+      focusValues.forEach(value => {
+        if (validRealEstateDomains.includes(value)) {
+          domainsToSet.push(value as RealEstateDomain);
+        } else {
+          // Assume it's a SpecialtyCategory if not a RealEstateDomain
+          categoriesToSet.push(value as SpecialtyCategory);
+        }
+      });
+
+      if (domainsToSet.length > 0 || categoriesToSet.length > 0) {
+        setFilters(prev => ({
+          ...prev,
+          ...(domainsToSet.length > 0 && { realEstateDomain: Array.from(new Set([...(prev.realEstateDomain || []), ...domainsToSet])) }),
+          ...(categoriesToSet.length > 0 && { skillCategories: Array.from(new Set([...(prev.skillCategories || []), ...categoriesToSet])) }),
+        }));
+      }
     }
-  }, [focusParam]);
+  }, [initialFocus, searchParams]); // Depend on initialFocus and searchParams
 
   // Filtering logic for coaches
   const filterCoaches = (coaches: BrowseCoachData[]) => {

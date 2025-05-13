@@ -39,6 +39,7 @@ export default function MenteeBrowseCoachesPage() {
         <BrowseCoaches 
           role={role} 
           isSignedIn={true} 
+          initialFocus={focusParam}
         />
       </div>
     </div>

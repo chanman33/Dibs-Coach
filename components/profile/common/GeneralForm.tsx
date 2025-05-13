@@ -17,6 +17,8 @@ import { Home, Building, FileText, FileCheck, Shield, Wallet, Building2 } from "
 // Validation schema matching database types
 const generalFormSchema = z.object({
   // User fields
+  firstName: z.string().nullable(),
+  lastName: z.string().nullable(),
   displayName: z.string().min(1, "Display name is required"),
   bio: z.string()
     .min(50, "Bio must be at least 50 characters long")
@@ -77,6 +79,8 @@ interface GeneralFormProps {
   onSubmit: (data: GeneralFormData) => Promise<ApiResponse<GeneralFormData>>
   initialData?: {
     // User data
+    firstName?: string | null
+    lastName?: string | null
     displayName?: string | null
     bio?: string | null
     totalYearsRE?: number
@@ -99,6 +103,8 @@ export default function GeneralForm({
 }: GeneralFormProps) {
   // Ensure languages is always initialized as an array
   const [formData, setFormData] = useState<GeneralFormData>({
+    firstName: initialData?.firstName || null,
+    lastName: initialData?.lastName || null,
     displayName: initialData?.displayName || "",
     bio: initialData?.bio || null,
     totalYearsRE: initialData?.totalYearsRE ?? 0,
@@ -122,6 +128,8 @@ export default function GeneralForm({
       
       setFormData(prev => ({
         ...prev,
+        firstName: initialData.firstName || prev.firstName || null,
+        lastName: initialData.lastName || prev.lastName || null,
         displayName: initialData.displayName || prev.displayName || "",
         bio: initialData.bio || prev.bio || null,
         totalYearsRE: initialData.totalYearsRE ?? prev.totalYearsRE ?? 0,
@@ -364,6 +372,40 @@ export default function GeneralForm({
         
         <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
+            <div>
+              <Label htmlFor="firstName" className="text-sm font-medium">First Name</Label>
+              <Input 
+                id="firstName" 
+                name="firstName" 
+                value={formData.firstName || ''} 
+                onChange={handleChange}
+                onBlur={handleBlur}
+                placeholder="Enter your first name"
+                disabled={isSubmitting}
+                className={`mt-1 ${errors.firstName ? 'border-red-500' : ''}`}
+              />
+              {errors.firstName && (
+                <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="lastName" className="text-sm font-medium">Last Name</Label>
+              <Input 
+                id="lastName" 
+                name="lastName" 
+                value={formData.lastName || ''} 
+                onChange={handleChange}
+                onBlur={handleBlur}
+                placeholder="Enter your last name"
+                disabled={isSubmitting}
+                className={`mt-1 ${errors.lastName ? 'border-red-500' : ''}`}
+              />
+              {errors.lastName && (
+                <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>
+              )}
+            </div>
+
             <div className="md:col-span-2">
               <Label htmlFor="displayName" className="text-sm font-medium">Profile Display Name</Label>
               <Input 

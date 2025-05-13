@@ -492,8 +492,24 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
       {/* Recognition Cards */}
       <Card>
         <CardHeader>
-          <CardTitle>Professional Recognitions</CardTitle>
-          <CardDescription>Your certifications, awards, and other professional achievements</CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Professional Recognitions</CardTitle>
+              <CardDescription>Your certifications, awards, and other professional achievements</CardDescription>
+            </div>
+            <Button 
+              onClick={() => {
+                setShowForm(true);
+                setEditIndex(null);
+                setIsDialogOpen(true);
+              }}
+              className="gap-2"
+              disabled={isSaving || isSubmitting}
+            >
+              <PlusCircle className="h-4 w-4" />
+              Add Recognition
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
@@ -629,24 +645,6 @@ export const RecognitionsTab: React.FC<RecognitionsTabProps> = ({
                 </p>
               </div>
             )}
-
-            {/* Add Recognition Button */}
-            <div className="flex justify-between items-center mt-6">
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => {
-                    setShowForm(true);
-                    setEditIndex(null);
-                    setIsDialogOpen(true);
-                  }}
-                  className="gap-2"
-                  disabled={isSaving || isSubmitting}
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Add Recognition
-                </Button>
-              </div>
-            </div>
           </div>
         </CardContent>
       </Card>

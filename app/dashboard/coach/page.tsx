@@ -12,6 +12,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { DEFAULT_AVATARS } from '@/utils/constants'
 import { useEffect, useState } from 'react'
 import { fetchCoachDashboardStats, CoachDashboardStats, fetchTopMentees } from '@/utils/actions/coach-dashboard-actions'
@@ -19,7 +25,7 @@ import { fetchUpcomingSessions } from '@/utils/actions/sessions'
 import { fetchCoachAnalytics, type CoachAnalytics } from '@/utils/actions/analytics'
 import { TransformedSession } from '@/utils/types/session'
 import { TopMentee } from '@/utils/types/mentee'
-import { format, isAfter } from 'date-fns'
+import { format, isAfter, addDays, isBefore } from 'date-fns'
 import { toast } from 'sonner'
 import { createClient } from '@/utils/supabase/client'
 import { useCentralizedAuth } from '@/app/provider'
@@ -36,8 +42,184 @@ import type { ClientGoal } from "@/utils/types/goals"
 import { Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { MenteeProfileModal } from './_components/MenteeProfileModal'
+import { SessionsPreviewModal } from './_components/SessionsPreviewModal'
 
 const DEFAULT_AVATAR = "https://utfs.io/f/[your-default-avatar-url]" // Replace with your default avatar URL
+
+// Define CoachSessionCard component
+function CoachSessionCard({ session, onClick }: { session: TransformedSession; onClick: () => void }) {
+  const sessionDate = new Date(session.startTime);
+  const endDate = new Date(session.endTime);
+
+  const menteeName = [
+    session.otherParty.firstName,
+    session.otherParty.lastName
+  ].filter(Boolean).join(' ');
+
+  const dayName = format(sessionDate, 'EEE');
+  const dayNumber = format(sessionDate, 'd');
+  const startTime = format(sessionDate, 'h:mm a');
+  const endTimeFormat = format(endDate, 'h:mm a');
+
+  const daysUntil = Math.ceil((sessionDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+
+  let timingLabel = "";
+  let accentColor = "bg-blue-500";
+
+  if (daysUntil === 0) {
+    timingLabel = "Today";
+    accentColor = "bg-green-500";
+  } else if (daysUntil === 1) {
+    timingLabel = "Tomorrow";
+    accentColor = "bg-amber-500";
+  } else if (daysUntil <= 7) {
+    timingLabel = `In ${daysUntil} days`;
+    accentColor = "bg-blue-500";
+  } else {
+    timingLabel = format(sessionDate, 'MMM d');
+    accentColor = "bg-slate-500";
+  }
+
+  return (
+    <div 
+      className="group relative border rounded-lg p-4 hover:shadow-md transition-all duration-200 hover:border-primary/50 hover:bg-muted/20 cursor-pointer"
+      onClick={onClick}
+    >
+      <div 
+        className="absolute top-0 left-0 w-1 h-full rounded-l-lg transition-all duration-200 group-hover:h-full"
+        style={{ backgroundColor: accentColor.replace('bg-', '') }}
+      ></div>
+      
+      <div className="flex items-start space-x-3 ml-1"> {/* Added ml-1 to give space from accent bar */}
+        <div className="flex-shrink-0">
+          <div className="flex flex-col items-center justify-center rounded-md overflow-hidden border w-12">
+            <div className={`${accentColor} text-white text-xs font-medium w-full text-center py-0.5`}>
+              {dayName}
+            </div>
+            <div className="text-xl font-bold w-full text-center py-1 bg-card">
+              {dayNumber}
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-base truncate">
+            Coaching session with: {menteeName}
+          </h3>
+          
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
+            <div className="flex items-center text-sm text-muted-foreground">
+              <Clock className="mr-1.5 h-3.5 w-3.5" />
+              {startTime} - {endTimeFormat}
+            </div>
+            
+            {session.sessionType && (
+              <div className="text-sm text-muted-foreground">
+                <span className="capitalize">{session.sessionType.toLowerCase()}</span>
+              </div>
+            )}
+            
+            <div className="text-sm">
+              <Badge variant="outline" className="font-normal text-xs">
+                {session.durationMinutes}min
+              </Badge>
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex flex-col items-end space-y-2">
+          <Badge variant="secondary" className="text-xs whitespace-nowrap">
+            {timingLabel}
+          </Badge>
+          
+          {session.zoomJoinUrl && daysUntil <= 0 && (
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="text-xs h-8 px-3"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (session.zoomJoinUrl && typeof session.zoomJoinUrl === 'string') {
+                  window.open(session.zoomJoinUrl, '_blank', 'noopener,noreferrer');
+                }
+              }}
+            >
+              <Video className="h-3.5 w-3.5 mr-1.5" />
+              Join Call
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Define TopMenteeCard component
+function TopMenteeCard({ mentee, onClick }: { mentee: TopMentee; onClick: () => void }) {
+  const menteeName = `${mentee.firstName || ''} ${mentee.lastName || ''}`.trim();
+  const accentColor = "bg-primary"; // Using primary color for mentee cards
+
+  return (
+    <div 
+      className="group relative border rounded-lg p-4 hover:shadow-md transition-all duration-200 hover:border-primary/50 hover:bg-muted/20 cursor-pointer"
+      onClick={onClick}
+    >
+      <div 
+        className="absolute top-0 left-0 w-1 h-full rounded-l-lg transition-all duration-200 group-hover:h-full"
+        style={{ backgroundColor: accentColor.replace('bg-', '') }}
+      ></div>
+      
+      <div className="flex items-center space-x-3 ml-1"> {/* Added ml-1 to give space from accent bar */}
+        <div className="flex-shrink-0">
+          <Avatar className="h-12 w-12 border">
+            <AvatarImage 
+              src={mentee.profileImageUrl || DEFAULT_AVATARS.PLACEHOLDER} 
+              alt={menteeName}
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = DEFAULT_AVATARS.PLACEHOLDER;
+                target.onerror = null;
+              }}
+            />
+            <AvatarFallback>
+              {mentee.firstName?.[0] || ''}
+              {mentee.lastName?.[0] || ''}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+        
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-base truncate">
+            {menteeName}
+          </h3>
+          
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5">
+            <div className="flex items-center text-sm text-muted-foreground">
+              <BookOpen className="mr-1.5 h-3.5 w-3.5" />
+              {mentee.sessionsCompleted} sessions 
+            </div>
+            
+            <div className="flex items-center text-sm text-muted-foreground">
+              <span className="text-green-600 font-medium">
+                {mentee.revenue >= 1000 
+                  ? `$${(mentee.revenue / 1000).toFixed(1)}k revenue` 
+                  : `$${mentee.revenue.toFixed(0)} revenue`}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Optional: Add an action button or badge on the right if needed in future */}
+        {/* <div className="flex flex-col items-end space-y-2">
+          <Button size="sm" variant="outline" className="text-xs h-8 px-3">
+            View Profile
+          </Button>
+        </div> */}
+      </div>
+    </div>
+  );
+}
 
 export default function CoachDashboard() {
   const [dashboardStats, setDashboardStats] = useState<CoachDashboardStats | null>(null)
@@ -54,10 +236,25 @@ export default function CoachDashboard() {
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false)
   const [analyticsData, setAnalyticsData] = useState<CoachAnalytics | null>(null)
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(true)
+  const [selectedMentee, setSelectedMentee] = useState<TopMentee | null>(null)
+  const [isMenteeModalOpen, setIsMenteeModalOpen] = useState(false)
+  const [selectedSession, setSelectedSession] = useState<TransformedSession | null>(null)
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false)
+  const [menteePage, setMenteePage] = useState(0)
   const { authData } = useCentralizedAuth()
   const { userUlid } = authData || {}
 
   const currentGoal = goals[currentGoalIndex]
+
+  const handleMenteeClick = (mentee: TopMentee) => {
+    setSelectedMentee(mentee)
+    setIsMenteeModalOpen(true)
+  }
+
+  const handleSessionClick = (session: TransformedSession) => {
+    setSelectedSession(session)
+    setIsSessionModalOpen(true)
+  }
 
   const navigateGoal = (direction: 'next' | 'prev') => {
     if (direction === 'next' && currentGoalIndex < goals.length - 1) {
@@ -381,12 +578,27 @@ export default function CoachDashboard() {
         
         if (result.error) {
           console.error('[UPCOMING_SESSIONS_ERROR]', result.error)
+          setUpcomingSessions([]) // Clear sessions on error
           return
         }
         
-        setUpcomingSessions(result.data || [])
+        const now = new Date();
+        const sevenDaysFromNow = addDays(now, 7);
+        const allFetchedSessions = result.data || [];
+
+        const sessionsInNextWeek = allFetchedSessions.filter((session: TransformedSession) => {
+          const sessionStartTime = new Date(session.startTime);
+          return session.status === 'SCHEDULED' && 
+                 isAfter(sessionStartTime, now) && 
+                 isBefore(sessionStartTime, sevenDaysFromNow);
+        }).sort((a: TransformedSession, b: TransformedSession) => 
+          new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+        );
+        
+        setUpcomingSessions(sessionsInNextWeek);
       } catch (error) {
         console.error('[UPCOMING_SESSIONS_ERROR]', error)
+        setUpcomingSessions([]) // Ensure it's an empty array on error
       } finally {
         setIsLoadingSessions(false)
       }
@@ -398,7 +610,7 @@ export default function CoachDashboard() {
         
         const result = await fetchTopMentees({
           timeframe: topMenteesTimeframe,
-          limit: 5
+          limit: 12 // Fetch more mentees for pagination
         })
         
         if (result.error) {
@@ -411,6 +623,7 @@ export default function CoachDashboard() {
         console.error('[TOP_MENTEES_ERROR]', error)
       } finally {
         setIsLoadingTopMentees(false)
+        setMenteePage(0) // Reset to first page when data changes
       }
     }
 
@@ -550,6 +763,20 @@ export default function CoachDashboard() {
 
   return (
     <div className="flex flex-col justify-center items-start flex-wrap px-4 pt-4 gap-4">
+      {/* Mentee Profile Modal */}
+      <MenteeProfileModal 
+        mentee={selectedMentee} 
+        isOpen={isMenteeModalOpen} 
+        onClose={() => setIsMenteeModalOpen(false)} 
+      />
+      
+      {/* Session Preview Modal */}
+      <SessionsPreviewModal 
+        session={selectedSession}
+        isOpen={isSessionModalOpen}
+        onClose={() => setIsSessionModalOpen(false)}
+      />
+
       {/* Share Dialog */}
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -612,18 +839,45 @@ export default function CoachDashboard() {
             <Share2 className="mr-2 h-4 w-4" />
             Share Your Coaching Service
           </Button>
-          <Button variant="outline">
-            <DollarSign className="mr-2 h-4 w-4" />
-            Request Early Payout
-          </Button>
-          <Button variant="outline">
-            <CalendarRange className="mr-2 h-4 w-4" />
-            Reschedule Upcoming
-          </Button>
-          <Button variant="outline">
-            <AlertOctagon className="mr-2 h-4 w-4 text-red-500" />
-            Emergency Cancel
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" disabled>
+                  <DollarSign className="mr-2 h-4 w-4" />
+                  Request Early Payout
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">
+                Not enabled for demo
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" disabled>
+                  <CalendarRange className="mr-2 h-4 w-4" />
+                  Reschedule Upcoming
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">
+                Not enabled for demo
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" disabled>
+                  <AlertOctagon className="mr-2 h-4 w-4 text-red-500" />
+                  Emergency Cancel
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">
+                Not enabled for demo
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </CardContent>
       </Card>
 
@@ -792,42 +1046,13 @@ export default function CoachDashboard() {
                   ))}
                 </div>
               ) : upcomingSessions.length > 0 ? (
-                <div className="space-y-6">
+                <div className="space-y-3">
                   {upcomingSessions.map((session) => (
-                    <div key={session.ulid} className="flex items-center">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage 
-                          src={session.otherParty.profileImageUrl || DEFAULT_AVATARS.PLACEHOLDER} 
-                          alt={`${session.otherParty.firstName || ''} ${session.otherParty.lastName || ''}`}
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = DEFAULT_AVATARS.PLACEHOLDER;
-                            target.onerror = null;
-                          }}
-                        />
-                        <AvatarFallback>
-                          {session.otherParty.firstName?.[0] || ''}
-                          {session.otherParty.lastName?.[0] || ''}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="ml-4 space-y-1">
-                        <p className="text-sm font-medium leading-none">
-                          {session.otherParty.firstName || ''} {session.otherParty.lastName || ''}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{format(new Date(session.startTime), 'EEEE')} at {format(new Date(session.startTime), 'h:mm a')}</span>
-                          <span>•</span>
-                          <span>{session.durationMinutes} min session</span>
-                        </div>
-                      </div>
-                      {session.zoomJoinUrl && (
-                        <Button size="sm" variant="outline" asChild>
-                          <Link href={session.zoomJoinUrl} target="_blank">
-                            Join Zoom
-                          </Link>
-                        </Button>
-                      )}
-                    </div>
+                    <CoachSessionCard 
+                      key={session.ulid} 
+                      session={session} 
+                      onClick={() => handleSessionClick(session)}
+                    />
                   ))}
                 </div>
               ) : (
@@ -854,7 +1079,10 @@ export default function CoachDashboard() {
                 <CardTitle>Top Mentees</CardTitle>
                 <Select 
                   defaultValue="90days" 
-                  onValueChange={(value) => setTopMenteesTimeframe(value as 'allTime' | '90days')}
+                  onValueChange={(value) => {
+                    setTopMenteesTimeframe(value as 'allTime' | '90days');
+                    setMenteePage(0); // Reset to first page when timeframe changes
+                  }}
                 >
                   <SelectTrigger className="w-[130px] h-8 text-xs">
                     <SelectValue placeholder="Select period" />
@@ -875,7 +1103,7 @@ export default function CoachDashboard() {
             </Button>
           </CardHeader>
           <CardContent>
-            <div style={{ maxHeight: "320px", overflowY: "auto" }}>
+            <div>
               {isLoadingTopMentees ? (
                 <div className="flex flex-col space-y-4">
                   {[1, 2, 3].map((i) => (
@@ -889,51 +1117,48 @@ export default function CoachDashboard() {
                   ))}
                 </div>
               ) : topMentees.length > 0 ? (
-                <div className="space-y-6">
-                  {topMentees.map((mentee) => (
-                    <div key={mentee.ulid} className="flex items-center">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage 
-                          src={mentee.profileImageUrl || DEFAULT_AVATARS.PLACEHOLDER} 
-                          alt={`${mentee.firstName || ''} ${mentee.lastName || ''}`}
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = DEFAULT_AVATARS.PLACEHOLDER;
-                            target.onerror = null;
-                          }}
+                <>
+                  <div className="space-y-3"> {/* Ensured space-y-3 for consistency */}
+                    {topMentees
+                      .slice(menteePage * 4, (menteePage + 1) * 4)
+                      .map((mentee) => (
+                        <TopMenteeCard
+                          key={mentee.ulid}
+                          mentee={mentee}
+                          onClick={() => handleMenteeClick(mentee)}
                         />
-                        <AvatarFallback>
-                          {mentee.firstName?.[0] || ''}
-                          {mentee.lastName?.[0] || ''}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="ml-4 space-y-1">
-                        <p className="text-sm font-medium leading-none">
-                          {mentee.firstName || ''} {mentee.lastName || ''}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{mentee.sessionsCompleted} sessions completed</span>
-                          <span>•</span>
-                          <span className="text-emerald-500">
-                            {mentee.revenue >= 1000 
-                              ? `$${(mentee.revenue / 1000).toFixed(1)}k revenue` 
-                              : `$${mentee.revenue.toFixed(0)} revenue`}
-                          </span>
-                        </div>
+                      ))}
+                  </div>
+                  
+                  {/* Pagination controls */}
+                  {topMentees.length > 4 && (
+                    <div className="flex justify-center mt-4">
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6" 
+                          onClick={() => setMenteePage(prev => Math.max(0, prev - 1))}
+                          disabled={menteePage === 0}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          {menteePage + 1} / {Math.ceil(topMentees.length / 4)}
+                        </span>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-6 w-6" 
+                          onClick={() => setMenteePage(prev => Math.min(Math.ceil(topMentees.length / 4) - 1, prev + 1))}
+                          disabled={menteePage === Math.ceil(topMentees.length / 4) - 1}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="ml-auto"
-                        asChild
-                      >
-                        <Link href={`/dashboard/coach/clients?menteeId=${mentee.ulid}`}>
-                          <MessageSquare className="h-4 w-4" />
-                        </Link>
-                      </Button>
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
               ) : (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                   <Users className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
@@ -1082,6 +1307,9 @@ export default function CoachDashboard() {
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-primary" />
                 Financial Overview
+                <Badge variant="outline" className="ml-2 text-xs font-normal bg-blue-50 text-blue-700 border-blue-200">
+                  Integration Coming Soon
+                </Badge>
               </CardTitle>
               <CardDescription>
                 Detailed revenue and payment tracking
@@ -1131,29 +1359,19 @@ export default function CoachDashboard() {
                       <TrendingUp className="h-4 w-4 mr-2 text-primary" />
                       Monthly Performance
                     </h3>
-                    <div className="p-3.5 bg-muted/30 rounded-lg hover:bg-muted/40 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="grid grid-cols-2 gap-6">
-                          <div>
-                            <div className="text-xs text-muted-foreground mb-1">Current Month</div>
-                            <div className="text-2xl font-semibold flex items-baseline">
-                              <span className="text-base mr-0.5">$</span>
-                              <span>{analyticsData?.recentEarningsTotal || 0}</span>
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-muted-foreground mb-1">Total Revenue</div>
-                            <div className="text-2xl font-semibold flex items-baseline">
-                              <span className="text-base mr-0.5">$</span>
-                              <span>{analyticsData?.totalEarnings || 0}</span>
-                            </div>
-                          </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-muted/30 rounded-lg hover:bg-muted/40 transition-colors">
+                        <div className="text-xs text-muted-foreground mb-1">Current Month</div>
+                        <div className="text-2xl font-semibold flex items-baseline">
+                          <span className="text-base mr-0.5">$</span>
+                          <span>{analyticsData?.recentEarningsTotal || 0}</span>
                         </div>
-                        <div className={`text-sm font-medium px-2 py-1 rounded ${dashboardStats?.revenueGrowth && dashboardStats.revenueGrowth > 0 ? 'text-green-500 bg-green-500/10' : 'text-red-500 bg-red-500/10'}`}>
-                          <div className="flex items-center">
-                            <ArrowUpDown className="h-4 w-4 mr-1" />
-                            {dashboardStats?.revenueGrowth ? Math.abs(dashboardStats.revenueGrowth) : 0}%
-                          </div>
+                      </div>
+                      <div className="p-3 bg-muted/30 rounded-lg hover:bg-muted/40 transition-colors">
+                        <div className="text-xs text-muted-foreground mb-1">Total Revenue</div>
+                        <div className="text-2xl font-semibold flex items-baseline">
+                          <span className="text-base mr-0.5">$</span>
+                          <span>{analyticsData?.totalEarnings || 0}</span>
                         </div>
                       </div>
                     </div>

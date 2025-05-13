@@ -20,6 +20,7 @@ import { TransactionHistory } from '@/components/payments/TransactionHistory';
 import { useTransactions } from '@/utils/hooks/useTransactions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { fetchCoachAnalytics, type CoachAnalytics, requestEarlyPayout } from '@/utils/actions/analytics';
+import { Badge } from '@/components/ui/badge';
 
 export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
   const [isLoading, setIsLoading] = useState(true);
@@ -120,7 +121,12 @@ export function CoachAnalyticsDashboard({ userUlid }: { userUlid: string }) {
   return (
     <div className="container px-6 py-8 max-w-7xl mx-auto space-y-8">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Finance & Analytics Dashboard</h2>
+        <h2 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+          Finance & Analytics Dashboard
+          <Badge variant="outline" className="text-xs font-normal bg-blue-50 text-blue-700 border-blue-200">
+            Payments Integration Coming Soon
+          </Badge>
+        </h2>
         <p className="text-muted-foreground">Track your earnings, sessions, and financial metrics</p>
       </div>
       
