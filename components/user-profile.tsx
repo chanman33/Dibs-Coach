@@ -188,14 +188,6 @@ export function UserProfile() {
                             <span>Profile Settings</span>
                         </DropdownMenuItem>
                     </Link>
-                    {authData?.capabilities?.includes("COACH") && (
-                        <Link href="/dashboard/settings?tab=billing">
-                            <DropdownMenuItem>
-                                <CreditCard className="mr-2 h-4 w-4" />
-                                <span>Billing</span>
-                            </DropdownMenuItem>
-                        </Link>
-                    )}
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 {config.auth.enabled && (
