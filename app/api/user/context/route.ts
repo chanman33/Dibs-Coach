@@ -11,7 +11,8 @@ export async function GET() {
     const { userId } = auth()
 
     if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 })
+      // Return JSON for unauthorized access
+      return NextResponse.json({ error: "Unauthorized", code: "NO_CLERK_USER_ID" }, { status: 401 });
     }
 
     const supabase = createAuthClient()
@@ -24,11 +25,16 @@ export async function GET() {
       .eq('userId', userId)
       .single() // Expecting only one user per clerk ID
 
-    if (userError || !user) {
-      console.error('[API /user/context] Error fetching user or user not found:', { userId, error: userError?.message })
-      // Decide if a user not found in DB should be a 404 or treated differently
-      // For now, returning 404 might be appropriate if user creation is handled elsewhere (e.g., onboarding)
-      return new NextResponse("User context not found", { status: 404 }) 
+    if (userError) {
+      // Return JSON for database errors
+      console.error('[API /user/context] Database error fetching user:', { userId, dbErrorCode: userError.code, dbErrorMessage: userError.message });
+      return NextResponse.json({ error: "Database error", code: "DB_QUERY_ERROR", details: userError.message }, { status: 500 });
+    }
+    
+    if (!user) {
+      // Return JSON if user not found in DB
+      console.warn('[API /user/context] User not found in database:', { userId });
+      return NextResponse.json({ error: "User context not found in DB", code: "USER_NOT_FOUND_IN_DB" }, { status: 404 });
     }
 
     // Construct the AuthContext object
@@ -42,14 +48,27 @@ export async function GET() {
       // e.g., isCoach: user.isCoach, isMentee: user.isMentee
     }
 
-    return NextResponse.json(authContext)
+    // Ensure Content-Type header for JSON response
+    return NextResponse.json(authContext, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
 
   } catch (error) {
-    console.error("[API /user/context] GET Error:", { 
-        error: error instanceof Error ? error.message : JSON.stringify(error),
-        stack: error instanceof Error ? error.stack : undefined,
+    // Return JSON for any other unexpected errors
+    console.error("[API /user/context] Unexpected GET Error:", { 
+        errorMessage: error instanceof Error ? error.message : JSON.stringify(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
         timestamp: new Date().toISOString()
-    })
-    return new NextResponse('Internal Server Error', { status: 500 })
+    });
+    return NextResponse.json({ 
+      error: 'Internal Server Error', 
+      code: "INTERNAL_SERVER_ERROR", 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
   }
 } 

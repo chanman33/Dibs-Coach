@@ -53,9 +53,10 @@ function CentralizedAuthProvider({
 
   const fetchAuthData = useCallback(async () => {
     if (!userId) {
-      console.log('[AUTH_PROVIDER] No Clerk user ID, clearing auth data.');
+      console.log('[AUTH_PROVIDER] No Clerk user ID (client-side), clearing auth data.');
       setAuthData(null);
       setIsFetchingAuthData(false);
+      setIsInitialized(true);
       return;
     }
 
@@ -63,33 +64,49 @@ function CentralizedAuthProvider({
       setIsLoggingOut(false);
     }
     
-    console.log('[AUTH_PROVIDER] Clerk user found, fetching full auth context...');
+    console.log('[AUTH_PROVIDER] Client-side Clerk user found, fetching full auth context from /api/user/context...');
     setIsFetchingAuthData(true);
     try {
-      const response = await fetch('/api/user/context');
-      if (!response.ok) {
-        if (response.status === 401) {
-           console.warn('[AUTH_PROVIDER] Unauthorized fetching auth context. User might be logged out.');
-           setAuthData(null);
-        } else {
-          throw new Error(`Failed to fetch auth context: ${response.status}`);
+      const response = await fetch('/api/user/context', {
+        headers: {
+          'Accept': 'application/json', 
         }
-      } else {
-        const data: AuthContext = await response.json();
-         if (data && data.userId === userId) {
-           console.log('[AUTH_PROVIDER] Auth context fetched successfully:', data);
-           setAuthData(data);
-         } else {
-            console.warn('[AUTH_PROVIDER] Fetched auth context user ID mismatch. Clearing data.', { clerkUserId: userId, fetchedUserId: data?.userId });
-            setAuthData(null);
-         }
+      });
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('[AUTH_PROVIDER] Failed to parse JSON response from /api/user/context:', { 
+          status: response.status, 
+          responseText: await response.text().catch(() => "Could not get response text.") 
+        }, jsonError);
+        setAuthData(null);
+        throw new Error('Invalid response from auth context API.'); 
       }
-    } catch (error) {
-      console.error('[AUTH_PROVIDER] Error fetching auth context:', error);
+
+      if (!response.ok) {
+        console.warn(`[AUTH_PROVIDER] Error response (${response.status}) from /api/user/context:`, data?.error || data);
+        setAuthData(null);
+      } else {
+        if (data && data.userId === userId) {
+          console.log('[AUTH_PROVIDER] Auth context fetched successfully via API:', data);
+          setAuthData(data as AuthContext); 
+        } else {
+          console.warn('[AUTH_PROVIDER] Fetched auth context API data mismatch or invalid structure.', { 
+            clerkUserId_client: userId, 
+            fetchedUserId_api: data?.userId,
+            data_received: data 
+          });
+          setAuthData(null);
+        }
+      }
+    } catch (error) { 
+      console.error('[AUTH_PROVIDER] Overall error fetching auth context:', error);
       setAuthData(null);
     } finally {
       setIsFetchingAuthData(false);
-      setIsInitialized(true);
+      setIsInitialized(true); 
       console.log('[AUTH_PROVIDER] Auth context fetch attempt complete.');
     }
   }, [userId, isLoggingOut]);
@@ -106,7 +123,13 @@ function CentralizedAuthProvider({
     previousUserIdRef.current = userId;
 
     if (isClerkLoaded && !isLoggingOut) {
-      fetchAuthData();
+      if (userId) {
+        fetchAuthData();
+      } else {
+        setIsFetchingAuthData(false);
+        setIsInitialized(true);
+        setAuthData(null);
+      }
     } else if (!isClerkLoaded) {
       setIsFetchingAuthData(true);
       setIsInitialized(false);
@@ -126,8 +149,8 @@ function CentralizedAuthProvider({
     refreshAuthData
   }), [authData, isClerkLoaded, isFetchingAuthData, isInitialized, isLoggingOut, refreshAuthData]);
 
-  // Re-added: Show loading spinner until auth is initialized
-  if (contextValue.isLoading && !isInitialized) {
+  // Show loading spinner if Clerk is not loaded yet, or if we are fetching and not yet initialized.
+  if (!isClerkLoaded || (isFetchingAuthData && !isInitialized)) {
      return <AuthLoadingSpinner />;
   }
 

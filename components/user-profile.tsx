@@ -66,7 +66,8 @@ const MOCK_USER = {
 
 export function UserProfile() {
     const router = useRouter()
-    const { signOut } = useClerk();
+    const { user } = useUser()
+    const { signOut } = useClerk()
     const pathname = usePathname()
     const [imgError, setImgError] = useState(false)
     const organizationContext = useOrganization();
@@ -75,11 +76,6 @@ export function UserProfile() {
     const { authData } = useCentralizedAuth();
     const [userContext, setUserContext] = useState<'coach' | 'mentee' | null>(null);
     
-    // Only use Clerk's useUser if auth is enabled
-    const { user, isLoaded } = config.auth.enabled 
-        ? useUser()
-        : { user: MOCK_USER, isLoaded: true };
-
     // Determine user context (coach or mentee) based on current path or capabilities
     useEffect(() => {
         if (pathname?.includes('/coach')) {
@@ -97,7 +93,7 @@ export function UserProfile() {
         router.back()
     }
 
-    if (!isLoaded || !user) {
+    if (!user) {
         return null;
     }
 
@@ -121,26 +117,46 @@ export function UserProfile() {
         return "/dashboard/business";
     };
 
+    const handleSignOut = async () => {
+        // await signOut(() => {
+        //     router.push('/');
+        // });
+        router.push('/sign-out?forceRedirectUrl=/'); // Navigate to the dedicated sign-out page
+    };
+
     return (
         <DropdownMenu>
-            <DropdownMenuTrigger asChild className="w-[2.25rem] h-[2.25rem]">
-                <Avatar>
-                    <AvatarImage 
-                        src={profileImageUrl} 
-                        alt={user.fullName || "User Profile"} 
-                        onError={(e) => {
-                            console.error("[USER_PROFILE_IMAGE_ERROR]", {
-                                originalUrl: user.imageUrl,
-                                error: e
-                            });
-                            setImgError(true);
-                        }}
-                    />
-                    <AvatarFallback>{user.firstName?.[0] || "U"}</AvatarFallback>
-                </Avatar>
+            <DropdownMenuTrigger asChild>
+                <button className="flex items-center space-x-2 p-1 hover:bg-muted rounded-md transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                    <Avatar className="h-8 w-8">
+                        <AvatarImage 
+                            src={imgError ? DEFAULT_IMAGE_URL : getProfileImageUrl(user?.imageUrl)} 
+                            alt={user?.firstName || "User"}
+                            onError={() => setImgError(true)}
+                        />
+                        <AvatarFallback>{user?.firstName?.[0]?.toUpperCase() || "U"}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col items-start text-left">
+                        <span className="text-sm font-medium truncate max-w-[120px]">{user?.firstName || "User"}</span>
+                        {organizationName && (
+                             <span className="text-xs text-muted-foreground truncate max-w-[120px]">{organizationName}</span>
+                        )}
+                    </div>
+                </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56 border rounded-lg bg-card [&.cl-internal-17dpwu0]:!shadow-none [&.cl-internal-17dpwu0]:!shadow-sm">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuContent className="w-60" align="end">
+                <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none truncate">
+                            {user?.firstName && user?.lastName 
+                                ? `${user.firstName} ${user.lastName}`
+                                : user?.emailAddresses[0]?.emailAddress || "User"}
+                        </p>
+                        <p className="text-xs leading-none text-muted-foreground truncate">
+                            {user?.emailAddresses[0]?.emailAddress}
+                        </p>
+                    </div>
+                </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
                     <Link href="/dashboard">
@@ -150,34 +166,44 @@ export function UserProfile() {
                         </DropdownMenuItem>
                     </Link>
                     {organizationName && (
-                        <>
-                            <Link href={getOrganizationLink()}>
-                                <DropdownMenuItem className="flex items-center justify-between">
-                                    <div className="flex items-center">
-                                        <Building className="mr-2 h-4 w-4" />
+                         <>
+                             <Link href={getOrganizationLink()}>
+                                 <DropdownMenuItem className="flex items-center justify-between">
+                                     <div className="flex items-center">
+                                         <Building className="mr-2 h-4 w-4" />
                                         <span className="truncate max-w-[160px]">{organizationName}</span>
-                                    </div>
+                                     </div>
                                     {organizationRole && (
                                         <span className="text-xs bg-muted text-muted-foreground rounded-full px-2 py-0.5 ml-2">
                                             {organizationRole}
                                         </span>
                                     )}
-                                </DropdownMenuItem>
-                            </Link>
-                        </>
+                                 </DropdownMenuItem>
+                             </Link>
+                         </>
                     )}
-                    <Link href="/dashboard/settings">
+                    <Link href="/dashboard/settings?tab=profile">
                         <DropdownMenuItem>
-                            <Settings className="mr-2 h-4 w-4" />
-                            <span>Account Settings</span>
+                            <User className="mr-2 h-4 w-4" />
+                            <span>Profile Settings</span>
                         </DropdownMenuItem>
                     </Link>
+                    {authData?.capabilities?.includes("COACH") && (
+                        <Link href="/dashboard/settings?tab=billing">
+                            <DropdownMenuItem>
+                                <CreditCard className="mr-2 h-4 w-4" />
+                                <span>Billing</span>
+                            </DropdownMenuItem>
+                        </Link>
+                    )}
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => signOut(() => router.push('/'))}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
-                </DropdownMenuItem>
+                {config.auth.enabled && (
+                    <DropdownMenuItem onClick={handleSignOut}>
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Log out</span>
+                    </DropdownMenuItem>
+                )}
             </DropdownMenuContent>
         </DropdownMenu>
     )
