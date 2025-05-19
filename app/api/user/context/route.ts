@@ -28,6 +28,9 @@ export async function GET() {
     if (userError) {
       // Return JSON for database errors
       console.error('[API /user/context] Database error fetching user:', { userId, dbErrorCode: userError.code, dbErrorMessage: userError.message });
+      if (userError.code === 'PGRST116') { // Specific check for "No rows found"
+        return NextResponse.json({ error: "User context not found in DB", code: "USER_NOT_FOUND_IN_DB_YET", details: userError.message }, { status: 404 });
+      }
       return NextResponse.json({ error: "Database error", code: "DB_QUERY_ERROR", details: userError.message }, { status: 500 });
     }
     
