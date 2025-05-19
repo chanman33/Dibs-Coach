@@ -1,5 +1,25 @@
 import { z } from "zod";
-import { PaymentStatus, Currency } from "@prisma/client";
+// import { PaymentStatus, Currency } from "@prisma/client"; // Remove this line
+
+// PaymentStatus Enum
+export const PAYMENT_STATUS = {
+  PENDING: "PENDING",
+  COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
+  REFUNDED: "REFUNDED",
+} as const;
+export type PaymentStatus = typeof PAYMENT_STATUS[keyof typeof PAYMENT_STATUS];
+const zodPaymentStatusEnum = z.enum(Object.values(PAYMENT_STATUS) as [string, ...string[]]);
+
+// Currency Enum
+export const CURRENCY = {
+  USD: "USD",
+  EUR: "EUR",
+  GBP: "GBP",
+  CAD: "CAD",
+} as const;
+export type Currency = typeof CURRENCY[keyof typeof CURRENCY];
+const zodCurrencyEnum = z.enum(Object.values(CURRENCY) as [string, ...string[]]);
 
 export const paymentSchema = z.object({
   id: z.number().describe("Internal database ID"),
@@ -7,8 +27,8 @@ export const paymentSchema = z.object({
   payerDbId: z.number(),
   payeeDbId: z.number(),
   amount: z.number(),
-  currency: z.nativeEnum(Currency).default("USD"),
-  status: z.nativeEnum(PaymentStatus).default(PaymentStatus.PENDING),
+  currency: zodCurrencyEnum.default(CURRENCY.USD),
+  status: zodPaymentStatusEnum.default(PAYMENT_STATUS.PENDING),
   stripePaymentId: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -19,11 +39,11 @@ export const paymentCreateSchema = z.object({
   payerDbId: z.number(),
   payeeDbId: z.number(),
   amount: z.number(),
-  currency: z.nativeEnum(Currency).default("USD"),
+  currency: zodCurrencyEnum.default(CURRENCY.USD),
 });
 
 export const paymentUpdateSchema = z.object({
-  status: z.nativeEnum(PaymentStatus).optional(),
+  status: zodPaymentStatusEnum.optional(),
   stripePaymentId: z.string().optional(),
 });
 

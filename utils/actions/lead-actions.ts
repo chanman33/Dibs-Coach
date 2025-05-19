@@ -3,9 +3,8 @@
 import { createAuthClient } from "@/utils/supabase/server"
 import { cookies } from "next/headers"
 import { generateUlid } from "@/utils/ulid"
-import { Lead, LeadDetails, LeadListItem, LeadNote, LEAD_STATUS, LEAD_PRIORITY, LEAD_SOURCE } from "@/utils/types/leads"
+import { Lead, LeadDetails, LeadListItem, LeadNote, LEAD_STATUS, LEAD_PRIORITY, LEAD_SOURCE, OrgIndustryType } from "@/utils/types/leads"
 import { revalidatePath } from "next/cache"
-import { OrgIndustry } from "@prisma/client"
 import { Database, Json } from "@/types/supabase"
 
 type LeadRow = Database["public"]["Tables"]["EnterpriseLeads"]["Row"]
@@ -16,7 +15,7 @@ type LeadUpdate = Database["public"]["Tables"]["EnterpriseLeads"]["Update"]
 export async function createLead(data: {
   companyName: string
   website?: string
-  industry: OrgIndustry
+  industry: OrgIndustryType
   fullName: string
   jobTitle: string
   email: string

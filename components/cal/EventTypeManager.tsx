@@ -11,9 +11,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { EventTypeCard } from './EventTypeCard'
-import { EventType } from '@/utils/types/cal-event-types'
+import { EventType, CAL_SCHEDULING_TYPE, CalSchedulingType } from '@/utils/types/cal-event-types'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { CalSchedulingType } from '@prisma/client' // Import enum
 
 interface EventTypeManagerProps {
   initialEventTypes?: EventType[];
@@ -81,7 +80,7 @@ export default function EventTypeManager({
         free: eventType.free ?? false, // Use nullish coalescing
         enabled: eventType.enabled ?? true,
         isDefault: eventType.isDefault ?? false,
-        schedulingType: eventType.schedulingType || CalSchedulingType.MANAGED, // Default to MANAGED
+        schedulingType: eventType.schedulingType || CAL_SCHEDULING_TYPE.MANAGED, // Default to MANAGED
         maxParticipants: eventType.maxParticipants,
         discountPercentage: eventType.discountPercentage,
         isRequired: eventType.isRequired ?? eventType.isDefault, // Assume default means required for now
@@ -258,9 +257,9 @@ export default function EventTypeManager({
                       <SelectValue placeholder="Select session format" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={CalSchedulingType.MANAGED}>1:1 Session</SelectItem>
-                      <SelectItem value={CalSchedulingType.OFFICE_HOURS}>Office Hours</SelectItem>
-                      <SelectItem value={CalSchedulingType.GROUP_SESSION}>Group Session</SelectItem>
+                      <SelectItem value={CAL_SCHEDULING_TYPE.MANAGED}>1:1 Session</SelectItem>
+                      <SelectItem value={CAL_SCHEDULING_TYPE.OFFICE_HOURS}>Office Hours</SelectItem>
+                      <SelectItem value={CAL_SCHEDULING_TYPE.GROUP_SESSION}>Group Session</SelectItem>
                     </SelectContent>
                   </Select>
                   {currentEventType.isDefault && isEditing && (
@@ -290,9 +289,9 @@ export default function EventTypeManager({
                 </div>
                 
                 {/* Conditional fields for OFFICE_HOURS / GROUP_SESSION */}
-                {(currentEventType.schedulingType === CalSchedulingType.OFFICE_HOURS || currentEventType.schedulingType === CalSchedulingType.GROUP_SESSION) && (
+                {(currentEventType.schedulingType === CAL_SCHEDULING_TYPE.OFFICE_HOURS || currentEventType.schedulingType === CAL_SCHEDULING_TYPE.GROUP_SESSION) && (
                   <>
-                    {currentEventType.schedulingType === CalSchedulingType.OFFICE_HOURS && (
+                    {currentEventType.schedulingType === CAL_SCHEDULING_TYPE.OFFICE_HOURS && (
                       <div className="space-y-2">
                         <Label htmlFor="discountPercentage">Discount Percentage</Label>
                          <Select 

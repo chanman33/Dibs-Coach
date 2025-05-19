@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { createLead } from "@/utils/actions/lead-actions"
 import { leadSchema } from "@/utils/types/leads"
-import { OrgIndustry } from "@prisma/client"
 import { z } from "zod"
 import { LEAD_PRIORITY, LEAD_SOURCE } from "@/utils/types/leads"
 
@@ -32,7 +31,7 @@ export async function POST(request: Request) {
     const lead = await createLead({
       companyName: validatedData.companyName,
       website: validatedData.website,
-      industry: OrgIndustry.REAL_ESTATE_SALES,
+      industry: 'REAL_ESTATE_SALES',
       fullName: validatedData.fullName,
       jobTitle: validatedData.jobTitle,
       email: validatedData.email,

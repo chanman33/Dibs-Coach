@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { OrgIndustry } from "@prisma/client"
+// import { OrgIndustry } from "@prisma/client" // Removed incorrect import
 
 // Enums for lead management
 export const LEAD_STATUS = {
@@ -30,6 +30,21 @@ export const LEAD_SOURCE = {
   OTHER: "OTHER",
 } as const
 
+// Define ORG_INDUSTRY_VALUES based on the provided prisma/schema.prisma
+export const ORG_INDUSTRY_VALUES = [
+  "REAL_ESTATE_SALES",
+  "MORTGAGE_LENDING",
+  "PROPERTY_MANAGEMENT",
+  "REAL_ESTATE_INVESTMENT",
+  "TITLE_ESCROW",
+  "INSURANCE",
+  "COMMERCIAL",
+  "PRIVATE_CREDIT",
+  "OTHER"
+] as const;
+
+export type OrgIndustryType = typeof ORG_INDUSTRY_VALUES[number];
+
 // Types derived from enums
 export type LeadStatus = typeof LEAD_STATUS[keyof typeof LEAD_STATUS]
 export type LeadPriority = typeof LEAD_PRIORITY[keyof typeof LEAD_PRIORITY]
@@ -48,7 +63,7 @@ export interface LeadNote {
 export const leadSchema = z.object({
   companyName: z.string().min(2, "Company name must be at least 2 characters"),
   website: z.string().optional(),
-  industry: z.nativeEnum(OrgIndustry),
+  industry: z.enum(ORG_INDUSTRY_VALUES), // This will now use the correct, synchronized list
   fullName: z.string().min(2, "Full name is required"),
   jobTitle: z.string().min(2, "Job title is required"),
   email: z.string().email("Please enter a valid email"),

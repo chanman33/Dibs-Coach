@@ -5,9 +5,25 @@
  * It serves as the central repository for all type definitions related to Cal.com integration.
  */
 
-import { CalSchedulingType } from '@prisma/client'
 import { Json } from '@/types/supabase'
 import { Database } from '@/types/supabase'
+
+/**
+ * Enum for Cal.com Scheduling Types
+ * Matches prisma schema:
+ * enum CalSchedulingType {
+ *   MANAGED
+ *   OFFICE_HOURS
+ *   GROUP_SESSION
+ * }
+ */
+export const CAL_SCHEDULING_TYPE = {
+  MANAGED: 'MANAGED',
+  OFFICE_HOURS: 'OFFICE_HOURS',
+  GROUP_SESSION: 'GROUP_SESSION',
+} as const;
+
+export type CalSchedulingType = typeof CAL_SCHEDULING_TYPE[keyof typeof CAL_SCHEDULING_TYPE];
 
 /**
  * Database CalEventType row type - used across all files
@@ -186,7 +202,7 @@ export interface DefaultEventTypeConfig {
   isFree: boolean
   isActive: boolean
   isDefault: boolean
-  scheduling: string
+  scheduling: CalSchedulingType | string
   position: number
   slug?: string
   // Cal.com API required fields
@@ -255,7 +271,7 @@ export interface DefaultCalEventType {
   isRequired?: boolean; // Whether this event type is required (cannot be disabled by user)
   
   // Scheduling settings
-  scheduling: CalSchedulingType | string;
+  scheduling: CalSchedulingType;
   position: number;
   disableGuests: boolean;
   slotInterval: number;

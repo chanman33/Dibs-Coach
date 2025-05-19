@@ -13,7 +13,43 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
-import { OrgIndustry } from "@prisma/client"
+
+// Manually define/import the OrgIndustry enum values for the dropdown
+// IMPORTANT: Ensure this list matches your OrgIndustry enum in schema.prisma
+const orgIndustryValues = [
+  "ACCOUNTING",
+  "ADVERTISING",
+  "AEROSPACE_DEFENSE",
+  "AGRICULTURE",
+  "AUTOMOTIVE",
+  "BANKING",
+  "BIOTECHNOLOGY",
+  "COMMERCIAL_REAL_ESTATE",
+  "COMPUTER_SOFTWARE",
+  "CONSTRUCTION",
+  "EDUCATION_MANAGEMENT",
+  "FINANCIAL_SERVICES",
+  "FOOD_BEVERAGES",
+  "HEALTH_WELLNESS_FITNESS",
+  "HOSPITALITY",
+  "INSURANCE",
+  "INTERNET",
+  "LEGAL_SERVICES",
+  "MANUFACTURING", // Placeholder, adjust as per your enum
+  "MARKETING_ADVERTISING",
+  "MEDIA_PRODUCTION",
+  "NONPROFIT_ORGANIZATION_MANAGEMENT",
+  "PHARMACEUTICALS",
+  "REAL_ESTATE",
+  "REAL_ESTATE_DEVELOPMENT",
+  "REAL_ESTATE_INVESTMENT",
+  "REAL_ESTATE_SERVICES",
+  "RETAIL",
+  "TECHNOLOGY", // Placeholder, adjust as per your enum
+  "TELECOMMUNICATIONS",
+  "OTHER"
+  // ... add all other values from your OrgIndustry enum in schema.prisma
+];
 
 // Create a custom Zod schema for the form with modified date handling
 const leadUpdateSchema = z.object({
@@ -168,9 +204,9 @@ export function LeadDetailsForm({ lead }: LeadDetailsFormProps) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {Object.values(OrgIndustry).map((industry) => (
+                      {orgIndustryValues.map((industry: string) => (
                         <SelectItem key={industry} value={industry}>
-                          {industry.replace(/_/g, " ")}
+                          {industry.replace(/_/g, " ").charAt(0).toUpperCase() + industry.replace(/_/g, " ").slice(1).toLowerCase()}
                         </SelectItem>
                       ))}
                     </SelectContent>

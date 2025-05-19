@@ -23,63 +23,68 @@ export default function OnboardingPage() {
   const router = useRouter()
   const [status, setStatus] = useState('Initializing your account...')
   const [error, setError] = useState<string | null>(null)
-  const [retryCount, setRetryCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
+  const [retryCount, setRetryCount] = useState(0)
+  const [shouldRedirect, setShouldRedirect] = useState(false)
 
   useEffect(() => {
-    // Redirect to sign-in if not authenticated
     if (isLoaded && !isSignedIn) {
       router.push('/sign-in')
       return
     }
+    if (!isLoaded || !isSignedIn || !userId || shouldRedirect || isLoading) {
+        return;
+    }
 
-    if (!userId || isLoading) return
-
-    // Function to create user and check status
-    async function setupUser() {
-      try {
-        setIsLoading(true)
-        setStatus('Setting up your account...')
-        
-        // Call the API to create the user
-        const res = await fetch('/api/auth/setup-user', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId })
-        })
-        
-        if (!res.ok) {
-          const errorData = await res.json()
-          throw new Error(errorData.message || 'Failed to set up user')
-        }
-        
-        const data = await res.json()
-        
-        if (data.success) {
-          setStatus('Account setup complete! Redirecting...')
-          // Add cache-busting parameter
-          router.push(`/dashboard?t=${Date.now()}`)
-        } else {
-          // If not successful but not an error, retry
-          setRetryCount(prev => prev + 1)
-          setIsLoading(false)
-          if (retryCount < 5) {
-            setStatus('Still setting up your account...')
-            setTimeout(setupUser, 1000)
-          } else {
-            setError('Account setup is taking longer than expected. Please try refreshing the page.')
+    let cancelled = false
+    async function pollForUserContext() {
+      setIsLoading(true)
+      setStatus('Setting up your account...')
+      let attempts = 0
+      const maxAttempts = 15
+      while (attempts < maxAttempts && !cancelled) {
+        try {
+          const res = await fetch('/api/user/context', { cache: 'no-store' })
+          if (res.ok) {
+            setStatus('Account setup complete! Redirecting...')
+            if (!cancelled) setShouldRedirect(true)
+            return
           }
+          if (res.status >= 400 && res.status !== 404) {
+            console.warn(`[ONBOARDING] API error ${res.status} while polling for user context.`);
+          }
+        } catch (err) {
+          console.warn('[ONBOARDING] Fetch error while polling user context:', err);
         }
-      } catch (err) {
-        console.error('Onboarding error:', err)
-        setError(err instanceof Error ? err.message : 'Failed to set up your account')
+        attempts++
+        setStatus(`Still setting up your account (attempt ${attempts}/${maxAttempts})...`)
+        if (!cancelled) {
+            await new Promise(r => setTimeout(r, 1000));
+        }
+      }
+      if (!cancelled) {
+        setError('Account setup is taking longer than expected. Please try refreshing the page.')
         setIsLoading(false)
       }
     }
+    pollForUserContext()
+    return () => { 
+        cancelled = true 
+    }
+  }, [isLoaded, isSignedIn, userId, router, retryCount])
 
-    // Start the setup process
-    setupUser()
-  }, [isLoaded, isSignedIn, userId, router, retryCount, isLoading])
+  useEffect(() => {
+    if (shouldRedirect) {
+      // Temporarily bypass timer for testing, or set to 0
+      // const redirectTimer = setTimeout(() => { 
+      console.log('[ONBOARDING] Attempting IMMEDIATE redirect to dashboard...');
+      router.replace('/dashboard');
+      // }, 0); 
+
+      // Cleanup the timer if the component unmounts before redirect (if using setTimeout)
+      // return () => clearTimeout(redirectTimer);
+    }
+  }, [shouldRedirect, router])
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background">
@@ -98,7 +103,7 @@ export default function OnboardingPage() {
               onClick={() => {
                 setError(null)
                 setIsLoading(false)
-                setRetryCount(0)
+                setRetryCount(retryCount + 1)
               }}
               variant="outline"
             >

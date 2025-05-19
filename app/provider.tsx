@@ -7,6 +7,7 @@ import { OrganizationProvider } from "@/utils/auth/OrganizationContext";
 import { useAuth } from '@clerk/nextjs';
 import type { AuthContext } from '@/utils/types/auth';
 import { FullPageLoading } from "@/components/loading";
+import { usePathname } from 'next/navigation';
 
 // Create a centralized auth context to prevent redundant checks
 const CentralizedAuthContext = createContext<{
@@ -50,6 +51,7 @@ function CentralizedAuthProvider({
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const previousUserIdRef = useRef<string | null | undefined>(userId);
+  const pathname = usePathname();
 
   const fetchAuthData = useCallback(async () => {
     if (!userId) {
@@ -149,8 +151,13 @@ function CentralizedAuthProvider({
     refreshAuthData
   }), [authData, isClerkLoaded, isFetchingAuthData, isInitialized, isLoggingOut, refreshAuthData]);
 
-  // Show loading spinner if Clerk is not loaded yet, or if we are fetching and not yet initialized.
-  if (!isClerkLoaded || (isFetchingAuthData && !isInitialized)) {
+  const isOnboardingRoute = pathname === '/onboarding';
+
+  // Show loading spinner if:
+  // 1. Clerk is not loaded yet.
+  // 2. OR It's the very first initialization fetch AND we are NOT on the onboarding route 
+  //    (The onboarding route manages its own initial loading and redirect).
+  if (!isClerkLoaded || (!isInitialized && isFetchingAuthData && !isOnboardingRoute)) {
      return <AuthLoadingSpinner />;
   }
 

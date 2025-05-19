@@ -91,7 +91,10 @@ export default authMiddleware({
     }
     
     // For authenticated users on protected routes, verify user exists in database
-    // Determine if the route is protected (adjust logic as needed)
+    // Ensure /api/user/context is never treated as a protected route
+    if (req.nextUrl.pathname.startsWith('/api/user/context')) {
+      return NextResponse.next();
+    }
     const isProtectedRoute = [
       '/dashboard',
       '/settings',
@@ -102,7 +105,7 @@ export default authMiddleware({
      !req.nextUrl.pathname.startsWith('/api/webhooks') && 
      !req.nextUrl.pathname.startsWith('/api/auth') && 
      !req.nextUrl.pathname.startsWith('/api/cal/webhook') &&
-     !req.nextUrl.pathname.startsWith('/api/cal/test')); // Exclude explicitly public/ignored API routes
+     !req.nextUrl.pathname.startsWith('/api/cal/test'));
     
     if (isProtectedRoute) {
       try {

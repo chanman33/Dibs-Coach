@@ -80,24 +80,32 @@ import {
   PORTFOLIO_ITEM_TYPE_LABELS,
   PORTFOLIO_ITEM_TYPE_COLORS,
   PortfolioItemTypeEnum,
+  PROPERTY_TYPE,
+  PropertyType,
+  PROPERTY_SUB_TYPE,
+  PropertySubType,
+  COMMERCIAL_PROPERTY_TYPE,
+  CommercialPropertyType,
+  INVESTMENT_STRATEGY,
+  InvestmentStrategy,
+  LOAN_TYPE,
+  LoanType,
+  PROPERTY_MANAGER_TYPE,
+  PropertyManagerType,
+  INSURANCE_TYPE,
+  InsuranceType,
+  TITLE_ESCROW_TYPE,
+  TitleEscrowType,
+  COMMERCIAL_DEAL_TYPE,
+  CommercialDealType,
+  PRIVATE_CREDIT_LOAN_TYPE,
+  PrivateCreditLoanType,
 } from "@/utils/types/portfolio";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { uploadPortfolioImage } from "@/utils/actions/portfolio-actions";
 import { useUser } from "@clerk/nextjs";
-import {
-  PropertyType,
-  PropertySubType,
-  CommercialPropertyType,
-  InvestmentStrategy,
-  LoanType,
-  PropertyManagerType,
-  InsuranceType,
-  TitleEscrowType,
-  CommercialDealType,
-  PrivateCreditLoanType,
-} from "@prisma/client";
 
 // Mock currency formatter
 const formatCurrency = (amount: number, currency = "USD") => {
@@ -1089,9 +1097,9 @@ export function PortfolioForm({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {Object.values(PropertyType).map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                              {(Object.keys(PROPERTY_TYPE) as Array<keyof typeof PROPERTY_TYPE>).map((key) => (
+                                <SelectItem key={PROPERTY_TYPE[key]} value={PROPERTY_TYPE[key]}>
+                                  {PROPERTY_TYPE[key].replace(/([A-Z])/g, ' $1').trim()}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1117,9 +1125,9 @@ export function PortfolioForm({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {Object.values(PropertySubType).map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                              {(Object.keys(PROPERTY_SUB_TYPE) as Array<keyof typeof PROPERTY_SUB_TYPE>).map((key) => (
+                                <SelectItem key={PROPERTY_SUB_TYPE[key]} value={PROPERTY_SUB_TYPE[key]}>
+                                  {PROPERTY_SUB_TYPE[key].replace(/([A-Z])/g, ' $1').trim()}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1145,9 +1153,9 @@ export function PortfolioForm({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {Object.values(CommercialPropertyType).map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                              {(Object.keys(COMMERCIAL_PROPERTY_TYPE) as Array<keyof typeof COMMERCIAL_PROPERTY_TYPE>).map((key) => (
+                                <SelectItem key={COMMERCIAL_PROPERTY_TYPE[key]} value={COMMERCIAL_PROPERTY_TYPE[key]}>
+                                  {COMMERCIAL_PROPERTY_TYPE[key].replace(/([A-Z])/g, ' $1').trim()}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1173,9 +1181,9 @@ export function PortfolioForm({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {Object.values(LoanType).map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                              {(Object.keys(LOAN_TYPE) as Array<keyof typeof LOAN_TYPE>).map((key) => (
+                                <SelectItem key={LOAN_TYPE[key]} value={LOAN_TYPE[key]}>
+                                  {LOAN_TYPE[key].replace(/([A-Z])/g, ' $1').trim()}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1201,9 +1209,9 @@ export function PortfolioForm({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {Object.values(PropertyManagerType).map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                              {(Object.keys(PROPERTY_MANAGER_TYPE) as Array<keyof typeof PROPERTY_MANAGER_TYPE>).map((key) => (
+                                <SelectItem key={PROPERTY_MANAGER_TYPE[key]} value={PROPERTY_MANAGER_TYPE[key]}>
+                                  {PROPERTY_MANAGER_TYPE[key].replace(/([A-Z])/g, ' $1').trim()}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1229,9 +1237,9 @@ export function PortfolioForm({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {Object.values(InsuranceType).map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                              {(Object.keys(INSURANCE_TYPE) as Array<keyof typeof INSURANCE_TYPE>).map((key) => (
+                                <SelectItem key={INSURANCE_TYPE[key]} value={INSURANCE_TYPE[key]}>
+                                  {INSURANCE_TYPE[key].replace(/([A-Z])/g, ' $1').trim()}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1257,9 +1265,9 @@ export function PortfolioForm({
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {Object.values(TitleEscrowType).map((type) => (
-                                <SelectItem key={type} value={type}>
-                                  {type.replace(/([A-Z])/g, ' $1').trim()}
+                              {(Object.keys(TITLE_ESCROW_TYPE) as Array<keyof typeof TITLE_ESCROW_TYPE>).map((key) => (
+                                <SelectItem key={TITLE_ESCROW_TYPE[key]} value={TITLE_ESCROW_TYPE[key]}>
+                                  {TITLE_ESCROW_TYPE[key].replace(/([A-Z])/g, ' $1').trim()}
                                 </SelectItem>
                               ))}
                             </SelectContent>
