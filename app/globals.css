@@ -287,3 +287,12 @@
     }
   }
 }
+
+/* Custom override for react-datepicker navigation buttons */
+.react-datepicker .react-datepicker__header.react-datepicker__header--custom div.flex button[aria-label="Previous Month"],
+.react-datepicker .react-datepicker__header.react-datepicker__header--custom div.flex button[aria-label="Next Month"] {
+  display: inline-flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important; /* Override pointer-events: none */
+}
