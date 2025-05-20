@@ -11,11 +11,145 @@ import { LoadingState } from '../availability/LoadingState'
 import { ErrorState } from '../availability/ErrorState'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2, Calendar } from 'lucide-react'
+import { Loader2, Calendar, Clock } from 'lucide-react'
 import { rescheduleSession } from '@/utils/actions/rescheduleActions'
 import { TimeSlot, TimeSlotGroup } from '@/utils/types/booking'
 import { getUserTimezone } from '@/utils/timezone-utils'
 import { useReschedule } from './use-reschedule'
+import { CoachProfileSection } from '../availability/CoachProfileSection'
+
+// New ReBookingSummary component that includes rescheduling reason
+interface ReBookingSummaryProps {
+  selectedDate: Date | null;
+  selectedTimeSlot: TimeSlot;
+  onConfirm: () => Promise<void>;
+  canBook: boolean;
+  isBooking: boolean;
+  coachName: string;
+  formatTime: (date: Date) => string;
+  coachTimezone: string;
+  eventTypeName: string;
+  eventTypeDuration: number;
+  reschedulingReason: string;
+  setReschedulingReason: (reason: string) => void;
+  originalStartTime: string;
+  originalEndTime: string;
+}
+
+function ReBookingSummary(props: ReBookingSummaryProps) {
+  const {
+    selectedDate,
+    selectedTimeSlot,
+    onConfirm,
+    canBook,
+    isBooking,
+    coachName,
+    formatTime,
+    coachTimezone,
+    eventTypeName,
+    eventTypeDuration,
+    reschedulingReason,
+    setReschedulingReason,
+    originalStartTime,
+    originalEndTime,
+  } = props;
+  
+  // Parse original times
+  const origStart = new Date(originalStartTime);
+  const origEnd = new Date(originalEndTime);
+  
+  // Use the existing BookingSummary component internally
+  return (
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle>Booking Summary</CardTitle>
+        <CardDescription>Review your rescheduled session details</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {/* Original Session Details */}
+          <div className="pb-4 mb-2 border-b">
+            <h3 className="text-sm font-semibold mb-2 text-muted-foreground">CURRENT SESSION</h3>
+            
+            <div>
+              <h4 className="text-sm font-medium mb-1">Date</h4>
+              <p className="text-sm">{format(origStart, 'EEEE, MMMM d, yyyy')}</p>
+            </div>
+            
+            <div className="mt-2">
+              <h4 className="text-sm font-medium mb-1">Time</h4>
+              <p className="text-sm">
+                {formatTime(origStart)} - {formatTime(origEnd)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {Math.round((origEnd.getTime() - origStart.getTime()) / (1000 * 60))} minutes in {coachTimezone}
+              </p>
+            </div>
+          </div>
+          
+          {/* New Session Section Heading */}
+          <h3 className="text-sm font-semibold mb-2 text-muted-foreground">NEW SESSION</h3>
+          
+          <div>
+            <h4 className="text-sm font-medium mb-1">Session Type</h4>
+            <p className="text-sm">{eventTypeName || "Coaching Session"}</p>
+          </div>
+          
+          <div>
+            <h4 className="text-sm font-medium mb-1">Coach</h4>
+            <p className="text-sm">{coachName}</p>
+          </div>
+          
+          {selectedDate && (
+            <div>
+              <h4 className="text-sm font-medium mb-1">Date</h4>
+              <p className="text-sm">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
+            </div>
+          )}
+          
+          {selectedTimeSlot && (
+            <div>
+              <h4 className="text-sm font-medium mb-1">Time</h4>
+              <p className="text-sm">
+                {formatTime(selectedTimeSlot.startTime)} - {formatTime(selectedTimeSlot.endTime)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {eventTypeDuration} minutes in {coachTimezone}
+              </p>
+            </div>
+          )}
+          
+          {/* Rescheduling Reason Field */}
+          <div>
+            <h4 className="text-sm font-medium mb-1">Rescheduling Reason</h4>
+            <textarea
+              placeholder="Please provide a reason for rescheduling (optional)"
+              className="w-full p-2 border rounded-md h-24 resize-none text-sm"
+              value={reschedulingReason}
+              onChange={(e) => setReschedulingReason(e.target.value)}
+            />
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter>
+        <Button 
+          className="w-full" 
+          disabled={!canBook || isBooking}
+          onClick={onConfirm}
+        >
+          {isBooking ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Rescheduling...
+            </>
+          ) : (
+            'Confirm Reschedule'
+          )}
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
 
 export default function ReschedulePage() {
   const searchParams = useSearchParams()
@@ -135,6 +269,8 @@ export default function ReschedulePage() {
   const coachName = session?.coach 
     ? `${session.coach.firstName || ''} ${session.coach.lastName || ''}`.trim()
     : 'Coach';
+
+  const coachProfileImage = session?.coach?.profileImageUrl || null;
   
   if (loading || loadingAvailability) {
     return <LoadingState message="Loading session details..." />;
@@ -149,38 +285,45 @@ export default function ReschedulePage() {
   }
   
   return (
-    <div className="container mx-auto py-8 max-w-4xl">
-      <Card className="mb-8">
-        <CardHeader>
-          <div className="mx-auto mb-4">
-            <Calendar className="h-12 w-12 text-primary mx-auto" />
-          </div>
-          <CardTitle className="text-2xl text-center">Reschedule Your Session</CardTitle>
-          <CardDescription className="text-center">
-            Please select a new date and time for your session with {coachName}
-          </CardDescription>
-        </CardHeader>
-      </Card>
+    <div className="container max-w-5xl py-10">
+      <h1 className="text-2xl font-bold mb-6">Reschedule Your Session with {coachName}</h1>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Select a New Date</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <DatePickerSection 
-                selectedDate={selectedDate}
-                onDateChange={setSelectedDate}
-                availableDates={availableDates}
-                isDateDisabled={isDateDisabled}
-              />
-            </CardContent>
-          </Card>
+      <div className="grid md:grid-cols-3 gap-6">
+        {/* Left Column - Coach Profile & Date Selection */}
+        <div>
+          {/* Coach Profile Section */}
+          <CoachProfileSection 
+            coachName={coachName} 
+            profileImageUrl={coachProfileImage}
+            specialty="Session Rescheduling"
+          />
           
+          {/* Date Picker Section */}
+          <DatePickerSection
+            selectedDate={selectedDate}
+            onDateChange={setSelectedDate}
+            availableDates={availableDates}
+            isDateDisabled={isDateDisabled}
+          />
+          
+          {/* Add timezone display in booking UI */}
+          {coachTimezone && (
+            <div className="mt-2 text-xs text-muted-foreground">
+              <p>Coach's timezone: {coachTimezone}</p>
+              <p className="mt-1 text-xs">Times will adjust to your local timezone when displayed.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Right Column - Time Slots and Booking Summary */}
+        <div className="md:col-span-2">
+          {/* Time Slots Section */}
           <Card>
             <CardHeader>
-              <CardTitle>Available Times</CardTitle>
+              <CardTitle className="flex items-center">
+                <Clock className="w-5 h-5 mr-2" />
+                Available Times
+              </CardTitle>
               <CardDescription>
                 {selectedDate
                   ? `Select a time slot for ${selectedDate ? format(selectedDate, 'EEEE, MMMM d, yyyy') : ''}`
@@ -208,49 +351,26 @@ export default function ReschedulePage() {
               )}
             </CardContent>
           </Card>
-        </div>
-        
-        <div className="md:col-span-1">
-          <BookingSummary 
-            coachName={coachName}
-            selectedDate={selectedDate}
-            selectedTimeSlot={selectedTimeSlot}
-            canBook={!!selectedTimeSlot}
-            isBooking={isRescheduling}
-            onConfirm={handleReschedule}
-            formatTime={formatTime}
-            coachTimezone={coachTimezone || 'UTC'}
-          />
-          
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Rescheduling Reason</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <textarea
-                placeholder="Please provide a reason for rescheduling (optional)"
-                className="w-full p-2 border rounded-md h-24 resize-none"
-                value={reschedulingReason}
-                onChange={(e) => setReschedulingReason(e.target.value)}
-              />
-            </CardContent>
-            <CardFooter>
-              <Button 
-                className="w-full" 
-                disabled={!selectedTimeSlot || isRescheduling}
-                onClick={handleReschedule}
-              >
-                {isRescheduling ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Rescheduling...
-                  </>
-                ) : (
-                  'Confirm Reschedule'
-                )}
-              </Button>
-            </CardFooter>
-          </Card>
+
+          {/* Use ReBookingSummary Component */}
+          {selectedTimeSlot && (
+            <ReBookingSummary
+              coachName={coachName}
+              selectedDate={selectedDate}
+              selectedTimeSlot={selectedTimeSlot}
+              canBook={!!selectedTimeSlot}
+              isBooking={isRescheduling}
+              onConfirm={handleReschedule}
+              formatTime={formatTime}
+              coachTimezone={coachTimezone || 'UTC'}
+              eventTypeName="Rescheduled Session"
+              eventTypeDuration={sessionDuration}
+              reschedulingReason={reschedulingReason}
+              setReschedulingReason={setReschedulingReason}
+              originalStartTime={session.startTime}
+              originalEndTime={session.endTime}
+            />
+          )}
         </div>
       </div>
     </div>
