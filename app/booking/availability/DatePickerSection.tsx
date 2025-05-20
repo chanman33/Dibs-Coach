@@ -60,9 +60,9 @@ export function DatePickerSection({
         
         {/* Updated Legend reflecting the new CSS classes/logic */}
         <div className="mt-4 space-y-2 text-sm text-muted-foreground">
-          {/* State 3: Bookable (Turquoise background) */}
+          {/* State 3: Bookable (Green background) */}
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-md bg-[#E6F4F1]"></div>
+            <div className="w-4 h-4 rounded-md" style={{ backgroundColor: 'hsl(142.1 76.2% 36.3% / 0.15)' }}></div>
             <span>Bookable (slots available)</span>
           </div>
         </div>

@@ -65,11 +65,11 @@
 
 /* Bookable (Within window, has slots) */
 .react-datepicker__day.date-bookable {
-  background-color: #E6F4F1;
+  background-color: hsl(142.1 76.2% 36.3% / 0.15);
   color: hsl(var(--foreground));
 }
 .react-datepicker__day.date-bookable:hover {
-  background-color: rgba(230, 244, 241, 0.8);
+  background-color: hsl(142.1 76.2% 36.3% / 0.2);
 }
 
 /* Selected States */
@@ -88,12 +88,12 @@
 
 /* Selected State for Bookable (Has Slots) */
 .react-datepicker__day.date-bookable.date-selected {
-  background-color: #E7F5EF;
+  background-color: hsl(142.1 76.2% 36.3% / 0.25);
   color: hsl(var(--foreground));
   border: 0;
 }
 .react-datepicker__day.date-bookable.date-selected:hover {
-  background-color: rgba(231, 245, 239, 0.9);
+  background-color: hsl(142.1 76.2% 36.3% / 0.3);
 }
 
 /* Keyboard focus styling */
