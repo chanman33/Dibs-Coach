@@ -224,7 +224,7 @@ export default async function CoachProfilePage({ params, searchParams }: CoachPr
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Profile Info */}
         <div className="lg:col-span-1">
-          <Card className="sticky top-24">
+          <Card className="sticky top-24 z-10">
             <CardContent className="pt-6">
               <div className="flex flex-col items-center text-center">
                 <div className="relative w-32 h-32 rounded-full overflow-hidden mb-4 border-4 border-primary/10">
