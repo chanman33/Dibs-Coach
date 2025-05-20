@@ -7,6 +7,7 @@ import type { BrowseCoachData } from '@/utils/types/browse-coaches'
 import { USER_CAPABILITIES } from '@/utils/roles/roles'
 import { useRef, useState, useEffect } from 'react'
 import { cn } from '@/utils/cn'
+import { useRouter } from 'next/navigation'
 
 interface YourCoachesProps {
   isLoading: boolean;
@@ -26,6 +27,7 @@ export function YourCoaches({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const router = useRouter();
 
   // Function to check scroll possibility
   const checkScroll = () => {
@@ -90,6 +92,15 @@ export function YourCoaches({
                 coachPrimaryDomain={coach.coachPrimaryDomain}
                 isBooked={true} // Always true for this component
                 onProfileClick={() => onCoachClick(coach)} // Use the passed handler
+                onBookSessionClick={() => { // Navigate to booking page
+                  if (coach.profileSlug) {
+                    router.push(`/booking/${coach.profileSlug}`);
+                  } else {
+                    // Fallback or error handling if profileSlug is not available
+                    console.warn('[YourCoaches] Attempted to book session for coach without profileSlug:', coach.ulid);
+                    // Optionally, navigate to a generic booking page or show an error
+                  }
+                }}
                 sessionConfig={{
                   durations: [
                     coach.minimumDuration,
@@ -111,6 +122,7 @@ export function YourCoaches({
                 profileSlug={coach.profileSlug}
                 isPublic={false}
                 showBookButton={false} // Don't show book button for already booked coaches
+                disableDarkHover={true} // Disable dark hover for this section
               />
             </div>
           ))}

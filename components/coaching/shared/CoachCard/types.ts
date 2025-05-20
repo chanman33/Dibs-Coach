@@ -67,8 +67,10 @@ export interface CoachCardProps extends BaseCoachCardProps {
   sessionLength?: string;
   isBooked?: boolean;
   onProfileClick?: () => void;
+  onBookSessionClick?: () => void;
   
   // Visibility control
   showBookButton?: boolean;
   isPublic?: boolean;
+  disableDarkHover?: boolean;
 } 

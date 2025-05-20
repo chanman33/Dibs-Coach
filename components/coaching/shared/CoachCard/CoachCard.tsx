@@ -9,6 +9,7 @@ import { RealEstateDomain } from '@/utils/types/coach'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 // Helper function to get icon for real estate domain
 const getDomainIcon = (domain: RealEstateDomain) => {
@@ -57,10 +58,12 @@ export function CoachCard({
   sessionLength,
   isBooked = false,
   onProfileClick,
+  onBookSessionClick,
   
   // Visibility control
   showBookButton = false,
   isPublic = true,
+  disableDarkHover = false,
   
   ...otherProps
 }: CoachCardProps) {
@@ -198,29 +201,64 @@ export function CoachCard({
             )}
 
             {/* Action buttons */}
-            <div className="flex flex-col gap-2 mt-2">
-              <Link 
-                href={`/profile/${profilePath}${isPublic ? `?from=${encodeURIComponent(pathname)}` : ''}`} 
-                className="block w-full" 
-                onClick={handleProfileClick}
-              >
-                <Button 
-                  className="w-full" 
-                  variant="secondary"
+            <div className="flex gap-2 mt-4">
+              {!isPublic && onProfileClick && !isBooked && (
+                <Button
+                  onClick={handleProfileClick}
+                  variant="outline"
+                  className={cn(
+                    "w-full",
+                    !disableDarkHover && "hover:bg-slate-900 hover:text-slate-50"
+                  )}
                 >
                   View Profile
                 </Button>
-              </Link>
-              
-              {/* Booking button - conditionally rendered */}
-              {showBookButton && !isBooked && (
-                <Button 
-                  className="w-full" 
-                  onClick={() => setIsBookingModalOpen(true)}
-                  disabled={!finalSessionConfig.isActive}
-                >
-                  {!finalSessionConfig.isActive ? "Not Available" : "Book Session"}
-                </Button>
+              )}
+
+              {!isPublic && isBooked && (
+                <>
+                  {onProfileClick && (
+                    <Button
+                      onClick={handleProfileClick}
+                      variant="outline"
+                      className={cn(
+                        "flex-1",
+                        !disableDarkHover && "hover:bg-slate-900 hover:text-slate-50"
+                      )}
+                    >
+                      View Profile
+                    </Button>
+                  )}
+                  {onBookSessionClick && profilePath && (
+                    <Link href={`/booking/${profilePath}`} passHref legacyBehavior>
+                      <Button variant="default" className="flex-1">
+                        Book Session
+                      </Button>
+                    </Link>
+                  )}
+                </>
+              )}
+
+              {/* Public view: "Book a Session" or "View Profile" (Link) */}
+              {isPublic && (
+                showBookButton ? (
+                  <Button onClick={() => setIsBookingModalOpen(true)} className="w-full">
+                    Book a Session
+                  </Button>
+                ) : (
+                  <Link href={`/profile/${profilePath}?from=${pathname}`} passHref legacyBehavior>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full",
+                        !disableDarkHover && "hover:bg-slate-900 hover:text-slate-50"
+                      )}
+                      onClick={handleProfileClick}
+                    >
+                       View Profile
+                    </Button>
+                  </Link>
+                )
               )}
             </div>
           </div>
@@ -228,7 +266,7 @@ export function CoachCard({
         {...otherProps}
       />
 
-      {showBookButton && !isBooked && (
+      {showBookButton && !isBooked && isPublic && (
         <BookingModal
           isOpen={isBookingModalOpen}
           onClose={() => setIsBookingModalOpen(false)}
