@@ -43,7 +43,8 @@ export const transformedSessionSchema = z.object({
   sessionType: z.enum(Object.values(SESSION_TYPE) as [string, ...string[]]).nullable(),
   zoomJoinUrl: z.string().nullable(),
   paymentStatus: z.string().nullable(),
-  price: z.number().optional()
+  price: z.number().optional(),
+  calBookingUid: z.string().nullable().optional()
 });
 
 export type TransformedSession = z.infer<typeof transformedSessionSchema>;

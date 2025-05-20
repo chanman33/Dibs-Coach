@@ -81,8 +81,9 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
   const paymentStatusColor = paymentStatusColors[paymentStatus as keyof typeof paymentStatusColors] || 'bg-gray-100 text-gray-800'
 
   const handleReschedule = () => {
-    // TODO: Implement reschedule functionality
-    console.log('Rescheduling session:', session.ulid)
+    // Navigate to reschedule page with the session ID and cal booking UID
+    // Use session.ulid as fallback if calBookingUid is not available
+    window.location.href = `/booking/reschedule?sessionId=${session.ulid}&calBookingId=${session.calBookingUid || session.ulid}`
     setIsRescheduleDialogOpen(false)
   }
 
