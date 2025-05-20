@@ -11,7 +11,6 @@ import { BookingSummary } from "./BookingSummary";
 import { EmptyState } from "./EmptyState";
 import { LoadingState } from "./LoadingState";
 import { ErrorState } from "./ErrorState";
-import { DebugPanel } from "./DebugPanel";
 import { CoachProfileSection } from "./CoachProfileSection";
 import { EventTypeSelector } from "./EventTypeSelector";
 import { SuccessModal } from "./SuccessModal";
@@ -151,16 +150,6 @@ export default function BookingAvailabilityPage() {
             onDateChange={setSelectedDate}
             availableDates={availableDates}
             isDateDisabled={isDateDisabled}
-          />
-          
-          {/* Debug Panel - only shown in development */}
-          <DebugPanel 
-            selectedDate={selectedDate}
-            availableDates={availableDates}
-            isDateDisabled={isDateDisabled}
-            coachTimezone={coachTimezone}
-            selectedEventType={selectedEventType}
-            eventTypes={eventTypes}
           />
           
           {/* Add timezone display in booking UI */}

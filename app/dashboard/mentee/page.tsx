@@ -644,7 +644,7 @@ function MenteeDashboard() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Building className="h-5 w-5 text-blue-500" />
-                Business Connection
+                Team Integration
               </CardTitle>
             </div>
             <CardDescription className="line-clamp-2">
