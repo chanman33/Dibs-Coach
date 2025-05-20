@@ -155,6 +155,7 @@ export default function ReschedulePage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const sessionId = searchParams.get('sessionId') || ''
+  const coachIdFromUrl = searchParams.get('coachId') || ''
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -229,7 +230,7 @@ export default function ReschedulePage() {
     coachTimezone,
     formatTime
   } = useReschedule({
-    coachId: session?.coachUlid || '',
+    coachId: coachIdFromUrl,
     sessionDuration
   });
   

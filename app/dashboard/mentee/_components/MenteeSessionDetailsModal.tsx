@@ -83,7 +83,13 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
   const handleReschedule = () => {
     // Navigate to reschedule page with the session ID and cal booking UID
     // Use session.ulid as fallback if calBookingUid is not available
-    window.location.href = `/booking/reschedule?sessionId=${session.ulid}&calBookingId=${session.calBookingUid || session.ulid}`
+    // Also pass the coachId, which is session.otherParty.ulid
+    if (!session || !session.otherParty || !session.otherParty.ulid) {
+      console.error("Cannot reschedule: Missing session or coach information.");
+      // Optionally, show a toast notification to the user
+      return;
+    }
+    window.location.href = `/booking/reschedule?sessionId=${session.ulid}&calBookingId=${session.calBookingUid || session.ulid}&coachId=${session.otherParty.ulid}`
     setIsRescheduleDialogOpen(false)
   }
 
