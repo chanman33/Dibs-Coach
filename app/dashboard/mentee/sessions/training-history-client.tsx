@@ -43,6 +43,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { MenteeSessionDetailsModal } from '../_components/MenteeSessionDetailsModal'
+import { TransformedSession } from '@/utils/types/session'
 
 type TrainingDisplay = {
   id: string;
@@ -50,6 +52,7 @@ type TrainingDisplay = {
   date: string;
   duration: number;
   status: string;
+  sessionData: TransformedSession;
 }
 
 interface TrainingHistoryClientProps {
@@ -69,6 +72,8 @@ export function TrainingHistoryClient({ initialData }: TrainingHistoryClientProp
   const [currentPage, setCurrentPage] = useState(1)
   const [sortBy, setSortBy] = useState<'date' | 'module' | 'duration'>('date')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [selectedSession, setSelectedSession] = useState<TransformedSession | null>(null)
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false)
 
   // Transform sessions data to display format
   const transformSessionsToDisplay = useCallback((data: TrainingHistoryResponse) => {
@@ -77,7 +82,28 @@ export function TrainingHistoryClient({ initialData }: TrainingHistoryClientProp
       module: session.coach.name, // Using coach name as module for now
       date: session.startTime,
       duration: session.duration,
-      status: session.status
+      status: session.status,
+      // Store the full session data for the modal
+      sessionData: {
+        ulid: session.ulid,
+        durationMinutes: session.duration,
+        status: session.status,
+        startTime: session.startTime,
+        endTime: new Date(new Date(session.startTime).getTime() + session.duration * 60000).toISOString(),
+        createdAt: new Date().toISOString(), // Since we don't have this in TrainingSession
+        userRole: 'mentee' as const,
+        otherParty: {
+          ulid: session.coach.ulid,
+          firstName: session.coach.name.split(' ')[0] || null,
+          lastName: session.coach.name.split(' ').slice(1).join(' ') || null,
+          email: null,
+          profileImageUrl: null
+        },
+        sessionType: null,
+        zoomJoinUrl: null,
+        paymentStatus: null,
+        price: 0
+      }
     }));
   }, []);
 
@@ -208,6 +234,11 @@ export function TrainingHistoryClient({ initialData }: TrainingHistoryClientProp
   const getSortIcon = (column: 'date' | 'module' | 'duration') => {
     if (sortBy !== column) return null;
     return sortDirection === 'asc' ? '↑' : '↓';
+  }
+
+  const handleSessionClick = (training: TrainingDisplay) => {
+    setSelectedSession(training.sessionData)
+    setIsSessionModalOpen(true)
   }
 
   if (loading) {
@@ -369,7 +400,11 @@ export function TrainingHistoryClient({ initialData }: TrainingHistoryClientProp
                             isUpcoming ? 'SCHEDULED' : 'COMPLETED';
                           
                           return (
-                            <TableRow key={training.id || index} className="hover:bg-muted/50">
+                            <TableRow 
+                              key={training.id || index} 
+                              className="hover:bg-muted/50 cursor-pointer"
+                              onClick={() => handleSessionClick(training)}
+                            >
                               <TableCell className="font-medium">{training.module}</TableCell>
                               <TableCell>
                                 <div className="flex items-center">
@@ -469,6 +504,13 @@ export function TrainingHistoryClient({ initialData }: TrainingHistoryClientProp
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Session Details Modal */}
+      <MenteeSessionDetailsModal
+        session={selectedSession}
+        isOpen={isSessionModalOpen}
+        onClose={() => setIsSessionModalOpen(false)}
+      />
     </div>
   )
 }

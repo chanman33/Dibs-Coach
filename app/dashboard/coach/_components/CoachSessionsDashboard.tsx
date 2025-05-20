@@ -14,7 +14,7 @@ import { Calendar, Clock, Search, Filter, Users, CheckCircle2, XCircle } from "l
 import { format } from 'date-fns'
 import { Skeleton } from "@/components/ui/skeleton"
 import Link from 'next/link'
-import { SessionDetailsModal } from './SessionDetailsModal'
+import { SessionDetailsModal } from './CoachSessionDetailsModal'
 
 // Status badge colors
 const statusColorMap: Record<string, string> = {

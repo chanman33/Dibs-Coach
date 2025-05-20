@@ -43,7 +43,7 @@ import { Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { MenteeProfileModal } from './_components/MenteeProfileModal'
-import { SessionsPreviewModal } from './_components/SessionsPreviewModal'
+import { SessionDetailsModal } from './_components/CoachSessionDetailsModal'
 
 const DEFAULT_AVATAR = "https://utfs.io/f/[your-default-avatar-url]" // Replace with your default avatar URL
 
@@ -81,10 +81,18 @@ function CoachSessionCard({ session, onClick }: { session: TransformedSession; o
     accentColor = "bg-slate-500";
   }
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Prevent click if we clicked the Join Call button
+    if ((e.target as HTMLElement).closest('button')) {
+      return;
+    }
+    onClick();
+  };
+
   return (
     <div 
       className="group relative border rounded-lg p-4 hover:shadow-md transition-all duration-200 hover:border-primary/50 hover:bg-muted/20 cursor-pointer"
-      onClick={onClick}
+      onClick={handleCardClick}
     >
       <div 
         className="absolute top-0 left-0 w-1 h-full rounded-l-lg transition-all duration-200 group-hover:h-full"
@@ -252,8 +260,14 @@ export default function CoachDashboard() {
   }
 
   const handleSessionClick = (session: TransformedSession) => {
-    setSelectedSession(session)
-    setIsSessionModalOpen(true)
+    console.log('Opening session details:', session, 'Session price:', (session as any).price);
+    setSelectedSession(session);
+    setIsSessionModalOpen(true);
+  }
+
+  const handleCloseSessionModal = () => {
+    setIsSessionModalOpen(false);
+    setSelectedSession(null);
   }
 
   const navigateGoal = (direction: 'next' | 'prev') => {
@@ -770,11 +784,11 @@ export default function CoachDashboard() {
         onClose={() => setIsMenteeModalOpen(false)} 
       />
       
-      {/* Session Preview Modal */}
-      <SessionsPreviewModal 
+      {/* Session Details Modal */}
+      <SessionDetailsModal 
         session={selectedSession}
         isOpen={isSessionModalOpen}
-        onClose={() => setIsSessionModalOpen(false)}
+        onClose={handleCloseSessionModal}
       />
 
       {/* Share Dialog */}
