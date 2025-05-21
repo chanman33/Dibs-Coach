@@ -7,7 +7,7 @@ import { toast } from "@/components/ui/use-toast";
 import { getCoachAvailability } from "@/utils/actions/coach-availability";
 import { getCoachBusyTimes } from "@/utils/actions/coach-calendar";
 import { type CoachSchedule, type CalEventType } from "@/utils/types/coach-availability";
-import { createBooking } from "@/utils/actions/booking-actions";
+import { createBooking } from "@/utils/actions/cal/booking-actions";
 import { TimeSlot, TimeSlotGroup, LoadingState } from "@/utils/types/booking";
 import {
   dayMapping,

@@ -84,12 +84,27 @@ export async function rescheduleSession(input: RescheduleInput) {
       return { data: null, error: { code: 'CAL_INTEGRATION_ERROR', message: 'Could not find Cal.com integration' } }
     }
     
+    // Fetch the actual Cal.com Booking UID from our CalBooking table
+    // validatedInput.calBookingUid currently holds the ULID of our CalBooking record (Session.calBookingUlid)
+    const { data: calBookingData, error: calBookingFetchError } = await supabase
+      .from('CalBooking')
+      .select('calBookingUid') // This is the UID Cal.com expects
+      .eq('ulid', validatedInput.calBookingUid) // Match using our internal ULID
+      .single()
+
+    if (calBookingFetchError || !calBookingData || !calBookingData.calBookingUid) {
+      console.error('[RESCHEDULE_ERROR] Failed to get CalBooking record or its calBookingUid:', calBookingFetchError, calBookingData)
+      return { data: null, error: { code: 'CAL_BOOKING_DATA_NOT_FOUND', message: 'Could not find Cal.com booking identifier in our records' } }
+    }
+    
+    const actualCalComBookingUid = calBookingData.calBookingUid;
+    
     // Create Cal client 
     const calClient = createCalClient(calIntegration.calAccessToken)
     
     // Call Cal.com API to reschedule
     // According to docs, endpoint is POST /v2/bookings/{bookingUid}/reschedule
-    const response = await fetch(`https://api.cal.com/v2/bookings/${calBookingUid}/reschedule`, {
+    const response = await fetch(`https://api.cal.com/v2/bookings/${actualCalComBookingUid}/reschedule`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -111,21 +126,45 @@ export async function rescheduleSession(input: RescheduleInput) {
         data: null, 
         error: { 
           code: 'CAL_API_ERROR', 
-          message: 'Failed to reschedule in Cal.com' 
+          message: calResponse.error?.message || 'Failed to reschedule in Cal.com' 
         } 
       }
     }
     
+    const calData = calResponse.data;
+    const confirmedStartTime = calData.start;
+    const confirmedEndTime = calData.end;
+    
     // Update database - first update the CalBooking table
+    const mainAttendee = calData.attendees && calData.attendees.length > 0 ? calData.attendees[0] : null;
+
     const { error: updateCalError } = await supabase
       .from('CalBooking')
       .update({
-        startTime: newStartTime,
-        endTime: newEndTime,
-        status: 'CONFIRMED', // Reset status to confirmed if it was previously changed
-        updatedAt: new Date().toISOString(),
+        startTime: confirmedStartTime,
+        endTime: confirmedEndTime,
+        status: calData.status === 'accepted' ? 'CONFIRMED' : calData.status?.toUpperCase() || 'CONFIRMED',
+        title: calData.title,
+        description: calData.description,
+        meetingUrl: calData.meetingUrl,
+        location: calData.location,
+        calBookingId: calData.id,
+        calBookingUid: calData.uid, // Ensure this is also updated if it can change, though typically it's the identifier.
+        hosts: calData.hosts,
+        duration: calData.duration,
+        eventTypeId: calData.eventTypeId,
+        eventTypeSlug: calData.eventType?.slug,
+        metadata: calData.metadata,
+        icsUid: calData.icsUid,
+        attendeeName: mainAttendee?.name,
+        attendeeEmail: mainAttendee?.email,
+        attendeeTimeZone: mainAttendee?.timeZone,
+        allAttendees: JSON.stringify(calData.attendees),
+        guests: calData.guests,
+        bookingFieldsResponses: calData.bookingFieldsResponses,
+        updatedAt: calData.updatedAt || new Date().toISOString(),
       })
-      .eq('calBookingUid', calBookingUid)
+      .eq('ulid', validatedInput.calBookingUid) // Match by our internal ULID
     
     if (updateCalError) {
       console.error('[RESCHEDULE_ERROR] Failed to update CalBooking:', updateCalError)
@@ -138,8 +177,8 @@ export async function rescheduleSession(input: RescheduleInput) {
       timestamp: new Date().toISOString(),
       oldStartTime: sessionData.startTime,
       oldEndTime: sessionData.endTime,
-      newStartTime,
-      newEndTime,
+      newStartTime: confirmedStartTime, // Use confirmed time
+      newEndTime: confirmedEndTime,     // Use confirmed time
       rescheduledBy: userData.email,
       reason: reschedulingReason || 'User requested reschedule'
     }
@@ -191,8 +230,8 @@ export async function rescheduleSession(input: RescheduleInput) {
         ulid: newSessionUlid,
         menteeUlid: sessionData.menteeUlid,
         coachUlid: sessionData.coachUlid,
-        startTime: newStartTime,
-        endTime: newEndTime,
+        startTime: confirmedStartTime, // Use confirmed time
+        endTime: confirmedEndTime,     // Use confirmed time
         status: 'SCHEDULED',
         sessionType: 'MANAGED', // Default to managed type
         originalSessionUlid: originalSessionUlid,
@@ -200,9 +239,10 @@ export async function rescheduleSession(input: RescheduleInput) {
         reschedulingHistory: reschedulingHistory,
         reschedulingReason: reschedulingReason || 'User requested reschedule',
         rescheduledBy: userData.email,
-        calBookingUlid: calBookingUid, // Link to the same Cal booking which was updated
+        calBookingUlid: validatedInput.calBookingUid, // Link to the same Cal booking which was updated
+        zoomJoinUrl: calData.meetingUrl, // Populate zoomJoinUrl from meetingUrl
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(), // Or calData.updatedAt if that's more appropriate
       })
     
     if (insertError) {
@@ -213,8 +253,8 @@ export async function rescheduleSession(input: RescheduleInput) {
     return { 
       data: {
         sessionUlid: newSessionUlid,
-        startTime: newStartTime,
-        endTime: newEndTime,
+        startTime: confirmedStartTime, // Return confirmed time
+        endTime: confirmedEndTime,     // Return confirmed time
         coachUlid: sessionData.coachUlid
       }, 
       error: null 

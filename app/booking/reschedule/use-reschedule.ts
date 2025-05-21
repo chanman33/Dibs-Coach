@@ -55,10 +55,15 @@ export function useReschedule({ coachId, sessionDuration }: UseRescheduleOptions
     if (!coachId) {
       setError("Coach ID is required for fetching availability.");
       setLoading(false);
+      setCoachSchedule(null);
+      setAvailableDates([]);
+      setTimeSlotGroups([]);
       return;
     }
     
     setLoading(true);
+    setError(null); // Clear previous errors
+
     const fetchCoachData = async () => {
       try {
         const result = await getCoachAvailability({ coachId });
@@ -66,222 +71,241 @@ export function useReschedule({ coachId, sessionDuration }: UseRescheduleOptions
         if (result.error) {
           console.error("[FETCH_COACH_AVAILABILITY_ERROR]", result.error);
           setError(result.error.message || 'Failed to fetch coach information');
-          setCoachSchedule(null); // Ensure schedule is cleared on error
-          setCoachTimezone("UTC"); // Reset timezone or handle appropriately
-          return;
-        }
-        
-        if (!result.data?.coach) {
+          setCoachSchedule(null);
+          setCoachTimezone("UTC");
+          setAvailableDates([]); // Clear available dates on error
+        } else if (!result.data?.coach) {
           setError("Coach not found");
           setCoachSchedule(null);
-          return;
-        }
-        
-        if (result.data.schedule) {
+          setAvailableDates([]);
+        } else if (result.data.schedule) {
           setCoachSchedule(result.data.schedule);
           setCoachTimezone(result.data.schedule.timeZone || "UTC");
           console.log('[DEBUG][RESCHEDULE] Coach schedule loaded', {
             timeZone: result.data.schedule.timeZone,
             availabilityCount: result.data.schedule.availability?.length,
-            defaultDuration: result.data.schedule.defaultDuration
           });
+          // Available dates will be calculated in its own effect once schedule is loaded
         } else {
           setError("Coach has no availability schedule configured.");
           setCoachSchedule(null);
-          setCoachTimezone("UTC"); // Reset timezone
+          setCoachTimezone("UTC");
+          setAvailableDates([]);
         }
       } catch (err) {
         console.error('[FETCH_COACH_DATA_UNEXPECTED_ERROR]', err);
         setError('An unexpected error occurred while fetching coach data.');
         setCoachSchedule(null);
         setCoachTimezone("UTC");
+        setAvailableDates([]);
       } finally {
-        // Defer setLoading(false) to be handled by subsequent effects (busy times, slot generation)
+        // Defer setLoading(false) until availableDates calculation is also complete (if it runs)
+        // or until slot generation (if a date is already selected)
+        if (!coachSchedule && !selectedDate) { // Only stop loading if initial data fetch fails and no further steps
+            setLoading(false);
+        }
       }
     };
     
     fetchCoachData();
   }, [coachId]);
   
-  // Fetch busy times when date is selected or coach schedule changes
+  // Effect for fetching busy times and generating time slots when selectedDate changes
   useEffect(() => {
-    if (!selectedDate || !coachSchedule || !coachId) {
-      // If no selected date, or no schedule, or no coachId, we can't fetch busy times for a specific context,
-      // but we might want to pre-fetch for the initial view or a default range.
-      // For now, let's only fetch if a date is selected.
-      // Consider pre-fetching a general range if selectedDate is null initially.
-      if (!selectedDate) {
-        setTimeSlotGroups([]); // Clear time slots if no date is selected
-        // setLoading(false); // Potentially stop loading if only date selection is pending
-      }
+    if (!selectedDate || !coachId || !coachSchedule) {
+      setTimeSlotGroups([]);
+      // If a date is deselected, or coach data isn't ready, clear slots.
+      // Loading state for coachSchedule is handled by the previous effect.
+      // If selectedDate becomes null, we are not loading slots for it.
+      if (!selectedDate && coachSchedule) setLoading(false); 
       return;
     }
 
-    const fetchBusyTimes = async () => {
-      setLoading(true); // Indicate loading for busy times
+    // Immediately set loading true and clear previous slots when selectedDate is valid and coachSchedule is available
+    setLoading(true);
+    setTimeSlotGroups([]); 
+    setSelectedTimeSlot(null); 
+    setError(null); // Clear errors specific to slot generation
+
+    const fetchBusyAndGenerateSlots = async () => {
+      let currentBusyTimes: BusyTime[] = [];
       try {
-        // Cache logic similar to useBookingUI
-        const dateInCache = busyTimesCache.startDate && busyTimesCache.endDate && 
-                           selectedDate >= busyTimesCache.startDate && 
-                           selectedDate <= busyTimesCache.endDate;
+        // Cache logic for busy times
+        const cacheStartDate = busyTimesCache.startDate ? new Date(busyTimesCache.startDate.getFullYear(), busyTimesCache.startDate.getMonth(), busyTimesCache.startDate.getDate()) : null;
+        const cacheEndDate = busyTimesCache.endDate ? new Date(busyTimesCache.endDate.getFullYear(), busyTimesCache.endDate.getMonth(), busyTimesCache.endDate.getDate()) : null;
+        const selectedDayStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+
+        const dateInCache = cacheStartDate && cacheEndDate && 
+                           selectedDayStart >= cacheStartDate && 
+                           selectedDayStart <= cacheEndDate;
+                           
         const cacheAge = busyTimesCache.lastFetched 
           ? Math.floor((Date.now() - busyTimesCache.lastFetched.getTime()) / (1000 * 60)) 
           : Number.MAX_SAFE_INTEGER;
-        const isCacheExpired = cacheAge > 15; // Cache for 15 minutes for busy times
+        const isCacheValid = dateInCache && cacheAge <= 15;
 
-        if (dateInCache && !isCacheExpired) {
+        if (isCacheValid) {
           console.log("[DEBUG][RESCHEDULE_BUSY_TIMES] Using cached busy times for", selectedDate.toISOString().split('T')[0]);
-          // Busy times are already cached and valid, slot generation will use them.
-          // setLoading(false) will be handled by slot generation effect if it runs.
-          return; 
-        }
-
-        console.log("[DEBUG][RESCHEDULE_BUSY_TIMES] Fetching new 31-day busy time range from", selectedDate.toISOString().split('T')[0]);
-        const result = await getCoachBusyTimes({
-          coachId: coachId,
-          date: selectedDate.toISOString(), // Use selectedDate as the start for the range
-          days: 31 // Fetch a month of busy times
-        });
-
-        if (result.error) {
-          console.error("[FETCH_BUSY_TIMES_ERROR]", result.error);
-          setError(prevError => prevError ? prevError + "; Failed to fetch busy times" : "Failed to fetch busy times");
-          // Proceed with empty busy times, slots will be generated based on schedule only
-          setBusyTimesCache({ startDate: null, endDate: null, busyTimes: [], lastFetched: null });
-        } else {
-          const newBusyTimes = result.data || [];
-          const endDate = new Date(selectedDate);
-          endDate.setDate(selectedDate.getDate() + 30);
-          setBusyTimesCache({
-            startDate: new Date(selectedDate), // Ensure it's a new Date object for cache start
-            endDate: endDate,
-            busyTimes: newBusyTimes,
-            lastFetched: new Date()
+          currentBusyTimes = busyTimesCache.busyTimes.filter((bt: BusyTime) => {
+            try {
+              const busyStartDay = parseISO(bt.start).toISOString().split('T')[0];
+              return busyStartDay === selectedDate.toISOString().split('T')[0];
+            } catch { return false; }
           });
-          console.log("[DEBUG][RESCHEDULE_BUSY_TIMES] Successfully fetched/updated busy times cache", { count: newBusyTimes.length });
+        } else {
+          console.log("[DEBUG][RESCHEDULE_BUSY_TIMES] Fetching new 31-day busy time range starting from", selectedDate.toISOString().split('T')[0]);
+          const result = await getCoachBusyTimes({
+            coachId: coachId,
+            // Fetch for a range around the selected date to build cache, but we only need selectedDate's busy times for immediate display
+            date: selectedDate.toISOString(), 
+            days: 31 
+          });
+
+          if (result.error) {
+            console.error("[FETCH_BUSY_TIMES_ERROR]", result.error);
+            setError(prevError => (prevError ? prevError + "; " : "") + (result.error?.message || "Failed to fetch busy times"));
+            // Proceed with empty busy times for slot generation on error
+          } else {
+            const allFetchedBusyTimes = result.data || [];
+            // Update cache with the full fetched range
+            const rangeStartDate = new Date(selectedDate);
+            const rangeEndDate = new Date(selectedDate);
+            rangeEndDate.setDate(selectedDate.getDate() + 30);
+            setBusyTimesCache({
+              startDate: rangeStartDate,
+              endDate: rangeEndDate,
+              busyTimes: allFetchedBusyTimes,
+              lastFetched: new Date()
+            });
+            // For immediate slot generation, filter down to just the selected date
+            currentBusyTimes = allFetchedBusyTimes.filter((bt: BusyTime) => {
+               try {
+                const busyStartDay = parseISO(bt.start).toISOString().split('T')[0];
+                return busyStartDay === selectedDate.toISOString().split('T')[0];
+              } catch { return false; }
+            });
+            console.log(`[DEBUG][RESCHEDULE_BUSY_TIMES] Fetched ${allFetchedBusyTimes.length} total busy times, ${currentBusyTimes.length} for selected date.`);
+          }
         }
+
+        // Proceed to generate slots with the (potentially empty) currentBusyTimes
+        if (!coachTimezone) { // coachSchedule is already confirmed by effect dependency
+          console.warn("[DEBUG][RESCHEDULE_GENERATE_SLOTS] Coach timezone not available.");
+          setError(prev => (prev ? prev + "; " : "") + "Coach timezone not set.");
+          setTimeSlotGroups([]);
+          setLoading(false);
+          return;
+        }
+        
+        console.log(`[DEBUG][RESCHEDULE_GENERATE_SLOTS] For date: ${selectedDate.toISOString().split('T')[0]}, duration: ${sessionDuration} min, using ${currentBusyTimes.length} busy items.`);
+
+        const dayOfWeek = selectedDate.getDay();
+        const dayName = getDayNameFromNumber(dayOfWeek);
+
+        if (!dayName) {
+          console.error("[DEBUG][RESCHEDULE_GENERATE_SLOTS] Invalid day for slot generation", { date: selectedDate });
+          setTimeSlotGroups([]); setLoading(false); return;
+        }
+
+        const scheduleForDay = coachSchedule.availability?.filter(slot => 
+          slot.days?.some(d => {
+            if (typeof d === 'number') return d === dayOfWeek;
+            if (typeof d === 'string') return d.toUpperCase() === dayName.toUpperCase();
+            return false;
+          })
+        );
+
+        if (!scheduleForDay || scheduleForDay.length === 0) {
+          console.log("[DEBUG][RESCHEDULE_GENERATE_SLOTS] No schedule defined for this day:", dayName);
+          setTimeSlotGroups([]); setLoading(false); return;
+        }
+        
+        const potentialSlotsThisDay: TimeSlot[] = [];
+        scheduleForDay.forEach(scheduleSlot => {
+          if (!scheduleSlot.startTime || !scheduleSlot.endTime) return;
+          try {
+            let currentIterationTime = createUtcDate(selectedDate, scheduleSlot.startTime, coachTimezone);
+            const slotGroupEndTime = createUtcDate(selectedDate, scheduleSlot.endTime, coachTimezone);
+
+            while (currentIterationTime < slotGroupEndTime) {
+              const slotEndTime = new Date(currentIterationTime.getTime() + sessionDuration * 60000);
+              if (slotEndTime <= slotGroupEndTime) {
+                potentialSlotsThisDay.push({
+                  startTime: new Date(currentIterationTime),
+                  endTime: new Date(slotEndTime)
+                });
+              }
+              currentIterationTime = slotEndTime; 
+            }
+          } catch(e) {
+            console.error("[DEBUG][RESCHEDULE_GENERATE_SLOTS] Error processing schedule slot:", e);
+          }
+        });
+        
+        const filteredSlots = potentialSlotsThisDay.filter(slot => 
+          !currentBusyTimes.some(busyTime => {
+            try {
+                const busyStart = parseISO(busyTime.start);
+                const busyEnd = parseISO(busyTime.end);
+                return doesTimeSlotOverlapWithBusyTime(slot, busyStart, busyEnd);
+            } catch (e) {
+                console.warn("[DEBUG][RESCHEDULE_GENERATE_SLOTS] Invalid busy time format, skipping:", busyTime, e);
+                return false;
+            }
+          })
+        );
+
+        const morningSlots = filteredSlots.filter(slot => slot.startTime.getUTCHours() < 12);
+        const afternoonSlots = filteredSlots.filter(slot => slot.startTime.getUTCHours() >= 12);
+
+        const groups: TimeSlotGroup[] = [];
+        if (morningSlots.length > 0) groups.push({ title: "Morning", slots: morningSlots });
+        if (afternoonSlots.length > 0) groups.push({ title: "Afternoon", slots: afternoonSlots });
+        
+        setTimeSlotGroups(groups);
+        console.log(`[DEBUG][RESCHEDULE_GENERATE_SLOTS] Generated ${groups.length} groups with ${filteredSlots.length} total slots.`);
+        
       } catch (err) {
-        console.error('[FETCH_BUSY_TIMES_UNEXPECTED_ERROR]', err);
-        setError(prevError => prevError ? prevError + "; Unexpected error fetching busy times" : "Unexpected error fetching busy times");
-        setBusyTimesCache({ startDate: null, endDate: null, busyTimes: [], lastFetched: null });
+        console.error('[FETCH_BUSY_AND_GENERATE_SLOTS_ERROR]', err);
+        setError(prevError => (prevError ? prevError + "; " : "") + "Unexpected error generating slots");
+        setTimeSlotGroups([]);
       } finally {
-        // setLoading(false) will be handled by the slot generation effect
+        setLoading(false);
       }
     };
 
-    fetchBusyTimes();
-  }, [selectedDate, coachId, coachSchedule]); // Removed busyTimesCache from deps to avoid loops, cache check handles it
+    fetchBusyAndGenerateSlots();
+
+  }, [selectedDate, coachId, coachSchedule, sessionDuration, coachTimezone]); // Removed busyTimesCache, error as direct deps
   
-  // Generate time slots when selectedDate, coachSchedule, busyTimesCache, or sessionDuration changes
-  useEffect(() => {
-    if (!selectedDate || !coachSchedule || !coachTimezone) {
-      setTimeSlotGroups([]);
-      if (!coachSchedule && coachId && !error) {
-         // Still waiting for schedule to load, or schedule fetch failed
-         // setLoading(true) should be managed by coach data fetching effect
-      } else {
-        setLoading(false); // Not enough data to generate slots, not actively loading schedule
-      }
-      return;
-    }
-
-    setLoading(true);
-    console.log(`[DEBUG][RESCHEDULE_GENERATE_SLOTS] For date: ${selectedDate.toISOString().split('T')[0]}, duration: ${sessionDuration} min`);
-
-    const dayOfWeek = selectedDate.getDay();
-    const dayName = getDayNameFromNumber(dayOfWeek);
-
-    if (!dayName) {
-      console.error("[DEBUG][RESCHEDULE_GENERATE_SLOTS] Invalid day for slot generation", { date: selectedDate });
-      setTimeSlotGroups([]);
-      setLoading(false);
-      return;
-    }
-
-    const scheduleForDay = coachSchedule.availability?.filter(slot => 
-      slot.days?.some(d => {
-        if (typeof d === 'number') return d === dayOfWeek;
-        if (typeof d === 'string') return d.toUpperCase() === dayName.toUpperCase();
-        return false;
-      })
-    );
-
-    if (!scheduleForDay || scheduleForDay.length === 0) {
-      console.log("[DEBUG][RESCHEDULE_GENERATE_SLOTS] No schedule defined for this day:", dayName);
-      setTimeSlotGroups([]);
-      setLoading(false);
-      return;
-    }
-    
-    const potentialSlotsThisDay: TimeSlot[] = [];
-    scheduleForDay.forEach(scheduleSlot => {
-      if (!scheduleSlot.startTime || !scheduleSlot.endTime) return;
-      try {
-        let currentIterationTime = createUtcDate(selectedDate, scheduleSlot.startTime, coachTimezone);
-        const slotGroupEndTime = createUtcDate(selectedDate, scheduleSlot.endTime, coachTimezone);
-
-        while (currentIterationTime < slotGroupEndTime) {
-          const slotEndTime = new Date(currentIterationTime.getTime() + sessionDuration * 60000);
-          if (slotEndTime <= slotGroupEndTime) {
-            potentialSlotsThisDay.push({
-              startTime: new Date(currentIterationTime), // Ensure new Date objects
-              endTime: new Date(slotEndTime)
-            });
-          }
-          currentIterationTime = slotEndTime; // Move to the end of the current slot for the next iteration
-        }
-      } catch(e) {
-        console.error("[DEBUG][RESCHEDULE_GENERATE_SLOTS] Error processing schedule slot:", e);
-      }
-    });
-    
-    const currentBusyTimes = busyTimesCache.busyTimes || [];
-    const filteredSlots = potentialSlotsThisDay.filter(slot => 
-      !currentBusyTimes.some(busyTime => {
-        // Ensure busyTime.start and busyTime.end are valid date strings for parseISO
-        try {
-            const busyStart = parseISO(busyTime.start);
-            const busyEnd = parseISO(busyTime.end);
-            return doesTimeSlotOverlapWithBusyTime(slot, busyStart, busyEnd);
-        } catch (e) {
-            console.warn("[DEBUG][RESCHEDULE_GENERATE_SLOTS] Invalid busy time format, skipping:", busyTime, e);
-            return false; // If busy time is invalid, treat as no overlap
-        }
-      })
-    );
-
-    // Group slots by AM/PM
-    const morningSlots = filteredSlots.filter(slot => slot.startTime.getUTCHours() < 12); // Use getUTCHours as slots are UTC
-    const afternoonSlots = filteredSlots.filter(slot => slot.startTime.getUTCHours() >= 12);
-
-    const groups: TimeSlotGroup[] = [];
-    if (morningSlots.length > 0) {
-      groups.push({ title: "Morning", slots: morningSlots });
-    }
-    if (afternoonSlots.length > 0) {
-      groups.push({ title: "Afternoon", slots: afternoonSlots });
-    }
-    
-    setTimeSlotGroups(groups);
-    console.log("[DEBUG][RESCHEDULE_GENERATE_SLOTS] Generated groups:", groups.length, "groups with", filteredSlots.length, "total slots");
-    setLoading(false);
-
-  }, [selectedDate, coachSchedule, busyTimesCache, sessionDuration, coachTimezone, error]); // Added error to re-evaluate if it clears
-  
-  // Update availableDates based on generated slots over a range of days
+  // Update availableDates based on coachSchedule; this is less critical for immediate slot display
   useEffect(() => {
     if (!coachSchedule || !coachId) {
       setAvailableDates([]);
+      // Loading for the main schedule is handled by the first effect.
+      // If coachSchedule is null and an error is set, or no coachId, we shouldn't be "loading available dates".
+      if (!coachSchedule && !error && coachId) {
+         // This implies coachSchedule is still being fetched by the first effect
+         // Let the first effect manage the primary loading state.
+      } else {
+        // If coachSchedule loaded (or failed with error), or no coachId, this specific loading phase is done.
+        // However, the overall loading might still be true if selectedDate is set and slots are generating.
+        // We need to be careful not to prematurely set loading to false if other operations are pending.
+      }
       return;
     }
 
-    // This effect can be computationally intensive if run too broadly or too often.
-    // It recalculates available dates for a window when the underlying schedule or main coachId changes.
+    // This effect can be computationally intensive.
+    // It populates the calendar's available dates based on general schedule.
+    // The main 'loading' state for the UI is more tied to slot generation for a *selected* date.
+    // We can set a temporary loading here if we want, but ensure it doesn't conflict.
+    // For now, let it run in the background to populate 'availableDates'.
     console.log("[DEBUG][RESCHEDULE_AVAILABLE_DATES] Recalculating available dates for the booking window.");
-    setLoading(true); // Indicate loading for available dates calculation
+    // Consider a separate loading state if this calculation is slow and impacts perceived performance.
+    // const [loadingAvailableDates, setLoadingAvailableDates] = useState(false);
 
     const tomorrow = getTomorrowDate();
-    const maxDate = getMaxBookingDate(); // Look ahead 90 days for rescheduling
+    const maxDate = getMaxBookingDate(); 
     const datesInRange: Date[] = [];
     let currentDate = new Date(tomorrow);
 
@@ -290,10 +314,6 @@ export function useReschedule({ coachId, sessionDuration }: UseRescheduleOptions
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // Asynchronously check each date for availability.
-    // This is a simplified check. For full accuracy, it would involve parts of the slot generation logic.
-    // For now, we assume a date is available if the coach has *any* general availability on that day of the week.
-    // A more robust check would quickly simulate slot generation for each date.
     const checkDatePromises = datesInRange.map(async (dateToCheck) => {
       const dayOfWeek = dateToCheck.getDay();
       const dayName = getDayNameFromNumber(dayOfWeek);
@@ -307,48 +327,40 @@ export function useReschedule({ coachId, sessionDuration }: UseRescheduleOptions
         })
       );
       
-      if (scheduleForDay && scheduleForDay.length > 0) {
-        // Simplified: if there's any schedule, assume it *might* have slots.
-        // A full check would generate potential slots and filter by a pre-fetched busy time range.
-        // For performance, we're keeping this light. The detailed check happens when a date is selected.
-        return dateToCheck;
-      }
-      return null;
+      return (scheduleForDay && scheduleForDay.length > 0) ? dateToCheck : null;
     });
 
     Promise.all(checkDatePromises).then(results => {
       const validDates = results.filter(date => date !== null) as Date[];
       setAvailableDates(validDates);
-      console.log("[DEBUG][RESCHEDULE_AVAILABLE_DATES] Found", validDates.length, "potentially available dates in window.");
-      // Only set loading to false if this is the primary loading indicator. 
-      // If slot generation is also happening, it will control the final loading state.
-      // If selectedDate is null, this might be the main loading task.
-      if (!selectedDate) {
-         setLoading(false);
+      console.log("[DEBUG][RESCHEDULE_AVAILABLE_DATES] Found", validDates.length, "potentially available dates.");
+      // This effect primarily populates availableDates for the DatePicker.
+      // The overall 'loading' state seen by the page should be false if we are done with initial coach load and slot generation.
+      // If no date is selected, and coach schedule is loaded, then we can say general loading is done.
+      if (!selectedDate && coachSchedule) {
+          setLoading(false);
       }
     }).catch(err => {
       console.error("[DEBUG][RESCHEDULE_AVAILABLE_DATES] Error checking dates", err);
       setAvailableDates([]);
-      if (!selectedDate) {
-         setLoading(false);
+       if (!selectedDate && coachSchedule) { // If it fails but we have schedule, stop general loading.
+          setLoading(false);
       }
     });
 
-  }, [coachId, coachSchedule]); // Runs when coach or their schedule changes
+  }, [coachId, coachSchedule]); // Removed 'error' as it could cause loops if error is from this effect itself
 
   // Function to determine if a date should be disabled
   const isDateDisabled = (date: Date): boolean => {
-    // Check if date is in the past
-    if (date < new Date()) return true
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Compare dates only
+    if (date < today) return true;
     
-    // Check if date is too far in the future (more than 3 months)
-    const threeMonthsFromNow = new Date()
-    threeMonthsFromNow.setMonth(threeMonthsFromNow.getMonth() + 3)
-    if (date > threeMonthsFromNow) return true
+    const maxBookingDate = getMaxBookingDate();
+    if (date > maxBookingDate) return true;
     
-    // Check if date is in availableDates
-    return !availableDates.some(d => d.toDateString() === date.toDateString())
-  }
+    return !availableDates.some(d => d.toDateString() === date.toDateString());
+  };
   
   // Format time helper function
   const formatTime = (date: Date | string) => {

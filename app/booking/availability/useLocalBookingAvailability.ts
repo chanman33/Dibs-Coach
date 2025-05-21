@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { format, addDays, parseISO } from "date-fns";
 import { toast } from "@/components/ui/use-toast";
 import { createAuthClient } from "@/utils/auth";
-import { createBooking } from "@/utils/actions/booking-actions";
+import { createBooking } from "@/utils/actions/cal/booking-actions";
 import { TimeSlot, TimeSlotGroup, LoadingState } from "@/utils/types/booking";
 import {
   dayMapping,

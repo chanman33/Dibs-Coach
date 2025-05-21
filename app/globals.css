@@ -296,3 +296,87 @@
   visibility: visible !important;
   pointer-events: auto !important; /* Override pointer-events: none */
 }
+
+/* Date Picker Dark Mode Improvements */
+.react-datepicker {
+  background-color: hsl(var(--card)) !important; 
+  border-color: hsl(var(--border)) !important;
+  
+  /* Calendar Header */
+  .react-datepicker__header.react-datepicker__header--custom {
+    background-color: hsl(var(--card)) !important;
+    border-bottom-color: hsl(var(--border)) !important;
+    
+    /* Month/Year Display */
+    .text-sm.font-medium {
+      color: hsl(var(--foreground)) !important;
+    }
+    
+    /* Navigation Buttons */
+    div.flex button {
+      color: hsl(var(--foreground)) !important;
+      background-color: hsl(var(--secondary)) !important;
+      border-color: hsl(var(--border)) !important;
+      
+      &:hover {
+        background-color: hsl(var(--accent)) !important;
+      }
+      
+      /* Icons */
+      svg {
+        color: hsl(var(--foreground)) !important;
+      }
+    }
+  }
+  
+  /* Day Names (Su, Mo, Tu, etc) */
+  .react-datepicker__day-names {
+    margin-top: 0.5rem;
+    
+    .react-datepicker__day-name {
+      color: hsl(var(--muted-foreground)) !important;
+      font-weight: 500;
+    }
+  }
+  
+  /* Calendar Days */
+  .react-datepicker__month {
+    background-color: hsl(var(--card)) !important;
+    
+    .react-datepicker__day {
+      color: hsl(var(--foreground)) !important;
+      
+      &:hover {
+        background-color: hsl(var(--accent)) !important;
+      }
+      
+      /* Today */
+      &.react-datepicker__day--today {
+        font-weight: 600;
+        color: hsl(var(--primary)) !important;
+      }
+      
+      /* Selected day */
+      &.react-datepicker__day--selected {
+        background-color: hsl(var(--primary)) !important;
+        color: hsl(var(--primary-foreground)) !important;
+      }
+      
+      /* Disabled days */
+      &.react-datepicker__day--disabled {
+        color: hsl(var(--muted-foreground) / 0.4) !important;
+      }
+    }
+  }
+  
+  /* Custom day states */
+  .date-bookable:not(.react-datepicker__day--selected):not(.react-datepicker__day--disabled) {
+    background-color: hsl(142.1 76.2% 36.3% / 0.15) !important;
+    font-weight: 500;
+  }
+  
+  .date-selected {
+    background-color: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+  }
+}

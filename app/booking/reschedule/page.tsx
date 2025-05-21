@@ -12,7 +12,7 @@ import { ErrorState } from '../availability/ErrorState'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, Calendar, Clock } from 'lucide-react'
-import { rescheduleSession } from '@/utils/actions/rescheduleActions'
+import { rescheduleSession } from '@/utils/actions/cal/rescheduleActions'
 import { TimeSlot, TimeSlotGroup } from '@/utils/types/booking'
 import { getUserTimezone } from '@/utils/timezone-utils'
 import { useReschedule } from './use-reschedule'
@@ -273,7 +273,7 @@ export default function ReschedulePage() {
 
   const coachProfileImage = session?.coach?.profileImageUrl || null;
   
-  if (loading || loadingAvailability) {
+  if (loading) {
     return <LoadingState message="Loading session details..." />;
   }
   
@@ -334,7 +334,13 @@ export default function ReschedulePage() {
             <CardContent>
               {!selectedDate ? (
                 <div className="text-center p-6 text-muted-foreground">
-                  Select a date to see available times
+                  Select a date to see available times <br />
+                  👈
+                </div>
+              ) : loadingAvailability ? (
+                <div className="text-center p-6 text-muted-foreground">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin mb-2" />
+                  Loading available times...
                 </div>
               ) : timeSlotGroups.length === 0 ? (
                 <div className="text-center p-6 text-muted-foreground">
