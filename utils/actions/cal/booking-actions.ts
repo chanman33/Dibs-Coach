@@ -125,13 +125,17 @@ export const createBooking = withServerAction<BookingResult, CreateBookingParams
       }
       
       // Make API request to our internal endpoint
-      const bookingData = validationResult.data;
+      const bookingDataForApi = {
+        ...validationResult.data,
+        coachUlid: coachId
+      };
+
       const response = await fetch(`${process.env.FRONTEND_URL || 'https://dibs.vercel.app'}/api/cal/booking/create-a-booking`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(bookingData)
+        body: JSON.stringify(bookingDataForApi)
       });
       
       if (!response.ok) {

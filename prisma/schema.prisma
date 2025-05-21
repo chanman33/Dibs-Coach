@@ -68,6 +68,7 @@ model User {
   sentTransactions         Transaction[]                  @relation("TransactionPayer")
   calendarIntegration      CalendarIntegration?
   calBookings              CalBooking[]
+  coachedCalBookings       CalBooking[]                   @relation("CalBookingCoach")
   seatLicenses             SeatLicense[]                  @relation("licensedUser")
   assignedLicenses         SeatLicense[]                  @relation("licenseAssigner")
   budgetAllocations        BudgetAllocation[]
@@ -1656,6 +1657,7 @@ enum CalBookingStatus {
 model CalBooking {
   ulid               String    @id @db.Char(26)
   userUlid           String    @db.Char(26)
+  coachUserUlid      String?   @db.Char(26)
   calBookingUid      String    @unique
   calBookingId       Int?      // ID from Cal.com API
   title              String
@@ -1697,9 +1699,11 @@ model CalBooking {
   createdAt          DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt          DateTime  @updatedAt @db.Timestamptz(6)
   user               User      @relation(fields: [userUlid], references: [ulid], onDelete: Cascade)
+  coach              User?     @relation("CalBookingCoach", fields: [coachUserUlid], references: [ulid], onDelete: SetNull)
   session            Session?   @relation("SessionCalBooking")
 
   @@index([userUlid])
+  @@index([coachUserUlid])
   @@index([status])
   @@index([startTime])
   @@index([calBookingId])

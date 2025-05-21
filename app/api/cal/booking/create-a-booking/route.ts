@@ -245,24 +245,33 @@ export async function POST(request: Request) {
       const bookingInsertData = {
         ulid: bookingUlid,
         userUlid: userUlid,
-        // Use a different field name for the Cal booking UID to match schema expectations
+        coachUserUlid: coachUlid,
         calBookingUid: calBooking.uid,
         title: calBooking.title || 'Coaching Session',
-        description: calBooking.description || '',
-        startTime: bookingData.startTime,
-        endTime: bookingData.endTime,
-        attendeeEmail: bookingData.attendeeEmail,
-        attendeeName: bookingData.attendeeName,
-        allAttendees: bookingData.attendeeEmail, // Single attendee for now
-        status: 'CONFIRMED' as const, // Use literal type to match enum
+        description: bookingData.notes || calBooking.description || 'N/A',
+        startTime: calBooking.startTime,
+        endTime: calBooking.endTime,
+        attendeeEmail: calBooking.attendees && calBooking.attendees.length > 0 ? calBooking.attendees[0].email : bookingData.attendeeEmail,
+        attendeeName: calBooking.attendees && calBooking.attendees.length > 0 ? calBooking.attendees[0].name : bookingData.attendeeName,
+        status: calBooking.status?.toUpperCase() || 'CONFIRMED',
+        duration: calBooking.duration,
+        eventTypeId: calBooking.eventTypeId,
+        eventTypeSlug: calBooking.eventTypeSlug,
+        meetingUrl: calBooking.meetingUrl,
+        location: calBooking.location,
+        icsUid: calBooking.icsUid,
+        calHostId: calBooking.organizer?.id,
+        hostName: calBooking.organizer?.name,
+        hostEmail: calBooking.organizer?.email,
+        hostUsername: calBooking.organizer?.username,
+        hosts: calBooking.hosts ? JSON.stringify(calBooking.hosts) : null,
         metadata: {
-          calEventTypeId: calEventTypeId,
-          notes: bookingData.notes,
-          customInputs: bookingData.customInputs,
-          coachUlid
+          ...(calBooking.metadata || {}),
+          dibsUserUlid: userUlid,
+          dibsSessionTopic: bookingData.notes
         },
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
       };
       
       // Log the exact data being inserted

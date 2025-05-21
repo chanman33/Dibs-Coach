@@ -304,6 +304,7 @@ export type Database = {
           calBookingId: number | null
           calBookingUid: string
           calHostId: number | null
+          coachUserUlid: string | null
           createdAt: string
           description: string | null
           duration: number | null
@@ -339,6 +340,7 @@ export type Database = {
           calBookingId?: number | null
           calBookingUid: string
           calHostId?: number | null
+          coachUserUlid?: string | null
           createdAt?: string
           description?: string | null
           duration?: number | null
@@ -374,6 +376,7 @@ export type Database = {
           calBookingId?: number | null
           calBookingUid?: string
           calHostId?: number | null
+          coachUserUlid?: string | null
           createdAt?: string
           description?: string | null
           duration?: number | null
@@ -399,6 +402,13 @@ export type Database = {
           userUlid?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "CalBooking_coachUserUlid_fkey"
+            columns: ["coachUserUlid"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["ulid"]
+          },
           {
             foreignKeyName: "CalBooking_userUlid_fkey"
             columns: ["userUlid"]
