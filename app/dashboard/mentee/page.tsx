@@ -14,6 +14,7 @@ import { SessionStatus, type TransformedSession } from "@/utils/types/session"
 import { toast } from "sonner"
 import type { ClientGoal, GoalType } from "@/utils/types/goals"
 import { format, isAfter } from "date-fns"
+import { MenteeSessionDetailsModal } from './_components/MenteeSessionDetailsModal'
 
 // Helper function to map goal types to coach focus areas
 const getCoachFocusForGoal = (goalType?: GoalType): string => {
@@ -81,6 +82,8 @@ function MenteeDashboard() {
   const [upcomingSessions, setUpcomingSessions] = useState<TransformedSession[]>([])
   const [isLoadingGoal, setIsLoadingGoal] = useState(true)
   const [isLoadingSession, setIsLoadingSession] = useState(true)
+  const [selectedSession, setSelectedSession] = useState<TransformedSession | null>(null)
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false)
 
   const currentGoal = goals[currentGoalIndex]
 
@@ -122,8 +125,16 @@ function MenteeDashboard() {
       accentColor = "bg-slate-500";
     }
     
+    const handleSessionClick = () => {
+      setSelectedSession(session);
+      setIsSessionModalOpen(true);
+    };
+    
     return (
-      <div className="group relative border rounded-lg p-4 hover:shadow-md transition-all duration-200 hover:border-primary/50 hover:bg-muted/20">
+      <div 
+        className="group relative border rounded-lg p-4 hover:shadow-md transition-all duration-200 hover:border-primary/50 hover:bg-muted/20 cursor-pointer"
+        onClick={handleSessionClick}
+      >
         <div className="absolute top-0 left-0 w-1 h-full rounded-l-lg transition-all duration-200 group-hover:h-full" 
              style={{ backgroundColor: accentColor.replace('bg-', '') }}></div>
         
@@ -173,7 +184,13 @@ function MenteeDashboard() {
             </Badge>
             
             {session.zoomJoinUrl && daysUntil <= 0 && (
-              <Button asChild size="sm" variant="outline" className="text-xs h-8 px-3">
+              <Button 
+                asChild 
+                size="sm" 
+                variant="outline" 
+                className="text-xs h-8 px-3"
+                onClick={(e) => e.stopPropagation()} // Prevent modal from opening
+              >
                 <Link href={session.zoomJoinUrl} target="_blank" rel="noopener noreferrer">
                   Join Call
                 </Link>
@@ -866,6 +883,12 @@ function MenteeDashboard() {
         </Card>
       </div>
 
+      {/* Session Details Modal */}
+      <MenteeSessionDetailsModal 
+        session={selectedSession}
+        isOpen={isSessionModalOpen}
+        onClose={() => setIsSessionModalOpen(false)}
+      />
     </div>
   )
 }
