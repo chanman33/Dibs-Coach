@@ -1,10 +1,12 @@
 'use server'
 
 import { z } from 'zod'
-import { createCalClient } from '@/utils/cal'
 import { auth } from '@clerk/nextjs'
 import { createServerAuthClient } from '@/utils/auth'
 import { generateUlid } from '@/utils/ulid'
+import { ensureValidCalToken } from '@/utils/actions/cal/cal-tokens'
+import { CalTokenService } from '@/lib/cal/cal-service' // For direct refresh and getting token from result
+// import { env } from '@/lib/env' // No longer directly needed here if not using client_id/secret headers
 
 // Schema for reschedule request validation
 const rescheduleSchema = z.object({
@@ -72,24 +74,11 @@ export async function rescheduleSession(input: RescheduleInput) {
       }
     }
     
-    // Get Cal.com integration to make API call
-    const { data: calIntegration, error: calIntegrationError } = await supabase
-      .from('CalendarIntegration')
-      .select('calAccessToken, calRefreshToken')
-      .eq('userUlid', sessionData.coachUlid)
-      .single()
-      
-    if (calIntegrationError || !calIntegration) {
-      console.error('[RESCHEDULE_ERROR] Failed to get Cal integration:', calIntegrationError)
-      return { data: null, error: { code: 'CAL_INTEGRATION_ERROR', message: 'Could not find Cal.com integration' } }
-    }
-    
     // Fetch the actual Cal.com Booking UID from our CalBooking table
-    // validatedInput.calBookingUid currently holds the ULID of our CalBooking record (Session.calBookingUlid)
     const { data: calBookingData, error: calBookingFetchError } = await supabase
       .from('CalBooking')
-      .select('calBookingUid') // This is the UID Cal.com expects
-      .eq('ulid', validatedInput.calBookingUid) // Match using our internal ULID
+      .select('calBookingUid') 
+      .eq('ulid', validatedInput.calBookingUid) 
       .single()
 
     if (calBookingFetchError || !calBookingData || !calBookingData.calBookingUid) {
@@ -99,39 +88,185 @@ export async function rescheduleSession(input: RescheduleInput) {
     
     const actualCalComBookingUid = calBookingData.calBookingUid;
     
-    // Create Cal client 
-    const calClient = createCalClient(calIntegration.calAccessToken)
+    // Get a valid Cal.com access token using the token management system
+    let tokenResult = await ensureValidCalToken(sessionData.coachUlid);
     
-    // Call Cal.com API to reschedule
-    // According to docs, endpoint is POST /v2/bookings/{bookingUid}/reschedule
-    const response = await fetch(`https://api.cal.com/v2/bookings/${actualCalComBookingUid}/reschedule`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'cal-api-version': '2024-08-13',
-        'Authorization': `Bearer ${calIntegration.calAccessToken}`
-      },
-      body: JSON.stringify({
-        start: new Date(newStartTime).toISOString(),
-        rescheduledBy: userData.email,
-        reschedulingReason: reschedulingReason || 'User requested reschedule',
-      })
-    })
+    if (!tokenResult.success || !tokenResult.accessToken) {
+      console.error('[RESCHEDULE_ERROR] Initial attempt to get valid Cal.com token failed:', tokenResult.error);
+      return { 
+        data: null, 
+        error: { 
+          code: 'CAL_TOKEN_ERROR', 
+          message: `Failed to authenticate with Cal.com: ${tokenResult.error || 'No access token found'}` 
+        } 
+      };
+    }
     
-    const calResponse = await response.json()
-    
-    if (!response.ok || calResponse.status !== 'success') {
-      console.error('[RESCHEDULE_ERROR] Cal.com reschedule failed:', calResponse)
+    let currentAccessToken = tokenResult.accessToken;
+
+    // Function to make the API call
+    const makeRescheduleRequest = async (token: string) => {
+      console.log('[RESCHEDULE_INFO] Attempting Cal.com reschedule for booking UID:', actualCalComBookingUid);
+      return fetch(`https://api.cal.com/v2/bookings/${actualCalComBookingUid}/reschedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'cal-api-version': '2024-08-13',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          start: new Date(newStartTime).toISOString(),
+          rescheduledBy: userData.email, // This remains a point of investigation
+          reschedulingReason: reschedulingReason || 'User requested reschedule',
+        })
+      });
+    };
+
+    // Initial API Call
+    let response = await makeRescheduleRequest(currentAccessToken);
+    let calResponse;
+    let rawResponseText = '';
+
+    try {
+      // Try to get raw text first if not ok, for better logging
+      if (!response.ok) {
+        rawResponseText = await response.text(); // Get raw text for logging
+        // Attempt to parse it as JSON anyway, as Cal.com might send structured errors
+        try {
+          calResponse = JSON.parse(rawResponseText);
+        } catch (jsonParseError) {
+          // If JSON parsing fails, calResponse remains undefined, rawResponseText is logged
+          console.warn('[RESCHEDULE_WARN] Failed to parse non-ok Cal.com response as JSON. Raw text will be primary error source.', jsonParseError);
+        }
+      } else {
+        // If response.ok, parse as JSON directly
+        calResponse = await response.json();
+      }
+    } catch (e) {
+      // This catch is for network errors or if response.json()/response.text() itself throws unexpectedly
+      console.error('[RESCHEDULE_ERROR] Error processing Cal.com response:', e);
+      // Try to get response.text() if not already fetched and response object exists
+      if (!rawResponseText && response && typeof response.text === 'function') {
+        try {
+            rawResponseText = await response.text();
+        } catch (textError) {
+            console.error('[RESCHEDULE_ERROR] Could not get raw text from errored response either.', textError);
+        }
+      }
       return { 
         data: null, 
         error: { 
           code: 'CAL_API_ERROR', 
-          message: calResponse.error?.message || 'Failed to reschedule in Cal.com' 
+          message: `Error processing Cal.com response (status: ${response?.status}). Raw: ${rawResponseText || 'N/A'}`
         } 
+      };
+    }
+    
+    // Handle token expiration or auth errors (401 for unauthorized, 498 for token expired by Cal.com)
+    if (response.status === 401 || response.status === 498) {
+      console.warn(`[RESCHEDULE_INFO] Cal.com API reported token error (${response.status}). Attempting refresh. Raw Response: ${rawResponseText}. Parsed Response:`, calResponse);
+      
+      const refreshApiResult = await CalTokenService.refreshTokens(sessionData.coachUlid, true);
+      
+      if (!refreshApiResult.success || !refreshApiResult.tokens?.access_token) {
+        console.error('[RESCHEDULE_ERROR] Failed to refresh Cal.com token after API error:', refreshApiResult.error);
+        return { 
+          data: null, 
+          error: { 
+            code: 'CAL_TOKEN_REFRESH_ERROR', 
+            message: `Failed to refresh Cal.com token: ${refreshApiResult.error || 'No new token received'}` 
+          } 
+        };
       }
+      
+      currentAccessToken = refreshApiResult.tokens.access_token;
+      console.log('[RESCHEDULE_INFO] Token refreshed successfully. Retrying API call with new token.');
+
+      // Retry API call with the new token from refreshResult
+      response = await makeRescheduleRequest(currentAccessToken);
+      rawResponseText = ''; // Reset for retry
+      try {
+        if (!response.ok) {
+            rawResponseText = await response.text();
+            try {
+                calResponse = JSON.parse(rawResponseText);
+            } catch (jsonParseError) {
+                console.warn('[RESCHEDULE_WARN] Failed to parse non-ok Cal.com retry response as JSON.', jsonParseError);
+            }
+        } else {
+            calResponse = await response.json();
+        }
+      } catch (e) {
+        console.error('[RESCHEDULE_ERROR] Error processing Cal.com retry response:', e);
+        if (!rawResponseText && response && typeof response.text === 'function') {
+            try { rawResponseText = await response.text(); } catch (textError) { /* best effort */ }
+        }
+        return { 
+          data: null, 
+          error: { 
+            code: 'CAL_API_RETRY_ERROR', 
+            message: `Error processing Cal.com retry response (status: ${response?.status}). Raw: ${rawResponseText || 'N/A'}`
+          } 
+        };
+      }
+      
+      if (!response.ok) {
+        console.error('[RESCHEDULE_ERROR] Cal.com reschedule retry failed:', { status: response.status, rawResponse: rawResponseText, parsedResponse: calResponse });
+        return { 
+          data: null, 
+          error: { 
+            code: 'CAL_API_RETRY_ERROR', 
+            message: calResponse?.error?.message || calResponse?.message || `Failed to reschedule in Cal.com after token refresh (status: ${response.status}). Raw: ${rawResponseText}` 
+          } 
+        };
+      }
+    } else if (!response.ok) {
+      // Handle other non-401/498 errors from the initial call
+      console.error('[RESCHEDULE_ERROR] Cal.com reschedule failed (initial attempt):', { status: response.status, rawResponse: rawResponseText, parsedResponse: calResponse });
+      return { 
+        data: null, 
+        error: { 
+          code: 'CAL_API_ERROR', 
+          message: calResponse?.error?.message || calResponse?.message || `Failed to reschedule in Cal.com (status: ${response.status}). Raw: ${rawResponseText}` 
+        } 
+      };
+    }
+    
+    // After initial call or successful retry, check final Cal.com status in parsed response
+    // Ensure calResponse is defined and has a status property
+    if (!calResponse || typeof calResponse.status === 'undefined') {
+      console.error('[RESCHEDULE_ERROR] Cal.com response is undefined or missing status after processing. Initial response status:', response.status, 'Raw data:', rawResponseText, 'Parsed data:', calResponse);
+      return { 
+        data: null, 
+        error: { 
+          code: 'CAL_INVALID_RESPONSE_STRUCTURE', 
+          message: 'Cal.com returned an unprocessable response structure.'
+        } 
+      };
+    }
+
+    if (calResponse.status !== 'success') {
+      console.error('[RESCHEDULE_ERROR] Cal.com returned non-success status after processing:', {calApiResponse: calResponse, rawInitialResponse: rawResponseText });
+      return { 
+        data: null, 
+        error: { 
+          code: 'CAL_OPERATION_ERROR', 
+          message: calResponse.error?.message || calResponse.message || `Cal.com operation was not successful. Raw: ${rawResponseText}` 
+        } 
+      };
     }
     
     const calData = calResponse.data;
+    if (!calData || !calData.start || !calData.end) {
+        console.error('[RESCHEDULE_ERROR] Cal.com response data is missing required fields (start, end):', {calApiResponse: calResponse, rawInitialResponse: rawResponseText });
+        return { 
+            data: null, 
+            error: { 
+                code: 'CAL_INVALID_RESPONSE', 
+                message: 'Cal.com returned an invalid response after reschedule.'
+            }
+        };
+    }
     const confirmedStartTime = calData.start;
     const confirmedEndTime = calData.end;
     
@@ -143,13 +278,13 @@ export async function rescheduleSession(input: RescheduleInput) {
       .update({
         startTime: confirmedStartTime,
         endTime: confirmedEndTime,
-        status: calData.status === 'accepted' ? 'CONFIRMED' : calData.status?.toUpperCase() || 'CONFIRMED',
+        status: calData.status === 'accepted' ? 'CONFIRMED' : calData.status?.toUpperCase() || 'CONFIRMED', // calResponse.status here is from the booking object, not the API wrapper
         title: calData.title,
         description: calData.description,
         meetingUrl: calData.meetingUrl,
         location: calData.location,
         calBookingId: calData.id,
-        calBookingUid: calData.uid, // Ensure this is also updated if it can change, though typically it's the identifier.
+        calBookingUid: calData.uid, 
         hosts: calData.hosts,
         duration: calData.duration,
         eventTypeId: calData.eventTypeId,
@@ -164,7 +299,7 @@ export async function rescheduleSession(input: RescheduleInput) {
         bookingFieldsResponses: calData.bookingFieldsResponses,
         updatedAt: calData.updatedAt || new Date().toISOString(),
       })
-      .eq('ulid', validatedInput.calBookingUid) // Match by our internal ULID
+      .eq('ulid', validatedInput.calBookingUid) 
     
     if (updateCalError) {
       console.error('[RESCHEDULE_ERROR] Failed to update CalBooking:', updateCalError)
@@ -177,8 +312,8 @@ export async function rescheduleSession(input: RescheduleInput) {
       timestamp: new Date().toISOString(),
       oldStartTime: sessionData.startTime,
       oldEndTime: sessionData.endTime,
-      newStartTime: confirmedStartTime, // Use confirmed time
-      newEndTime: confirmedEndTime,     // Use confirmed time
+      newStartTime: confirmedStartTime, 
+      newEndTime: confirmedEndTime,     
       rescheduledBy: userData.email,
       reason: reschedulingReason || 'User requested reschedule'
     }
@@ -194,15 +329,12 @@ export async function rescheduleSession(input: RescheduleInput) {
     let originalSessionUlid = sessionUlid
     
     if (!existingSessionError && existingSession) {
-      // If there's existing history, append to it
       if (existingSession.reschedulingHistory) {
         const existingHistory = Array.isArray(existingSession.reschedulingHistory) 
           ? existingSession.reschedulingHistory 
           : JSON.parse(existingSession.reschedulingHistory as string)
         reschedulingHistory = [...existingHistory, reschedulingHistoryEvent]
       }
-      
-      // If this session already has an original, use that instead
       if (existingSession.originalSessionUlid) {
         originalSessionUlid = existingSession.originalSessionUlid
       }
@@ -230,19 +362,19 @@ export async function rescheduleSession(input: RescheduleInput) {
         ulid: newSessionUlid,
         menteeUlid: sessionData.menteeUlid,
         coachUlid: sessionData.coachUlid,
-        startTime: confirmedStartTime, // Use confirmed time
-        endTime: confirmedEndTime,     // Use confirmed time
+        startTime: confirmedStartTime, 
+        endTime: confirmedEndTime,     
         status: 'SCHEDULED',
-        sessionType: 'MANAGED', // Default to managed type
+        sessionType: 'MANAGED', 
         originalSessionUlid: originalSessionUlid,
         rescheduledFromUlid: sessionUlid,
         reschedulingHistory: reschedulingHistory,
         reschedulingReason: reschedulingReason || 'User requested reschedule',
         rescheduledBy: userData.email,
-        calBookingUlid: validatedInput.calBookingUid, // Link to the same Cal booking which was updated
-        zoomJoinUrl: calData.meetingUrl, // Populate zoomJoinUrl from meetingUrl
+        calBookingUlid: validatedInput.calBookingUid, 
+        zoomJoinUrl: calData.meetingUrl, 
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(), // Or calData.updatedAt if that's more appropriate
+        updatedAt: new Date().toISOString(), 
       })
     
     if (insertError) {
@@ -253,14 +385,24 @@ export async function rescheduleSession(input: RescheduleInput) {
     return { 
       data: {
         sessionUlid: newSessionUlid,
-        startTime: confirmedStartTime, // Return confirmed time
-        endTime: confirmedEndTime,     // Return confirmed time
+        startTime: confirmedStartTime, 
+        endTime: confirmedEndTime,     
         coachUlid: sessionData.coachUlid
       }, 
       error: null 
     }
   } catch (error) {
-    console.error('[RESCHEDULE_ERROR]', error)
+    console.error('[RESCHEDULE_ERROR] Top-level error:', error)
+    if (error instanceof z.ZodError) {
+      return {
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Input validation failed',
+          details: error.flatten()
+        }
+      }
+    }
     return { 
       data: null, 
       error: { 
