@@ -257,8 +257,16 @@ export function ProfileCompletion({
 
             if (needsAvailability) {
               return (
-                <div className="text-xs text-red-500">
-                  You need to set up your availability schedule to accept bookings
+                <div className="flex items-center justify-between w-full text-xs">
+                  <span className="text-red-500 dark:text-red-400">
+                    You need to set up your availability schedule to accept bookings
+                  </span>
+                  <Link
+                    href="/dashboard/coach/integrations/calendar"
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 dark:text-blue-300 dark:hover:text-blue-200 ml-2"
+                  >
+                    Connect <ChevronRight className="h-3 w-3" />
+                  </Link>
                 </div>
               );
             }
@@ -269,13 +277,13 @@ export function ProfileCompletion({
           if (isComplete) {
             return (
               <div className="flex items-center gap-2 mt-2">
-                <div className="flex items-center gap-1.5 text-emerald-600 text-xs">
+                <div className="flex items-center gap-1.5 text-emerald-600 text-xs dark:text-emerald-400">
                   <CheckCircle className="h-3.5 w-3.5" />
                   <span>Ready to accept bookings</span>
                 </div>
                 <Link 
                   href="/dashboard/coach/settings#availability"
-                  className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline ml-auto"
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline ml-auto dark:text-blue-300 dark:hover:text-blue-200"
                 >
                   Manage Settings
                 </Link>
