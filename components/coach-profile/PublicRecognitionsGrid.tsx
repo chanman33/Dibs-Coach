@@ -60,7 +60,7 @@ function formatYear(date: Date | string): string {
 
 export function PublicRecognitionsGrid({ recognitions }: { recognitions: ProfessionalRecognition[] }) {
   return (
-    <Card className="border shadow-sm">
+    <Card className="shadow-sm">
       <CardHeader className="pb-2">
         <CardTitle>Professional Recognitions</CardTitle>
         <CardDescription>Certifications, awards, and other professional achievements</CardDescription>
@@ -202,7 +202,7 @@ export function PublicRecognitionsGrid({ recognitions }: { recognitions: Profess
               })}
             </div>
           ) : (
-            <div className="text-center py-16 border rounded-lg bg-muted/10">
+            <div className="text-center py-16 rounded-lg bg-muted/10">
               <Award className="h-16 w-16 mx-auto mb-4 opacity-20" />
               <p className="text-xl font-medium">No professional recognitions found</p>
               <p className="text-sm text-muted-foreground mt-2">
