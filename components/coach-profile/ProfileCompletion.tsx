@@ -89,14 +89,14 @@ export function ProfileCompletion({
     switch (profileStatus) {
       case PROFILE_STATUS.PUBLISHED:
         return (
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 text-green-700 text-sm font-medium">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 text-green-700 text-sm font-medium dark:bg-green-900/50 dark:text-green-300">
             <CheckCircle className="h-4 w-4" />
             <span>Published</span>
           </div>
         )
       case PROFILE_STATUS.DRAFT:
         return (
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-medium">
+          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-medium dark:bg-blue-900/50 dark:text-blue-300">
             <EyeOff className="h-4 w-4" />
             <span>Draft</span>
           </div>
@@ -366,27 +366,27 @@ export function ProfileCompletion({
               key={step.title} 
               className={`flex flex-col gap-2 p-3 rounded-lg transition-colors ${
                 isComplete
-                  ? 'bg-green-50/50' 
+                  ? 'bg-green-50/50 dark:bg-green-900/30 dark:hover:bg-green-900/40' 
                   : step.optional 
-                    ? 'bg-blue-50/50 hover:bg-blue-100/80'
+                    ? 'bg-blue-50/50 hover:bg-blue-100/80 dark:bg-blue-900/30 dark:hover:bg-blue-900/40'
                     : errorMessage
                       ? step.title === 'Scheduling'
-                        ? 'bg-red-50/50'
-                        : 'bg-red-50/50 hover:bg-red-100/80'
+                        ? 'bg-red-50/50 dark:bg-red-900/30'
+                        : 'bg-red-50/50 hover:bg-red-100/80 dark:bg-red-900/30 dark:hover:bg-red-900/40'
                       : step.title === 'Scheduling'
-                        ? 'bg-gray-50'
-                        : 'bg-gray-50 hover:bg-gray-100/80'
+                        ? 'bg-gray-50 dark:bg-gray-800/50'
+                        : 'bg-gray-50 hover:bg-gray-100/80 dark:bg-gray-800/50 dark:hover:bg-gray-800/70'
               }`}
             >
               <div className="flex items-start gap-3">
                 <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
                   isComplete
-                    ? 'bg-green-100 text-green-600' 
+                    ? 'bg-green-100 text-green-600 dark:bg-green-900/70 dark:text-green-300' 
                     : step.optional
-                      ? 'bg-blue-100 text-blue-600'
+                      ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/70 dark:text-blue-300'
                       : errorMessage
-                        ? 'bg-red-100 text-red-600'
-                        : 'bg-gray-200 text-gray-600'
+                        ? 'bg-red-100 text-red-600 dark:bg-red-900/70 dark:text-red-300'
+                        : 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
                 }`}>
                   {isComplete ? (
                     <CheckCircle className="h-4 w-4" />
@@ -400,25 +400,25 @@ export function ProfileCompletion({
                   <div className="flex items-center gap-2">
                     <p className={`text-sm font-medium ${
                       isComplete
-                        ? 'text-green-700' 
+                        ? 'text-green-700 dark:text-green-300' 
                         : step.optional
-                          ? 'text-blue-700'
+                          ? 'text-blue-700 dark:text-blue-300'
                           : errorMessage
-                            ? 'text-red-700'
-                            : 'text-gray-700'
+                            ? 'text-red-700 dark:text-red-300'
+                            : 'text-gray-700 dark:text-gray-300'
                     }`}>
                       {step.title}
                     </p>
                     {step.optional && (
-                      <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                      <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded dark:text-blue-300 dark:bg-blue-900/50">
                         Optional
                       </span>
                     )}
                   </div>
                   <p className={`text-xs mt-0.5 ${
                     errorMessage 
-                      ? 'text-red-500'
-                      : 'text-gray-500'
+                      ? 'text-red-500 dark:text-red-400'
+                      : 'text-gray-500 dark:text-gray-400'
                   }`}>
                     {typeof errorMessage === 'string' ? errorMessage : step.description}
                   </p>
@@ -431,7 +431,7 @@ export function ProfileCompletion({
                     className={`shrink-0 ${step.title !== 'Scheduling' ? 'pointer-events-none' : ''}`}
                   >
                     <ChevronRight className={`h-4 w-4 ${
-                      errorMessage ? 'text-red-400' : 'text-gray-400'
+                      errorMessage ? 'text-red-400 dark:text-red-300' : 'text-gray-400 dark:text-gray-500'
                     }`} />
                   </Link>
                 )}
