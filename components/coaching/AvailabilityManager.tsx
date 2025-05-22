@@ -370,11 +370,27 @@ export function AvailabilityManager({
           </div>
 
           <div className="pt-4 border-t">
-            <div className="flex items-start gap-2">
-              <Info className="h-4 w-4 mt-1 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">
-                Changes to your availability will not affect existing bookings. New bookings will follow the updated schedule.
-              </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 mt-1 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">
+                  Changes to your availability will not affect existing bookings. New bookings will follow the updated schedule.
+                </p>
+              </div>
+              <Button 
+                onClick={handleSave} 
+                disabled={isLoading || disabled}
+                className="min-w-[100px]"
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Saving...</span>
+                  </div>
+                ) : (
+                  'Save Schedule'
+                )}
+              </Button>
             </div>
           </div>
         </div>

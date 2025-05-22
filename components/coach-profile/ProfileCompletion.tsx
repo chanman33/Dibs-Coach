@@ -282,7 +282,7 @@ export function ProfileCompletion({
                   <span>Ready to accept bookings</span>
                 </div>
                 <Link 
-                  href="/dashboard/coach/settings#availability"
+                  href="/dashboard/coach/integrations/calendar"
                   className="text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline ml-auto dark:text-blue-300 dark:hover:text-blue-200"
                 >
                   Manage Settings
