@@ -20,6 +20,7 @@ import { getAuthenticatedUserUlid } from '@/utils/auth/cal-auth-helpers' // Re-a
 import { fetchUserCapabilities, type UserCapabilitiesResponse } from "@/utils/actions/user-profile-actions" // Re-added for capability check
 import { USER_CAPABILITIES } from "@/utils/roles/roles" // Re-added for capability check
 import { type ApiResponse } from "@/utils/types/api" // Re-added for capability check
+import { FullPageLoading } from '@/components/loading/full-page' // Added for full page loading
 
 // Function to check if user has connected a third-party calendar (Moved from settings page)
 function useCalendarsConnected() {
@@ -351,7 +352,12 @@ export default function CalendarIntegrationPage() {
   const router = useRouter();
   const { user } = useUser();
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState(false); // State for generic loading (e.g., enabling scheduling)
+  const [loading, setLoading] = useState(false); // State for generic loading
+  
+  // State for automatic managed user creation
+  const [isCreatingManagedUser, setIsCreatingManagedUser] = useState(false);
+  const [initialSetupComplete, setInitialSetupComplete] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
 
   // State for user capabilities check
   const [userCapabilities, setUserCapabilities] = useState<string[]>([])
@@ -371,6 +377,63 @@ export default function CalendarIntegrationPage() {
 
   // Check if user has met all requirements to manage availability
   const canManageAvailability = isConnected && hasConnectedCalendar;
+
+  // Function to automatically create managed user
+  const createManagedUser = async () => {
+    if (!user?.emailAddresses?.[0]?.emailAddress) {
+      setSetupError("Email is required to enable scheduling");
+      setInitialSetupComplete(true);
+      return;
+    }
+
+    try {
+      setIsCreatingManagedUser(true);
+      
+      console.log('[CALENDAR_INTEGRATION_DEBUG] Automatically creating managed user for:', {
+        email: user.emailAddresses[0].emailAddress,
+        name: user.fullName || 'Coach',
+        timestamp: new Date().toISOString()
+      });
+      
+      const response = await fetch('/api/cal/users/create-managed-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: user.emailAddresses[0].emailAddress,
+          name: user.fullName || 'Coach',
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || data.error) {
+        throw new Error(data.error || `HTTP error ${response.status}: Failed to create Cal.com user`);
+      }
+      
+      // Success - refresh the Cal integration status
+      await refreshCalStatus();
+      
+      // Set up complete
+      setInitialSetupComplete(true);
+      
+      // Show success message
+      toast.success('Scheduling enabled successfully!');
+      
+    } catch (error) {
+      console.error('[CALENDAR_INTEGRATION_DEBUG] Error creating managed user:', {
+        error: error instanceof Error ? error.message : error,
+        timestamp: new Date().toISOString()
+      });
+      
+      setSetupError(error instanceof Error ? error.message : 'Failed to enable scheduling');
+      setInitialSetupComplete(true);
+    } finally {
+      setIsCreatingManagedUser(false);
+    }
+  };
 
   // Check URL parameters for success/error messages from redirects
   useEffect(() => {
@@ -418,6 +481,27 @@ export default function CalendarIntegrationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, router]); // Dependencies: searchParams and router
 
+  // Automatic managed user creation when component mounts
+  useEffect(() => {
+    // Only run this when capabilities and cal status are loaded
+    if (!loadingCapabilities && !isCalStatusLoading && hasCoachCapability && !isConnected && !initialSetupComplete && !isCreatingManagedUser) {
+      console.log('[CALENDAR_INTEGRATION_DEBUG] Capability loaded, cal not connected - initiating automatic managed user creation');
+      createManagedUser();
+    }
+    
+    // If cal is already connected, mark setup as complete
+    if (!isCalStatusLoading && isConnected && !initialSetupComplete) {
+      console.log('[CALENDAR_INTEGRATION_DEBUG] Cal already connected - skipping automatic setup');
+      setInitialSetupComplete(true);
+    }
+  }, [
+    loadingCapabilities, 
+    isCalStatusLoading, 
+    hasCoachCapability, 
+    isConnected, 
+    initialSetupComplete, 
+    isCreatingManagedUser
+  ]);
 
    // Function to handle calendar connection (Moved from settings page)
   const handleCalendarConnect = async (calendarType: 'google' | 'office365') => {
@@ -590,19 +674,21 @@ export default function CalendarIntegrationPage() {
     loadUserCapabilities();
   }, [user?.id]); // Rerun when user ID changes
 
-
-  // Loading state or unauthorized access handling
+  // Loading states - show appropriate full page loaders
   if (loadingCapabilities) {
-    return (
-       <div className="container mx-auto py-10 flex items-center justify-center">
-          <div className="text-center">
-             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-             <p>Loading integrations...</p>
-          </div>
-       </div>
-    );
+    return <FullPageLoading message="Loading your profile information..." showLogo={true} />;
   }
 
+  if (isCreatingManagedUser) {
+    return <FullPageLoading message="Setting up your booking capabilities on Dibs..." showLogo={true} />;
+  }
+
+  // Initial loading (determining if we need to create managed user)
+  if (!initialSetupComplete && hasCoachCapability) {
+    return <FullPageLoading message="Checking your calendar integration status..." showLogo={true} />;
+  }
+
+  // Unauthorized access handling
   if (!hasCoachCapability) {
      return (
          <div className="container mx-auto py-10">
@@ -615,6 +701,29 @@ export default function CalendarIntegrationPage() {
              </Alert>
          </div>
      );
+  }
+
+  // Show setup error if automatic setup failed
+  if (setupError) {
+    return (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Setup Error</AlertTitle>
+          <AlertDescription>
+            {setupError}
+            <div className="mt-4">
+              <Button onClick={() => {
+                setSetupError(null);
+                createManagedUser();
+              }}>
+                Try Again
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
   }
 
   // Main component render
@@ -637,83 +746,17 @@ export default function CalendarIntegrationPage() {
               <div className="flex-1">
                 <h2 className="text-2xl font-semibold tracking-tight">Dibs Scheduling</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Enable online booking for your coaching sessions
+                  {isConnected 
+                    ? "Your scheduling is enabled. Connect your calendar to manage availability."
+                    : "Enable online booking for your coaching sessions"}
                 </p>
-              </div>
-              <div>
-                {!isConnected && !isCalStatusLoading && (
-                  <Button
-                    variant="default"
-                    onClick={() => {
-                      if (!user?.emailAddresses?.[0]?.emailAddress) {
-                        toast.error("Email is required to enable scheduling");
-                        return;
-                      }
-
-                      setLoading(true);
-                      fetch('/api/cal/users/create-managed-user', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                          email: user.emailAddresses[0].emailAddress,
-                          name: user.fullName || 'Coach',
-                          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone
-                        })
-                      })
-                        .then(async (response) => { // Make async to handle potential JSON error
-                            if (!response.ok) {
-                                let errorData;
-                                try {
-                                    errorData = await response.json();
-                                } catch (e) {
-                                    // Handle cases where the response isn't valid JSON
-                                    throw new Error(`HTTP error ${response.status}: Failed to create Cal.com user`);
-                                }
-                                throw new Error(errorData.error || 'Failed to create Cal.com user');
-                            }
-                            return response.json();
-                        })
-                        .then(data => {
-                          if (data.error) {
-                            throw new Error(data.error);
-                          }
-                          // Refresh the Cal integration status AFTER success
-                          refreshCalStatus();
-                          // Navigate to the success route on THIS page
-                          router.push('/dashboard/coach/integrations/calendar?success=true&t=' + Date.now());
-                        })
-                        .catch(error => {
-                          console.error('Scheduling integration error:', error);
-                          // Navigate to the error route on THIS page
-                          router.push('/dashboard/coach/integrations/calendar?error=' + encodeURIComponent(error.message || 'true') + '&t=' + Date.now());
-                        })
-                        .finally(() => {
-                          setLoading(false);
-                        });
-                    }}
-                    disabled={loading}
-                  >
-                    {loading ? <LoadingSpinner size="sm" /> : 'Enable Scheduling'}
-                  </Button>
-                )}
-
-                {isCalStatusLoading && (
-                  <Button variant="outline" disabled>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Checking status...
-                  </Button>
-                )}
               </div>
             </div>
 
-             {/* Moved Success/Error Alerts are handled by the useEffect hook watching searchParams */}
-
             {isConnected && (
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+              <div className="bg-blue-50 rounded-lg p-4 border border-blue-100 dark:bg-blue-900/30 dark:border-blue-800">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                   <span className="font-medium">Scheduling Enabled</span>
                   <span className="mx-2 text-gray-400">•</span>
                   <span className="text-sm text-muted-foreground">Account active</span>
@@ -723,10 +766,10 @@ export default function CalendarIntegrationPage() {
                   </span>
                   <span className="mx-2 text-gray-400">•</span>
                   <span className="text-sm text-muted-foreground">
-                    Token: valid {/* Consider fetching/showing actual token status if needed */}
+                    Token: valid
                   </span>
                   <button
-                    className="ml-auto rounded-full p-1 text-muted-foreground hover:bg-blue-100"
+                    className="ml-auto rounded-full p-1 text-muted-foreground hover:bg-blue-100 dark:hover:bg-blue-800"
                     onClick={() => refreshCalStatus()}
                     aria-label="Refresh status"
                   >
@@ -752,10 +795,10 @@ export default function CalendarIntegrationPage() {
                 </div>
 
                 {apiError && (
-                  <Alert className="bg-amber-50 border-amber-200">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                     <AlertTitle>Calendar Verification Issue</AlertTitle>
-                    <AlertDescription className="text-amber-700">
+                    <AlertDescription className="text-amber-700 dark:text-amber-300">
                       {apiError}
                       <div className="mt-2">
                         <Button
@@ -777,16 +820,16 @@ export default function CalendarIntegrationPage() {
                     (googleConnectedInDB || connectedCalendars.some(entry =>
                       (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
                       entry?.integration === 'google_calendar')
-                    ) ? 'bg-green-50 border-green-200' : ''}`}>
+                    ) ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : ''}`}>
                     <div className="flex items-center space-x-3">
                       <div className={`h-10 w-10 rounded-full ${(googleConnectedInDB || connectedCalendars.some(entry =>
                         (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
                         entry?.integration === 'google_calendar')
-                        ) ? 'bg-green-100' : 'bg-blue-50'} flex items-center justify-center`}>
+                        ) ? 'bg-green-100 dark:bg-green-900/50' : 'bg-blue-50 dark:bg-blue-900/30'} flex items-center justify-center`}>
                         <SiGooglecalendar className={`h-5 w-5 ${(googleConnectedInDB || connectedCalendars.some(entry =>
                           (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
                           entry?.integration === 'google_calendar')
-                          ) ? 'text-green-600' : 'text-[#4285F4]'}`} />
+                          ) ? 'text-green-600 dark:text-green-400' : 'text-[#4285F4]'}`} />
                       </div>
                       <div>
                         <h4 className="font-medium">Google Calendar</h4>
@@ -798,7 +841,7 @@ export default function CalendarIntegrationPage() {
                           (entry?.integration?.type === 'google_calendar' || entry?.integration?.slug === 'google-calendar') ||
                           entry?.integration === 'google_calendar')
                         ) ? (
-                          <div className="text-xs text-green-600 mt-1">
+                          <div className="text-xs text-green-600 dark:text-green-400 mt-1">
                             Connected
                           </div>
                         ) : (
@@ -812,7 +855,7 @@ export default function CalendarIntegrationPage() {
                       entry?.integration === 'google_calendar')
                     ) ? (
                       <div className="mt-4">
-                        <div className="text-sm text-green-700 rounded-md">
+                        <div className="text-sm text-green-700 dark:text-green-400 rounded-md">
                           <p className="flex items-center">
                             <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" /> Google Calendar connected successfully! Your calendar events will now sync automatically.
                           </p>
@@ -834,16 +877,16 @@ export default function CalendarIntegrationPage() {
                    <div className={`rounded-lg p-6 border hover:border-primary transition-colors ${connectedCalendars.some(entry =>
                        (entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ||
                        entry?.integration === 'office365_calendar') // Adjusted check for Office 365
-                   ? 'bg-green-50 border-green-200' : ''}`}>
+                   ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : ''}`}>
                     <div className="flex items-center space-x-3">
                        <div className={`h-10 w-10 rounded-full ${connectedCalendars.some(entry =>
                            (entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ||
                            entry?.integration === 'office365_calendar')
-                           ? 'bg-green-100' : 'bg-blue-50'} flex items-center justify-center`}>
+                           ? 'bg-green-100 dark:bg-green-900/50' : 'bg-blue-50 dark:bg-blue-900/30'} flex items-center justify-center`}>
                            <BsCalendar2Week className={`h-5 w-5 ${connectedCalendars.some(entry =>
                               (entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ||
                               entry?.integration === 'office365_calendar')
-                           ? 'text-green-600' : 'text-[#00A4EF]'}`} />
+                           ? 'text-green-600 dark:text-green-400' : 'text-[#00A4EF]'}`} />
                        </div>
                       <div>
                         <h4 className="font-medium">Office 365 Calendar</h4>
@@ -855,7 +898,7 @@ export default function CalendarIntegrationPage() {
                           (entry?.integration?.type === 'office365_calendar' || entry?.integration?.slug === 'office-365-calendar') ||
                           entry?.integration === 'office365_calendar') // Adjusted check
                         ? (
-                          <div className="text-xs text-green-600 mt-1">
+                          <div className="text-xs text-green-600 dark:text-green-400 mt-1">
                             Connected
                           </div>
                         ) : (
@@ -869,7 +912,7 @@ export default function CalendarIntegrationPage() {
                          entry?.integration === 'office365_calendar') // Adjusted check
                      ? (
                       <div className="mt-4">
-                        <div className="text-sm text-green-700 rounded-md">
+                        <div className="text-sm text-green-700 dark:text-green-400 rounded-md">
                           <p className="flex items-center">
                             <CheckCircle className="h-4 w-4 mr-2 flex-shrink-0" /> Office 365 Calendar connected successfully! Your calendar events will now sync automatically.
                           </p>
@@ -894,20 +937,20 @@ export default function CalendarIntegrationPage() {
             {isConnected && (
               <div className="space-y-4 mt-8">
                 {!canManageAvailability && !isCalendarCheckLoading && (
-                  <Alert className="bg-amber-50 border-amber-200">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                     <AlertTitle>Calendar Connection Required</AlertTitle>
-                    <AlertDescription>
+                    <AlertDescription className="text-amber-700 dark:text-amber-300">
                       You need to connect a third-party calendar (like Google Calendar or Office 365) before you can manage your availability.
                     </AlertDescription>
                   </Alert>
                 )}
 
                 {canManageAvailability && !isCalendarCheckLoading && (
-                  <Alert className="bg-green-50 border-green-200">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                  <Alert className="bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800">
+                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
                     <AlertTitle>Ready to Manage Availability</AlertTitle>
-                    <AlertDescription>
+                    <AlertDescription className="text-green-700 dark:text-green-300">
                       Your scheduling is enabled and calendar is connected. You can now manage your availability.
                     </AlertDescription>
                   </Alert>
