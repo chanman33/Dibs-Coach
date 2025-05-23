@@ -184,7 +184,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
                 <Button
                   size="sm"
                   variant="default"
-                  className="min-w-[110px] bg-primary/90 hover:bg-primary"
+                  className="min-w-[110px]"
                   onClick={() => setIsRescheduleDialogOpen(true)}
                 >
                   Reschedule
