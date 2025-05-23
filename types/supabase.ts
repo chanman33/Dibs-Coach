@@ -301,7 +301,6 @@ export type Database = {
           attendeePhoneNumber: string | null
           attendeeTimeZone: string | null
           bookingFieldsResponses: Json | null
-          calBookingId: number | null
           calBookingUid: string
           calHostId: number | null
           coachUserUlid: string | null
@@ -337,7 +336,6 @@ export type Database = {
           attendeePhoneNumber?: string | null
           attendeeTimeZone?: string | null
           bookingFieldsResponses?: Json | null
-          calBookingId?: number | null
           calBookingUid: string
           calHostId?: number | null
           coachUserUlid?: string | null
@@ -373,7 +371,6 @@ export type Database = {
           attendeePhoneNumber?: string | null
           attendeeTimeZone?: string | null
           bookingFieldsResponses?: Json | null
-          calBookingId?: number | null
           calBookingUid?: string
           calHostId?: number | null
           coachUserUlid?: string | null

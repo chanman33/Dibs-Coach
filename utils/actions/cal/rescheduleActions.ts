@@ -283,7 +283,6 @@ export async function rescheduleSession(input: RescheduleInput) {
         description: calData.description,
         meetingUrl: calData.meetingUrl,
         location: calData.location,
-        calBookingId: calData.id,
         calBookingUid: calData.uid, 
         hosts: calData.hosts,
         duration: calData.duration,

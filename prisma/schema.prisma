@@ -1659,7 +1659,6 @@ model CalBooking {
   userUlid           String    @db.Char(26)
   coachUserUlid      String?   @db.Char(26)
   calBookingUid      String    @unique
-  calBookingId       Int?      // ID from Cal.com API
   title              String
   description        String?
   startTime          DateTime  @db.Timestamptz(6)
@@ -1706,7 +1705,6 @@ model CalBooking {
   @@index([coachUserUlid])
   @@index([status])
   @@index([startTime])
-  @@index([calBookingId])
   @@index([eventTypeId])
   @@index([calBookingUid])
   @@index([calHostId])
