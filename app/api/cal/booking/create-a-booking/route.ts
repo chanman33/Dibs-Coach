@@ -239,6 +239,8 @@ export async function POST(request: Request) {
       calBookingUidLength: calBooking.uid.length
     });
     
+    let dbOperationsSuccessful = true; // Track DB operation success
+
     // First, create the CalBooking record
     try {
       // Verify fields match expected formats before insertion
@@ -249,11 +251,11 @@ export async function POST(request: Request) {
         calBookingUid: calBooking.uid,
         title: calBooking.title || 'Coaching Session',
         description: bookingData.notes || calBooking.description || 'N/A',
-        startTime: calBooking.startTime,
-        endTime: calBooking.endTime,
+        startTime: bookingData.startTime,
+        endTime: bookingData.endTime,
         attendeeEmail: calBooking.attendees && calBooking.attendees.length > 0 ? calBooking.attendees[0].email : bookingData.attendeeEmail,
         attendeeName: calBooking.attendees && calBooking.attendees.length > 0 ? calBooking.attendees[0].name : bookingData.attendeeName,
-        status: calBooking.status?.toUpperCase() || 'CONFIRMED',
+        status: (calBooking.status?.toUpperCase() === 'ACCEPTED' ? 'CONFIRMED' : calBooking.status?.toUpperCase()) || 'CONFIRMED',
         duration: calBooking.duration,
         eventTypeId: calBooking.eventTypeId,
         eventTypeSlug: calBooking.eventTypeSlug,
@@ -285,6 +287,7 @@ export async function POST(request: Request) {
         .insert(bookingInsertData);
         
       if (createBookingError) {
+        dbOperationsSuccessful = false; // Mark DB operation as failed
         console.error('[CREATE_BOOKING_ERROR] Failed to store booking in database', {
           error: createBookingError,
           bookingUid: calBooking.uid
@@ -294,6 +297,7 @@ export async function POST(request: Request) {
         console.log('[CREATE_BOOKING] Successfully created CalBooking record', { bookingUlid });
       }
     } catch (error) {
+      dbOperationsSuccessful = false; // Mark DB operation as failed
       console.error('[CREATE_BOOKING_ERROR] Exception during CalBooking insert', {
         error,
         bookingUlid,
@@ -302,7 +306,9 @@ export async function POST(request: Request) {
       // Continue even if DB storage fails
     }
     
-    // Now create the Session record
+    // Now create the Session record, only if CalBooking insert was successful (or if we decide to proceed anyway)
+    // For now, let's assume we attempt Session creation even if CalBooking failed, to report all issues.
+    // A stricter approach would be to only proceed if dbOperationsSuccessful is still true.
     try {
       const sessionInsertData = {
         ulid: sessionUlid,
@@ -326,6 +332,7 @@ export async function POST(request: Request) {
         .insert(sessionInsertData);
       
       if (createSessionError) {
+        dbOperationsSuccessful = false; // Mark DB operation as failed
         console.error('[CREATE_BOOKING_ERROR] Failed to create session record', {
           error: createSessionError,
           bookingUid: calBooking.uid,
@@ -336,12 +343,22 @@ export async function POST(request: Request) {
         console.log('[CREATE_BOOKING] Successfully created Session record', { sessionUlid });
       }
     } catch (error) {
+      dbOperationsSuccessful = false; // Mark DB operation as failed
       console.error('[CREATE_BOOKING_ERROR] Exception during Session insert', {
         error,
         sessionUlid,
         bookingUlid
       });
       // Continue anyway - we'll handle this in webhook or background job
+    }
+
+    // If DB operations failed, return an error even if Cal.com booking succeeded
+    if (!dbOperationsSuccessful) {
+      return NextResponse.json({
+        success: false,
+        error: 'Booking created on Cal.com, but failed to sync to our system. Please contact support.',
+        details: { calBookingUid: calBooking.uid }
+      }, { status: 500 });
     }
     
     // Get 'Add to Calendar' links for the booking

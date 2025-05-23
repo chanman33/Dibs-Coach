@@ -380,6 +380,11 @@ export function TrainingHistoryClient({ initialData }: TrainingHistoryClientProp
                               Date {getSortIcon('date')}
                             </div>
                           </TableHead>
+                          <TableHead>
+                            <div className="flex items-center gap-1">
+                              Start Time
+                            </div>
+                          </TableHead>
                           <TableHead className="cursor-pointer" onClick={() => handleSort('duration')}>
                             <div className="flex items-center gap-1">
                               Duration {getSortIcon('duration')}
@@ -415,6 +420,11 @@ export function TrainingHistoryClient({ initialData }: TrainingHistoryClientProp
                               <TableCell>
                                 <div className="flex items-center">
                                   <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                                  {format(sessionDate, 'p')}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center">
                                   {training.duration} mins
                                 </div>
                               </TableCell>

@@ -799,13 +799,25 @@ export function useBookingUI() {
       
       if (!response.ok) {
         const errorData = await response.json();
+        // Ensure the toast shows this specific error message
+        toast({
+          title: "Booking failed",
+          description: errorData.error || 'Failed to create booking. Please try again.',
+          variant: "destructive"
+        });
         throw new Error(errorData.error || 'Failed to create booking');
       }
       
       const result = await response.json();
       
       if (!result.success) {
-        throw new Error(result.error || 'Failed to create booking');
+        // Ensure the toast shows this specific error message
+        toast({
+          title: "Booking failed",
+          description: result.error || 'An issue occurred while finalizing your booking. Please contact support.',
+          variant: "destructive"
+        });
+        throw new Error(result.error || 'Failed to create booking after API call');
       }
       
       // Format times for display

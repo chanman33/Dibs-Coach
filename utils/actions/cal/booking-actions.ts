@@ -5,10 +5,11 @@ import { withServerAction } from '@/utils/middleware/withServerAction';
 import { createAuthClient } from '@/utils/auth';
 import { ApiResponse, ApiError } from '@/utils/types/api';
 import { ServerActionContext } from '@/utils/middleware/withServerAction';
+import { BookingResult, CalendarLink } from '@/utils/types/booking';
 
 // Schema for create booking parameters
 const CreateBookingSchema = z.object({
-  eventTypeId: z.number(),
+  eventTypeId: z.union([z.string(), z.number()]),
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
   attendeeName: z.string(),
@@ -26,23 +27,6 @@ interface CreateBookingParams {
   eventTypeId: number | string;
   duration?: number;
   sessionTopic?: string;
-}
-
-// Types for response
-export interface CalendarLink {
-  label: string;
-  link: string;
-}
-
-export interface BookingResult {
-  id: string;
-  calBookingUid: string;
-  title: string;
-  startTime: string;
-  endTime: string;
-  attendeeName: string;
-  attendeeEmail: string;
-  calendarLinks?: CalendarLink[];
 }
 
 /**
@@ -98,7 +82,7 @@ export const createBooking = withServerAction<BookingResult, CreateBookingParams
       
       // Validate the request data
       const validationResult = CreateBookingSchema.safeParse({
-        eventTypeId: Number(eventTypeId),
+        eventTypeId: eventTypeId,
         startTime,
         endTime,
         attendeeName,
