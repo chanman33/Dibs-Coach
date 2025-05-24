@@ -149,7 +149,7 @@ const BecomeCoachPage: React.FC = () => {
               <div className="order-1 md:order-2 relative">
                 <div className="absolute -z-10 inset-0 bg-gradient-to-tr from-blue-500/10 via-transparent to-transparent rounded-2xl" />
                 <Image
-                  src="/placeholder.svg?height=500&width=500"
+                  src="/coach-laptop-call.png"
                   alt="Coach teaching a client"
                   width={500}
                   height={500}
@@ -166,17 +166,19 @@ const BecomeCoachPage: React.FC = () => {
       <section className="bg-white dark:bg-gray-900 w-screen">
         <div className="py-20">
           <div className="container px-4 md:px-6">
-            <div className="max-w-3xl mx-auto text-center">
+            <div className="max-w-2xl mx-auto text-center">
               <h2 className={`${TITLE_TAILWIND_CLASS} mb-6 font-semibold tracking-tight text-gray-900 dark:text-white`}>
                 What We Look For in Coaches
               </h2>
-              <div className="grid gap-6 mt-8">
-                {requirements.map((req, index) => (
-                  <div key={index} className="flex items-center gap-4 text-left">
-                    <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
-                    <span className="text-lg text-gray-700 dark:text-gray-300">{req}</span>
-                  </div>
-                ))}
+              <div className="w-fit mx-auto">
+                <div className="grid gap-6 mt-8">
+                  {requirements.map((req, index) => (
+                    <div key={index} className="flex items-center gap-4 text-left">
+                      <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
+                      <span className="text-lg text-gray-700 dark:text-gray-300">{req}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

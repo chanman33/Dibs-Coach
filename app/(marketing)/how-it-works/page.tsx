@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button'
 import { Metadata } from 'next'
 import Link from 'next/link'
 import PageWrapper from "@/components/wrapper/page-wrapper";
-import { VideoPlayer } from '@/components/zoom/video-player';
+import Image from 'next/image';
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://dibs.coach"),
@@ -43,8 +43,17 @@ export default async function HowItWorksPage() {
             <Button size="lg" variant="outline">Become a Coach</Button>
           </Link>
         </div>
-        <div className='mb-3 mt-[1.5rem] max-w-[900px] w-full'>
-          <VideoPlayer videoSrc="https://www.w3schools.com/html/mov_bbb.mp4" />
+        <div className='mb-3 mt-[1.5rem] max-w-[600px] w-full'>
+          <div className="relative rounded-xl overflow-hidden shadow-lg">
+            <Image
+              src="/coach-laptop-call.png"
+              alt="Real estate coaching platform demonstration"
+              width={600}
+              height={400}
+              className="object-cover w-full"
+            />
+            <div className="absolute inset-0 bg-gradient-to-tr from-blue-900/30 to-transparent"></div>
+          </div>
         </div>
         <div className='flex flex-col min-h-screen max-w-[900px] items-center mb-[2rem]'>
           <article className="w-full mx-auto pb-8">

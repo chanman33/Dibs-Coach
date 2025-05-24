@@ -72,13 +72,13 @@ export default function BusinessesPage() {
               </div>
               <div className="relative rounded-xl overflow-hidden shadow-2xl">
                 <Image
-                  src="/placeholder.svg?height=600&width=800"
+                  src="/goal-mngt-dashboard.jpg"
                   alt="Enterprise Coaching Platform"
                   width={800}
                   height={600}
                   className="object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-tr from-blue-900/30 to-transparent"></div>
+                <div className="absolute inset-0 bg-gradient-to-tr from-blue-900/10 to-transparent"></div>
               </div>
             </div>
           </div>
@@ -175,7 +175,7 @@ export default function BusinessesPage() {
             <div className="grid lg:grid-cols-2 gap-12 items-center mb-16">
               <div className="relative rounded-xl overflow-hidden shadow-lg">
                 <Image
-                  src="/placeholder.svg?height=600&width=800"
+                  src="/coach-laptop-call.png"
                   alt="Platform Dashboard"
                   width={800}
                   height={600}
