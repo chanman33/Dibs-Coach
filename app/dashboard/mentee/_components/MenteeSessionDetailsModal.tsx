@@ -26,6 +26,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { useRouter } from 'next/navigation'
+import { cancelBookingAction } from '@/utils/actions/cal/booking-actions'
+import { Textarea } from '@/components/ui/textarea'
 
 // Status badge colors
 const statusColorMap: Record<string, string> = {
@@ -57,6 +60,10 @@ function formatDate(dateString: string, formatString: string): string {
 export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSessionDetailsModalProps) {
   const [isRescheduleDialogOpen, setIsRescheduleDialogOpen] = useState(false)
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false)
+  const router = useRouter()
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [cancellationError, setCancellationError] = useState<string | null>(null)
+  const [cancellationReason, setCancellationReason] = useState('')
   
   if (!session) return null
   
@@ -93,10 +100,51 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
     setIsRescheduleDialogOpen(false)
   }
 
-  const handleCancel = () => {
-    // TODO: Implement cancel functionality
-    console.log('Cancelling session:', session.ulid)
-    setIsCancelDialogOpen(false)
+  const handleOpenCancelDialog = () => {
+    setCancellationReason('');
+    setCancellationError(null);
+    setIsCancelDialogOpen(true);
+  }
+
+  const handleCancel = async () => {
+    if (!session || !session.calBookingUid) {
+      console.error('Cannot cancel: Missing session or Cal.com booking UID.');
+      setCancellationError('Session details are missing. Cannot proceed with cancellation.');
+      return;
+    }
+    if (!cancellationReason.trim()) {
+      setCancellationError('Please provide a reason for cancellation.');
+      return;
+    }
+
+    setIsCancelling(true);
+    setCancellationError(null);
+
+    try {
+      const result = await cancelBookingAction({
+        sessionId: session.ulid,
+        calBookingUid: session.calBookingUid,
+        cancellationReason: cancellationReason.trim(),
+      });
+
+      if (result.error) { // System-level error
+        console.error('Cancellation failed due to system error:', result.error);
+        setCancellationError(result.error.message || 'A system error occurred during cancellation.');
+      } else if (result.data?.success) { // Successful cancellation
+        console.log('Session cancelled successfully:', result.data.message);
+        setIsCancelDialogOpen(false);
+        onClose();
+        router.push('/booking/booking-cancelled');
+      } else { // Operational error (e.g., validation, policy)
+        console.error('Cancellation failed:', result.data?.error);
+        setCancellationError(result.data?.error || 'Failed to cancel session. Please try again.');
+      }
+    } catch (error) { // Catch unexpected errors during the action call itself
+      console.error('Error during cancellation process:', error);
+      setCancellationError('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsCancelling(false);
+    }
   }
 
   const canModifySession = session.status === 'SCHEDULED'
@@ -193,7 +241,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
                   variant="outline"
                   size="sm"
                   className="min-w-[90px] hover:bg-destructive/90 hover:text-destructive-foreground"
-                  onClick={() => setIsCancelDialogOpen(true)}
+                  onClick={handleOpenCancelDialog}
                 >
                   Cancel
                 </Button>
@@ -220,22 +268,52 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
       </AlertDialog>
 
       {/* Cancel Confirmation Dialog */}
-      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+      <AlertDialog open={isCancelDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsCancelDialogOpen(false);
+          // Do not reset cancellationError here, so user can see it if dialog is closed by clicking outside
+        }
+      }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Session</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>Are you sure you want to cancel this session?</p>
-              <div className="flex items-start gap-2 text-sm text-yellow-600 bg-yellow-50 p-3 rounded-md">
-                <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <p>Please note that cancellation policies may apply. You may be charged a cancellation fee depending on how close to the session time you cancel.</p>
+            <AlertDialogDescription className="space-y-3" asChild>
+              <div className="space-y-3">
+                <div>Are you sure you want to cancel this session?</div>
+                <div>
+                  <label htmlFor="cancellationReason" className="block text-sm font-medium text-gray-700 mb-1">
+                    Reason for cancellation (required)
+                  </label>
+                  <Textarea 
+                    id="cancellationReason"
+                    value={cancellationReason}
+                    onChange={(e) => setCancellationReason(e.target.value)}
+                    placeholder="Please provide a brief reason for cancelling..."
+                    rows={3}
+                    disabled={isCancelling}
+                  />
+                </div>
+                {cancellationError && (
+                  <div className="flex items-start gap-2 text-sm text-red-700 bg-red-100 p-3 rounded-md border border-red-200">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0 text-red-500" />
+                    <div>{cancellationError}</div>
+                  </div>
+                )}
+                <div className="flex items-start gap-2 text-sm text-yellow-700 bg-yellow-100 p-3 rounded-md border border-yellow-200">
+                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0 text-yellow-500" />
+                  <div>Please note that cancellation policies may apply. You may be charged a cancellation fee depending on how close to the session time you cancel.</div>
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep Session</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Yes, Cancel Session
+            <AlertDialogCancel disabled={isCancelling}>Keep Session</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleCancel} 
+              disabled={isCancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isCancelling ? 'Cancelling...' : 'Yes, Cancel Session'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

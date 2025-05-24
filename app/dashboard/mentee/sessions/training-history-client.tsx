@@ -102,7 +102,8 @@ export function TrainingHistoryClient({ initialData }: TrainingHistoryClientProp
         sessionType: null,
         zoomJoinUrl: null,
         paymentStatus: null,
-        price: 0
+        price: 0,
+        calBookingUid: session.calBookingUlid || null
       }
     }));
   }, []);

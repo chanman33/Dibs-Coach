@@ -17,6 +17,7 @@ type SessionWithCoach = {
   endTime: string
   status: SessionStatus
   sessionNotes: string | null
+  calBookingUlid: string | null
   coach: {
     ulid: string
     displayName: string | null
@@ -31,6 +32,7 @@ export type TrainingSession = {
   notes?: string
   rating?: number
   topics?: string[]
+  calBookingUlid?: string | null
   coach: {
     name: string
     ulid: string
@@ -96,6 +98,7 @@ export const fetchTrainingHistory = withServerAction<TrainingHistoryResponse>(
           endTime,
           status,
           sessionNotes,
+          calBookingUlid,
           coach:coachUlid!inner (
             ulid,
             displayName
@@ -140,6 +143,7 @@ export const fetchTrainingHistory = withServerAction<TrainingHistoryResponse>(
           duration: durationInMinutes,
           status: session.status as SessionStatus,
           notes: session.sessionNotes || undefined,
+          calBookingUlid: session.calBookingUlid || null,
           // These fields don't exist in DB yet, so default them
           rating: undefined,
           topics: undefined,

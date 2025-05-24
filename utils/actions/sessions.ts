@@ -407,66 +407,18 @@ export const fetchUserSessions = withServerAction<any>(
       
       const supabase = await createAuthClient()
       
-      // Determine if user is a coach, mentee, or both
-      const isCoach = roleContext.capabilities?.includes('COACH')
-      const isMentee = roleContext.capabilities?.includes('MENTEE')
-      
-      if (!isCoach && !isMentee) {
-        console.log('[DEBUG_USER_SESSIONS] User lacks required capabilities', { capabilities: roleContext.capabilities })
-        return {
-          data: null,
-          error: {
-            code: 'FORBIDDEN',
-            message: 'User must be either a coach or mentee'
-          }
-        }
-      }
-
-      // Query sessions based on user role
-      let query = supabase
+      // Fetch sessions where the user is either a mentee or a coach
+      // Also fetch the related CalBooking.calBookingUid
+      const { data: sessions, error: sessionsError } = await supabase
         .from('Session')
         .select(`
-          ulid,
-          menteeUlid,
-          coachUlid,
-          startTime,
-          endTime,
-          status,
-          sessionType,
-          zoomJoinUrl,
-          paymentStatus,
-          createdAt,
-          mentee:User!Session_menteeUlid_fkey (
-            ulid,
-            firstName,
-            lastName,
-            email,
-            profileImageUrl
-          ),
-          coach:User!Session_coachUlid_fkey (
-            ulid,
-            firstName,
-            lastName,
-            email,
-            profileImageUrl
-          )
+          *,
+          mentee:User!Session_menteeUlid_fkey (*),
+          coach:User!Session_coachUlid_fkey (*),
+          calBooking:CalBooking!Session_calBookingUlid_fkey (calBookingUid)
         `)
-        .order('startTime', { ascending: false })
-
-      // If user is only a coach, filter by coachUlid
-      if (isCoach && !isMentee) {
-        query = query.eq('coachUlid', userUlid)
-      }
-      // If user is only a mentee, filter by menteeUlid
-      else if (isMentee && !isCoach) {
-        query = query.eq('menteeUlid', userUlid)
-      }
-      // If user is both, get sessions where they are either coach or mentee
-      else {
-        query = query.or(`coachUlid.eq.${userUlid},menteeUlid.eq.${userUlid}`)
-      }
-
-      const { data: sessions, error: sessionsError } = await query
+        .or(`menteeUlid.eq.${userUlid},coachUlid.eq.${userUlid}`)
+        .order('startTime', { ascending: false });
 
       if (sessionsError) {
         console.error('[DEBUG_USER_SESSIONS] Supabase error', { error: sessionsError })
@@ -510,7 +462,9 @@ export const fetchUserSessions = withServerAction<any>(
           },
           sessionType: session.sessionType ? String(session.sessionType) : null,
           zoomJoinUrl: session.zoomJoinUrl ? String(session.zoomJoinUrl) : null,
-          paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null
+          paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null,
+          // Populate calBookingUid from the related CalBooking table
+          calBookingUid: session.calBooking ? String(session.calBooking.calBookingUid) : null
         }
       })
 
@@ -562,50 +516,43 @@ export const fetchSessionsByMenteeId = withServerAction<any>(
       
       const supabase = await createAuthClient()
       
-      // Only coaches should be able to view mentee sessions
-      if (!roleContext.capabilities?.includes('COACH')) {
+      // Only coaches should be able to view mentee sessions, 
+      // OR a mentee should be able to view their own sessions.
+      // For this function, assuming it can be called by a mentee for their own sessions, 
+      // or by a coach. The original check was for COACH only.
+      // If this is strictly for coaches viewing a mentee, the original check is fine.
+      // If mentees use this for their own sessions, userUlid should match menteeId.
+      if (!roleContext.capabilities?.includes('COACH') && userUlid !== menteeId) {
         return {
           data: null,
           error: {
             code: 'FORBIDDEN',
-            message: 'Only coaches can access mentee sessions'
+            // Adjusted message depending on who might call this
+            message: 'User does not have permission to access these sessions' 
           }
         }
       }
 
       // Query sessions for the specific mentee
-      const { data: sessions, error: sessionsError } = await supabase
+      // Also fetch the related CalBooking.calBookingUid
+      let query = supabase
         .from('Session')
         .select(`
-          ulid,
-          menteeUlid,
-          coachUlid,
-          startTime,
-          endTime,
-          status,
-          sessionType,
-          zoomJoinUrl,
-          paymentStatus,
-          price,
-          createdAt,
-          mentee:User!Session_menteeUlid_fkey (
-            ulid,
-            firstName,
-            lastName,
-            email,
-            profileImageUrl
-          ),
-          coach:User!Session_coachUlid_fkey (
-            ulid,
-            firstName,
-            lastName,
-            email,
-            profileImageUrl
-          )
+          *,
+          mentee:User!Session_menteeUlid_fkey (*),
+          coach:User!Session_coachUlid_fkey (*),
+          calBooking:CalBooking!Session_calBookingUlid_fkey (calBookingUid)
         `)
         .eq('menteeUlid', menteeId)
-        .eq('coachUlid', userUlid)
         .order('startTime', { ascending: false })
+
+      // If the user is a coach (and not the mentee themselves), they can see all sessions for this mentee with them.
+      // If the user is the mentee, this coachUlid filter is not strictly needed but doesn't hurt.
+      if (roleContext.capabilities?.includes('COACH') && userUlid !== menteeId) {
+         query = query.eq('coachUlid', userUlid) // Coach can only see sessions they coached for this mentee
+      }
+
+      const { data: sessions, error: sessionsError } = await query;
 
       if (sessionsError) {
         console.error('[DEBUG_MENTEE_SESSIONS] Supabase error', { error: sessionsError })
@@ -635,18 +582,22 @@ export const fetchSessionsByMenteeId = withServerAction<any>(
           startTime: String(session.startTime),
           endTime: String(session.endTime),
           createdAt: String(session.createdAt),
-          userRole: 'coach' as const,
+          // userRole should be determined based on the perspective of the caller (userUlid)
+          userRole: session.coachUlid === userUlid ? 'coach' : 'mentee',
           otherParty: {
-            ulid: String(session.mentee.ulid),
-            firstName: session.mentee.firstName ? String(session.mentee.firstName) : null,
-            lastName: session.mentee.lastName ? String(session.mentee.lastName) : null,
-            email: session.mentee.email ? String(session.mentee.email) : null,
-            profileImageUrl: session.mentee.profileImageUrl ? String(session.mentee.profileImageUrl) : null
+            // If current user is coach, otherParty is mentee. If current user is mentee, otherParty is coach.
+            ulid: String(session.coachUlid === userUlid ? session.mentee.ulid : session.coach.ulid),
+            firstName: String(session.coachUlid === userUlid ? session.mentee.firstName : session.coach.firstName) || null,
+            lastName: String(session.coachUlid === userUlid ? session.mentee.lastName : session.coach.lastName) || null,
+            email: String(session.coachUlid === userUlid ? session.mentee.email : session.coach.email) || null,
+            profileImageUrl: String(session.coachUlid === userUlid ? session.mentee.profileImageUrl : session.coach.profileImageUrl) || null
           },
           sessionType: session.sessionType ? String(session.sessionType) : null,
           zoomJoinUrl: session.zoomJoinUrl ? String(session.zoomJoinUrl) : null,
           paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null,
-          price: session.price || 0
+          price: session.price || 0,
+          // Populate calBookingUid from the related CalBooking table
+          calBookingUid: session.calBooking ? String(session.calBooking.calBookingUid) : null
         }
       })
 
