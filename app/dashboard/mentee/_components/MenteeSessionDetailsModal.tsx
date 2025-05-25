@@ -31,6 +31,32 @@ import { cancelBookingAction } from '@/utils/actions/cal/booking-actions'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
+// Default image placeholder
+const DEFAULT_IMAGE_URL = '/placeholder.svg';
+
+// Utility function to handle Clerk profile image URLs
+const getProfileImageUrl = (url: string | null | undefined): string => {
+  // For missing URLs, use placeholder
+  if (!url) return DEFAULT_IMAGE_URL;
+
+  // For placeholder images, use our default placeholder
+  if (url.includes('placeholder')) return DEFAULT_IMAGE_URL;
+
+  // Handle Clerk OAuth URLs
+  if (url.includes('oauth_google')) {
+    // Try img.clerk.com domain first
+    return url.replace('images.clerk.dev', 'img.clerk.com');
+  }
+
+  // Handle other Clerk URLs
+  if (url.includes('clerk.dev') || url.includes('clerk.com')) {
+    return url;
+  }
+
+  // For all other URLs, ensure HTTPS
+  return url.startsWith('https://') ? url : `https://${url}`;
+};
+
 // Status badge colors
 const statusColorMap: Record<string, string> = {
   'SCHEDULED': 'bg-blue-500',
@@ -65,6 +91,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
   const [isCancelling, setIsCancelling] = useState(false)
   const [cancellationError, setCancellationError] = useState<string | null>(null)
   const [cancellationReason, setCancellationReason] = useState('')
+  const [coachImgError, setCoachImgError] = useState(false);
   
   if (!session) return null
   
@@ -181,7 +208,11 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
           <div className="space-y-4">
             <div className="flex items-center space-x-4">
               <Avatar className="h-12 w-12">
-                <AvatarImage src={coach.profileImageUrl || ''} alt={coachName} />
+                <AvatarImage 
+                  src={coachImgError ? DEFAULT_IMAGE_URL : getProfileImageUrl(coach.profileImageUrl)} 
+                  alt={coachName} 
+                  onError={() => setCoachImgError(true)}
+                />
                 <AvatarFallback>{coachInitials}</AvatarFallback>
               </Avatar>
               <div>

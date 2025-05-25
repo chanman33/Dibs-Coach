@@ -30,6 +30,34 @@ import { useRouter } from 'next/navigation'
 import { cancelBookingAction } from '@/utils/actions/cal/booking-actions'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { useToast } from "@/components/ui/use-toast"
+import { useQueryClient } from '@tanstack/react-query'
+
+// Default image placeholder
+const DEFAULT_IMAGE_URL = '/placeholder.svg';
+
+// Utility function to handle Clerk profile image URLs
+const getProfileImageUrl = (url: string | null | undefined): string => {
+  // For missing URLs, use placeholder
+  if (!url) return DEFAULT_IMAGE_URL;
+
+  // For placeholder images, use our default placeholder
+  if (url.includes('placeholder')) return DEFAULT_IMAGE_URL;
+
+  // Handle Clerk OAuth URLs
+  if (url.includes('oauth_google')) {
+    // Try img.clerk.com domain first
+    return url.replace('images.clerk.dev', 'img.clerk.com');
+  }
+
+  // Handle other Clerk URLs
+  if (url.includes('clerk.dev') || url.includes('clerk.com')) {
+    return url;
+  }
+
+  // For all other URLs, ensure HTTPS
+  return url.startsWith('https://') ? url : `https://${url}`;
+};
 
 // Status badge colors
 const statusColorMap: Record<string, string> = {
@@ -64,10 +92,13 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
   // console.log('Modal isOpen:', isOpen); // REMOVED
   
   const router = useRouter();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancellationError, setCancellationError] = useState<string | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [menteeImgError, setMenteeImgError] = useState(false);
   
   if (!session) return null;
   
@@ -134,6 +165,12 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
         console.log('Session cancelled successfully:', result.data.message);
         setIsCancelDialogOpen(false);
         onClose(); // Close the main details modal
+        toast({ 
+          title: "Session Cancelled", 
+          description: result.data.message || "The session has been successfully cancelled.",
+          variant: "default", // Or "success" if you have one
+        });
+        await queryClient.invalidateQueries({ queryKey: ['coach-sessions'] });
         router.refresh(); // Refresh the page to show updated session list/status
         // router.push('/dashboard/coach'); // Or redirect as needed
       } else { // Operational error (e.g., validation, policy)
@@ -174,7 +211,11 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
           <div className="space-y-4">
             <div className="flex items-center space-x-4">
               <Avatar className="h-12 w-12">
-                <AvatarImage src={mentee.profileImageUrl || ''} alt={menteeName} />
+                <AvatarImage 
+                  src={menteeImgError ? DEFAULT_IMAGE_URL : getProfileImageUrl(mentee.profileImageUrl)} 
+                  alt={menteeName}
+                  onError={() => setMenteeImgError(true)}
+                />
                 <AvatarFallback>{menteeInitials}</AvatarFallback>
               </Avatar>
               <div>
