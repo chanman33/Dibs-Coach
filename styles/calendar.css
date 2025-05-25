@@ -117,4 +117,33 @@
 /* Better today highlighting */
 .rbc-today {
   background-color: rgba(59, 130, 246, 0.05);
+}
+
+/* Ensure events in time grid views (Week/Day) are visible and can show tooltips */
+.rbc-time-view .rbc-event,
+.rbc-day-slot .rbc-event {
+  z-index: 5 !important; /* Ensure events are above time slot lines but allow tooltips to go higher */
+}
+
+.rbc-time-view .rbc-event .rbc-event-content,
+.rbc-day-slot .rbc-event .rbc-event-content {
+  overflow: visible !important; /* Allow tooltip to extend beyond event boundaries */
+}
+
+.rbc-time-slot {
+  z-index: 1 !important; /* Keep time slots behind events */
+}
+
+/* Adjustments for the custom EventComponent trigger */
+.rbc-event > div[class*="cursor-default"] {
+    width: 100%;
+    height: 100%;
+    position: relative; /* Establish stacking context for children like tooltips */
+    z-index: 6; /* Ensure this div is above the event background but respects event z-index */
+}
+
+/* Increase z-index for ShadCN Tooltip Content if necessary */
+/* This is a general selector, you might need to make it more specific if it affects other tooltips */
+[role="tooltip"] {
+    z-index: 9999 !important; /* High z-index to ensure it's on top */
 } 

@@ -40,7 +40,7 @@ interface ExtendedSession {
 }
 
 interface MenteeCalendarProps {
-  sessions: ExtendedSession[] | undefined
+  sessions?: ExtendedSession[]
   isLoading?: boolean
   title?: string
 }
@@ -284,8 +284,8 @@ const CustomToolbar = ({
 }
 
 export function MenteeCalendar({
-  sessions,
-  isLoading,
+  sessions = [],
+  isLoading = false,
   title = "My Coaching Calendar"
 }: MenteeCalendarProps) {
   const [view, setView] = useState<View>('month')
@@ -312,14 +312,16 @@ export function MenteeCalendar({
     )
   }
 
-  // Convert sessions to calendar events
-  const events = sessions?.map(session => ({
-    id: session.ulid,
-    title: `Session with ${session.otherParty.firstName} ${session.otherParty.lastName}`,
-    start: new Date(session.startTime),
-    end: new Date(session.endTime),
-    resource: session
-  })) || []
+  // Convert sessions to calendar events, filtering out cancelled ones
+  const events = (sessions || [])
+    .filter((session: ExtendedSession) => session.status !== 'CANCELLED')
+    .map((session: ExtendedSession) => ({
+      id: session.ulid,
+      title: `Session with ${session.otherParty.firstName || 'Coach'} ${session.otherParty.lastName || ''}`,
+      start: new Date(session.startTime),
+      end: new Date(session.endTime),
+      resource: session
+  }));
 
   // Custom event styles
   const eventStyleGetter = (event: any) => ({
@@ -345,6 +347,10 @@ export function MenteeCalendar({
     </TooltipProvider>
   )
 
+  // No sessions prompt if events array is empty (after filtering)
+  const hasVisibleSessions = events.length > 0;
+  const hasAnySessions = (sessions || []).length > 0;
+
   return (
     <div className="p-2 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
       <h1 className="text-xl sm:text-2xl font-bold">{title}</h1>
@@ -352,39 +358,54 @@ export function MenteeCalendar({
       <div className="grid grid-cols-1 xl:grid-cols-[1fr,320px] gap-4">
         <Card className="p-2 sm:p-4 overflow-hidden">
           <div className="h-[500px] sm:h-[600px] w-full overflow-hidden">
-            <div className="rbc-calendar-container w-full h-full">
-              <Calendar
-                localizer={localizer}
-                events={events}
-                startAccessor="start"
-                endAccessor="end"
-                view={view}
-                date={date}
-                onView={setView}
-                onNavigate={setDate}
-                views={['month', 'week', 'day']}
-                step={30}
-                timeslots={1}
-                min={new Date(2020, 1, 1, 6, 30, 0)}
-                max={new Date(2020, 1, 1, 20, 0, 0)}
-                eventPropGetter={eventStyleGetter}
-                tooltipAccessor={null}
-                components={{
-                  event: EventComponent,
-                  toolbar: CustomToolbar
-                }}
-                className="max-w-full overflow-hidden"
-                style={{
-                  height: '100%',
-                  width: '100%',
-                  minWidth: 0
-                }}
-              />
-            </div>
+            {hasVisibleSessions ? (
+              <div className="rbc-calendar-container w-full h-full">
+                <Calendar
+                  localizer={localizer}
+                  events={events}
+                  startAccessor="start"
+                  endAccessor="end"
+                  view={view}
+                  date={date}
+                  onView={setView}
+                  onNavigate={setDate}
+                  views={['month', 'week', 'day']}
+                  step={30}
+                  timeslots={1}
+                  min={new Date(0, 0, 0, 6, 30, 0)} // Example: 6:30 AM
+                  max={new Date(0, 0, 0, 20, 0, 0)} // Example: 8:00 PM
+                  eventPropGetter={eventStyleGetter}
+                  tooltipAccessor={null} // Disable default tooltip
+                  components={{
+                    event: EventComponent as any,
+                    toolbar: CustomToolbar as any
+                  }}
+                  className="max-w-full overflow-hidden"
+                  style={{
+                    height: '100%',
+                    width: '100%',
+                    minWidth: 0 // Ensure it doesn't overflow
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                 <h3 className="text-lg font-medium text-muted-foreground">No Upcoming Sessions</h3>
+                 <p className="text-sm text-muted-foreground mt-1">
+                   Previously scheduled or cancelled sessions will appear in the list.
+                 </p>
+                { !hasAnySessions && // Show only if there are NO sessions at all (even cancelled)
+                    <Link href="/dashboard/mentee/browse-coaches" className="mt-4">
+                        <Button variant="outline">Find a Coach</Button>
+                    </Link>
+                }
+              </div>
+            )}
           </div>
         </Card>
-
-        <MenteeSessions sessions={sessions} isLoading={isLoading} />
+        
+        {/* Pass original unfiltered sessions to the list component */}
+        <MenteeSessions sessions={sessions || []} isLoading={isLoading} />
       </div>
     </div>
   )
