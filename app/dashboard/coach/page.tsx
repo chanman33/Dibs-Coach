@@ -260,7 +260,6 @@ export default function CoachDashboard() {
   }
 
   const handleSessionClick = (session: TransformedSession) => {
-    console.log('Opening session details:', session, 'Session price:', (session as any).price);
     setSelectedSession(session);
     setIsSessionModalOpen(true);
   }

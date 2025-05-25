@@ -67,9 +67,10 @@ export async function POST(request: Request) {
     }
 
     // 3. Authorization and Policy Checks
-    if (sessionData.menteeUlid !== currentDbUserUlid){
-        console.warn('[CANCEL_AUTH_WARN]', `User ${currentUserEmail} (DB ULID: ${currentDbUserUlid}) attempted to cancel session ${sessionId} not belonging to them (Mentee ULID: ${sessionData.menteeUlid}).`);
-        return new NextResponse('Forbidden: You can only cancel your own sessions.', { status: 403 });
+    // Allow cancellation if the current user is the mentee OR the coach of the session
+    if (sessionData.menteeUlid !== currentDbUserUlid && sessionData.coachUlid !== currentDbUserUlid){
+        console.warn('[CANCEL_AUTH_WARN]', `User ${currentUserEmail} (DB ULID: ${currentDbUserUlid}) attempted to cancel session ${sessionId} not belonging to them as mentee (Mentee ULID: ${sessionData.menteeUlid}) or coach (Coach ULID: ${sessionData.coachUlid}).`);
+        return new NextResponse('Forbidden: You can only cancel sessions you are a part of (mentee or coach).', { status: 403 });
     }
 
     if (sessionData.status === 'CANCELLED') {

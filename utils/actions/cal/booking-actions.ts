@@ -363,10 +363,10 @@ export const cancelBookingAction = withServerAction<
       }
 
       // 3. Authorization and Policy Checks
-      if (sessionData.menteeUlid !== currentDbUserUlid) {
-        console.warn('[CANCEL_BOOKING_ACTION_WARN]', `User ${currentUserEmail} (DB ULID: ${currentDbUserUlid}) attempted to cancel session ${sessionId} not belonging to them (Mentee ULID: ${sessionData.menteeUlid}).`);
+      if (sessionData.menteeUlid !== currentDbUserUlid && sessionData.coachUlid !== currentDbUserUlid) {
+        console.warn('[CANCEL_BOOKING_ACTION_WARN]', `User ${currentUserEmail} (DB ULID: ${currentDbUserUlid}) attempted to cancel session ${sessionId} not belonging to them as mentee (Mentee ULID: ${sessionData.menteeUlid}) or coach (Coach ULID: ${sessionData.coachUlid}).`);
         return { 
-          data: { success: false, error: 'Forbidden: You can only cancel your own sessions.' }, 
+          data: { success: false, error: 'Forbidden: You can only cancel sessions you are a part of (mentee or coach).' }, 
           error: null 
         };
       }

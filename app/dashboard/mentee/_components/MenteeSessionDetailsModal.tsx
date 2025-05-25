@@ -29,6 +29,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { cancelBookingAction } from '@/utils/actions/cal/booking-actions'
 import { Textarea } from '@/components/ui/textarea'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 // Status badge colors
 const statusColorMap: Record<string, string> = {
@@ -101,6 +102,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
   }
 
   const handleOpenCancelDialog = () => {
+    if (isCancelDisabled) return; // Prevent opening if disabled
     setCancellationReason('');
     setCancellationError(null);
     setIsCancelDialogOpen(true);
@@ -148,6 +150,13 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
   }
 
   const canModifySession = session.status === 'SCHEDULED'
+  const isWithin24Hours = new Date(session.startTime).getTime() - new Date().getTime() < 24 * 60 * 60 * 1000;
+  const isCancelDisabled = !canModifySession || isWithin24Hours;
+  const cancelTooltipMessage = !canModifySession 
+    ? "Session cannot be modified." 
+    : isWithin24Hours 
+      ? "Cannot cancel within 24 hours of start time."
+      : "Cancel this session";
 
   return (
     <>
@@ -237,14 +246,29 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
                 >
                   Reschedule
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="min-w-[90px] hover:bg-destructive/90 hover:text-destructive-foreground"
-                  onClick={handleOpenCancelDialog}
-                >
-                  Cancel
-                </Button>
+                <TooltipProvider>
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={0} className={isCancelDisabled ? 'cursor-not-allowed' : ''}> 
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="min-w-[90px] hover:bg-destructive/90 hover:text-destructive-foreground"
+                          onClick={handleOpenCancelDialog}
+                          disabled={isCancelDisabled}
+                          aria-disabled={isCancelDisabled}
+                        >
+                          Cancel
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {isCancelDisabled && (
+                      <TooltipContent>
+                        <p>{cancelTooltipMessage}</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             )}
           </div>

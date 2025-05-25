@@ -391,7 +391,12 @@ export default function CoachCalendarPage() {
       lastName: s.otherParty.lastName,
       email: s.otherParty.email,
       imageUrl: s.otherParty.profileImageUrl
-    }
+    },
+    sessionType: (s as any).sessionType,
+    zoomJoinUrl: (s as any).zoomJoinUrl,
+    paymentStatus: (s as any).paymentStatus,
+    price: (s as any).price,
+    calBookingUid: (s as any).calBookingUid
   }))
 
   // Determine if we need to show calendar connection notice

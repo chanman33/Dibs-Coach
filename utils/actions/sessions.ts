@@ -72,6 +72,7 @@ interface DbSession {
   paymentStatus: string | null
   price?: number | string | null // Make price optional
   createdAt: string
+  calBookingUlid: string | null
   mentee: {
     ulid: string
     firstName: string | null
@@ -133,6 +134,7 @@ export const fetchCoachSessions = withServerAction<any>(
           paymentStatus,
           price,
           createdAt,
+          calBookingUlid,
           mentee:User!Session_menteeUlid_fkey (
             ulid,
             firstName,
@@ -205,7 +207,8 @@ export const fetchCoachSessions = withServerAction<any>(
             sessionType,
             zoomJoinUrl: session.zoomJoinUrl ? String(session.zoomJoinUrl) : null,
             paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null,
-            price: session.price ? parseFloat(String(session.price)) : 0
+            price: session.price ? parseFloat(String(session.price)) : 0,
+            calBookingUid: session.calBookingUlid ? String(session.calBookingUlid) : null
           }
           
           // Check if transformed session is serializable
@@ -309,6 +312,7 @@ export const fetchUpcomingSessions = withServerAction<any>(
           paymentStatus,
           price,
           createdAt,
+          calBookingUlid,
           mentee:User!Session_menteeUlid_fkey (
             ulid,
             firstName,
@@ -364,7 +368,8 @@ export const fetchUpcomingSessions = withServerAction<any>(
           sessionType,
           zoomJoinUrl: session.zoomJoinUrl ? String(session.zoomJoinUrl) : null,
           paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null,
-          price: session.price ? parseFloat(String(session.price)) : 0
+          price: session.price ? parseFloat(String(session.price)) : 0,
+          calBookingUid: session.calBookingUlid ? String(session.calBookingUlid) : null
         }
       })
 

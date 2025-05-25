@@ -301,13 +301,15 @@ export function CoachingCalendar({
   // Convert sessions to calendar events
   const events = [
     // Convert sessions to events
-    ...(sessions || []).map((session: ExtendedSession) => ({
-      id: session.ulid,
-      title: `Session with ${session.otherParty.firstName || 'Client'} ${session.otherParty.lastName || ''}`,
-      start: new Date(session.startTime),
-      end: new Date(session.endTime),
-      resource: session
-    })),
+    ...(sessions || [])
+      .filter((session: ExtendedSession) => session.status !== 'CANCELLED') // Filter out cancelled sessions
+      .map((session: ExtendedSession) => ({
+        id: session.ulid,
+        title: `Session with ${session.otherParty.firstName || 'Client'} ${session.otherParty.lastName || ''}`,
+        start: new Date(session.startTime),
+        end: new Date(session.endTime),
+        resource: session
+      })),
     
     // Convert busyTimes to events if they exist
     ...(busyTimes || []).map((busyTime: any, index: number) => ({
