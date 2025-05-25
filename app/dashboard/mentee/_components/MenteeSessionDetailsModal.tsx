@@ -89,9 +89,6 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
   const paymentStatusColor = paymentStatusColors[paymentStatus as keyof typeof paymentStatusColors] || 'bg-gray-100 text-gray-800'
 
   const handleReschedule = () => {
-    // Navigate to reschedule page with the session ID and cal booking UID
-    // Use session.ulid as fallback if calBookingUid is not available
-    // Also pass the coachId, which is session.otherParty.ulid
     if (!session || !session.otherParty || !session.otherParty.ulid) {
       console.error("Cannot reschedule: Missing session or coach information.");
       // Optionally, show a toast notification to the user
@@ -149,14 +146,23 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
     }
   }
 
-  const canModifySession = session.status === 'SCHEDULED'
+  const displayActionButtons = session.status !== 'COMPLETED' && session.status !== 'CANCELLED';
   const isWithin24Hours = new Date(session.startTime).getTime() - new Date().getTime() < 24 * 60 * 60 * 1000;
-  const isCancelDisabled = !canModifySession || isWithin24Hours;
-  const cancelTooltipMessage = !canModifySession 
-    ? "Session cannot be modified." 
-    : isWithin24Hours 
-      ? "Cannot cancel within 24 hours of start time."
-      : "Cancel this session";
+  
+  const isRescheduleDisabled = !displayActionButtons || session.status !== 'SCHEDULED' || isWithin24Hours;
+  const isCancelDisabled = !displayActionButtons || session.status !== 'SCHEDULED' || isWithin24Hours;
+
+  const rescheduleTooltipMessage = 
+    !displayActionButtons ? "Session cannot be modified as it's already completed or cancelled."
+    : session.status !== 'SCHEDULED' ? "Only scheduled sessions can be rescheduled."
+    : isWithin24Hours ? "Cannot reschedule within 24 hours of start time."
+    : "Reschedule this session";
+      
+  const cancelTooltipMessage = 
+    !displayActionButtons ? "Session cannot be modified as it's already completed or cancelled."
+    : session.status !== 'SCHEDULED' ? "Only scheduled sessions can be cancelled."
+    : isWithin24Hours ? "Cannot cancel within 24 hours of start time."
+    : "Cancel this session";
 
   return (
     <>
@@ -227,7 +233,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
             </div>
 
             {/* Action Buttons Row */}
-            {canModifySession && (
+            {displayActionButtons && (
               <div className="flex flex-row items-center gap-2 mt-6 w-full">
                 <Button
                   size="sm"
@@ -238,14 +244,29 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
                     Join
                   </a>
                 </Button>
-                <Button
-                  size="sm"
-                  variant="default"
-                  className="min-w-[110px]"
-                  onClick={() => setIsRescheduleDialogOpen(true)}
-                >
-                  Reschedule
-                </Button>
+                <TooltipProvider>
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={0} className={isRescheduleDisabled ? 'cursor-not-allowed' : ''}>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="min-w-[110px]"
+                          onClick={() => setIsRescheduleDialogOpen(true)}
+                          disabled={isRescheduleDisabled}
+                          aria-disabled={isRescheduleDisabled}
+                        >
+                          Reschedule
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {isRescheduleDisabled && (
+                      <TooltipContent>
+                        <p>{rescheduleTooltipMessage}</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
                 <TooltipProvider>
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
@@ -334,7 +355,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
             <AlertDialogCancel disabled={isCancelling}>Keep Session</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleCancel} 
-              disabled={isCancelling}
+              disabled={isCancelling} 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isCancelling ? 'Cancelling...' : 'Yes, Cancel Session'}
