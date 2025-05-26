@@ -250,9 +250,8 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
             <div className="flex items-center space-x-4">
               <Avatar className="h-12 w-12">
                 <AvatarImage 
-                  src={menteeImgError ? DEFAULT_IMAGE_URL : getProfileImageUrl(mentee.profileImageUrl)} 
+                  src={mentee.profileImageUrl || undefined} 
                   alt={menteeName}
-                  onError={() => setMenteeImgError(true)}
                 />
                 <AvatarFallback>{menteeInitials}</AvatarFallback>
               </Avatar>

@@ -243,9 +243,8 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
             <div className="flex items-center space-x-4">
               <Avatar className="h-12 w-12">
                 <AvatarImage 
-                  src={coachImgError ? DEFAULT_IMAGE_URL : getProfileImageUrl(coach.profileImageUrl)} 
+                  src={coach.profileImageUrl || undefined} 
                   alt={coachName} 
-                  onError={() => setCoachImgError(true)}
                 />
                 <AvatarFallback>{coachInitials}</AvatarFallback>
               </Avatar>
