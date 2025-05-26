@@ -344,6 +344,7 @@ model Session {
   reminders          Reminder[]
   reviews            Review[]
   transaction        Transaction? @relation("SessionTransaction")
+  supportTickets     SupportTicket[] @relation("SessionSupportTickets")
   
   // Self-relations for rescheduling
   originalSession    Session?     @relation("SessionRescheduling", fields: [originalSessionUlid], references: [ulid])
@@ -463,14 +464,17 @@ model Note {
 model SupportTicket {
   ulid        String       @id @db.Char(26)
   userUlid    String       @db.Char(26)
+  sessionUlid String?      @db.Char(26)
   title       String
   description String
   status      TicketStatus @default(OPEN)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   user        User         @relation("UserSupportTickets", fields: [userUlid], references: [ulid], onDelete: Cascade)
+  session     Session?     @relation("SessionSupportTickets", fields: [sessionUlid], references: [ulid], onDelete: SetNull)
 
   @@index([userUlid])
+  @@index([sessionUlid])
 }
 
 model Payout {

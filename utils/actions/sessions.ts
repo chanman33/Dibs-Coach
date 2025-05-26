@@ -1,9 +1,10 @@
 'use server'
 
 import { createAuthClient } from '@/utils/auth'
-import { withServerAction } from '@/utils/middleware/withServerAction'
-import { SESSION_STATUS, SESSION_TYPE, TransformedSession } from '@/utils/types/session'
-import { ApiResponse, ApiError } from '@/utils/types/api'
+import { withServerAction, ServerActionContext } from '@/utils/middleware/withServerAction'
+import { SessionStatus, SessionType, TransformedSession, SESSION_STATUS as TypeSessionStatus, SESSION_TYPE as TypeSessionType } from '@/utils/types/session'
+import { ApiErrorCode, ApiResponse } from '@/utils/types/api'
+import { Database } from "@/types/supabase";
 
 // Helper to safely check serialization
 function isSerializable(obj: any): boolean {
@@ -322,7 +323,7 @@ export const fetchUpcomingSessions = withServerAction<any>(
           )
         `)
         .eq('coachUlid', userUlid)
-        .eq('status', SESSION_STATUS.SCHEDULED)
+        .eq('status', TypeSessionStatus.SCHEDULED)
         .gt('startTime', now)
         .order('startTime', { ascending: true })
 
@@ -628,4 +629,114 @@ export const fetchSessionsByMenteeId = withServerAction<any>(
       }
     }
   }
-) 
+)
+
+// Define the actual action function with explicit parameter and return types
+async function fetchSessionDetailsByIdAction(
+  params: { sessionId: string; requestingUserRole: 'mentee' | 'coach' }, 
+  context: ServerActionContext 
+): Promise<ApiResponse<TransformedSession & { sessionId: string; requestingUserRole: 'mentee' | 'coach' }>> {
+  const { userUlid } = context;
+  const { sessionId, requestingUserRole } = params;
+
+  if (!userUlid) {
+    return {
+      data: null,
+      error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+    };
+  }
+  if (!sessionId) {
+    return {
+      data: null,
+      error: { code: 'VALIDATION_ERROR', message: 'Session ID is required' },
+    };
+  }
+  if (!requestingUserRole || !['mentee', 'coach'].includes(requestingUserRole)) {
+    return {
+      data: null,
+      error: { code: 'VALIDATION_ERROR', message: 'Valid requestingUserRole (mentee or coach) is required' },
+    };
+  }
+
+  try {
+    const supabase = await createAuthClient();
+    const { data: session, error: sessionError } = await supabase
+      .from('Session')
+      .select(`
+        *,
+        mentee:User!Session_menteeUlid_fkey (*),
+        coach:User!Session_coachUlid_fkey (*),
+        calBooking:CalBooking!Session_calBookingUlid_fkey (calBookingUid)
+      `)
+      .eq('ulid', sessionId)
+      .or(`menteeUlid.eq.${userUlid},coachUlid.eq.${userUlid}`)
+      .single();
+
+    if (sessionError) {
+      console.error('[FETCH_SESSION_DETAILS_ERROR] Supabase error', { sessionId, userUlid, error: sessionError });
+      return {
+        data: null,
+        error: {
+          code: 'DATABASE_ERROR',
+          message: sessionError.message || 'Failed to fetch session details.',
+        },
+      };
+    }
+
+    if (!session) {
+      return {
+        data: null,
+        error: { code: 'NOT_FOUND', message: 'Session not found or user not authorized.' },
+      };
+    }
+    
+    const coachData = session.coach as any;
+    const menteeData = session.mentee as any;
+    const calBookingData = session.calBooking as any;
+
+    const otherParty = requestingUserRole === 'coach' ? menteeData : coachData;
+    
+    // Ensure transformedSessionData includes non-optional sessionId and requestingUserRole
+    const transformedSessionData: TransformedSession & { sessionId: string; requestingUserRole: 'mentee' | 'coach' } = {
+      ulid: String(session.ulid),
+      durationMinutes: Math.round(
+        (new Date(session.endTime).getTime() - new Date(session.startTime).getTime()) / (1000 * 60)
+      ),
+      status: String(session.status || 'SCHEDULED') as SessionStatus,
+      startTime: String(session.startTime),
+      endTime: String(session.endTime),
+      createdAt: String(session.createdAt),
+      userRole: requestingUserRole,
+      otherParty: {
+        ulid: String(otherParty.ulid),
+        firstName: otherParty.firstName ? String(otherParty.firstName) : null,
+        lastName: otherParty.lastName ? String(otherParty.lastName) : null,
+        email: otherParty.email ? String(otherParty.email) : null,
+        profileImageUrl: otherParty.profileImageUrl ? String(otherParty.profileImageUrl) : null,
+      },
+      sessionType: session.sessionType ? String(session.sessionType) as SessionType : null,
+      zoomJoinUrl: session.zoomJoinUrl ? String(session.zoomJoinUrl) : null,
+      paymentStatus: session.paymentStatus ? String(session.paymentStatus) : null,
+      price: session.price ? parseFloat(String(session.price)) : 0,
+      calBookingUid: calBookingData?.calBookingUid ? String(calBookingData.calBookingUid) : null,
+      sessionId: sessionId,
+      requestingUserRole: requestingUserRole,
+    };
+
+    return { data: transformedSessionData, error: null };
+  } catch (error: any) {
+    console.error('[FETCH_SESSION_DETAILS_ERROR] Unexpected error', { sessionId, userUlid, error });
+    return {
+      data: null,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: error.message || 'An unexpected error occurred while fetching session details.',
+      },
+    };
+  }
+}
+
+export const fetchSessionDetailsById = withServerAction<
+  { sessionId: string; requestingUserRole: 'mentee' | 'coach' }, 
+  { sessionId: string; requestingUserRole: 'mentee' | 'coach' } 
+>(fetchSessionDetailsByIdAction); 

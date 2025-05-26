@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Calendar, Clock, Video, FileText, AlertCircle } from 'lucide-react'
+import { Calendar, Clock, Video, FileText, AlertCircle, HelpCircle } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import {
   AlertDialog,
@@ -115,7 +115,17 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
   const mentee = session.otherParty;
   const menteeName = [mentee.firstName, mentee.lastName].filter(Boolean).join(' ') || 'Unknown Mentee';
   const menteeInitials = [mentee.firstName?.[0], mentee.lastName?.[0]].filter(Boolean).join('') || '?';
-  const statusColor = statusColorMap[session.status] || 'bg-gray-500';
+
+  // Calculate effective status
+  const nowTime = new Date().getTime();
+  const sessionStartTimeMs = new Date(session.startTime).getTime();
+  let effectiveStatus = session.status;
+  if (session.status === 'SCHEDULED' && sessionStartTimeMs < nowTime) {
+    effectiveStatus = 'COMPLETED';
+  }
+
+  const statusColor = statusColorMap[effectiveStatus] || 'bg-gray-500';
+  const displayStatusText = effectiveStatus.charAt(0) + effectiveStatus.slice(1).toLowerCase().replace(/_/g, ' ');
   
   // Format date and time
   const formattedDate = formatDate(session.startTime, 'EEEE, MMMM d, yyyy')
@@ -293,7 +303,7 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
                 )}
                 
                 <div className="flex items-center space-x-2">
-                  <Badge className={statusColor}>{session.status}</Badge>
+                  <Badge className={statusColor}>{displayStatusText}</Badge>
                   {/* {session.paymentStatus && (
                     <Badge variant="secondary" className={paymentStatusColor}>
                       Payment: {session.paymentStatus}
@@ -416,6 +426,20 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
                     )}
                   </Tooltip>
                 </TooltipProvider>
+              </div>
+            )}
+
+            {/* Request Support Button - Shown only for completed sessions */}
+            {effectiveStatus === 'COMPLETED' && (
+              <div className="mt-6 border-t pt-4">
+                <Button 
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={() => router.push(`/dashboard/coach/sessions/${session.ulid}/report-issue`)}
+                >
+                  <HelpCircle className="mr-2 h-4 w-4" />
+                  Request Support
+                </Button>
               </div>
             )}
           </div>

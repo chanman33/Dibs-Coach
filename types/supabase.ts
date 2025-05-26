@@ -2769,6 +2769,7 @@ export type Database = {
         Row: {
           createdAt: string
           description: string
+          sessionUlid: string | null
           status: Database["public"]["Enums"]["TicketStatus"]
           title: string
           ulid: string
@@ -2778,6 +2779,7 @@ export type Database = {
         Insert: {
           createdAt?: string
           description: string
+          sessionUlid?: string | null
           status?: Database["public"]["Enums"]["TicketStatus"]
           title: string
           ulid: string
@@ -2787,6 +2789,7 @@ export type Database = {
         Update: {
           createdAt?: string
           description?: string
+          sessionUlid?: string | null
           status?: Database["public"]["Enums"]["TicketStatus"]
           title?: string
           ulid?: string
@@ -2794,6 +2797,13 @@ export type Database = {
           userUlid?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "SupportTicket_sessionUlid_fkey"
+            columns: ["sessionUlid"]
+            isOneToOne: false
+            referencedRelation: "Session"
+            referencedColumns: ["ulid"]
+          },
           {
             foreignKeyName: "SupportTicket_userUlid_fkey"
             columns: ["userUlid"]
