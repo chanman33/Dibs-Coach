@@ -75,6 +75,8 @@ model User {
   orgPaymentMethods        PaymentMethod[]
   billingEvents            BillingEvent[]
   zoomConfig              CoachZoomConfig?               @relation("UserZoomConfig")
+  coachRequests            CoachRequest[]                 @relation("UserCoachRequests")
+  reviewedCoachRequests    CoachRequest[]                 @relation("ReviewerCoachRequests")
 
   @@index([userId])
   @@index([email])
@@ -1733,4 +1735,32 @@ model CoachZoomConfig {
   @@index([coachUlid])
   @@index([zoomAccountId])
   @@map("CoachZoomConfig")
+}
+
+enum CoachRequestStatus {
+  PENDING
+  REVIEWED
+  MATCHED
+  CLOSED
+}
+
+model CoachRequest {
+  ulid             String             @id @db.Char(26)
+  userUlid         String             @db.Char(26)
+  requestDetails   String
+  preferredDomain  RealEstateDomain?
+  preferredSkills  String[]           @default([])
+  status           CoachRequestStatus @default(PENDING)
+  reviewedByUlid   String?            @db.Char(26)
+  reviewNotes      String?
+  createdAt        DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime           @updatedAt @db.Timestamptz(6)
+
+  user             User               @relation("UserCoachRequests", fields: [userUlid], references: [ulid], onDelete: Cascade)
+  reviewedBy       User?              @relation("ReviewerCoachRequests", fields: [reviewedByUlid], references: [ulid], onDelete: SetNull) // onDelete: SetNull for reviewedBy
+
+  @@index([userUlid])
+  @@index([status])
+  @@index([reviewedByUlid])
+  @@map("CoachRequest")
 }

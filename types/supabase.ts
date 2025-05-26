@@ -932,6 +932,66 @@ export type Database = {
           },
         ]
       }
+      CoachRequest: {
+        Row: {
+          createdAt: string
+          preferredDomain:
+            | Database["public"]["Enums"]["RealEstateDomain"]
+            | null
+          preferredSkills: string[] | null
+          requestDetails: string
+          reviewedByUlid: string | null
+          reviewNotes: string | null
+          status: Database["public"]["Enums"]["CoachRequestStatus"]
+          ulid: string
+          updatedAt: string
+          userUlid: string
+        }
+        Insert: {
+          createdAt?: string
+          preferredDomain?:
+            | Database["public"]["Enums"]["RealEstateDomain"]
+            | null
+          preferredSkills?: string[] | null
+          requestDetails: string
+          reviewedByUlid?: string | null
+          reviewNotes?: string | null
+          status?: Database["public"]["Enums"]["CoachRequestStatus"]
+          ulid: string
+          updatedAt: string
+          userUlid: string
+        }
+        Update: {
+          createdAt?: string
+          preferredDomain?:
+            | Database["public"]["Enums"]["RealEstateDomain"]
+            | null
+          preferredSkills?: string[] | null
+          requestDetails?: string
+          reviewedByUlid?: string | null
+          reviewNotes?: string | null
+          status?: Database["public"]["Enums"]["CoachRequestStatus"]
+          ulid?: string
+          updatedAt?: string
+          userUlid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "CoachRequest_reviewedByUlid_fkey"
+            columns: ["reviewedByUlid"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["ulid"]
+          },
+          {
+            foreignKeyName: "CoachRequest_userUlid_fkey"
+            columns: ["userUlid"]
+            isOneToOne: false
+            referencedRelation: "User"
+            referencedColumns: ["ulid"]
+          },
+        ]
+      }
       CoachZoomConfig: {
         Row: {
           coachUlid: string
@@ -3086,6 +3146,7 @@ export type Database = {
       CalSchedulingType: "MANAGED" | "OFFICE_HOURS" | "GROUP_SESSION"
       CertificationStatus: "ACTIVE" | "EXPIRED" | "REVOKED" | "PENDING"
       CoachApplicationStatus: "PENDING" | "APPROVED" | "REJECTED"
+      CoachRequestStatus: "PENDING" | "REVIEWED" | "MATCHED" | "CLOSED"
       CommercialDealType:
         | "SALES"
         | "LEASING"
@@ -3490,6 +3551,7 @@ export const Constants = {
       CalSchedulingType: ["MANAGED", "OFFICE_HOURS", "GROUP_SESSION"],
       CertificationStatus: ["ACTIVE", "EXPIRED", "REVOKED", "PENDING"],
       CoachApplicationStatus: ["PENDING", "APPROVED", "REJECTED"],
+      CoachRequestStatus: ["PENDING", "REVIEWED", "MATCHED", "CLOSED"],
       CommercialDealType: [
         "SALES",
         "LEASING",

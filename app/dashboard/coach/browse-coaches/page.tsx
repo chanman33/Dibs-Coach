@@ -33,6 +33,9 @@ export default function CoachBrowseCoachesPage() {
         className="pt-8"
       />
       
+      {/* Request a coach card - REMOVED a coach card - Added */}
+      {/* <RequestCoachCard className="my-8 mx-auto max-w-3xl" /> */}
+      
       {/* All coaches browse section */}
       <div className="flex-grow">
         <Suspense fallback={

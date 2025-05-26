@@ -14,6 +14,7 @@ import { CoachFilters } from '@/components/coaching/shared/SearchAndFilter/types
 import { useRouter, useSearchParams } from 'next/navigation'
 import { COACH_SPECIALTIES, SpecialtyCategory, REAL_ESTATE_DOMAINS, RealEstateDomain } from '@/utils/types/coach'
 import { RecommendedCoaches } from '../shared/RecommendedCoaches'
+import { RequestCoachCard } from '@/components/coaching/coach-requests/RequestCoachCard'
 
 export interface BrowseCoachesProps {
   role: keyof typeof USER_CAPABILITIES;
@@ -249,13 +250,12 @@ export function BrowseCoaches({ role, isSignedIn, initialFocus }: BrowseCoachesP
                 initialFilters={filters}
                 domains={allSpecialties.map(specialty => ({
                   label: specialty,
-                  value: specialty
+                  value: specialty,
                 }))}
               />
             </CardContent>
           </Card>
-
-          {/* Categories component has been replaced by the coachSkills filter in FilterSidebar and can be removed */}
+          <RequestCoachCard className="shadow-sm" />
         </div>
         
         <div className="lg:col-span-3">
