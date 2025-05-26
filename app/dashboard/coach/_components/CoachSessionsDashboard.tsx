@@ -447,7 +447,10 @@ function SessionCard({ session, onViewDetails }: SessionCardProps) {
   const formattedTime = formatDate(session.startTime, 'h:mm a')
 
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card 
+      className="hover:shadow-md transition-shadow cursor-pointer" 
+      onClick={() => onViewDetails(session)}
+    >
       <CardContent className="p-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between">
           <div className="space-y-1 mb-4 md:mb-0">

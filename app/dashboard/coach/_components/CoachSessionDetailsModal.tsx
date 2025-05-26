@@ -366,7 +366,7 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
                 <TooltipProvider>
                   <Tooltip delayDuration={isJoinDisabled && now < joinEnabledStartTime ? 300 : 1000}> {/* Show tooltip if too early for mentee */}
                     <TooltipTrigger asChild>
-                      <span tabIndex={0} className={(isJoinDisabled && now < joinEnabledStartTime) ? 'cursor-help' : (isJoinDisabled ? 'cursor-not-allowed' : '') }>
+                      <span tabIndex={-1} className={(isJoinDisabled && now < joinEnabledStartTime) ? 'cursor-help' : (isJoinDisabled ? 'cursor-not-allowed' : '') }>
                         <Button
                           size="sm"
                           className="bg-green-600 hover:bg-green-700 text-white min-w-[110px]"
@@ -380,12 +380,9 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
                         </Button>
                       </span>
                     </TooltipTrigger>
-                    {/* Tooltip specifically for join button state */}
-                    {(isJoinDisabled || !session.zoomJoinUrl) && (
-                       <TooltipContent>
-                         <p>{!session.zoomJoinUrl ? "Zoom link not available." : joinButtonTooltipMessage}</p>
-                       </TooltipContent>
-                    )}
+                    <TooltipContent>
+                      <p>{!session.zoomJoinUrl ? "Call not available yet." : joinButtonTooltipMessage}</p>
+                    </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 <Button

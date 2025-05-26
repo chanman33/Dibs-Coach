@@ -303,7 +303,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
                 <TooltipProvider>
                   <Tooltip delayDuration={isJoinDisabled ? 300 : 1000}> {/* Longer delay if not disabled, shorter if info needed */}
                     <TooltipTrigger asChild>
-                      <span tabIndex={0} className={isJoinDisabled ? 'cursor-not-allowed' : ''}>
+                      <span tabIndex={-1} className={isJoinDisabled ? 'cursor-not-allowed' : ''}>
                         <Button
                           size="sm"
                           className="bg-green-600 hover:bg-green-700 text-white min-w-[110px]"
@@ -315,11 +315,9 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
                         </Button>
                       </span>
                     </TooltipTrigger>
-                    {(isJoinDisabled || !session.zoomJoinUrl) && (
-                      <TooltipContent>
-                        <p>{!session.zoomJoinUrl ? "Zoom link not available." : joinButtonTooltipMessage}</p>
-                      </TooltipContent>
-                    )}
+                    <TooltipContent>
+                      <p>{!session.zoomJoinUrl ? "Call not available yet." : joinButtonTooltipMessage}</p>
+                    </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 <TooltipProvider>
