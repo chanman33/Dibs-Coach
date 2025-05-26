@@ -102,6 +102,16 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
   
   if (!session) return null;
   
+  // Calculate time-based conditions
+  const now = new Date().getTime();
+  const sessionStartTime = new Date(session.startTime).getTime();
+  const joinGracePeriodMs = 10 * 60 * 1000; // 10 minutes past start
+  const joinAllowedUntil = sessionStartTime + joinGracePeriodMs;
+  const joinEnabledBufferMs = 5 * 60 * 1000; // 5 minutes before start
+  const joinEnabledStartTime = sessionStartTime - joinEnabledBufferMs;
+
+  const isStrictlyFutureSession = sessionStartTime > now; // True if session hasn't started yet
+  
   const mentee = session.otherParty;
   const menteeName = [mentee.firstName, mentee.lastName].filter(Boolean).join(' ') || 'Unknown Mentee';
   const menteeInitials = [mentee.firstName?.[0], mentee.lastName?.[0]].filter(Boolean).join('') || '?';
@@ -185,14 +195,42 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
     }
   }
 
-  const canModifySession = session.status === 'SCHEDULED'
-  const isWithin24Hours = new Date(session.startTime).getTime() - new Date().getTime() < 24 * 60 * 60 * 1000;
-  const isCancelDisabled = !canModifySession || isWithin24Hours;
-  const cancelTooltipMessage = !canModifySession 
-    ? "Session cannot be modified." 
-    : isWithin24Hours 
-      ? "Cannot cancel within 24 hours of start time."
-      : "Cancel this session";
+  // Display the entire action button row if the session is scheduled and within the join grace period
+  const displayActionButtonsRow = session.status === 'SCHEDULED' && now < joinAllowedUntil;
+
+  const isWithin24Hours = sessionStartTime - now < 24 * 60 * 60 * 1000 && sessionStartTime > now;
+  
+  // Join button specific disabled state and tooltip
+  const isJoinDisabled = 
+    session.status !== 'SCHEDULED' || 
+    now < joinEnabledStartTime || 
+    now >= joinAllowedUntil;
+
+  const joinButtonTooltipMessage = 
+    session.status !== 'SCHEDULED' ? "Session is not available to join."
+    : now < joinEnabledStartTime ? `Mentee can join 5 minutes before the start time (at ${format(new Date(joinEnabledStartTime), 'p')}). You can join now.`
+    : now >= joinAllowedUntil ? "The join window for this session has passed."
+    : "Join Zoom session";
+
+  // Cancel is disabled if not scheduled, or if it's already started, or within 24h of start
+  const isCancelDisabled = 
+    session.status !== 'SCHEDULED' || 
+    !isStrictlyFutureSession || 
+    isWithin24Hours;
+  
+  const cancelTooltipMessage = 
+    session.status !== 'SCHEDULED' ? "Only scheduled sessions can be cancelled."
+    : !isStrictlyFutureSession ? "Session has already started or is in the past and cannot be cancelled."
+    : isWithin24Hours ? "Cannot cancel within 24 hours of start time."
+    : "Cancel this session";
+  
+  // Note: Reschedule button for coach might have different logic or be disabled if not implemented
+  // For now, let's assume it follows similar rules if it were to be fully enabled.
+  const isRescheduleDisabled = 
+    session.status !== 'SCHEDULED' || 
+    !isStrictlyFutureSession; // Coaches might have more leeway or different policy than 24h for mentees, 
+                              // or this feature is not fully implemented yet for coaches.
+                              // Sticking to !isStrictlyFutureSession for now.
 
   return (
     <>
@@ -323,22 +361,39 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
             </div> */}
 
             {/* Action Buttons Row */}
-            {canModifySession && (
+            {displayActionButtonsRow && (
               <div className="flex flex-row items-center gap-2 mt-6 w-full">
-                <Button
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white min-w-[110px]"
-                  asChild
-                >
-                  <a href={session.zoomJoinUrl || '#'} target="_blank" rel="noopener noreferrer">
-                    Join
-                  </a>
-                </Button>
+                <TooltipProvider>
+                  <Tooltip delayDuration={isJoinDisabled && now < joinEnabledStartTime ? 300 : 1000}> {/* Show tooltip if too early for mentee */}
+                    <TooltipTrigger asChild>
+                      <span tabIndex={0} className={(isJoinDisabled && now < joinEnabledStartTime) ? 'cursor-help' : (isJoinDisabled ? 'cursor-not-allowed' : '') }>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white min-w-[110px]"
+                          onClick={() => session.zoomJoinUrl && window.open(session.zoomJoinUrl, '_blank')}
+                          // Coach might be able to join earlier than mentee, but button reflects mentee window for clarity or actual restriction
+                          // For now, coach join is tied to the same window. Can be adjusted if coach needs earlier access.
+                          disabled={isJoinDisabled || !session.zoomJoinUrl} 
+                          aria-disabled={isJoinDisabled || !session.zoomJoinUrl}
+                        >
+                          Join
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {/* Tooltip specifically for join button state */}
+                    {(isJoinDisabled || !session.zoomJoinUrl) && (
+                       <TooltipContent>
+                         <p>{!session.zoomJoinUrl ? "Zoom link not available." : joinButtonTooltipMessage}</p>
+                       </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
                 <Button
                   size="sm"
                   variant="default"
                   className="min-w-[110px] bg-primary/90 hover:bg-primary"
                   onClick={() => { alert('Reschedule feature coming soon!')/* TODO: Implement reschedule logic */}}
+                  disabled={isRescheduleDisabled}
                 >
                   Reschedule
                 </Button>

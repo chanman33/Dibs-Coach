@@ -24,6 +24,34 @@ const statusColorMap: Record<string, string> = {
   'NO_SHOW': 'bg-yellow-500'
 }
 
+// Define possible session statuses for filtering and effective status calculation
+const COACH_SESSION_STATUSES = ['SCHEDULED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'] as const;
+type CoachSessionStatusType = typeof COACH_SESSION_STATUSES[number];
+
+// Helper function to determine the effective status of a coach's session
+const getEffectiveCoachSessionStatus = (session: TransformedSession, nowString: string): CoachSessionStatusType => {
+  if (!session || typeof session.status !== 'string' || typeof session.startTime !== 'string') {
+    // Handle cases where session or its critical properties are undefined/malformed
+    console.warn('[CoachDashboard] Invalid session object for effective status:', session);
+    return 'SCHEDULED'; // Or some other default/error status
+  }
+
+  if (session.status === 'SCHEDULED') {
+    const sessionStartTime = new Date(session.startTime);
+    const now = new Date(nowString);
+    return sessionStartTime <= now ? 'COMPLETED' : 'SCHEDULED';
+  }
+
+  // Ensure the raw status is a valid filterable status
+  if (COACH_SESSION_STATUSES.includes(session.status as CoachSessionStatusType)) {
+    return session.status as CoachSessionStatusType;
+  }
+  
+  // Fallback for unexpected statuses
+  console.warn(`[CoachDashboard] Unexpected session.status: ${session.status} for session id: ${session.ulid}`);
+  return 'SCHEDULED'; // Default or choose a more appropriate fallback
+};
+
 /**
  * Format date safely without persisting Date objects in state/closures
  */
@@ -121,27 +149,39 @@ export function CoachSessionsDashboard() {
   const filteredSessions = useMemo(() => {
     if (!sessions.length) return []
     
-    return [...sessions]
-      .filter((session: TransformedSession) => {
-        // Filter by search query (case insensitive)
-        const matchesSearch = searchQuery === '' || 
+    let processedSessions = [...sessions]
+      .filter((session: TransformedSession) => { 
+        // Filter by search query (case insensitive) first
+        return searchQuery === '' || 
           (session.otherParty.firstName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
           (session.otherParty.lastName?.toLowerCase() || '').includes(searchQuery.toLowerCase())
-        
-        // Filter by status
-        const matchesFilter = filter === 'all' || session.status === filter
-        
-        // Filter by tab - upcoming or past
-        const isUpcoming = session.startTime > nowString
-        const matchesTab = selectedTab === 'upcoming' ? isUpcoming : !isUpcoming
-
-        return matchesSearch && matchesFilter && matchesTab
       })
-      .sort((a: TransformedSession, b: TransformedSession) => {
+      .map(session => ({
+        ...session,
+        effectiveStatus: getEffectiveCoachSessionStatus(session, nowString)
+      }));
+
+    // Then filter by tab
+    if (selectedTab === 'upcoming') {
+      processedSessions = processedSessions.filter(session => session.effectiveStatus === 'SCHEDULED');
+    } else if (selectedTab === 'past') {
+      processedSessions = processedSessions.filter(session => 
+        ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(session.effectiveStatus)
+      );
+    } else { // 'all' tab
+      // Apply status dropdown filter only on 'all' tab
+      if (filter !== 'all') {
+        processedSessions = processedSessions.filter(session => session.effectiveStatus === filter);
+      }
+    }
+        
+    // Finally, sort sessions
+    return processedSessions.sort((a, b) => {
         // Sort by start time
-        return selectedTab === 'upcoming'
-          ? new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-          : new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+        // For upcoming, ascending (sooner first). For past/all, descending (most recent first).
+        const timeA = new Date(a.startTime).getTime();
+        const timeB = new Date(b.startTime).getTime();
+        return selectedTab === 'upcoming' ? timeA - timeB : timeB - timeA;
       })
   }, [sessions, searchQuery, filter, selectedTab, nowString])
 
@@ -150,14 +190,17 @@ export function CoachSessionsDashboard() {
     if (!sessions.length) return defaultAnalytics
     
     return sessions.reduce((acc: SessionsAnalytics, session: TransformedSession) => {
-      acc.total++
+      // Use effective status for analytics
+      const effectiveStatus = getEffectiveCoachSessionStatus(session, nowString);
       
-      // Increment the appropriate counter based on status
-      switch (session.status) {
-        case 'SCHEDULED':
+      acc.total++ // Total always increments based on actual sessions processed
+      
+      // Increment the appropriate counter based on effective status
+      switch (effectiveStatus) {
+        case 'SCHEDULED': // This will now only count truly upcoming scheduled sessions
           acc.scheduled++
           break
-        case 'COMPLETED':
+        case 'COMPLETED': // This will count explicitly completed and past scheduled sessions
           acc.completed++
           break
         case 'CANCELLED':
@@ -234,10 +277,11 @@ export function CoachSessionsDashboard() {
         <CardHeader className="space-y-0">
           <div className="flex items-center justify-between pb-4">
             <CardTitle>Sessions</CardTitle>
-            <Tabs defaultValue={selectedTab} onValueChange={setSelectedTab} className="w-[400px]">
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs defaultValue={selectedTab} onValueChange={setSelectedTab} className="w-auto">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
                 <TabsTrigger value="past">Past</TabsTrigger>
+                <TabsTrigger value="all">All</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -251,19 +295,37 @@ export function CoachSessionsDashboard() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <Select value={filter} onValueChange={setFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Filter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="SCHEDULED">Scheduled</SelectItem>
-                <SelectItem value="COMPLETED">Completed</SelectItem>
-                <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                <SelectItem value="NO_SHOW">No Show</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Conditionally render Status filter for Past and All tabs */}
+            {(selectedTab === 'past' || selectedTab === 'all') && (
+              <div className="w-full sm:w-auto"> {/* Container for Select, without flex-1 */} 
+                <Select value={filter} onValueChange={setFilter}>
+                  <SelectTrigger className="w-full sm:w-[180px]">
+                    <Filter className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Filter by Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    {/* Options for Past tab */} 
+                    {selectedTab === 'past' && (
+                      <>
+                        <SelectItem value="COMPLETED">Completed</SelectItem>
+                        <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                        <SelectItem value="NO_SHOW">No Show</SelectItem>
+                      </>
+                    )}
+                    {/* Options for All tab (includes Scheduled) */} 
+                    {selectedTab === 'all' && (
+                      <>
+                        <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                        <SelectItem value="COMPLETED">Completed</SelectItem>
+                        <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                        <SelectItem value="NO_SHOW">No Show</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardHeader>
 
@@ -271,8 +333,23 @@ export function CoachSessionsDashboard() {
           <div className="space-y-4">
             {filteredSessions.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                <p>No sessions found</p>
-                {sessions.length > 0 && (
+                <p>
+                  {searchQuery ? 'No sessions match your search.'
+                    : selectedTab === 'upcoming' ? 'You have no upcoming sessions scheduled.'
+                    : selectedTab === 'past' ? 'You have no past sessions.'
+                    : filter !== 'all' ? `No sessions match the status filter: ${filter}.`
+                    : 'No sessions found.'}
+                </p>
+                {selectedTab === 'upcoming' && !searchQuery && sessions.filter((s: TransformedSession) => getEffectiveCoachSessionStatus(s, nowString) === 'SCHEDULED').length === 0 && (
+                  <div className="mt-4">
+                    <Button asChild>
+                      <Link href="/dashboard/coach/share-profile">
+                        Share Coaching Opportunity
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+                {(searchQuery || (filter !== 'all' && selectedTab === 'all')) && (
                   <Button variant="link" onClick={() => {
                     setFilter('all')
                     setSearchQuery('')
@@ -350,7 +427,22 @@ interface SessionCardProps {
 function SessionCard({ session, onViewDetails }: SessionCardProps) {
   const mentee = session.otherParty
   const menteeName = [mentee.firstName, mentee.lastName].filter(Boolean).join(' ') || 'Unknown Mentee'
-  const statusColor = statusColorMap[session.status] || 'bg-gray-500'
+  
+  // Determine effective status for display using the current time.
+  // Note: nowString from the parent might be slightly stale if not passed down.
+  // For card display, re-evaluating with new Date() might be more accurate if staleness is a concern,
+  // but for consistency with filtering/analytics, we should ideally use the same `nowString`.
+  // Assuming `nowString` is implicitly available or passed if needed, otherwise, define it locally for the card.
+  // For this change, we'll assume `nowString` from parent is what we need or that this calculation happens in parent.
+  // Let's refine this: The `SessionCard` is a pure display component. It should receive the effective status
+  // or calculate it based on a `nowString` prop if dynamic updates within the card itself are needed.
+  // Given the current structure, it's better to calculate effective status in the parent and pass it.
+  // However, to minimize prop drilling for now and align with the direct `session.status` usage,
+  // we'll call getEffectiveCoachSessionStatus here. A more robust solution might involve passing `nowString`.
+  const nowStringForCard = useMemo(() => new Date().toISOString(), []); // Card specific 'now'
+  const effectiveDisplayStatus = getEffectiveCoachSessionStatus(session, nowStringForCard);
+
+  const statusColor = statusColorMap[effectiveDisplayStatus] || 'bg-gray-500'
   const formattedDate = formatDate(session.startTime, 'MMM d, yyyy')
   const formattedTime = formatDate(session.startTime, 'h:mm a')
 
@@ -361,7 +453,7 @@ function SessionCard({ session, onViewDetails }: SessionCardProps) {
           <div className="space-y-1 mb-4 md:mb-0">
             <div className="flex items-center gap-2">
               <h4 className="text-lg font-semibold">{menteeName}</h4>
-              <Badge className={statusColor}>{session.status}</Badge>
+              <Badge className={statusColor}>{effectiveDisplayStatus.charAt(0) + effectiveDisplayStatus.slice(1).toLowerCase().replace('_', ' ')}</Badge>
             </div>
             <div className="flex items-center text-muted-foreground gap-4">
               <span className="flex items-center gap-1">

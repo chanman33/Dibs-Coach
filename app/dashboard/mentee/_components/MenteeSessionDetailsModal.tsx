@@ -95,6 +95,17 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
   
   if (!session) return null
   
+  // Calculate time-based conditions
+  const now = new Date().getTime();
+  const sessionStartTime = new Date(session.startTime).getTime();
+  const joinGracePeriodMs = 10 * 60 * 1000; // 10 minutes past start
+  const joinAllowedUntil = sessionStartTime + joinGracePeriodMs;
+  const joinEnabledBufferMs = 5 * 60 * 1000; // 5 minutes before start
+  const joinEnabledStartTime = sessionStartTime - joinEnabledBufferMs;
+
+  const isStrictlyFutureSession = sessionStartTime > now; // True if session hasn't started yet
+  // const canStillJoin = session.status === 'SCHEDULED' && now < joinAllowedUntil; // Replaced by isJoinDisabled logic
+  
   const coach = session.otherParty
   const coachName = [coach.firstName, coach.lastName].filter(Boolean).join(' ') || 'Unknown Coach'
   const coachInitials = [coach.firstName?.[0], coach.lastName?.[0]].filter(Boolean).join('') || '?'
@@ -173,21 +184,44 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
     }
   }
 
-  const displayActionButtons = session.status !== 'COMPLETED' && session.status !== 'CANCELLED';
-  const isWithin24Hours = new Date(session.startTime).getTime() - new Date().getTime() < 24 * 60 * 60 * 1000;
+  // Display the entire action button row if the session is scheduled and within the join grace period
+  const displayActionButtonsRow = session.status === 'SCHEDULED' && now < joinAllowedUntil;
   
-  const isRescheduleDisabled = !displayActionButtons || session.status !== 'SCHEDULED' || isWithin24Hours;
-  const isCancelDisabled = !displayActionButtons || session.status !== 'SCHEDULED' || isWithin24Hours;
+  const isWithin24Hours = sessionStartTime - now < 24 * 60 * 60 * 1000 && sessionStartTime > now;
+  
+  // Join button specific disabled state and tooltip
+  const isJoinDisabled = 
+    session.status !== 'SCHEDULED' || 
+    now < joinEnabledStartTime || 
+    now >= joinAllowedUntil;
+
+  const joinButtonTooltipMessage = 
+    session.status !== 'SCHEDULED' ? "Session is not available to join."
+    : now < joinEnabledStartTime ? `You can join 5 minutes before the start time (at ${format(new Date(joinEnabledStartTime), 'p')}).`
+    : now >= joinAllowedUntil ? "The join window for this session has passed."
+    : "Join Zoom session";
+  
+  // Reschedule is disabled if not scheduled, or if it's already started, or within 24h of start
+  const isRescheduleDisabled = 
+    session.status !== 'SCHEDULED' || 
+    !isStrictlyFutureSession || 
+    isWithin24Hours;
+
+  // Cancel is disabled if not scheduled, or if it's already started, or within 24h of start
+  const isCancelDisabled = 
+    session.status !== 'SCHEDULED' || 
+    !isStrictlyFutureSession || 
+    isWithin24Hours;
 
   const rescheduleTooltipMessage = 
-    !displayActionButtons ? "Session cannot be modified as it's already completed or cancelled."
-    : session.status !== 'SCHEDULED' ? "Only scheduled sessions can be rescheduled."
+    session.status !== 'SCHEDULED' ? "Only scheduled sessions can be rescheduled."
+    : !isStrictlyFutureSession ? "Session has already started or is in the past and cannot be rescheduled."
     : isWithin24Hours ? "Cannot reschedule within 24 hours of start time."
     : "Reschedule this session";
       
   const cancelTooltipMessage = 
-    !displayActionButtons ? "Session cannot be modified as it's already completed or cancelled."
-    : session.status !== 'SCHEDULED' ? "Only scheduled sessions can be cancelled."
+    session.status !== 'SCHEDULED' ? "Only scheduled sessions can be cancelled."
+    : !isStrictlyFutureSession ? "Session has already started or is in the past and cannot be cancelled."
     : isWithin24Hours ? "Cannot cancel within 24 hours of start time."
     : "Cancel this session";
 
@@ -263,18 +297,31 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
               </div>
             </div>
 
-            {/* Action Buttons Row */}
-            {displayActionButtons && (
+            {/* Action Buttons Row START */}
+            {displayActionButtonsRow && (
               <div className="flex flex-row items-center gap-2 mt-6 w-full">
-                <Button
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white min-w-[110px]"
-                  asChild
-                >
-                  <a href={session.zoomJoinUrl || '#'} target="_blank" rel="noopener noreferrer">
-                    Join
-                  </a>
-                </Button>
+                <TooltipProvider>
+                  <Tooltip delayDuration={isJoinDisabled ? 300 : 1000}> {/* Longer delay if not disabled, shorter if info needed */}
+                    <TooltipTrigger asChild>
+                      <span tabIndex={0} className={isJoinDisabled ? 'cursor-not-allowed' : ''}>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white min-w-[110px]"
+                          onClick={() => session.zoomJoinUrl && window.open(session.zoomJoinUrl, '_blank')}
+                          disabled={isJoinDisabled || !session.zoomJoinUrl}
+                          aria-disabled={isJoinDisabled || !session.zoomJoinUrl}
+                        >
+                          Join
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    {(isJoinDisabled || !session.zoomJoinUrl) && (
+                      <TooltipContent>
+                        <p>{!session.zoomJoinUrl ? "Zoom link not available." : joinButtonTooltipMessage}</p>
+                      </TooltipContent>
+                    )}
+                  </Tooltip>
+                </TooltipProvider>
                 <TooltipProvider>
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
@@ -282,7 +329,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
                         <Button
                           size="sm"
                           variant="default"
-                          className="min-w-[110px]"
+                          className="min-w-[110px] bg-primary/90 hover:bg-primary"
                           onClick={() => setIsRescheduleDialogOpen(true)}
                           disabled={isRescheduleDisabled}
                           aria-disabled={isRescheduleDisabled}
@@ -323,6 +370,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
                 </TooltipProvider>
               </div>
             )}
+            {/* Action Buttons Row END */}
           </div>
         </DialogContent>
       </Dialog>
