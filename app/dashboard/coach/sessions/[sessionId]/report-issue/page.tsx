@@ -13,6 +13,14 @@ import { reportSessionIssueAction } from '@/utils/actions/support-actions'
 import { TransformedSession } from '@/utils/types/session'
 import { Loader2, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Define issue types relevant to a coach reporting an issue
 const issueTypes = [
@@ -37,6 +45,8 @@ export default function ReportIssuePageCoach() {
   const [description, setDescription] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [countdown, setCountdown] = useState(4)
 
   useEffect(() => {
     if (sessionId) {
@@ -74,6 +84,22 @@ export default function ReportIssuePageCoach() {
     }
   }, [sessionId, toast, router])
 
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (showSuccessModal && countdown > 0) {
+      timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+    } else if (showSuccessModal && countdown === 0) {
+      router.push('/dashboard/coach/sessions');
+      setShowSuccessModal(false); // Hide modal after redirecting
+    }
+    return () => clearTimeout(timer);
+  }, [showSuccessModal, countdown, router]);
+
+  const handleModalRedirect = () => {
+    setShowSuccessModal(false);
+    router.push('/dashboard/coach/sessions');
+  }
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (!selectedIssueType) {
@@ -108,7 +134,8 @@ export default function ReportIssuePageCoach() {
         toast({ title: 'Submission Failed', description: errorMessage, variant: 'destructive' })
       } else {
         toast({ title: 'Support Request Submitted', description: 'Your issue has been reported. We will get back to you soon.' })
-        router.push('/dashboard/coach/sessions')
+        setCountdown(4); // Reset countdown
+        setShowSuccessModal(true);
       }
     } catch (e: any) {
       setError('An unexpected error occurred.')
@@ -212,6 +239,21 @@ export default function ReportIssuePageCoach() {
           </CardFooter>
         </form>
       </Card>
+
+      <AlertDialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Support Request Submitted!</AlertDialogTitle>
+            <AlertDialogDescription>
+              Thank you for your report. Our support team will review your issue as quickly as possible.
+              You will be redirected in {countdown}...
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button onClick={handleModalRedirect}>Return to Dashboard</Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 } 
