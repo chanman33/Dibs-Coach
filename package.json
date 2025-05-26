@@ -22,7 +22,10 @@
     "update-types:win": "dotenv -e .env -- supabase gen types typescript --project-id %SUPABASE_PROJECT_ID% > types/supabase.ts",
     "update-types:mac": "dotenv -e .env -- sh -c 'supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > types/supabase.ts'",
     "update-types": "yarn update-types:win",
-    "update-types:ps": "powershell -Command \"$env:SUPABASE_PROJECT_ID=(Get-Content .env | Select-String 'SUPABASE_PROJECT_ID' | ForEach-Object { $_.ToString().Split('=')[1].Trim() }); supabase gen types typescript --project-id $env:SUPABASE_PROJECT_ID > types/supabase.ts\""
+    "update-types:ps": "powershell -Command \"$env:SUPABASE_PROJECT_ID=(Get-Content .env | Select-String 'SUPABASE_PROJECT_ID' | ForEach-Object { $_.ToString().Split('=')[1].Trim() }); supabase gen types typescript --project-id $env:SUPABASE_PROJECT_ID > types/supabase.ts\"",
+    "prisma:dev:migrate": "dotenv -e .env.development -- npx prisma migrate dev",
+    "prisma:dev:push": "dotenv -e .env.development -- npx prisma db push",
+    "prisma:prod:deploy": "dotenv -e .env.production -- npx prisma migrate deploy"
   },
   "dependencies": {
     "@clerk/nextjs": "^4.23.2",
