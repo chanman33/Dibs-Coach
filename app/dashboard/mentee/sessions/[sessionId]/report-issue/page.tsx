@@ -23,14 +23,29 @@ import {
 } from "@/components/ui/alert-dialog"
 
 const issueTypes = [
-  { id: 'mentee_absent', label: 'I (Mentee) was absent' },
-  { id: 'coach_absent', label: 'My Coach was absent' },
-  { id: 'technical_difficulties', label: 'Technical difficulties during session' },
-  { id: 'late_start_coach', label: 'Coach started the session late' },
-  { id: 'late_start_mentee', label: 'I (Mentee) started the session late' },
-  { id: 'session_content_issue', label: 'Issue with session content or quality' },
-  { id: 'other', label: 'Other issue' },
-]
+  // Attendance Issues
+  { id: 'mentee_present_coach_absent', label: 'I (Mentee) showed up, but My Coach did not' },
+  { id: 'coach_late', label: 'My Coach showed up late' },
+  { id: 'session_ended_early', label: 'The session ended too early' },
+  { id: 'zoom_link_not_working', label: 'The Zoom link did not work' },
+
+  // Payment & Refunds
+  { id: 'mentee_request_refund', label: 'I (Mentee) want to request a refund' },
+  { id: 'mentee_charged_incorrectly', label: 'I (Mentee) was charged incorrectly' },
+  { id: 'mentee_charged_for_canceled_session', label: 'The session was canceled but I (Mentee) was still charged' },
+
+  // Call Issues
+  { id: 'call_technical_issues', label: 'There were technical issues (audio/video, lag, etc.)' },
+  { id: 'call_zoom_recording_issue', label: 'The Zoom call did not record properly' },
+  { id: 'call_transcript_issue', label: 'The transcript is missing or incorrect' },
+
+  // Coach/Client Conduct
+  { id: 'coach_unprofessional_rude', label: 'My Coach was unprofessional or rude (please explain)' },
+  { id: 'session_violated_guidelines', label: 'This session violated the platform guidelines (please explain)' },
+
+  // Other
+  { id: 'other_issue', label: 'Something else happened (please explain)' },
+];
 
 export default function ReportIssuePage() {
   const router = useRouter()

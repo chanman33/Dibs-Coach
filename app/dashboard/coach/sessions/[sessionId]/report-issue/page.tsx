@@ -24,14 +24,29 @@ import {
 
 // Define issue types relevant to a coach reporting an issue
 const issueTypes = [
-  { id: 'coach_absent', label: 'I (Coach) was absent' }, // Coach reporting their own absence
-  { id: 'mentee_absent', label: 'My Mentee was absent' }, // Coach reporting mentee's absence
-  { id: 'technical_difficulties', label: 'Technical difficulties during session' },
-  { id: 'late_start_mentee', label: 'Mentee started the session late' },
-  { id: 'late_start_coach', label: 'I (Coach) started the session late' },
-  { id: 'session_content_issue', label: 'Issue with session content or quality' },
-  { id: 'other', label: 'Other issue' },
-]
+  // Attendance Issues
+  { id: 'coach_present_mentee_absent', label: 'I (Coach) showed up, but My Mentee did not' },
+  { id: 'mentee_late', label: 'My Mentee showed up late' },
+  { id: 'session_ended_early_by_mentee', label: 'The session ended too early (initiated by Mentee)' }, // Or a general one if preferred
+  { id: 'zoom_link_not_working_for_mentee', label: 'The Zoom link did not work for My Mentee' }, // Or general
+
+  // Payment & Refunds - Generally less applicable for coach direct reporting, but can be adapted
+  // Consider if these are actions a coach takes or issues they report about the platform/mentee payment
+  { id: 'coach_payment_issue', label: 'I (Coach) have an issue with my payment for this session' },
+  { id: 'mentee_refund_request_unexpected', label: 'My Mentee is requesting a refund I do not agree with' },
+
+  // Call Issues
+  { id: 'call_technical_issues', label: 'There were technical issues (audio/video, lag, etc.)' },
+  { id: 'call_zoom_recording_issue', label: 'The Zoom call did not record properly' },
+  { id: 'call_transcript_issue', label: 'The transcript is missing or incorrect' },
+
+  // Coach/Client Conduct
+  { id: 'mentee_unprofessional_rude', label: 'My Mentee was unprofessional or rude (please explain)' },
+  { id: 'session_violated_guidelines_by_mentee', label: 'This session (initiated by My Mentee) violated the platform guidelines (please explain)' },
+
+  // Other
+  { id: 'other_issue_coach', label: 'Something else happened (please explain)' },
+];
 
 export default function ReportIssuePageCoach() {
   const router = useRouter()
