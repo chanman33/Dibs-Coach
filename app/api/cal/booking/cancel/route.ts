@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerAuthClient } from '@/utils/auth/auth-client';
 import { cookies } from 'next/headers';
+import { auth } from '@clerk/nextjs'; // Added Clerk auth
 
 export const dynamic = 'force-dynamic'; // Ensure this route is always dynamic
 
@@ -33,6 +34,11 @@ async function cancelCalBooking(bookingUid: string, coachAccessToken: string, ca
 
 export async function POST(request: Request) {
   const supabase = createServerAuthClient();
+  const { userId: clerkUserId } = auth(); // Use Clerk auth
+
+  if (!clerkUserId) {
+    return new NextResponse('Could not authenticate user.', { status: 401 });
+  }
 
   try {
     const { sessionId, calBookingUid: calBookingTableUlid, cancellationReason } = await request.json();
@@ -41,18 +47,19 @@ export async function POST(request: Request) {
       return new NextResponse('Missing sessionId or calBookingTableUlid', { status: 400 });
     }
 
-    // 1. Fetch current user initiating the cancellation
-    const { data: { user: currentUser }, error: currentUserAuthError } = await supabase.auth.getUser();
-    if (currentUserAuthError || !currentUser) {
-      console.error('[AUTH_USER_FETCH_ERROR]', currentUserAuthError);
-      return new NextResponse('Could not authenticate user.', { status: 401, statusText: currentUserAuthError?.message || "User authentication failed" });
+    // 1. Fetch current user details from DB using Clerk ID
+    const { data: dbUser, error: dbUserError } = await supabase
+      .from('User')
+      .select('ulid, email')
+      .eq('userId', clerkUserId)
+      .single();
+
+    if (dbUserError || !dbUser) {
+      console.error('[DB_USER_FETCH_ERROR]', { error: dbUserError, clerkUserId });
+      return new NextResponse('Failed to fetch user details from database.', { status: 500 });
     }
-    const currentUserEmail = currentUser.email;
-    const currentDbUserUlid = (await supabase.from('User').select('ulid').eq('userId', currentUser.id).single())?.data?.ulid;
-    if (!currentDbUserUlid) {
-        console.error('[DB_USER_ULID_FETCH_ERROR]', `Failed to fetch ULID for Clerk user ID: ${currentUser.id}`);
-        return new NextResponse('Failed to resolve user database ID.', { status: 500 });
-    }
+    const currentUserEmail = dbUser.email;
+    const currentDbUserUlid = dbUser.ulid;
 
     // 2. Fetch Session details
     const { data: sessionData, error: sessionFetchDbError } = await supabase

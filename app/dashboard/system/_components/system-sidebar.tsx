@@ -19,6 +19,7 @@ import {
   BarChart3,
   Building2,
   CreditCard,
+  MessageSquareText,
 } from "lucide-react"
 
 export function SystemSidebar() {
@@ -68,6 +69,9 @@ export function SystemSidebar() {
             </NavLink>
             <NavLink href="/dashboard/system/coach-applications" icon={ClipboardCheck}>
               Coach Applications
+            </NavLink>
+            <NavLink href="/dashboard/system/coach-requests" icon={MessageSquareText}>
+              Coach Requests
             </NavLink>
             <NavLink href="/dashboard/system/coach-mgmt" icon={Users}>
               Coach Management
