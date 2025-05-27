@@ -14,6 +14,9 @@ import { fetchCoachRequests, updateCoachRequestStatus, addCoachRequestReviewNote
 import { CoachRequestStatusEnum, type CoachRequestStatus } from '@/utils/types/coach-request-types'
 import { toast } from 'sonner'
 import { Loader2, Edit3, Search, Users, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react'
+import { format } from 'date-fns'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
 
 // Define the structure of a CoachRequest with user details
 export type CoachRequestWithUser = Awaited<ReturnType<typeof fetchCoachRequests>>['data'][0];
@@ -88,12 +91,154 @@ function getStatusBadgeVariant(status: CoachRequestStatus): 'default' | 'seconda
   }
 }
 
+function RequestDetailsModal({ 
+  request, 
+  isOpen, 
+  onClose,
+  onStatusChange,
+  onNotesChange,
+  isUpdating 
+}: { 
+  request: CoachRequestWithUser | null
+  isOpen: boolean
+  onClose: () => void
+  onStatusChange: (ulid: string, status: CoachRequestStatus) => Promise<void>
+  onNotesChange: (ulid: string, notes: string) => Promise<void>
+  isUpdating: boolean
+}) {
+  const [notes, setNotes] = useState(request?.reviewNotes || '')
+
+  useEffect(() => {
+    setNotes(request?.reviewNotes || '')
+  }, [request])
+
+  if (!request) return null
+
+  const handleSaveNotes = async () => {
+    await onNotesChange(request.ulid, notes)
+  }
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Coach Request Details</DialogTitle>
+          <DialogDescription>
+            Submitted on {format(new Date(request.createdAt), 'MMMM d, yyyy')}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
+          {/* Left Column */}
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Mentee Information</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-muted-foreground">Full Name</Label>
+                  <p className="font-medium">
+                    {request.user?.firstName || ''} {request.user?.lastName || ''}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Email</Label>
+                  <p className="font-medium">{request.user?.email}</p>
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Request Details</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-muted-foreground">Preferred Domain</Label>
+                  <p className="font-medium">{request.preferredDomain || 'Not specified'}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Skills & Expertise</Label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {request.preferredSkills?.map((skill, index) => (
+                      <Badge key={index} variant="secondary">{skill}</Badge>
+                    )) || 'Not specified'}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Additional Details</Label>
+                  <div className="bg-muted/20 rounded-lg p-4">
+                    <p className="whitespace-pre-wrap">{request.requestDetails}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column */}
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-4">Review</h3>
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <div className="mt-1">
+                    <Select 
+                      value={request.status} 
+                      onValueChange={(newStatus) => onStatusChange(request.ulid, newStatus as CoachRequestStatus)}
+                      disabled={isUpdating}
+                    >
+                      <SelectTrigger className="w-[200px]">
+                        <SelectValue>
+                          <Badge variant={getStatusBadgeVariant(request.status as CoachRequestStatus)}>
+                            {request.status}
+                          </Badge>
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CoachRequestStatusEnum.options.map(status => (
+                          <SelectItem key={status} value={status}>
+                            <Badge variant={getStatusBadgeVariant(status as CoachRequestStatus)}>
+                              {status}
+                            </Badge>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add review notes..."
+                  className="min-h-[200px]"
+                />
+                <Button 
+                  onClick={handleSaveNotes} 
+                  disabled={isUpdating}
+                >
+                  {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save Notes
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-sm text-muted-foreground mt-4">
+              <p>Last updated: {format(new Date(request.updatedAt), 'MMMM d, yyyy HH:mm')}</p>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function CoachRequestsPage() {
   const [requests, setRequests] = useState<CoachRequestWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<CoachRequestWithUser | null>(null);
-  const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
-  const [reviewNotes, setReviewNotes] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<CoachRequestStatus | 'ALL'>('ALL');
@@ -125,23 +270,14 @@ export default function CoachRequestsPage() {
     setIsUpdating(false);
   };
 
-  const openNotesModal = (request: CoachRequestWithUser) => {
-    setSelectedRequest(request);
-    setReviewNotes(request.reviewNotes || '');
-    setIsNotesModalOpen(true);
-  };
-
-  const handleSaveNotes = async () => {
-    if (!selectedRequest) return;
+  const handleNotesChange = async (ulid: string, notes: string) => {
     setIsUpdating(true);
-    const result = await addCoachRequestReviewNotes({ ulid: selectedRequest.ulid, notes: reviewNotes });
+    const result = await addCoachRequestReviewNotes({ ulid, notes });
     if (result.error) {
       toast.error(result.error.message || 'Failed to save notes.');
     } else {
       toast.success('Review notes saved!');
-      setRequests(prev => prev.map(req => req.ulid === selectedRequest.ulid ? { ...req, reviewNotes } : req));
-      setIsNotesModalOpen(false);
-      setSelectedRequest(null);
+      setRequests(prev => prev.map(req => req.ulid === ulid ? { ...req, reviewNotes: notes } : req));
     }
     setIsUpdating(false);
   };
@@ -294,45 +430,51 @@ export default function CoachRequestsPage() {
                   <TableHead>Skills</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Requested At</TableHead>
-                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRequests.map((req) => (
-                  <TableRow key={req.ulid}>
-                    <TableCell className="font-medium">{req.user?.firstName} {req.user?.lastName}</TableCell>
-                    <TableCell>{req.user?.email}</TableCell>
-                    <TableCell className="max-w-xs truncate">{req.requestDetails}</TableCell>
-                    <TableCell>{req.preferredDomain || 'N/A'}</TableCell>
-                    <TableCell>{req.preferredSkills?.join(', ') || 'N/A'}</TableCell>
-                    <TableCell>
-                      <Select 
-                        value={req.status} 
-                        onValueChange={(newStatus) => handleStatusChange(req.ulid, newStatus as CoachRequestStatus)}
-                        disabled={isUpdating}
-                      >
-                        <SelectTrigger className="w-[140px]">
-                          <SelectValue>
-                            <Badge variant={getStatusBadgeVariant(req.status as CoachRequestStatus)}>
-                              {req.status}
-                            </Badge>
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CoachRequestStatusEnum.options.map(status => (
-                            <SelectItem key={status} value={status}>
-                              <Badge variant={getStatusBadgeVariant(status as CoachRequestStatus)}>
-                                {status}
-                              </Badge>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <TableRow 
+                    key={req.ulid}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  >
+                    <TableCell 
+                      className="font-medium"
+                      onClick={() => setSelectedRequest(req)}
+                    >{req.user?.firstName} {req.user?.lastName}</TableCell>
+                    <TableCell 
+                      onClick={() => setSelectedRequest(req)}
+                    >{req.user?.email}</TableCell>
+                    <TableCell 
+                      className="max-w-xs truncate"
+                      onClick={() => setSelectedRequest(req)}
+                    >{req.requestDetails}</TableCell>
+                    <TableCell 
+                      onClick={() => setSelectedRequest(req)}
+                    >{req.preferredDomain || 'N/A'}</TableCell>
+                    <TableCell 
+                      className="max-w-xs truncate"
+                      onClick={() => setSelectedRequest(req)}
+                    >{req.preferredSkills?.join(', ') || 'N/A'}</TableCell>
+                    <TableCell onClick={() => setSelectedRequest(req)}>
+                      <Badge variant={getStatusBadgeVariant(req.status as CoachRequestStatus)}>
+                        {req.status}
+                      </Badge>
                     </TableCell>
-                    <TableCell>{new Date(req.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell 
+                      onClick={() => setSelectedRequest(req)}
+                    >{new Date(req.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell>
-                      <Button variant="outline" size="sm" onClick={() => openNotesModal(req)}>
-                        <Edit3 className="h-4 w-4 mr-2" /> Notes
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedRequest(req);
+                        }}
+                      >
+                        <Edit3 className="h-4 w-4" />
+                        <span className="sr-only">View Details</span>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -343,36 +485,15 @@ export default function CoachRequestsPage() {
         </CardContent>
       </Card>
 
-      {selectedRequest && (
-        <Dialog open={isNotesModalOpen} onOpenChange={setIsNotesModalOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>Review Notes</DialogTitle>
-              <DialogDescription>
-                Add or edit review notes for {selectedRequest.user?.firstName} {selectedRequest.user?.lastName}'s request
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <Textarea
-                value={reviewNotes}
-                onChange={(e) => setReviewNotes(e.target.value)}
-                placeholder="Enter review notes..."
-                rows={5}
-                disabled={isUpdating}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsNotesModalOpen(false)} disabled={isUpdating}>
-                Cancel
-              </Button>
-              <Button onClick={handleSaveNotes} disabled={isUpdating}>
-                {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Notes
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* Details Modal */}
+      <RequestDetailsModal
+        request={selectedRequest}
+        isOpen={!!selectedRequest}
+        onClose={() => setSelectedRequest(null)}
+        onStatusChange={handleStatusChange}
+        onNotesChange={handleNotesChange}
+        isUpdating={isUpdating}
+      />
     </div>
   );
 } 
