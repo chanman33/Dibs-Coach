@@ -100,7 +100,8 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
   const [cancellationReason, setCancellationReason] = useState('');
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [menteeImgError, setMenteeImgError] = useState(false);
-  
+  const [isProposingReschedule, setIsProposingReschedule] = useState(false);
+
   if (!session) return null;
   
   // Calculate time-based conditions
@@ -242,9 +243,6 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
     !isStrictlyFutureSession; // Coaches might have more leeway or different policy than 24h for mentees, 
                               // or this feature is not fully implemented yet for coaches.
                               // Sticking to !isStrictlyFutureSession for now.
-
-  // New state for coach proposing reschedule
-  const [isProposingReschedule, setIsProposingReschedule] = useState(false);
 
   const handleCoachProposeReschedule = async () => {
     // TODO: Implement UI for coach to select new date/time and enter a reason.
@@ -475,6 +473,25 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
+                {/* Reschedule Button (Moved Before Cancel) */}
+                <TooltipProvider>
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={0} className={isRescheduleDisabled || isProposingReschedule ? 'cursor-not-allowed' : ''}>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="min-w-[110px] bg-primary/90 hover:bg-primary"
+                          onClick={handleCoachProposeReschedule}
+                          disabled={isRescheduleDisabled || isProposingReschedule}
+                        >
+                          {isProposingReschedule ? 'Proposing...' : 'Reschedule'}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                  </Tooltip>
+                </TooltipProvider>
+                {/* Cancel Button (Moved After Reschedule) */}
                 <TooltipProvider>
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
@@ -496,23 +513,6 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
                         <p>{cancelTooltipMessage}</p>
                       </TooltipContent>
                     )}
-                  </Tooltip>
-                </TooltipProvider>
-                <TooltipProvider>
-                  <Tooltip delayDuration={300}>
-                    <TooltipTrigger asChild>
-                      <span tabIndex={0} className={isRescheduleDisabled || isProposingReschedule ? 'cursor-not-allowed' : ''}>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="min-w-[110px] bg-primary/90 hover:bg-primary"
-                          onClick={handleCoachProposeReschedule}
-                          disabled={isRescheduleDisabled || isProposingReschedule}
-                        >
-                          {isProposingReschedule ? 'Proposing...' : 'Reschedule'}
-                        </Button>
-                      </span>
-                    </TooltipTrigger>
                   </Tooltip>
                 </TooltipProvider>
               </div>
