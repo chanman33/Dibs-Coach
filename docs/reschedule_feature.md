@@ -24,7 +24,7 @@ The rescheduling logic varies based on who initiates the action and the Mentee's
 | **Action Initiator** | **Mentee OAuth Connected?** | **Who Picks New Time?** | **Smart Conflict Checking?**         | **System Behavior**                                         | **Recommended UX**                                                                                         |
 | -------------------- | --------------------------- | ----------------------- | ------------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | **Coach**            | ✅ Yes                       | Coach                   | ✅ Coach + mentee conflict (optional) | Reschedule directly via Cal API                             | Notify mentee of new time, allow them to reschedule if needed                                              |
-| **Coach**            | ❌ No                        | Coach                   | ✅ Coach only                         | Reschedule directly via Cal API                             | Notify mentee, include message: "Make sure this time works for you. Let us know if you need to change it." |
+| **Coach**            | ❌ No                        | Coach (proposes)        | ✅ Coach only (for proposal)          | 1. Coach proposes new time(s). Session status updates (e.g., 'COACH_PROPOSED_RESCHEDULE'). <br> 2. Mentee receives proposal and must confirm/reject. <br> 3. If mentee confirms, system uses coach's Cal.com credentials to reschedule via Cal API (triggering the existing `rescheduleSession` flow which handles DB updates for `CalBooking` and `Session` tables). <br> 4. If mentee rejects, session reverts to `SCHEDULED` or a designated "rejected" state. | 1. Coach UI to select new date/time and send proposal. <br> 2. Mentee UI to view proposal and accept/reject. <br> 3. Notifications for proposal, confirmation, and rejection. Example mentee notification: "Coach [Name] has proposed a new time for your session. Please review and confirm." |
 | **Mentee**           | ✅ Yes                       | Mentee                  | ✅ Mentee + coach availability        | Allow smart rescheduling                                    | Real-time availability UI with conflict checking                                                           |
 | **Mentee**           | ❌ No                        | Mentee                  | ❌ Coach availability only            | Allow rescheduling, assume mentee is available              | Warn: "We can't check your calendar without access. Want to connect it?"                                   |
 
@@ -38,10 +38,17 @@ The rescheduling logic varies based on who initiates the action and the Mentee's
     *   Confirmation step before finalizing the reschedule.
     *   Clear loading states and feedback messages (success, error).
 *   **Coach-Initiated Reschedule:**
-    *   UI displays current meeting time and allows Coach to select a new date/time.
-    *   If Mentee's Cal.com is connected: Optionally, the system can check for conflicts on both calendars. Coach should be informed if the new time conflicts with the mentee's known availability.
-    *   If Mentee's Cal.com is not connected: Conflict checking is performed against the Coach's calendar only.
-    *   Upon successful reschedule, Coach sees a confirmation, and a notification is triggered for the Mentee.
+    *   UI displays current meeting time.
+    *   If Mentee's Cal.com is connected: 
+        *   (Current logic from PRD may apply if direct reschedule is desired for OAuth-connected mentees by coach) UI allows Coach to select a new date/time. Optionally, the system can check for conflicts on both calendars. Coach should be informed if the new time conflicts with the mentee's known availability. System proceeds with direct reschedule via Cal API.
+    *   If Mentee's Cal.com is not connected (Propose & Confirm flow):
+        *   Coach UI allows selection of one or more new proposed times and an optional reason.
+        *   Conflict checking is performed against the Coach's calendar only for these proposals.
+        *   A reschedule proposal is sent to the Mentee. The `Session` status is updated to `COACH_PROPOSED_RESCHEDULE`, and proposed details are stored.
+        *   Mentee receives a notification and must confirm or reject the proposed time via their UI.
+        *   If Mentee confirms: The system triggers the `rescheduleSession` action (using the coach's Cal.com credentials via `ensureValidCalToken`). This action finalizes the reschedule with the Cal.com API, updates the `CalBooking` table, updates the original `Session` to `RESCHEDULED` (linking to the new one), and creates a new `SCHEDULED` `Session` record. Both parties are notified of the confirmed new time.
+        *   If Mentee rejects: The `Session` status reverts to `SCHEDULED` (or a specific "rejected" status), and proposed details are cleared. Coach is notified.
+    *   Upon successful final reschedule (after mentee confirmation if applicable), Coach sees a confirmation, and a notification is triggered for the Mentee.
 *   **Mentee-Initiated Reschedule:**
     *   UI displays current meeting time and allows Mentee to select a new date/time.
     *   If Mentee's Cal.com is connected:
@@ -114,6 +121,17 @@ A primary server action will handle the reschedule logic.
     *   `endTime`: `TIMESTAMP WITH TIME ZONE`
     *   `createdAt`: `TIMESTAMP WITH TIME ZONE DEFAULT NOW()`
     *   `updatedAt`: `TIMESTAMP WITH TIME ZONE` (Must be updated on reschedule)
+*   **`Session` Table (example structure, verify with actual schema):**
+    *   `ulid`: `String @id @db.Char(26)`
+    *   `calBookingUlid`: `String? @unique @db.Char(26)` (FK to `CalBooking.ulid`)
+    *   `status`: `SessionStatus` (Enum now includes `COACH_PROPOSED_RESCHEDULE`)
+    *   `updatedAt`: `TIMESTAMP WITH TIME ZONE` (Must be updated on reschedule)
+    *   `proposedStartTime`: `TIMESTAMP WITH TIME ZONE?` (New field for coach's proposal)
+    *   `proposedEndTime`: `TIMESTAMP WITH TIME ZONE?` (New field for coach's proposal)
+    *   `rescheduleProposalReason`: `TEXT?` (New field for coach's proposal reason)
+    *   `rescheduleProposedByUlid`: `String? @db.Char(26)` (New, FK to `User.ulid`, stores ULID of the coach who proposed)
+*   **`SessionStatus` Enum (in `schema.prisma`):**
+    *   Needs the new value: `COACH_PROPOSED_RESCHEDULE`.
 *   **`User` Table / `CalIntegrations` Table:**
     *   Needs to store whether a user (especially mentee) has connected their Cal.com account and their Cal.com API token/refresh token securely. This is critical for conflict checking and API calls.
     *   Secure storage and retrieval of Cal.com tokens are paramount. Follow Cal.com guidelines in `.cursorrules`.

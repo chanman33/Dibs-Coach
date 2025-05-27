@@ -59,6 +59,7 @@ model User {
   reviewsGiven             Review[]                       @relation("Reviewer")
   coachingSessions         Session[]                      @relation("CoachSessions")
   menteeSessions          Session[]                      @relation("MenteeSessions")
+  proposedReschedules      Session[]                      @relation("RescheduleProposer")
   setupIntents             SetupIntent[]
   stripeAccount            StripeConnectedAccount?
   paymentMethods           StripePaymentMethod[]
@@ -290,6 +291,12 @@ model Session {
   reschedulingReason  String?  // Reason for rescheduling
   rescheduledBy       String?  // Email of user who initiated reschedule
   
+  // New fields for coach's reschedule proposal
+  proposedStartTime         DateTime? @db.Timestamptz(6)
+  proposedEndTime           DateTime? @db.Timestamptz(6)
+  rescheduleProposalReason  String?
+  rescheduleProposedByUlid  String?   @db.Char(26)
+
   // Cancellation Fields
   cancelledAt        DateTime? @db.Timestamptz(6)  // When the session was cancelled
   cancelledBy        String?   // Email of user who cancelled
@@ -347,7 +354,8 @@ model Session {
   reviews            Review[]
   transaction        Transaction? @relation("SessionTransaction")
   supportTickets     SupportTicket[] @relation("SessionSupportTickets")
-  
+  proposalInitiator  User?     @relation("RescheduleProposer", fields: [rescheduleProposedByUlid], references: [ulid], onDelete: SetNull) // Relation for who proposed
+
   // Self-relations for rescheduling
   originalSession    Session?     @relation("SessionRescheduling", fields: [originalSessionUlid], references: [ulid])
   rescheduledSessions Session[]   @relation("SessionRescheduling")
@@ -370,6 +378,7 @@ model Session {
   @@index([sessionType])
   @@index([paymentStatus])
   @@index([paymentIntentId])
+  @@index([rescheduleProposedByUlid])
   @@map("Session")
 }
 
@@ -1176,6 +1185,7 @@ enum SessionStatus {
   RESCHEDULED
   CANCELLED
   ABSENT
+  COACH_PROPOSED_RESCHEDULE
 }
 
 enum SessionType {

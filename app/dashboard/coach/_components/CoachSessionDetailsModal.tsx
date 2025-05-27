@@ -32,6 +32,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useToast } from "@/components/ui/use-toast"
 import { useQueryClient } from '@tanstack/react-query'
+import { proposeRescheduleByCoachAction } from '@/utils/actions/cal/coachRescheduleActions'
 
 // Default image placeholder
 const DEFAULT_IMAGE_URL = '/placeholder.svg';
@@ -242,6 +243,86 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
                               // or this feature is not fully implemented yet for coaches.
                               // Sticking to !isStrictlyFutureSession for now.
 
+  // New state for coach proposing reschedule
+  const [isProposingReschedule, setIsProposingReschedule] = useState(false);
+
+  const handleCoachProposeReschedule = async () => {
+    // TODO: Implement UI for coach to select new date/time and enter a reason.
+    // For now, we'll use placeholder values or prompt the user.
+    const newStartTimeStr = prompt("Enter new proposed start time (YYYY-MM-DDTHH:mm:ssZ):");
+    const newEndTimeStr = prompt("Enter new proposed end time (YYYY-MM-DDTHH:mm:ssZ):");
+    const reason = prompt("Reason for proposing reschedule (optional):");
+
+    if (!newStartTimeStr || !newEndTimeStr) {
+      toast({
+        title: "Input Required",
+        description: "New start and end times are required to propose a reschedule.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate date strings (basic validation)
+    let newStartTime, newEndTime;
+    try {
+      newStartTime = new Date(newStartTimeStr);
+      newEndTime = new Date(newEndTimeStr);
+      if (isNaN(newStartTime.getTime()) || isNaN(newEndTime.getTime())) {
+        throw new Error('Invalid date format');
+      }
+      if (newEndTime <= newStartTime) {
+        toast({ title: "Invalid Dates", description: "End time must be after start time.", variant: "destructive" });
+        return;
+      }
+      if (newStartTime < new Date()) {
+        toast({ title: "Invalid Date", description: "Proposed start time cannot be in the past.", variant: "destructive" });
+        return;
+      }
+    } catch (e) {
+      toast({
+        title: "Invalid Date Format",
+        description: "Please enter dates in YYYY-MM-DDTHH:mm:ssZ format.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProposingReschedule(true);
+    try {
+      const result = await proposeRescheduleByCoachAction({
+        sessionUlid: session.ulid,
+        newProposedStartTime: newStartTime.toISOString(),
+        newProposedEndTime: newEndTime.toISOString(),
+        proposalReason: reason || undefined,
+      });
+
+      if (result.error) {
+        toast({
+          title: "Reschedule Proposal Failed",
+          description: result.error.message || "Could not propose reschedule.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Reschedule Proposed",
+          description: "Your proposal has been sent to the mentee.",
+        });
+        await queryClient.invalidateQueries({ queryKey: ['coach-sessions'] });
+        onClose();
+        router.refresh();
+      }
+    } catch (error) {
+      console.error("Error proposing reschedule:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while proposing the reschedule.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProposingReschedule(false);
+    }
+  };
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -394,15 +475,6 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
-                <Button
-                  size="sm"
-                  variant="default"
-                  className="min-w-[110px] bg-primary/90 hover:bg-primary"
-                  onClick={() => { alert('Reschedule feature coming soon!')/* TODO: Implement reschedule logic */}}
-                  disabled={isRescheduleDisabled}
-                >
-                  Reschedule
-                </Button>
                 <TooltipProvider>
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
@@ -424,6 +496,23 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
                         <p>{cancelTooltipMessage}</p>
                       </TooltipContent>
                     )}
+                  </Tooltip>
+                </TooltipProvider>
+                <TooltipProvider>
+                  <Tooltip delayDuration={300}>
+                    <TooltipTrigger asChild>
+                      <span tabIndex={0} className={isRescheduleDisabled || isProposingReschedule ? 'cursor-not-allowed' : ''}>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="min-w-[110px] bg-primary/90 hover:bg-primary"
+                          onClick={handleCoachProposeReschedule}
+                          disabled={isRescheduleDisabled || isProposingReschedule}
+                        >
+                          {isProposingReschedule ? 'Proposing...' : 'Reschedule'}
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
                   </Tooltip>
                 </TooltipProvider>
               </div>

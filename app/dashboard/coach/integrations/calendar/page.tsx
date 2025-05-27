@@ -942,6 +942,7 @@ export default function CalendarIntegrationPage() {
                     <AlertTitle>Calendar Connection Required</AlertTitle>
                     <AlertDescription className="text-amber-700 dark:text-amber-300">
                       You need to connect a third-party calendar (like Google Calendar or Office 365) before you can manage your availability.
+                      Cal.com is our trusted technology partner for scheduling. Please approve all permissions to continue.
                     </AlertDescription>
                   </Alert>
                 )}

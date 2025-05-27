@@ -91,7 +91,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
   const [isCancelling, setIsCancelling] = useState(false)
   const [cancellationError, setCancellationError] = useState<string | null>(null)
   const [cancellationReason, setCancellationReason] = useState('')
-  const [coachImgError, setCoachImgError] = useState(false);
+  const [imgError, setImgError] = useState(false)
   
   if (!session) return null
   
@@ -109,6 +109,7 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
   const coach = session.otherParty
   const coachName = [coach.firstName, coach.lastName].filter(Boolean).join(' ') || 'Unknown Coach'
   const coachInitials = [coach.firstName?.[0], coach.lastName?.[0]].filter(Boolean).join('') || '?'
+  const profileImageUrl = getProfileImageUrl(coach.profileImageUrl)
   
   // Calculate effective status
   const nowTime = new Date().getTime();
@@ -252,11 +253,16 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
           <div className="space-y-4">
             <div className="flex items-center space-x-4">
               <Avatar className="h-12 w-12">
-                <AvatarImage 
-                  src={coach.profileImageUrl || undefined} 
-                  alt={coachName} 
-                />
-                <AvatarFallback>{coachInitials}</AvatarFallback>
+                {!imgError && profileImageUrl !== DEFAULT_IMAGE_URL && (
+                  <AvatarImage 
+                    src={profileImageUrl}
+                    alt={coachName}
+                    onError={() => setImgError(true)}
+                  />
+                )}
+                <AvatarFallback delayMs={600}>
+                  {coachInitials}
+                </AvatarFallback>
               </Avatar>
               <div>
                 <h3 className="font-medium text-lg">{coachName}</h3>

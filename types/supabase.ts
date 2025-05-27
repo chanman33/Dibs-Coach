@@ -2414,12 +2414,16 @@ export type Database = {
           paymentMethod: string | null
           paymentStatus: string | null
           price: number | null
+          proposedEndTime: string | null
+          proposedStartTime: string | null
           refundAmount: number | null
           refundReason: string | null
           refundStatus: string | null
           rescheduledBy: string | null
           rescheduledFromUlid: string | null
           rescheduledToUlid: string | null
+          rescheduleProposalReason: string | null
+          rescheduleProposedByUlid: string | null
           reschedulingHistory: Json | null
           reschedulingReason: string | null
           sessionNotes: string | null
@@ -2463,12 +2467,16 @@ export type Database = {
           paymentMethod?: string | null
           paymentStatus?: string | null
           price?: number | null
+          proposedEndTime?: string | null
+          proposedStartTime?: string | null
           refundAmount?: number | null
           refundReason?: string | null
           refundStatus?: string | null
           rescheduledBy?: string | null
           rescheduledFromUlid?: string | null
           rescheduledToUlid?: string | null
+          rescheduleProposalReason?: string | null
+          rescheduleProposedByUlid?: string | null
           reschedulingHistory?: Json | null
           reschedulingReason?: string | null
           sessionNotes?: string | null
@@ -2512,12 +2520,16 @@ export type Database = {
           paymentMethod?: string | null
           paymentStatus?: string | null
           price?: number | null
+          proposedEndTime?: string | null
+          proposedStartTime?: string | null
           refundAmount?: number | null
           refundReason?: string | null
           refundStatus?: string | null
           rescheduledBy?: string | null
           rescheduledFromUlid?: string | null
           rescheduledToUlid?: string | null
+          rescheduleProposalReason?: string | null
+          rescheduleProposedByUlid?: string | null
           reschedulingHistory?: Json | null
           reschedulingReason?: string | null
           sessionNotes?: string | null
@@ -2581,6 +2593,13 @@ export type Database = {
             columns: ["rescheduledToUlid"]
             isOneToOne: false
             referencedRelation: "Session"
+            referencedColumns: ["ulid"]
+          },
+          {
+            foreignKeyName: "Session_rescheduleProposedByUlid_fkey"
+            columns: ["rescheduleProposedByUlid"]
+            isOneToOne: false
+            referencedRelation: "User"
             referencedColumns: ["ulid"]
           },
         ]
@@ -3394,6 +3413,7 @@ export type Database = {
         | "RESCHEDULED"
         | "CANCELLED"
         | "ABSENT"
+        | "COACH_PROPOSED_RESCHEDULE"
       SessionType: "MANAGED" | "GROUP_SESSION" | "OFFICE_HOURS"
       SocialMediaPlatform:
         | "FACEBOOK"
@@ -3817,6 +3837,7 @@ export const Constants = {
         "RESCHEDULED",
         "CANCELLED",
         "ABSENT",
+        "COACH_PROPOSED_RESCHEDULE",
       ],
       SessionType: ["MANAGED", "GROUP_SESSION", "OFFICE_HOURS"],
       SocialMediaPlatform: [
