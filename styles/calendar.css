@@ -123,6 +123,9 @@
 .rbc-time-view .rbc-event,
 .rbc-day-slot .rbc-event {
   z-index: 5 !important; /* Ensure events are above time slot lines but allow tooltips to go higher */
+  overflow: visible !important; /* Allow content to overflow for tooltips and multi-line text */
+  white-space: normal !important; /* Allow text to wrap */
+  text-overflow: clip !important; /* Allow text to wrap, dont show ellipsis */
 }
 
 .rbc-time-view .rbc-event .rbc-event-content,
@@ -146,4 +149,9 @@
 /* This is a general selector, you might need to make it more specific if it affects other tooltips */
 [role="tooltip"] {
     z-index: 9999 !important; /* High z-index to ensure it's on top */
+}
+
+/* Hide default time label in week and day views */
+.rbc-time-view .rbc-event .rbc-event-label {
+  display: none !important;
 } 
