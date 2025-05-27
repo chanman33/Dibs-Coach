@@ -34,29 +34,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 // Default image placeholder
 const DEFAULT_IMAGE_URL = '/placeholder.svg';
 
-// Utility function to handle Clerk profile image URLs
-const getProfileImageUrl = (url: string | null | undefined): string => {
-  // For missing URLs, use placeholder
-  if (!url) return DEFAULT_IMAGE_URL;
-
-  // For placeholder images, use our default placeholder
-  if (url.includes('placeholder')) return DEFAULT_IMAGE_URL;
-
-  // Handle Clerk OAuth URLs
-  if (url.includes('oauth_google')) {
-    // Try img.clerk.com domain first
-    return url.replace('images.clerk.dev', 'img.clerk.com');
-  }
-
-  // Handle other Clerk URLs
-  if (url.includes('clerk.dev') || url.includes('clerk.com')) {
-    return url;
-  }
-
-  // For all other URLs, ensure HTTPS
-  return url.startsWith('https://') ? url : `https://${url}`;
-};
-
 // Status badge colors
 const statusColorMap: Record<string, string> = {
   'SCHEDULED': 'bg-blue-500',
@@ -109,7 +86,6 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
   const coach = session.otherParty
   const coachName = [coach.firstName, coach.lastName].filter(Boolean).join(' ') || 'Unknown Coach'
   const coachInitials = [coach.firstName?.[0], coach.lastName?.[0]].filter(Boolean).join('') || '?'
-  const profileImageUrl = getProfileImageUrl(coach.profileImageUrl)
   
   // Calculate effective status
   const nowTime = new Date().getTime();
@@ -253,16 +229,11 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
           <div className="space-y-4">
             <div className="flex items-center space-x-4">
               <Avatar className="h-12 w-12">
-                {!imgError && profileImageUrl !== DEFAULT_IMAGE_URL && (
-                  <AvatarImage 
-                    src={profileImageUrl}
-                    alt={coachName}
-                    onError={() => setImgError(true)}
-                  />
-                )}
-                <AvatarFallback delayMs={600}>
-                  {coachInitials}
-                </AvatarFallback>
+                <AvatarImage 
+                  src={coach.profileImageUrl || DEFAULT_IMAGE_URL}
+                  alt={coachName}
+                />
+                <AvatarFallback>{coachInitials}</AvatarFallback>
               </Avatar>
               <div>
                 <h3 className="font-medium text-lg">{coachName}</h3>

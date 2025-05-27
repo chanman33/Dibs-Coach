@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
-import { fetchTrainingHistory } from '@/utils/actions/training'
+import { fetchUserSessions } from '@/utils/actions/sessions'
 import { Loader2 } from 'lucide-react'
 import { TrainingHistoryClient } from './training-history-client'
+import { TransformedSession } from '@/utils/types/session'
 
 export const metadata = {
   title: 'Coaching History | DIBS',
@@ -10,7 +11,16 @@ export const metadata = {
 
 // Server Component
 export default async function TrainingHistoryPage() {
-  const { data, error } = await fetchTrainingHistory({})
+  const { data: sessionsData, error } = await fetchUserSessions({})
+  
+  const initialSessions: TransformedSession[] | undefined = sessionsData || undefined;
+
+  console.log('[TRAINING_PAGE] Server data (using fetchUserSessions):', {
+    hasData: !!initialSessions,
+    sessionCount: initialSessions?.length,
+    firstSessionCoach: initialSessions?.[0]?.otherParty,
+    error
+  })
   
   if (error) {
     return (
@@ -18,6 +28,7 @@ export default async function TrainingHistoryPage() {
         <div className="bg-destructive/10 text-destructive rounded-md p-4 text-center">
           <h2 className="text-lg font-semibold mb-2">Error Loading Coaching History</h2>
           <p>We encountered a problem while loading your coaching session history. Please try again later.</p>
+          {error.message && <p className="text-sm mt-1">Details: {error.message}</p>}
         </div>
       </div>
     )
@@ -33,7 +44,7 @@ export default async function TrainingHistoryPage() {
           </div>
         </div>
       }>
-        <TrainingHistoryClient initialData={data || undefined} />
+        <TrainingHistoryClient initialSessions={initialSessions} />
       </Suspense>
     </div>
   )

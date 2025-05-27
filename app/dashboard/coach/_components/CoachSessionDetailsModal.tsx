@@ -341,7 +341,7 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
             <div className="flex items-center space-x-4">
               <Avatar className="h-12 w-12">
                 <AvatarImage 
-                  src={mentee.profileImageUrl || undefined} 
+                  src={mentee.profileImageUrl || DEFAULT_IMAGE_URL}
                   alt={menteeName}
                 />
                 <AvatarFallback>{menteeInitials}</AvatarFallback>
