@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { ulid } from 'ulid'
 import dotenv from 'dotenv'
 
-dotenv.config()
+dotenv.config({ path: '.env.development.local' })
 
 // Initialize Supabase client
 let supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
