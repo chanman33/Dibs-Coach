@@ -37,7 +37,7 @@ export interface BookedSession {
   endTime: string
   coachUlid: string
   menteeUlid: string
-  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "ABSENT" | "RESCHEDULED"
+  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | "ABSENT" | "RESCHEDULED" | "COACH_PROPOSED_RESCHEDULE"
   createdAt: string
 }
 

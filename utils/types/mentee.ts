@@ -1,16 +1,3 @@
-// Base profile interface with common fields
-export interface BaseProfile {
-  ulid: string
-  companyName: string | null
-  licenseNumber: string | null
-  specializations: string[]
-  certifications: string[]
-  languages: string[]
-  geographicFocus: any
-  primaryMarket: string | null
-  licensedStates: string[]
-}
-
 // Interface for top mentees in coach dashboard
 export interface TopMentee {
   ulid: string
@@ -19,73 +6,6 @@ export interface TopMentee {
   profileImageUrl: string | null
   sessionsCompleted: number
   revenue: number
-}
-
-// Domain-specific profile interfaces
-export interface RealtorProfile extends BaseProfile {
-  type: 'REALTOR'
-  phoneNumber: string | null
-  yearsExperience: number | null
-  propertyTypes: string[]
-}
-
-export interface LoanOfficerProfile extends BaseProfile {
-  type: 'LOAN_OFFICER'
-  nmls: string | null
-  lenderName: string | null
-  branchLocation: string | null
-  loanTypes: string[]
-}
-
-export interface InvestorProfile extends BaseProfile {
-  type: 'INVESTOR'
-  investmentStrategies: string[]
-  targetMarkets: string[]
-}
-
-export interface PropertyManagerProfile extends BaseProfile {
-  type: 'PROPERTY_MANAGER'
-  managerTypes: string[]
-  serviceZips: string[]
-}
-
-export interface TitleEscrowProfile extends BaseProfile {
-  type: 'TITLE_OFFICER'
-  titleEscrowTypes: string[]
-}
-
-export interface InsuranceProfile extends BaseProfile {
-  type: 'INSURANCE'
-  insuranceTypes: string[]
-}
-
-// New interface for the restructured domain profile data
-export interface DomainProfileData {
-  ulid: string; // User ULID
-  type: string | null; // e.g., 'REALTOR', 'LOAN_OFFICER', or from User.primaryDomain
-
-  // Fields from User model
-  phoneNumber: string | null;
-  totalYearsRE: number | null; // Corresponds to what was 'yearsExperience' in some old profiles
-  languages: string[];
-  primaryMarket: string | null;
-
-  // Fields that were part of BaseProfile or specific profiles, now potentially absent
-  // UI must handle their absence by showing "Not specified" or similar.
-  companyName?: string | null;
-  licenseNumber?: string | null;
-  specializations?: string[];
-  certifications?: string[];
-  geographicFocus?: any | null; 
-
-  // Domain-specific fields that might be absent or set to default values
-  propertyTypes?: string[]; // e.g., for Realtor
-  nmls?: string | null; // e.g., for LoanOfficer
-  investmentStrategies?: string[]; // e.g., for Investor
-  managerTypes?: string[]; // e.g., for PropertyManager
-  titleEscrowTypes?: string[]; // e.g., for TitleEscrow
-  insuranceTypes?: string[]; // e.g., for Insurance
-  // Add other common fields as optional if they were used across multiple old profiles
 }
 
 export interface MenteeProfile {
@@ -102,15 +22,18 @@ export interface Note {
   content: string
   createdAt: string
   updatedAt: string
-  menteeUlid: string | null
-  coachUlid: string
+  relatedUserUlid: string | null
+  authorUlid: string
+  sessionUlid: string | null
+  visibility: string
 }
 
 export interface Session {
   ulid: string
   startTime: string
   endTime: string
-  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW'
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'RESCHEDULED' | 'ABSENT' | 'COACH_PROPOSED_RESCHEDULE'
+  sessionType: 'MANAGED' | 'GROUP_SESSION' | 'OFFICE_HOURS'
   notes: Note[]
   createdAt: string
   updatedAt: string
@@ -124,9 +47,27 @@ export interface Mentee {
   lastName: string | null
   email: string
   profileImageUrl: string | null
-  status: 'ACTIVE' | 'INACTIVE'
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
+  phoneNumber: string | null
+  totalYearsRE: number
+  realEstateDomains: string[]
+  languages: string[]
+  primaryMarket: string | null
   menteeProfile: MenteeProfile | null
-  domainProfile: DomainProfileData | null
   notes: Note[]
   sessions: Session[]
+  domainProfile?: {
+    type?: string | null
+    companyName?: string | null
+    phoneNumber?: string | null
+    licenseNumber?: string | null
+    totalYearsRE?: number | null
+    propertyTypes?: string[] | null
+    nmls?: string | null
+    specializations?: string[] | null
+    certifications?: string[] | null
+    languages?: string[] | null
+    primaryMarket?: string | null
+    // Add other domain-specific profile fields here as needed
+  } | null
 } 

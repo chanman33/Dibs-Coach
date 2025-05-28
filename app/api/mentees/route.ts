@@ -9,20 +9,15 @@ import { z } from 'zod'
 export const dynamic = 'force-dynamic';
 
 // Type definitions
-interface RealtorProfile {
-  ulid: string
-  companyName: string | null
-  licenseNumber: string | null
-  phoneNumber: string | null
-}
-
 interface Mentee {
   ulid: string
   firstName: string | null
   lastName: string | null
   email: string
   profileImageUrl: string | null
-  realtorProfile: RealtorProfile | null
+  phoneNumber: string | null
+  totalYearsRE: number
+  realEstateDomains: string[] | null
 }
 
 export const GET = withApiAuth<Mentee[]>(async (req, ctx: AuthContext) => {
@@ -68,12 +63,9 @@ export const GET = withApiAuth<Mentee[]>(async (req, ctx: AuthContext) => {
         lastName,
         email,
         profileImageUrl,
-        realtorProfile:RealtorProfile!userUlid (
-          ulid,
-          companyName,
-          licenseNumber,
-          phoneNumber
-        )
+        phoneNumber,
+        totalYearsRE,
+        realEstateDomains
       `)
       .in("ulid", uniqueMenteeUlids)
 
@@ -88,14 +80,11 @@ export const GET = withApiAuth<Mentee[]>(async (req, ctx: AuthContext) => {
       }, { status: 500 })
     }
 
-    // Cast the response to the correct type
-    const typedMentees = (mentees || []).map(mentee => ({
-      ...mentee,
-      realtorProfile: mentee.realtorProfile ? mentee.realtorProfile[0] || null : null
-    })) as Mentee[]
-
     return NextResponse.json<ApiResponse<Mentee[]>>({ 
-      data: typedMentees,
+      data: (mentees || []).map(mentee => ({
+        ...mentee,
+        realEstateDomains: mentee.realEstateDomains || []
+      })) as Mentee[],
       error: null
     })
   } catch (error) {

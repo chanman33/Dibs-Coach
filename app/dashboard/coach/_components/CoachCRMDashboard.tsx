@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { fetchMentees } from '@/utils/actions/mentee-actions'
 import { toast } from 'sonner'
-import { Mentee, Note, Session, MenteeProfile, BaseProfile, RealtorProfile, LoanOfficerProfile, InvestorProfile, PropertyManagerProfile, TitleEscrowProfile, InsuranceProfile } from '@/utils/types/mentee'
+import { Mentee, Note, Session, MenteeProfile } from '@/utils/types/mentee'
 
 // Mock data for empty state visualization
 const mockMentees: Mentee[] = [
@@ -22,21 +22,12 @@ const mockMentees: Mentee[] = [
     email: "user@example.com",
     profileImageUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=sarah",
     status: 'ACTIVE',
+    phoneNumber: null,
+    totalYearsRE: 0,
+    realEstateDomains: [],
+    languages: [],
+    primaryMarket: null,
     menteeProfile: null,
-    domainProfile: {
-      ulid: "1",
-      companyName: "Luxury Homes Inc",
-      licenseNumber: "RE123456",
-      specializations: [],
-      certifications: [],
-      languages: [],
-      geographicFocus: null,
-      primaryMarket: null,
-      type: 'REALTOR',
-      phoneNumber: "(555) 123-4567",
-      totalYearsRE: null,
-      propertyTypes: []
-    },
     notes: [],
     sessions: []
   }

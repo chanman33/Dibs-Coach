@@ -20,12 +20,9 @@ interface MenteeDetails {
   lastName: string | null
   email: string
   profileImageUrl: string | null
-  realtorProfile: {
-    ulid: string
-    companyName: string | null
-    licenseNumber: string | null
-    phoneNumber: string | null
-  } | null
+  phoneNumber: string | null
+  totalYearsRE: number
+  realEstateDomains: string[] | null
   goals: Array<{
     ulid: string
     content: string
@@ -48,6 +45,20 @@ interface MenteeDetails {
     createdAt: string
     updatedAt: string
   }>
+}
+
+type SupabaseUserResponse = {
+  ulid: string
+  firstName: string | null
+  lastName: string | null
+  email: string
+  profileImageUrl: string | null
+  realtorProfile: {
+    ulid: string
+    companyName: string | null
+    licenseNumber: string | null
+    phoneNumber: string | null
+  }[] | null
 }
 
 export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx: AuthContext) => {
@@ -90,7 +101,7 @@ export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx: Auth
     }
 
     // Get mentee details
-    const { data: menteeData, error: menteeError } = await supabase
+    const { data: rawMenteeData, error: menteeError } = await supabase
       .from('User')
       .select(`
         ulid,
@@ -98,17 +109,14 @@ export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx: Auth
         lastName,
         email,
         profileImageUrl,
-        realtorProfile:RealtorProfile!userUlid (
-          ulid,
-          companyName,
-          licenseNumber,
-          phoneNumber
-        )
+        phoneNumber,
+        totalYearsRE,
+        realEstateDomains
       `)
       .eq('ulid', id)
       .single()
 
-    if (menteeError || !menteeData) {
+    if (menteeError || !rawMenteeData) {
       console.error('[MENTEE_DETAILS_ERROR] Mentee lookup:', menteeError)
       return NextResponse.json<ApiResponse<never>>({
         data: null,
@@ -118,6 +126,13 @@ export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx: Auth
         }
       }, { status: 500 })
     }
+
+    const menteeData = {
+      ...rawMenteeData,
+      goals: [],
+      sessions: [],
+      notes: []
+    } as MenteeDetails
 
     // Get mentee's goals (from notes marked as goals)
     const { data: goals } = await supabase
@@ -158,7 +173,6 @@ export const GET = withApiAuth<MenteeDetails>(async (request: Request, ctx: Auth
 
     const response: MenteeDetails = {
       ...menteeData,
-      realtorProfile: menteeData.realtorProfile ? (menteeData.realtorProfile as any)[0] || null : null,
       goals: goals || [],
       sessions: sessions || [],
       notes: notes || []

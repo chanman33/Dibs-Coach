@@ -76,7 +76,7 @@ export function MenteeDetails({ menteeId }: MenteeDetailsProps) {
           // Ensure menteeUlid is the current mentee's ulid if it's null in the API response
           const completeNoteData = {
             ...noteData,
-            menteeUlid: noteData.menteeUlid || mentee.ulid
+            relatedUserUlid: noteData.relatedUserUlid || mentee.ulid
           }
           setMentee(prev => {
             if (!prev) return null

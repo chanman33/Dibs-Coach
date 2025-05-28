@@ -22,7 +22,7 @@ const SessionSchema = z.object({
   menteeUlid: ulidSchema,
   startTime: z.string().datetime(),
   endTime: z.string().datetime(),
-  status: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED", "ABSENT", "RESCHEDULED"]),
+  status: z.enum(["SCHEDULED", "COMPLETED", "CANCELLED", "ABSENT", "RESCHEDULED", "COACH_PROPOSED_RESCHEDULE"]),
   zoomMeetingId: z.string().nullable(),
   zoomJoinUrl: z.string().url().nullable(),
   sessionType: z.enum(["MANAGED", "OFFICE_HOURS", "GROUP_SESSION"]),

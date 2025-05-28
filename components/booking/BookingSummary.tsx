@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarClock, CheckCircle, Clock, Calendar } from "lucide-react";
 import { format } from "date-fns";
-import { Coach, TimeSlot } from "@/utils/types/booking";
+import { TimeSlot } from "@/utils/types/booking";
+import { PublicCoach as Coach } from "@/utils/types/coach";
 import { formatTime, formatDuration } from "@/utils/date-utils";
 
 interface BookingSummaryProps {
@@ -26,9 +27,9 @@ export function BookingSummary({
   console.log('[DEBUG][BOOKING_SUMMARY] Rendering BookingSummary', {
     loading,
     coachInfo: coach ? {
-      name: coach.name,
-      sessionType: coach.sessionType,
-      hasDuration: !!coach.sessionDuration
+      name: coach.displayName || `${coach.firstName || ''} ${coach.lastName || ''}`.trim(),
+      sessionType: (coach as any).sessionType,
+      hasDuration: !!coach.sessionConfig?.defaultDuration
     } : null,
     selectedDate: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null,
     hasTimeSlot: !!selectedTimeSlot,
@@ -36,7 +37,7 @@ export function BookingSummary({
       start: formatTime(selectedTimeSlot.startTime),
       end: formatTime(selectedTimeSlot.endTime)
     } : null,
-    isBooking
+    coach: coach?.displayName || `${coach?.firstName || ''} ${coach?.lastName || ''}`.trim()
   });
 
   const canBook = selectedDate && selectedTimeSlot;
@@ -49,7 +50,7 @@ export function BookingSummary({
         start: formatTime(selectedTimeSlot.startTime),
         end: formatTime(selectedTimeSlot.endTime)
       } : null,
-      coach: coach?.name
+      coach: coach?.displayName || `${coach?.firstName || ''} ${coach?.lastName || ''}`.trim()
     });
     
     handleBookSession();
@@ -76,16 +77,16 @@ export function BookingSummary({
             <div className="space-y-4">
               <div>
                 <h3 className="font-medium text-sm text-muted-foreground mb-1">Coach</h3>
-                <p className="font-medium">{coach?.name || "Loading coach info..."}</p>
+                <p className="font-medium">{(coach?.displayName || `${coach?.firstName || ''} ${coach?.lastName || ''}`.trim()) || "Loading coach info..."}</p>
               </div>
               
               <div>
                 <h3 className="font-medium text-sm text-muted-foreground mb-1">Session Type</h3>
-                <p className="font-medium">{coach?.sessionType || "1:1 Coaching Session"}</p>
-                {coach?.sessionDuration && (
+                <p className="font-medium">{(coach as any)?.sessionType || "1:1 Coaching Session"}</p>
+                {coach?.sessionConfig?.defaultDuration && (
                   <div className="flex items-center text-sm text-muted-foreground mt-1">
                     <Clock className="mr-1 h-3 w-3" />
-                    <p>{formatDuration(coach.sessionDuration)}</p>
+                    <p>{formatDuration(coach.sessionConfig.defaultDuration)}</p>
                   </div>
                 )}
               </div>
@@ -118,7 +119,7 @@ export function BookingSummary({
                   <div>
                     <p className="font-medium">Ready to book</p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Your session with {coach?.name} is ready to be scheduled.
+                      Your session with {(coach?.displayName || `${coach?.firstName || ''} ${coach?.lastName || ''}`.trim())} is ready to be scheduled.
                     </p>
                   </div>
                 </div>

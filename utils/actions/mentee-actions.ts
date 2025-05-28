@@ -23,6 +23,7 @@ interface SupabaseMentee {
   languages: string[] | null
   primaryMarket: string | null
   primaryDomain: string | null
+  realEstateDomains: string[] | null
   MenteeProfile: {
     focusAreas: string[]
     experienceLevel: string | null
@@ -32,7 +33,16 @@ interface SupabaseMentee {
     isActive: boolean
   } | null
   sessions: any[]
-  notes: any[]
+  notes: {
+    ulid: string
+    content: string
+    createdAt: string
+    updatedAt: string
+    relatedUserUlid: string | null
+    authorUlid: string
+    sessionUlid: string | null
+    visibility: string
+  }[] | null
 }
 
 interface AddNoteParams {
@@ -92,6 +102,7 @@ export const fetchMentees = withServerAction(
           languages,
           primaryMarket,
           primaryDomain,
+          realEstateDomains,
           MenteeProfile (
             focusAreas,
             experienceLevel,
@@ -114,7 +125,9 @@ export const fetchMentees = withServerAction(
             createdAt,
             updatedAt,
             relatedUserUlid,
-            authorUlid
+            authorUlid,
+            sessionUlid,
+            visibility
           )
         `)
         .in('ulid', uniqueMenteeUlids)
@@ -153,28 +166,23 @@ export const fetchMentees = withServerAction(
 
       // Filter notes to only include those related to the current mentee
       const transformedMentees = (mentees as unknown as SupabaseMentee[]).map(mentee => {
-        // Construct domainProfile from available User fields
-        const domainType = mentee.primaryDomain || null;
         const domainProfile = {
           ulid: mentee.ulid,
-          type: domainType,
+          type: mentee.primaryDomain || null,
           phoneNumber: mentee.phoneNumber || null,
           totalYearsRE: mentee.totalYearsRE ?? null,
           languages: mentee.languages || [],
           primaryMarket: mentee.primaryMarket || null,
-          // Fields that are no longer directly available will be null or empty
+          primaryDomain: mentee.primaryDomain || null,
+          realEstateDomains: mentee.realEstateDomains || [],
           companyName: null,
           licenseNumber: null,
           specializations: [],
           certifications: [],
           propertyTypes: [],
-          geographicFocus: null,
         };
 
-        // Safely handle notes - ensure we have an array
         const notesArray = mentee.notes || []
-        
-        // Filter notes to only include those related to this mentee
         const filteredNotes = notesArray.filter(note => 
           note && note.relatedUserUlid !== null && note.relatedUserUlid === mentee.ulid
         ).map(note => ({
@@ -182,16 +190,15 @@ export const fetchMentees = withServerAction(
           content: note.content,
           createdAt: note.createdAt,
           updatedAt: note.updatedAt,
-          menteeUlid: note.relatedUserUlid,
-          coachUlid: note.authorUlid
+          relatedUserUlid: note.relatedUserUlid,
+          authorUlid: note.authorUlid,
+          sessionUlid: note.sessionUlid,
+          visibility: note.visibility
         }))
 
-        // Transform the MenteeProfile object to match our client-side type expectations
         const menteeProfile = mentee.MenteeProfile ? {
           ...mentee.MenteeProfile,
-          // Add any missing fields required by the client-side type
-          // For example, if 'activeDomains' is needed by the client but no longer exists in DB:
-          activeDomains: [] // Add an empty array to satisfy the client-side type
+          activeDomains: [] 
         } : null;
 
         return {
@@ -202,10 +209,11 @@ export const fetchMentees = withServerAction(
           profileImageUrl: mentee.profileImageUrl,
           status: mentee.status,
           phoneNumber: mentee.phoneNumber,
-          totalYearsRE: mentee.totalYearsRE,
-          languages: mentee.languages,
+          totalYearsRE: mentee.totalYearsRE ?? 0,
+          languages: mentee.languages || [],
           primaryMarket: mentee.primaryMarket,
           primaryDomain: mentee.primaryDomain,
+          realEstateDomains: mentee.realEstateDomains || [],
           menteeProfile,
           domainProfile,
           sessions: mentee.sessions || [],
@@ -253,6 +261,7 @@ export const fetchMenteeDetails = withServerAction(
           languages,
           primaryMarket,
           primaryDomain,
+          realEstateDomains,
           MenteeProfile (
             focusAreas,
             experienceLevel,
@@ -333,13 +342,11 @@ export const fetchMenteeDetails = withServerAction(
         totalYearsRE: typedMentee.totalYearsRE ?? null,
         languages: typedMentee.languages || [],
         primaryMarket: typedMentee.primaryMarket || null,
-        // Fields that are no longer directly available will be null or empty
         companyName: null, 
         licenseNumber: null,
         specializations: [],
         certifications: [],
         propertyTypes: [],
-        geographicFocus: null,
       };
 
       // Safely handle notes - ensure we have an array
@@ -353,15 +360,16 @@ export const fetchMenteeDetails = withServerAction(
         content: note.content,
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
-        menteeUlid: note.relatedUserUlid,
-        coachUlid: note.authorUlid
+        relatedUserUlid: note.relatedUserUlid,
+        authorUlid: note.authorUlid,
+        sessionUlid: note.sessionUlid,
+        visibility: note.visibility
       }));
 
       // Transform the MenteeProfile object to match our client-side type expectations
       const menteeProfile = typedMentee.MenteeProfile ? {
         ...typedMentee.MenteeProfile,
-        // Add any missing fields required by the client-side type
-        activeDomains: [] // Add an empty array to satisfy the client-side type
+        activeDomains: []
       } : null;
 
       const transformedMentee = {
@@ -372,10 +380,11 @@ export const fetchMenteeDetails = withServerAction(
         profileImageUrl: typedMentee.profileImageUrl,
         status: typedMentee.status,
         phoneNumber: typedMentee.phoneNumber,
-        totalYearsRE: typedMentee.totalYearsRE,
-        languages: typedMentee.languages,
+        totalYearsRE: typedMentee.totalYearsRE ?? 0,
+        languages: typedMentee.languages || [],
         primaryMarket: typedMentee.primaryMarket,
         primaryDomain: typedMentee.primaryDomain,
+        realEstateDomains: typedMentee.realEstateDomains || [],
         menteeProfile,
         domainProfile: domainProfileData,
         sessions: typedMentee.sessions || [],
@@ -485,8 +494,10 @@ export const addNote = withServerAction(
         content: note.content,
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
-        menteeUlid: note.relatedUserUlid,
-        coachUlid: note.authorUlid
+        relatedUserUlid: note.relatedUserUlid, 
+        authorUlid: note.authorUlid, 
+        sessionUlid: note.sessionUlid, 
+        visibility: note.visibility
       }
 
       return { data: transformedNote, error: null }
