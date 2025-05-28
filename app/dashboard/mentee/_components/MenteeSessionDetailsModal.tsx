@@ -309,24 +309,22 @@ export function MenteeSessionDetailsModal({ session, isOpen, onClose }: MenteeSe
                 <TooltipProvider>
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
-                      <span tabIndex={0} className={isRescheduleDisabled ? 'cursor-not-allowed' : ''}>
+                      <span className={'cursor-not-allowed'}>
                         <Button
                           size="sm"
                           variant="default"
                           className="min-w-[110px] bg-primary/90 hover:bg-primary"
                           onClick={() => setIsRescheduleDialogOpen(true)}
-                          disabled={isRescheduleDisabled}
-                          aria-disabled={isRescheduleDisabled}
+                          disabled={true}
+                          aria-disabled={true}
                         >
                           Reschedule
                         </Button>
                       </span>
                     </TooltipTrigger>
-                    {isRescheduleDisabled && (
-                      <TooltipContent>
-                        <p>{rescheduleTooltipMessage}</p>
-                      </TooltipContent>
-                    )}
+                    <TooltipContent>
+                      <p>WIP</p>
+                    </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 <TooltipProvider>

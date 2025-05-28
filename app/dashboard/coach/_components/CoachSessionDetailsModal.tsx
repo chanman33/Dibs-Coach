@@ -477,18 +477,21 @@ export function SessionDetailsModal({ session, isOpen, onClose }: SessionDetails
                 <TooltipProvider>
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
-                      <span tabIndex={0} className={isRescheduleDisabled || isProposingReschedule ? 'cursor-not-allowed' : ''}>
+                      <span className={'cursor-not-allowed'}>
                         <Button
                           variant="default"
                           size="sm"
                           className="min-w-[110px] bg-primary/90 hover:bg-primary"
                           onClick={handleCoachProposeReschedule}
-                          disabled={isRescheduleDisabled || isProposingReschedule}
+                          disabled={true} // Always disable the button
                         >
                           {isProposingReschedule ? 'Proposing...' : 'Reschedule'}
                         </Button>
                       </span>
                     </TooltipTrigger>
+                    <TooltipContent>
+                      <p>WIP</p> {/* Tooltip showing "WIP" */}
+                    </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 {/* Cancel Button (Moved After Reschedule) */}
