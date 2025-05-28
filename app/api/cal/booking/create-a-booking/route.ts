@@ -375,10 +375,13 @@ export async function POST(request: Request) {
       const linksData = await calendarLinksResponse.json();
       calendarLinks = linksData.data || [];
     } else {
-      console.error('[CREATE_BOOKING_WARNING] Failed to get calendar links', {
+      console.info('[CREATE_BOOKING_INFO] Failed to get calendar links, proceeding without them', {
         status: calendarLinksResponse.status,
         bookingUid: calBooking.uid
       });
+      // It's not critical if we can't get these links immediately.
+      // The user can still access their booking and calendar event from Cal.com.
+      // We can also try to fetch these later if needed.
     }
     
     // Return successful response with booking details

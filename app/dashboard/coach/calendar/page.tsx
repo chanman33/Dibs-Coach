@@ -104,6 +104,13 @@ interface Calendar {
   isSelected: boolean;
 }
 
+// Add interface for the expected structure of calendarData
+interface CoachCalendarData {
+  calendars?: Calendar[];
+  hasConnectedCalendars?: boolean;
+  // other potential fields from API response like apiError, tokenError
+}
+
 export default function CoachCalendarPage() {
   const { user, isLoaded: isUserLoaded } = useUser()
   const queryClient = useQueryClient()
@@ -150,7 +157,7 @@ export default function CoachCalendarPage() {
   })
 
   // Fetch coach's calendars
-  const { data: calendarData, isLoading: isLoadingCalendars, error: calendarError } = useQuery({
+  const { data: calendarData, isLoading: isLoadingCalendars, error: calendarError } = useQuery<CoachCalendarData | null, Error>({
     queryKey: ['coach-calendars', coachDbId, user?.id],
     queryFn: async () => {
       console.log('[CoachCalendarPage] Running fetch for coach-calendars with coachDbId:', coachDbId);
@@ -203,20 +210,43 @@ export default function CoachCalendarPage() {
 
   // Update selectedCalendars when calendarData changes
   useEffect(() => {
-    if (!isLoadingCalendars && !calendarError && calendarData?.calendars?.length > 0) {
-      setSelectedCalendars(calendarData.calendars)
-      // Calendars loaded, mark as connected and trigger busy time fetch
-      setCalendarConnectionState('connected')
-      // Call fetchBusyTimes directly now that calendars are loaded
-      fetchBusyTimes(calendarData.calendars)
-    } else if (!isLoadingCalendars && !calendarError && calendarData && (!calendarData.calendars || calendarData.calendars.length === 0)) {
-      setCalendarConnectionState('not_connected')
-      setInitialCalendarLoad(false)
-    } else if (!isLoadingCalendars && calendarError && calendarConnectionState !== 'auth_error') {
-      setCalendarConnectionState('error')
-      setInitialCalendarLoad(false)
+    if (isLoadingCalendars) return;
+
+    if (calendarError) {
+      if (calendarConnectionState !== 'auth_error') { // Preserve auth_error if already set
+        setCalendarConnectionState('error');
+      }
+      setInitialCalendarLoad(false);
+      return;
     }
-  }, [calendarData, isLoadingCalendars, calendarError, user?.id])
+
+    if (calendarData) {
+      const receivedCalendars = calendarData.calendars || [];
+      const isEffectivelyConnected = receivedCalendars.length > 0 || calendarData.hasConnectedCalendars === true;
+
+      if (isEffectivelyConnected) {
+        setSelectedCalendars(receivedCalendars);
+        setCalendarConnectionState('connected');
+        // fetchBusyTimes will be called with receivedCalendars (which could be empty)
+        // The fetchBusyTimes function is designed to handle an empty list.
+        fetchBusyTimes(receivedCalendars);
+        // If receivedCalendars is empty but connected, ensure initial load is false.
+        // fetchBusyTimes handles setInitialCalendarLoad(false) in its finally block or early returns.
+        if (receivedCalendars.length === 0) {
+            setInitialCalendarLoad(false); // Explicitly set if fetchBusyTimes might not run its full course due to empty calendars
+        }
+      } else {
+        // No calendars array and hasConnectedCalendars is not true
+        setCalendarConnectionState('not_connected');
+        setInitialCalendarLoad(false);
+      }
+    } else {
+      // No calendarData, not loading, no error. This means connection is likely not established,
+      // or queryFn returned null due to guard conditions (no user, no dbId).
+      setCalendarConnectionState('not_connected');
+      setInitialCalendarLoad(false);
+    }
+  }, [calendarData, isLoadingCalendars, calendarError, coachDbId, user?.id]); // Ensure all relevant dependencies are listed
 
   // Function to fetch busy times - takes calendars as argument now
   const fetchBusyTimes = async (calendarsToFetch: Calendar[]) => {
