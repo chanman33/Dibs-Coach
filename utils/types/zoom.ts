@@ -1,5 +1,6 @@
 import ZoomVideo from '@zoom/videosdk';
 import { z } from 'zod'
+import { SessionStatus as PrismaSessionStatus } from '@prisma/client'
 
 // Core session types
 export interface ZoomSessionConfig {
@@ -19,20 +20,57 @@ export interface ZoomSession {
   hostUlid: string;
   startUrl: string | null;
   joinUrl: string | null;
-  status: 'SCHEDULED' | 'STARTED' | 'ENDED' | 'CANCELLED';
+  status: ZoomSessionStatus;
   metadata: any | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export const ZOOM_SESSION_STATUS = {
-  SCHEDULED: 'SCHEDULED',
-  STARTED: 'STARTED',
-  ENDED: 'ENDED',
-  CANCELLED: 'CANCELLED'
-} as const;
+export enum ZoomSessionStatus {
+  SCHEDULED = 'SCHEDULED',
+  STARTED = 'STARTED',
+  ENDED = 'ENDED',
+  CANCELLED = 'CANCELLED'
+}
 
-export type ZoomSessionStatus = typeof ZOOM_SESSION_STATUS[keyof typeof ZOOM_SESSION_STATUS];
+// Map Zoom status to application status
+export const mapZoomStatusToSessionStatus = (zoomStatus: ZoomSessionStatus): PrismaSessionStatus => {
+  switch (zoomStatus) {
+    case ZoomSessionStatus.SCHEDULED:
+      return PrismaSessionStatus.SCHEDULED;
+    case ZoomSessionStatus.STARTED:
+      return PrismaSessionStatus.STARTED;
+    case ZoomSessionStatus.ENDED:
+      return PrismaSessionStatus.COMPLETED;
+    case ZoomSessionStatus.CANCELLED:
+      return PrismaSessionStatus.CANCELLED;
+    default:
+      return PrismaSessionStatus.SCHEDULED;
+  }
+};
+
+// Map application status to Zoom status
+export const mapSessionStatusToZoomStatus = (sessionStatus: PrismaSessionStatus): ZoomSessionStatus | null => {
+  // Only map technical states that have direct Zoom equivalents
+  switch (sessionStatus) {
+    case PrismaSessionStatus.SCHEDULED:
+      return ZoomSessionStatus.SCHEDULED;
+    case PrismaSessionStatus.STARTED:
+      return ZoomSessionStatus.STARTED;
+    case PrismaSessionStatus.COMPLETED:
+      return ZoomSessionStatus.ENDED;
+    case PrismaSessionStatus.CANCELLED:
+      return ZoomSessionStatus.CANCELLED;
+    // Business statuses don't map to Zoom statuses
+    case PrismaSessionStatus.RESCHEDULED:
+    case PrismaSessionStatus.COACH_PROPOSED_RESCHEDULE:
+    case PrismaSessionStatus.ABSENT:
+    case PrismaSessionStatus.COACH_ABSENT:
+      return null; // Return null to indicate no Zoom status mapping
+    default:
+      return null;
+  }
+};
 
 // Media types
 export interface ZoomMediaState {
@@ -53,8 +91,21 @@ export interface ZoomDevices {
 }
 
 // Error types
+export enum ZoomErrorCode {
+  INVALID_TOKEN = 'INVALID_TOKEN',
+  SESSION_JOIN_FAILED = 'SESSION_JOIN_FAILED',
+  MEDIA_NO_PERMISSION = 'MEDIA_NO_PERMISSION',
+  DEVICE_NOT_FOUND = 'DEVICE_NOT_FOUND',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  INVALID_PARAMETERS = 'INVALID_PARAMETERS',
+  AUDIO_ALREADY_IN_PROGRESS = 'AUDIO_ALREADY_IN_PROGRESS',
+  VIDEO_ALREADY_IN_PROGRESS = 'VIDEO_ALREADY_IN_PROGRESS',
+  PERMISSION_DENIED = 'PERMISSION_DENIED',
+  DEVICE_IN_USE = 'DEVICE_IN_USE'
+}
+
 export interface ZoomError {
-  code: string;
+  code: ZoomErrorCode;
   message: string;
   details?: unknown;
 }
@@ -66,13 +117,70 @@ export type ZoomStream = ReturnType<ZoomClient['getMediaStream']>;
 // Event types
 export type ZoomEventCallback = (payload: any) => void;
 
+export interface ZoomUserJoinPayload {
+  userId: string;
+  userName: string;
+  userRole: 'host' | 'participant';
+  joinTime: string;
+}
+
+export interface ZoomUserLeavePayload {
+  userId: string;
+  userName: string;
+  leaveTime: string;
+}
+
+export interface ZoomMediaErrorPayload {
+  code: ZoomErrorCode;
+  message: string;
+  deviceType?: 'video' | 'audio' | 'screen';
+}
+
 export interface ZoomEventHandlers {
-  onUserJoin?: ZoomEventCallback;
-  onUserLeave?: ZoomEventCallback;
+  onUserJoin?: (payload: ZoomUserJoinPayload) => void;
+  onUserLeave?: (payload: ZoomUserLeavePayload) => void;
   onSessionJoin?: ZoomEventCallback;
   onSessionLeave?: ZoomEventCallback;
-  onMediaError?: ZoomEventCallback;
+  onMediaError?: (payload: ZoomMediaErrorPayload) => void;
   onDeviceChange?: ZoomEventCallback;
+}
+
+// UI Toolkit Types
+export interface ZoomUIToolkitConfig {
+  videoSDKJWT: string;
+  sessionName: string;
+  userName: string;
+  sessionPasscode?: string;
+  features?: Array<'video' | 'audio' | 'share' | 'chat' | 'users' | 'settings'>;
+  options?: {
+    audio?: {
+      autoAdjustVolume?: boolean;
+      echoCancellation?: boolean;
+      noiseReduction?: boolean;
+      autoStartAudio?: boolean;
+    };
+    video?: {
+      defaultQuality?: number;
+      virtualBackground?: {
+        allowVirtualBackground?: boolean;
+      };
+      autoStartVideo?: boolean;
+      videoQuality?: {
+        width: number;
+        height: number;
+        frameRate: number;
+      };
+      layout?: {
+        mode: 'speaker' | 'gallery';
+        showActiveVideo?: boolean;
+        showNonActiveVideo?: boolean;
+      };
+    };
+    share?: {
+      quality?: number;
+      optimizeForSharedVideo?: boolean;
+    };
+  };
 }
 
 export const ZoomMeetingSettingsSchema = z.object({
@@ -146,4 +254,112 @@ export const SessionMeetingConfigSchema = z.object({
   customUrlHandling: z.boolean().default(false),
 })
 
-export type SessionMeetingConfig = z.infer<typeof SessionMeetingConfigSchema> 
+export type SessionMeetingConfig = z.infer<typeof SessionMeetingConfigSchema>
+
+// Database Model Types
+export interface ZoomSessionRecord {
+  ulid: string;
+  zoomMeetingId: string | null;
+  zoomSessionName: string | null;
+  zoomStartUrl: string | null;
+  zoomJoinUrl: string | null;
+  zoomMeetingPassword: string | null;
+  zoomMeetingSettings: ZoomMeetingSettings | null;
+  zoomMetadata: Record<string, unknown> | null;
+  zoomStatus: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CoachZoomConfigRecord {
+  ulid: string;
+  coachUlid: string;
+  zoomApiKey: string;
+  zoomApiSecret: string;
+  zoomAccountId: string | null;
+  zoomAccountEmail: string | null;
+  staticZoomLink: string | null;
+  defaultSettings: ZoomMeetingSettings | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Session Status Mapping
+export const SESSION_STATUS_MAP = {
+  SCHEDULED: 'SCHEDULED',
+  STARTED: 'STARTED',
+  ENDED: 'ENDED',
+  CANCELLED: 'CANCELLED',
+  RESCHEDULED: 'RESCHEDULED',
+  COACH_PROPOSED_RESCHEDULE: 'COACH_PROPOSED_RESCHEDULE',
+  ABSENT: 'ABSENT'
+} as const;
+
+export type SessionStatus = typeof SESSION_STATUS_MAP[keyof typeof SESSION_STATUS_MAP];
+
+// Cal.com Integration Types
+export interface CalBookingCreatePayload {
+  start: string;
+  attendee: {
+    name: string;
+    email: string;
+    timeZone?: string;
+    phoneNumber?: string;
+    language?: string;
+  };
+  meetingUrl: string;  // This will be the coach's staticZoomLink
+  eventTypeId?: number;
+  eventTypeSlug?: string;
+  username?: string;
+  teamSlug?: string;
+  organizationSlug?: string;
+  guests?: string[];
+  location?: {
+    type: string;
+    [key: string]: any;
+  };
+  metadata?: Record<string, unknown>;
+  lengthInMinutes?: number;
+}
+
+export interface CalBookingResponse {
+  id: number;
+  uid: string;
+  title: string;
+  description?: string;
+  hosts: Array<{
+    id: number;
+    name: string;
+    email: string;
+    username: string;
+    timeZone: string;
+  }>;
+  status: string;
+  start: string;
+  end: string;
+  duration: number;
+  eventTypeId: number;
+  eventType: {
+    id: number;
+    slug: string;
+  };
+  meetingUrl: string;  // This will contain our Zoom link
+  location: string;
+  createdAt: string;
+  updatedAt: string;
+  metadata?: Record<string, unknown>;
+  attendees: Array<{
+    name: string;
+    email: string;
+    timeZone?: string;
+    phoneNumber?: string;
+    language?: string;
+  }>;
+  guests?: string[];
+}
+
+export interface CalEventTypeZoomConfig {
+  staticZoomLink: string;
+  defaultSettings?: ZoomMeetingSettings;
+} 

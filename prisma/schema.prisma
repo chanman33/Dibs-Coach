@@ -316,13 +316,15 @@ model Session {
   absentMenteeMarkedBy String?  // Email of user who marked mentee as absent
   absenceHistory     Json?     @default("[]") // Array of absence events
   
-  // Zoom Meeting Details
-  zoomMeetingId      String?   
+  // Zoom Meeting Details - Updated to match Zoom types
+  zoomMeetingId      String?   @db.Char(26)  // Changed to match ULID format
+  zoomSessionName    String?   // Added to match ZoomSession
   zoomStartUrl       String?   
   zoomJoinUrl        String?   
   zoomMeetingPassword String?  
-  zoomMeetingSettings Json?    
-  zoomMetadata       Json?     
+  zoomMeetingSettings Json?    // Matches ZoomMeetingSettings type
+  zoomMetadata       Json?     // Matches ZoomSession metadata
+  zoomStatus         String?   // Added to match ZoomSessionStatus
   
   // Cal.com Integration
   calBookingUlid     String?   @unique @db.Char(26)
@@ -354,7 +356,7 @@ model Session {
   reviews            Review[]
   transaction        Transaction? @relation("SessionTransaction")
   supportTickets     SupportTicket[] @relation("SessionSupportTickets")
-  proposalInitiator  User?     @relation("RescheduleProposer", fields: [rescheduleProposedByUlid], references: [ulid], onDelete: SetNull) // Relation for who proposed
+  proposalInitiator  User?     @relation("RescheduleProposer", fields: [rescheduleProposedByUlid], references: [ulid], onDelete: SetNull)
 
   // Self-relations for rescheduling
   originalSession    Session?     @relation("SessionRescheduling", fields: [originalSessionUlid], references: [ulid])
@@ -1135,6 +1137,7 @@ enum RealEstateDomain {
   REALTOR
   INVESTOR
   MORTGAGE
+  PROPERTY_MANAGEMENT
   PROPERTY_MANAGER
   TITLE_ESCROW
   INSURANCE
@@ -1181,11 +1184,13 @@ enum CertificationStatus {
 
 enum SessionStatus {
   SCHEDULED
+  STARTED
   COMPLETED
-  RESCHEDULED
   CANCELLED
-  ABSENT
+  RESCHEDULED
   COACH_PROPOSED_RESCHEDULE
+  ABSENT
+  COACH_ABSENT
 }
 
 enum SessionType {
@@ -1644,6 +1649,8 @@ model CalEventType {
   useDestinationCalendarEmail Boolean?         // Use destination calendar email for the event
   hideCalendarEventDetails Boolean?            // Hide calendar event details
   color                    Json?               // Color settings for the event
+  // Zoom Integration
+  zoomConfig               Json?               // Store Zoom configuration including static link
   createdAt                DateTime            @default(now()) @db.Timestamptz(6)
   updatedAt                DateTime            @updatedAt @db.Timestamptz(6)
   calendarIntegration      CalendarIntegration @relation(fields: [calendarIntegrationUlid], references: [ulid], onDelete: Cascade)
@@ -1736,6 +1743,7 @@ model CoachZoomConfig {
   zoomApiSecret     String
   zoomAccountId      String?
   zoomAccountEmail   String?
+  staticZoomLink     String?   @unique // Static Zoom link for the coach
   defaultSettings    Json?     // Store default Zoom meeting settings
   isActive           Boolean   @default(true)
   createdAt          DateTime  @default(now()) @db.Timestamptz(6)
@@ -1744,6 +1752,7 @@ model CoachZoomConfig {
 
   @@index([coachUlid])
   @@index([zoomAccountId])
+  @@index([staticZoomLink])
   @@map("CoachZoomConfig")
 }
 
