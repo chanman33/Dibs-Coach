@@ -1,4 +1,5 @@
 import uitoolkit from '@zoom/videosdk-ui-toolkit';
+import zoomSdk from '@/utils/zoom/sdk/zoom-sdk';
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -9,31 +10,100 @@ interface ChatMessage {
 }
 
 export async function testVideoAudioToggle(container: HTMLElement): Promise<boolean> {
-    console.warn(`testVideoAudioToggle: The 'openPreview'/'closePreview' UI toolkit functions are generally intended for pre-session device checks.
-Using them on an active session container, as is happening here, can lead to unexpected errors (like the observed 404 for '[object Object]').
-This test should be refactored to interact with the actual in-session video/audio toggle UI elements directly (e.g., simulating clicks on buttons)
-or use specific programmatic SDK calls designed for controlling media in an active session, if available within the UI toolkit's scope.
-Marking this test as failed due to the problematic use of 'openPreview'.`);
+    try {
+        console.log("testVideoAudioToggle: Testing video/audio controls...");
+        
+        // 1. Get the client from the SDK
+        const client = zoomSdk.getActiveClient();
+        if (!client) {
+            throw new Error('No active Zoom client found');
+        }
 
-    // Original code that causes 404 error when run post-session join:
-    // try {
-    //     console.log("testVideoAudioToggle: Opening preview...");
-    //     await uitoolkit.openPreview(container); 
-    //     await delay(1000);
-    //     console.log("testVideoAudioToggle: Closing preview...");
-    //     await uitoolkit.closePreview(container);
-    //     return true; 
-    // } catch (error) {
-    //     console.error('Video/Audio preview test failed:', error);
-    //     return false;
-    // }
-    return false; // Test is failing because 'openPreview' is not suitable here.
+        // 2. Get media stream
+        const stream = client.getMediaStream();
+        if (!stream) {
+            throw new Error('No media stream found');
+        }
+
+        // 3. Test audio first (following initialization order)
+        console.log("Testing audio toggle...");
+        const initialAudioState = await stream.isAudioMuted();
+        
+        // Toggle audio off
+        await stream.muteAudio();
+        await delay(1000);
+        const audioOff = await stream.isAudioMuted();
+        if (!audioOff) {
+            throw new Error('Failed to mute audio');
+        }
+
+        // Toggle audio on
+        await stream.unmuteAudio();
+        await delay(1000);
+        const audioOn = await stream.isAudioMuted();
+        if (audioOn) {
+            throw new Error('Failed to unmute audio');
+        }
+
+        // 4. Test video after audio
+        console.log("Testing video toggle...");
+        const initialVideoState = await stream.isCapturingVideo();
+        
+        // Toggle video off
+        await stream.stopVideo();
+        await delay(1000);
+        const videoOff = await stream.isCapturingVideo();
+        if (videoOff) {
+            throw new Error('Failed to stop video');
+        }
+
+        // Toggle video on
+        await stream.startVideo();
+        await delay(1000);
+        const videoOn = await stream.isCapturingVideo();
+        if (!videoOn) {
+            throw new Error('Failed to start video');
+        }
+
+        // 5. Restore initial states
+        if (initialVideoState) {
+            await stream.startVideo();
+        } else {
+            await stream.stopVideo();
+        }
+
+        if (!initialAudioState) {
+            await stream.muteAudio();
+        } else {
+            await stream.unmuteAudio();
+        }
+
+        console.log("Video/Audio toggle test completed successfully");
+        return true;
+    } catch (error) {
+        console.error('Video/Audio toggle test failed:', error);
+        return false;
+    }
 }
 
 export async function testScreenSharing(container: HTMLElement): Promise<boolean> {
     try {
-        console.log("testScreenSharing: Showing share component features...");
-        await uitoolkit.showUitoolkitComponents(container, { features: ['share'] } as any); 
+        console.log("testScreenSharing: Testing screen sharing...");
+        
+        // 1. Get the client from the SDK
+        const client = zoomSdk.getActiveClient();
+        if (!client) {
+            throw new Error('No active Zoom client found');
+        }
+
+        // 2. Get media stream
+        const stream = client.getMediaStream();
+        if (!stream) {
+            throw new Error('No media stream found');
+        }
+
+        // 3. Test screen sharing
+        await uitoolkit.showUitoolkitComponents(container, { features: ['share'] } as any);
         await delay(1000);
         return true;
     } catch (error) {
@@ -44,7 +114,15 @@ export async function testScreenSharing(container: HTMLElement): Promise<boolean
 
 export async function testChatSystem(container: HTMLElement): Promise<boolean> {
     try {
-        console.log("testChatSystem: Showing chat component features...");
+        console.log("testChatSystem: Testing chat functionality...");
+        
+        // 1. Get the client from the SDK
+        const client = zoomSdk.getActiveClient();
+        if (!client) {
+            throw new Error('No active Zoom client found');
+        }
+
+        // 2. Test chat
         await uitoolkit.showUitoolkitComponents(container, { features: ['chat'] } as any);
         await delay(1000);
         return true;
@@ -56,7 +134,15 @@ export async function testChatSystem(container: HTMLElement): Promise<boolean> {
 
 export async function testParticipantList(container: HTMLElement): Promise<boolean> {
     try {
-        console.log("testParticipantList: Showing users component features...");
+        console.log("testParticipantList: Testing participant list...");
+        
+        // 1. Get the client from the SDK
+        const client = zoomSdk.getActiveClient();
+        if (!client) {
+            throw new Error('No active Zoom client found');
+        }
+
+        // 2. Test participant list
         await uitoolkit.showUitoolkitComponents(container, { features: ['users'] } as any);
         await delay(1000);
         return true;

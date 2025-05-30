@@ -42,6 +42,7 @@ export default function ZoomVideo({
   const currentTokenRef = useRef<string | null>(null);
   const currentSessionNameRef = useRef<string | null>(null);
   const effectInstanceId = useRef(Math.random());
+  const [initializationError, setInitializationError] = useState<string | null>(null);
 
   // Add participant tracking using Zoom SDK
   useEffect(() => {
@@ -143,6 +144,7 @@ export default function ZoomVideo({
     console.log(`ZoomVideo Effect [${instanceId}]: Proceeding with initialization for session: ${sessionName}`);
     initializationInProgress.current = true;
     effectInstanceId.current = Math.random();
+    setInitializationError(null);
 
     const config: ZoomUIToolkitConfig = {
       videoSDKJWT: token,
@@ -160,8 +162,20 @@ export default function ZoomVideo({
       options: {
         video: { 
           layout: { mode: 'speaker' }, 
-          virtualBackground: { allowVirtualBackground: false } 
+          virtualBackground: { allowVirtualBackground: false },
+          autoStartVideo: false,
+          videoQuality: {
+            width: 1280,
+            height: 720,
+            frameRate: 30
+          }
         },
+        audio: {
+          autoStartAudio: false,
+          echoCancellation: true,
+          noiseReduction: true,
+          autoAdjustVolume: true
+        }
       },
     };
 
@@ -211,6 +225,7 @@ export default function ZoomVideo({
           currentSessionNameRef.current = null;
           initializationInProgress.current = false;
           setSessionState('ended');
+          setInitializationError(error.message || 'Failed to initialize Zoom session');
           onError?.(error instanceof Error ? error : new Error('Failed to initialize Zoom session'));
         }
       }
@@ -260,7 +275,11 @@ export default function ZoomVideo({
         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
           <div className="text-white text-center p-6 bg-gray-800 rounded-lg">
             <h3 className="text-xl font-semibold mb-2">Session Ended</h3>
-            <p className="text-gray-300">The session has ended. Please contact your host for assistance.</p>
+            <p className="text-gray-300">
+              {initializationError 
+                ? `Error: ${initializationError}`
+                : 'The session has ended. Please contact your host for assistance.'}
+            </p>
           </div>
         </div>
       )}

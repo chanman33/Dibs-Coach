@@ -56,7 +56,7 @@ export default function ZoomTestPage() {
     const [testUtils, setTestUtils] = useState<TestUtilsModules | null>(null);
     const [sessionState, setSessionState] = useState<'waiting' | 'active' | 'ended'>('waiting');
     const [participants, setParticipants] = useState<any[]>([]);
-    const [userRole, setUserRole] = useState<'host' | 'participant'>('participant');
+    const [userRole, setUserRole] = useState<'host' | 'participant'>('host');
     
     const zoomHostRef = useRef<HTMLDivElement>(null);
 
@@ -92,10 +92,17 @@ export default function ZoomTestPage() {
             updateTestResult(testName, 'skipped', 'Session not joined');
             return;
         }
+
+        if (sessionState !== 'active') {
+            updateTestResult(testName, 'skipped', `Session not active (current state: ${sessionState})`);
+            return;
+        }
+
         if (!testFn) {
             updateTestResult(testName, 'skipped', 'Test function not available');
             return;
         }
+
         if (!zoomSDKContainerElement) {
             updateTestResult(testName, 'failed', 'Zoom SDK container element not found for test.');
             return;
@@ -103,7 +110,18 @@ export default function ZoomTestPage() {
         
         setActiveTest(testName);
         try {
+            // Ensure session is still active before running test
+            if (sessionState !== 'active') {
+                throw new Error('Session is no longer active');
+            }
+
             const result = await testFn(zoomSDKContainerElement);
+            
+            // Verify session is still active after test
+            if (sessionState !== 'active') {
+                throw new Error('Session became inactive during test');
+            }
+
             updateTestResult(testName, result ? 'passed' : 'failed', result ? undefined : 'Test failed implicitly');
         } catch (error: any) {
             console.error(`Error running test ${testName}:`, error);
@@ -117,24 +135,35 @@ export default function ZoomTestPage() {
         const suite = TEST_SUITE.find(s => s.name === suiteName);
         if (!suite) return;
 
-        // Set all tests in the suite to pending first, unless they are already resolved from Basic Connection
+        // Verify session is active before running suite
+        if (!isSessionJoined || sessionState !== 'active') {
+            console.warn("Cannot run test suite, session not active");
+            suite.tests.forEach(test => 
+                updateTestResult(test.name, 'skipped', 'Session not active')
+            );
+            return;
+        }
+
+        // Set all tests in the suite to pending first
         suite.tests.forEach(test => {
             const existingResult = testResults.find(r => r.name === test.name);
             if (!existingResult || existingResult.status === 'pending') {
-                 // For basic connection, their pending status is set in handleConnect
                 if (suite.name !== 'Basic Connection') {
                     updateTestResult(test.name, 'pending');
                 }
             }
         });
-        
-        if (!isSessionJoined && suite.name !== 'Basic Connection') { 
-            console.warn("Cannot run test suite, session not joined");
-            suite.tests.forEach(test => updateTestResult(test.name, 'skipped', 'Session not joined'));
-            return;
-        }
 
         for (const test of suite.tests) {
+            // Verify session is still active before each test
+            if (sessionState !== 'active') {
+                console.warn("Session became inactive during test suite");
+                suite.tests.forEach(t => 
+                    updateTestResult(t.name, 'skipped', 'Session became inactive')
+                );
+                break;
+            }
+
             if (test.testFn) {
                 await runTest(test.name, test.testFn);
             } else if (suite.name !== 'Basic Connection') {
@@ -149,11 +178,13 @@ export default function ZoomTestPage() {
         setTestResults([]); 
         setIsSessionJoined(false); 
 
+        // Initialize test results for basic connection tests
         updateTestResult(BASIC_CONNECTION_TEST_NAMES.TOKEN, 'pending');
         updateTestResult(BASIC_CONNECTION_TEST_NAMES.CREATION, 'pending');
         updateTestResult(BASIC_CONNECTION_TEST_NAMES.INIT, 'pending');
 
         try {
+            // 1. Generate session name and token
             const newSessionName = 'test-session-' + Date.now();
             const newToken = await getZoomToken(newSessionName);
             updateTestResult(BASIC_CONNECTION_TEST_NAMES.TOKEN, 'passed');
@@ -161,6 +192,9 @@ export default function ZoomTestPage() {
             setSessionName(newSessionName);
             setToken(newToken);
             setIsConnected(true); 
+
+            // 2. Wait for session to be ready
+            await new Promise(resolve => setTimeout(resolve, 1000));
         } catch (error: any) {
             console.error('Connection failed (token generation):', error?.message || 'Unknown error');
             updateTestResult(BASIC_CONNECTION_TEST_NAMES.TOKEN, 'failed', error?.message || 'Token fetch error');
@@ -183,22 +217,39 @@ export default function ZoomTestPage() {
 
     const onZoomError = useCallback((error: Error) => {
         console.error('Zoom Component Error:', error);
-        updateTestResult(BASIC_CONNECTION_TEST_NAMES.INIT, 'failed', `ZoomVideo Error: ${error.message}`);
-        const creationResult = testResults.find(r => r.name === BASIC_CONNECTION_TEST_NAMES.CREATION);
-        if (creationResult && creationResult.status === 'pending') {
-            updateTestResult(BASIC_CONNECTION_TEST_NAMES.CREATION, 'failed', `Session creation likely failed: ${error.message}`);
+        
+        // Check if error is related to initialization
+        if (error.message.includes('initialization') || error.message.includes('initialize')) {
+            updateTestResult(BASIC_CONNECTION_TEST_NAMES.INIT, 'failed', `ZoomVideo Error: ${error.message}`);
         }
+        
+        // Check if error is related to session creation
+        if (error.message.includes('session') || error.message.includes('join')) {
+            const creationResult = testResults.find(r => r.name === BASIC_CONNECTION_TEST_NAMES.CREATION);
+            if (creationResult && creationResult.status === 'pending') {
+                updateTestResult(BASIC_CONNECTION_TEST_NAMES.CREATION, 'failed', `Session creation failed: ${error.message}`);
+            }
+        }
+        
         setIsSessionJoined(false);
         setSessionState('ended');
     }, [testResults]);
 
     const onZoomSessionJoined = useCallback(() => {
         console.log("ZoomTestPage: Received onZoomSessionJoined callback!");
+        
+        // Update test results in order
         updateTestResult(BASIC_CONNECTION_TEST_NAMES.CREATION, 'passed');
         updateTestResult(BASIC_CONNECTION_TEST_NAMES.INIT, 'passed');
+        
         setIsSessionJoined(true);
         setSessionState('active');
-    }, []);
+        
+        // Add host to participants list when they join
+        if (userRole === 'host') {
+            setParticipants(prev => [...prev, { userId: 'host', userName: 'Test Host' }]);
+        }
+    }, [userRole]);
 
     const onWaitingRoom = useCallback(() => {
         console.log("ZoomTestPage: Entered waiting room");
@@ -207,7 +258,18 @@ export default function ZoomTestPage() {
 
     const onParticipantJoined = useCallback((participant: any) => {
         console.log("ZoomTestPage: Participant joined:", participant);
-        setParticipants(prev => [...prev, participant]);
+        setParticipants(prev => {
+            // Don't add duplicate participants
+            if (prev.some(p => p.userId === participant.userId)) {
+                return prev;
+            }
+            return [...prev, participant];
+        });
+    }, []);
+
+    const onParticipantLeft = useCallback((participant: any) => {
+        console.log("ZoomTestPage: Participant left:", participant);
+        setParticipants(prev => prev.filter(p => p.userId !== participant.userId));
     }, []);
 
     const TEST_SUITE: TestSuiteDefinition[] = [
@@ -268,10 +330,17 @@ export default function ZoomTestPage() {
                         )}
                     </div>
                     {sessionState === 'waiting' && (
-                        <p className="text-yellow-600 mt-2">Waiting for host to join...</p>
+                        <p className="text-yellow-600 mt-2">
+                            {userRole === 'host' 
+                                ? 'Waiting for participants to join...' 
+                                : 'Waiting for host to join...'}
+                        </p>
                     )}
                     {sessionState === 'active' && (
-                        <p className="text-green-600 mt-2">Session active with {participants.length} participants</p>
+                        <p className="text-green-600 mt-2">
+                            Session active with {participants.length} {participants.length === 1 ? 'participant' : 'participants'}
+                            {userRole === 'host' && participants.length === 1 && ' (you are the host)'}
+                        </p>
                     )}
                     {sessionState === 'ended' && (
                         <p className="text-red-600 mt-2">Session ended</p>
@@ -337,6 +406,7 @@ export default function ZoomTestPage() {
                                     onSessionJoined={onZoomSessionJoined}
                                     onWaitingRoom={onWaitingRoom}
                                     onParticipantJoined={onParticipantJoined}
+                                    onParticipantLeft={onParticipantLeft}
                                     role={userRole}
                                 />
                             </div>
