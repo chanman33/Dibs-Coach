@@ -8,6 +8,7 @@ import './globals.css'
 import { cn } from "@/lib/utils"
 import { ClerkProvider } from '@clerk/nextjs'
 import config from "@/config"
+import "@zoom/videosdk-ui-toolkit/dist/videosdk-ui-toolkit.css"
 
 export const viewport: Viewport = {
   themeColor: '#005FB8',

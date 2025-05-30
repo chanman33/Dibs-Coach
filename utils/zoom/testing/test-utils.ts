@@ -9,17 +9,25 @@ interface ChatMessage {
 }
 
 export async function testVideoAudioToggle(container: HTMLElement): Promise<boolean> {
-    try {
-        console.log("testVideoAudioToggle: Opening preview...");
-        await uitoolkit.openPreview(container); 
-        await delay(1000);
-        console.log("testVideoAudioToggle: Closing preview...");
-        await uitoolkit.closePreview(container);
-        return true;
-    } catch (error) {
-        console.error('Video/Audio preview test failed:', error);
-        return false;
-    }
+    console.warn(`testVideoAudioToggle: The 'openPreview'/'closePreview' UI toolkit functions are generally intended for pre-session device checks.
+Using them on an active session container, as is happening here, can lead to unexpected errors (like the observed 404 for '[object Object]').
+This test should be refactored to interact with the actual in-session video/audio toggle UI elements directly (e.g., simulating clicks on buttons)
+or use specific programmatic SDK calls designed for controlling media in an active session, if available within the UI toolkit's scope.
+Marking this test as failed due to the problematic use of 'openPreview'.`);
+
+    // Original code that causes 404 error when run post-session join:
+    // try {
+    //     console.log("testVideoAudioToggle: Opening preview...");
+    //     await uitoolkit.openPreview(container); 
+    //     await delay(1000);
+    //     console.log("testVideoAudioToggle: Closing preview...");
+    //     await uitoolkit.closePreview(container);
+    //     return true; 
+    // } catch (error) {
+    //     console.error('Video/Audio preview test failed:', error);
+    //     return false;
+    // }
+    return false; // Test is failing because 'openPreview' is not suitable here.
 }
 
 export async function testScreenSharing(container: HTMLElement): Promise<boolean> {
