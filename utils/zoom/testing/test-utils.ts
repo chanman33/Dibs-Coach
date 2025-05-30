@@ -1,5 +1,7 @@
 import uitoolkit from '@zoom/videosdk-ui-toolkit';
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 interface ChatMessage {
     content: string;
     sender: string;
@@ -8,11 +10,11 @@ interface ChatMessage {
 
 export async function testVideoAudioToggle(container: HTMLElement): Promise<boolean> {
     try {
-        // Test video preview
-        await uitoolkit.openPreview(container);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log("testVideoAudioToggle: Opening preview...");
+        await uitoolkit.openPreview(container); 
+        await delay(1000);
+        console.log("testVideoAudioToggle: Closing preview...");
         await uitoolkit.closePreview(container);
-        
         return true;
     } catch (error) {
         console.error('Video/Audio preview test failed:', error);
@@ -22,20 +24,9 @@ export async function testVideoAudioToggle(container: HTMLElement): Promise<bool
 
 export async function testScreenSharing(container: HTMLElement): Promise<boolean> {
     try {
-        // Test session join
-        await uitoolkit.joinSession(container, {
-            videoSDKJWT: 'test-token',
-            sessionName: 'test-session',
-            userName: 'test-user',
-            features: ['video', 'audio', 'share']
-        });
-        
-        // Wait for session to initialize
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Clean up
-        await uitoolkit.closeSession(container);
-        
+        console.log("testScreenSharing: Showing share component features...");
+        await uitoolkit.showUitoolkitComponents(container, { features: ['share'] } as any); 
+        await delay(1000);
         return true;
     } catch (error) {
         console.error('Screen sharing test failed:', error);
@@ -45,20 +36,9 @@ export async function testScreenSharing(container: HTMLElement): Promise<boolean
 
 export async function testChatSystem(container: HTMLElement): Promise<boolean> {
     try {
-        // Test session join with chat feature
-        await uitoolkit.joinSession(container, {
-            videoSDKJWT: 'test-token',
-            sessionName: 'test-session',
-            userName: 'test-user',
-            features: ['chat']
-        });
-        
-        // Wait for session to initialize
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Clean up
-        await uitoolkit.closeSession(container);
-        
+        console.log("testChatSystem: Showing chat component features...");
+        await uitoolkit.showUitoolkitComponents(container, { features: ['chat'] } as any);
+        await delay(1000);
         return true;
     } catch (error) {
         console.error('Chat system test failed:', error);
@@ -68,20 +48,9 @@ export async function testChatSystem(container: HTMLElement): Promise<boolean> {
 
 export async function testParticipantList(container: HTMLElement): Promise<boolean> {
     try {
-        // Test session join with participant list
-        await uitoolkit.joinSession(container, {
-            videoSDKJWT: 'test-token',
-            sessionName: 'test-session',
-            userName: 'test-user',
-            features: ['users']
-        });
-        
-        // Wait for session to initialize
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Clean up
-        await uitoolkit.closeSession(container);
-        
+        console.log("testParticipantList: Showing users component features...");
+        await uitoolkit.showUitoolkitComponents(container, { features: ['users'] } as any);
+        await delay(1000);
         return true;
     } catch (error) {
         console.error('Participant list test failed:', error);
@@ -91,27 +60,16 @@ export async function testParticipantList(container: HTMLElement): Promise<boole
 
 export async function testLayoutSwitching(container: HTMLElement): Promise<boolean> {
     try {
-        // Test session join with layout options
-        await uitoolkit.joinSession(container, {
-            videoSDKJWT: 'test-token',
-            sessionName: 'test-session',
-            userName: 'test-user',
-            features: ['video'],
+        console.log("testLayoutSwitching: Showing video component with layout options...");
+        await uitoolkit.showUitoolkitComponents(container, {
+            features: ['video'], 
             options: {
                 video: {
-                    layout: {
-                        mode: 'speaker'
-                    }
+                    layout: { mode: 'gallery' } 
                 }
             }
-        });
-        
-        // Wait for session to initialize
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Clean up
-        await uitoolkit.closeSession(container);
-        
+        } as any);
+        await delay(1000);
         return true;
     } catch (error) {
         console.error('Layout switching test failed:', error);
@@ -121,42 +79,25 @@ export async function testLayoutSwitching(container: HTMLElement): Promise<boole
 
 export async function testResponsiveDesign(container: HTMLElement): Promise<boolean> {
     try {
-        // Test session join with responsive layout
-        await uitoolkit.joinSession(container, {
-            videoSDKJWT: 'test-token',
-            sessionName: 'test-session',
-            userName: 'test-user',
-            features: ['video'],
-            options: {
-                video: {
-                    layout: {
-                        mode: 'speaker',
-                        showActiveVideo: true,
-                        showNonActiveVideo: true
-                    }
-                }
-            }
-        });
-        
-        // Test different viewport sizes
+        console.log("testResponsiveDesign: Testing various viewport sizes...");
+        const originalSize = { width: window.innerWidth, height: window.innerHeight };
         const sizes = [
-            { width: 320, height: 568 },  // Mobile
-            { width: 768, height: 1024 }, // Tablet
-            { width: 1920, height: 1080 } // Desktop
+            { width: 320, height: 568 },  
+            { width: 768, height: 1024 }, 
+            { width: 1280, height: 720 }  
         ];
         
         for (const size of sizes) {
-            // Simulate resize
-            Object.defineProperty(window, 'innerWidth', { value: size.width });
-            Object.defineProperty(window, 'innerHeight', { value: size.height });
+            Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: size.width });
+            Object.defineProperty(window, 'innerHeight', { writable: true, configurable: true, value: size.height });
             window.dispatchEvent(new Event('resize'));
-            
-            // Wait for resize to take effect
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await delay(500); 
         }
         
-        // Clean up
-        await uitoolkit.closeSession(container);
+        Object.defineProperty(window, 'innerWidth', { writable: true, configurable: true, value: originalSize.width });
+        Object.defineProperty(window, 'innerHeight', { writable: true, configurable: true, value: originalSize.height });
+        window.dispatchEvent(new Event('resize'));
+        await delay(100);
         
         return true;
     } catch (error) {

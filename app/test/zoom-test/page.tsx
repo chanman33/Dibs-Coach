@@ -1,18 +1,10 @@
 'use client'
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { getZoomToken } from '@/utils/zoom-token';
+import { getZoomToken } from '@/utils/zoom/auth/zoom-token';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import {
-    testVideoAudioToggle,
-    testScreenSharing,
-    testChatSystem,
-    testParticipantList,
-    testLayoutSwitching,
-    testResponsiveDesign
-} from '@/utils/zoom/test-utils';
 
 // Dynamically import the Zoom component with no SSR
 const ZoomVideo = dynamic(() => import('@/components/zoom/zoom-video'), {
@@ -20,68 +12,99 @@ const ZoomVideo = dynamic(() => import('@/components/zoom/zoom-video'), {
     loading: () => <div className="container mx-auto p-8">Loading Zoom SDK...</div>
 });
 
+interface TestUtilsModules {
+    testVideoAudioToggle: (container: HTMLElement) => Promise<boolean>;
+    testScreenSharing: (container: HTMLElement) => Promise<boolean>;
+    testChatSystem: (container: HTMLElement) => Promise<boolean>;
+    testParticipantList: (container: HTMLElement) => Promise<boolean>;
+    testLayoutSwitching: (container: HTMLElement) => Promise<boolean>;
+    testResponsiveDesign: (container: HTMLElement) => Promise<boolean>;
+}
+
 interface TestResult {
     name: string;
-    status: 'passed' | 'failed' | 'pending';
+    status: 'passed' | 'failed' | 'pending' | 'skipped';
     error?: string;
 }
 
-const TEST_SUITE = [
-    {
-        name: 'Basic Connection',
-        tests: [
-            { name: 'Session Creation', description: 'Create new Zoom session' },
-            { name: 'Token Generation', description: 'Generate valid session token' },
-            { name: 'Video Initialization', description: 'Initialize video component' },
-        ]
-    },
-    {
-        name: 'Core Features',
-        tests: [
-            { name: 'Video/Audio Toggle', description: 'Toggle video and audio controls', testFn: testVideoAudioToggle },
-            { name: 'Screen Sharing', description: 'Share screen functionality', testFn: testScreenSharing },
-            { name: 'Chat System', description: 'Send and receive chat messages', testFn: testChatSystem },
-            { name: 'Participant List', description: 'View and manage participants', testFn: testParticipantList },
-        ]
-    },
-    {
-        name: 'UI/UX',
-        tests: [
-            { name: 'Layout Switching', description: 'Switch between speaker and gallery views', testFn: testLayoutSwitching },
-            { name: 'Responsive Design', description: 'Verify responsive layout', testFn: testResponsiveDesign },
-            { name: 'Error Handling', description: 'Display and handle errors properly' },
-        ]
-    }
-];
+interface TestDefinition {
+    name: string;
+    description: string;
+    testFn?: (container: HTMLElement) => Promise<boolean>;
+}
+
+interface TestSuiteDefinition {
+    name: string;
+    tests: TestDefinition[];
+}
+
+const BASIC_CONNECTION_TEST_NAMES = {
+    TOKEN: 'Token Generation',
+    CREATION: 'Session Creation',
+    INIT: 'Video Initialization',
+    CONNECTION: 'Connection' // General connection error placeholder
+};
 
 export default function ZoomTestPage() {
     const [testResults, setTestResults] = useState<TestResult[]>([]);
     const [sessionName, setSessionName] = useState<string>('');
     const [token, setToken] = useState<string>('');
-    const [isConnected, setIsConnected] = useState(false);
+    const [isLoadingToken, setIsLoadingToken] = useState(false);
+    const [isConnected, setIsConnected] = useState(false); // Indicates token is fetched and ready to attempt connection
+    const [isSessionJoined, setIsSessionJoined] = useState(false); // Indicates ZoomVideo successfully joined
     const [activeTest, setActiveTest] = useState<string | null>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
+    const [testUtils, setTestUtils] = useState<TestUtilsModules | null>(null);
+    
+    const zoomHostRef = useRef<HTMLDivElement>(null); 
+
+    // Load test utilities on client side
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            import('@/utils/zoom/testing/test-utils').then(utils => {
+                setTestUtils(utils);
+            });
+        }
+    }, []);
+
+    // Helper to update test results immutably
+    const updateTestResult = (name: string, status: TestResult['status'], error?: string) => {
+        setTestResults(prev => {
+            const existingIndex = prev.findIndex(r => r.name === name);
+            if (existingIndex !== -1) {
+                const updated = [...prev];
+                updated[existingIndex] = { ...updated[existingIndex], status, error: error !== undefined ? error : updated[existingIndex].error };
+                if (status !== 'pending' && error === undefined) delete updated[existingIndex].error; // Clear error if new status is not pending and no new error
+                return updated;
+            }
+            return [...prev, { name, status, error }];
+        });
+    };
 
     const runTest = async (testName: string, testFn?: (container: HTMLElement) => Promise<boolean>) => {
+        const zoomSDKContainerElement = zoomHostRef.current?.querySelector<HTMLElement>('#zoom-sdk-container');
+        
+        updateTestResult(testName, 'pending');
+
+        if (!isSessionJoined) {
+            updateTestResult(testName, 'skipped', 'Session not joined');
+            return;
+        }
+        if (!testFn) {
+            updateTestResult(testName, 'skipped', 'Test function not available');
+            return;
+        }
+        if (!zoomSDKContainerElement) {
+            updateTestResult(testName, 'failed', 'Zoom SDK container element not found for test.');
+            return;
+        }
+        
         setActiveTest(testName);
         try {
-            if (testFn && containerRef.current) {
-                const result = await testFn(containerRef.current);
-                setTestResults(prev => [...prev, { 
-                    name: testName, 
-                    status: result ? 'passed' : 'failed',
-                    error: result ? undefined : 'Test failed'
-                }]);
-            } else {
-                // For tests without a test function, just mark as passed
-                setTestResults(prev => [...prev, { name: testName, status: 'passed' }]);
-            }
+            const result = await testFn(zoomSDKContainerElement);
+            updateTestResult(testName, result ? 'passed' : 'failed', result ? undefined : 'Test failed implicitly');
         } catch (error: any) {
-            setTestResults(prev => [...prev, { 
-                name: testName, 
-                status: 'failed',
-                error: error.message 
-            }]);
+            console.error(`Error running test ${testName}:`, error);
+            updateTestResult(testName, 'failed', error.message);
         } finally {
             setActiveTest(null);
         }
@@ -91,26 +114,59 @@ export default function ZoomTestPage() {
         const suite = TEST_SUITE.find(s => s.name === suiteName);
         if (!suite) return;
 
+        // Set all tests in the suite to pending first, unless they are already resolved from Basic Connection
+        suite.tests.forEach(test => {
+            const existingResult = testResults.find(r => r.name === test.name);
+            if (!existingResult || existingResult.status === 'pending') {
+                 // For basic connection, their pending status is set in handleConnect
+                if (suite.name !== 'Basic Connection') {
+                    updateTestResult(test.name, 'pending');
+                }
+            }
+        });
+        
+        if (!isSessionJoined && suite.name !== 'Basic Connection') { 
+            console.warn("Cannot run test suite, session not joined");
+            suite.tests.forEach(test => updateTestResult(test.name, 'skipped', 'Session not joined'));
+            return;
+        }
+
         for (const test of suite.tests) {
-            await runTest(test.name, test.testFn);
+            if (test.testFn) {
+                await runTest(test.name, test.testFn);
+            } else if (suite.name !== 'Basic Connection') {
+                updateTestResult(test.name, 'skipped', "No test function defined");
+            }
         }
     };
-
+    
     const handleConnect = async () => {
+        if (isLoadingToken || isConnected) return;
+        setIsLoadingToken(true);
+        setTestResults([]); 
+        setIsSessionJoined(false); 
+
+        updateTestResult(BASIC_CONNECTION_TEST_NAMES.TOKEN, 'pending');
+        updateTestResult(BASIC_CONNECTION_TEST_NAMES.CREATION, 'pending');
+        updateTestResult(BASIC_CONNECTION_TEST_NAMES.INIT, 'pending');
+
         try {
             const newSessionName = 'test-session-' + Date.now();
             const newToken = await getZoomToken(newSessionName);
+            updateTestResult(BASIC_CONNECTION_TEST_NAMES.TOKEN, 'passed');
             
             setSessionName(newSessionName);
             setToken(newToken);
-            setIsConnected(true);
+            setIsConnected(true); 
         } catch (error: any) {
-            console.error('Connection failed:', error?.message || 'Unknown error');
-            setTestResults(prev => [...prev, {
-                name: 'Connection',
-                status: 'failed',
-                error: error?.message || 'Unknown error'
-            }]);
+            console.error('Connection failed (token generation):', error?.message || 'Unknown error');
+            updateTestResult(BASIC_CONNECTION_TEST_NAMES.TOKEN, 'failed', error?.message || 'Token fetch error');
+            updateTestResult(BASIC_CONNECTION_TEST_NAMES.CREATION, 'failed', 'Prerequisite failed: Token generation');
+            updateTestResult(BASIC_CONNECTION_TEST_NAMES.INIT, 'failed', 'Prerequisite failed: Token generation');
+            updateTestResult(BASIC_CONNECTION_TEST_NAMES.CONNECTION, 'failed', error?.message || 'Token fetch error');
+            setIsConnected(false);
+        } finally {
+            setIsLoadingToken(false);
         }
     };
 
@@ -118,13 +174,86 @@ export default function ZoomTestPage() {
         setSessionName('');
         setToken('');
         setIsConnected(false);
+        setIsSessionJoined(false);
+        setTestResults([]); 
     };
+
+    const onZoomError = useCallback((error: Error) => {
+        console.error('Zoom Component Error:', error);
+        updateTestResult(BASIC_CONNECTION_TEST_NAMES.INIT, 'failed', `ZoomVideo Error: ${error.message}`);
+        // If Video Init fails, Creation might also be considered failed if it was still pending
+        const creationResult = testResults.find(r => r.name === BASIC_CONNECTION_TEST_NAMES.CREATION);
+        if (creationResult && creationResult.status === 'pending') {
+            updateTestResult(BASIC_CONNECTION_TEST_NAMES.CREATION, 'failed', `Session creation likely failed: ${error.message}`);
+        }
+        setIsSessionJoined(false); 
+    }, [testResults]); // Added testResults to dependencies because it's used to check current status
+
+    const onZoomSessionJoined = useCallback(() => {
+        console.log("ZoomTestPage: Received onZoomSessionJoined callback!");
+        updateTestResult(BASIC_CONNECTION_TEST_NAMES.CREATION, 'passed');
+        updateTestResult(BASIC_CONNECTION_TEST_NAMES.INIT, 'passed');
+        setIsSessionJoined(true);
+    }, []); 
+
+    const TEST_SUITE: TestSuiteDefinition[] = [
+        {
+            name: 'Basic Connection',
+            tests: [
+                { name: BASIC_CONNECTION_TEST_NAMES.TOKEN, description: 'Generate valid session token' },
+                { name: BASIC_CONNECTION_TEST_NAMES.CREATION, description: 'Create new Zoom session (via ZoomVideo)' },
+                { name: BASIC_CONNECTION_TEST_NAMES.INIT, description: 'Initialize video component (via ZoomVideo)' },
+            ]
+        },
+        {
+            name: 'Core Features',
+            tests: [
+                { name: 'Video/Audio Toggle', description: 'Toggle video and audio controls', testFn: testUtils?.testVideoAudioToggle },
+                { name: 'Screen Sharing', description: 'Share screen functionality', testFn: testUtils?.testScreenSharing },
+                { name: 'Chat System', description: 'Send and receive chat messages', testFn: testUtils?.testChatSystem },
+                { name: 'Participant List', description: 'View and manage participants', testFn: testUtils?.testParticipantList },
+            ]
+        },
+        {
+            name: 'UI/UX',
+            tests: [
+                { name: 'Layout Switching', description: 'Switch between speaker and gallery views', testFn: testUtils?.testLayoutSwitching },
+                { name: 'Responsive Design', description: 'Verify responsive layout', testFn: testUtils?.testResponsiveDesign },
+            ]
+        }
+    ];
 
     return (
         <div className="container mx-auto p-8">
             <h1 className="text-2xl font-bold mb-8">Zoom SDK Test Page</h1>
-            
-            <div className="mb-8">
+
+            <div className="mb-8"> 
+                <Card className="p-6">
+                    <h2 className="text-xl font-semibold mb-4">Manual Testing Control</h2>
+                    <div className="flex gap-4">
+                        {!isConnected ? (
+                            <Button onClick={handleConnect} disabled={isLoadingToken}>
+                                {isLoadingToken ? 'Connecting...' : 'Start Test Session'}
+                            </Button>
+                        ) : (
+                            <Button onClick={handleDisconnect} variant="destructive" disabled={activeTest !== null}>
+                                End Session
+                            </Button>
+                        )}
+                    </div>
+                    {isConnected && !isSessionJoined && !testResults.find(r => r.name === BASIC_CONNECTION_TEST_NAMES.INIT && r.status === 'failed') && (
+                        <p className="text-yellow-600 mt-2">Attempting to join Zoom session...</p>
+                    )}
+                     {isSessionJoined && (
+                        <p className="text-green-600 mt-2">Zoom session active.</p>
+                    )}
+                     {testResults.find(r => r.name === BASIC_CONNECTION_TEST_NAMES.CONNECTION && r.status === 'failed') && (
+                        <p className="text-red-600 mt-2">Connection Setup Failed: {testResults.find(r => r.name === BASIC_CONNECTION_TEST_NAMES.CONNECTION)?.error}</p>
+                    )}
+                </Card>
+            </div>
+
+            <div className="mb-8"> 
                 <Card className="p-6">
                     <h2 className="text-xl font-semibold mb-4">Test Suites</h2>
                     <div className="space-y-4">
@@ -134,26 +263,30 @@ export default function ZoomTestPage() {
                                     <h3 className="font-medium">{suite.name}</h3>
                                     <Button
                                         onClick={() => runTestSuite(suite.name)}
-                                        disabled={!isConnected || activeTest !== null}
+                                        disabled={isLoadingToken || (suite.name !== 'Basic Connection' && !isSessionJoined) || activeTest !== null}
                                         size="sm"
                                     >
-                                        Run All Tests
+                                        Run All Tests in Suite
                                     </Button>
                                 </div>
                                 <div className="space-y-2">
                                     {suite.tests.map((test) => (
-                                        <div key={test.name} className="flex items-center justify-between">
+                                        <div key={test.name} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded">
                                             <div>
                                                 <div className="font-medium">{test.name}</div>
                                                 <div className="text-sm text-gray-500">{test.description}</div>
                                             </div>
-                                            <Button
-                                                onClick={() => runTest(test.name, test.testFn)}
-                                                disabled={!isConnected || activeTest !== null}
-                                                size="sm"
-                                            >
-                                                {activeTest === test.name ? 'Running...' : 'Run Test'}
-                                            </Button>
+                                            {/* Safely check if testFn exists on the test object before rendering the button */}
+                                            {Object.prototype.hasOwnProperty.call(test, 'testFn') && test.testFn && (
+                                                <Button
+                                                    onClick={() => runTest(test.name, test.testFn)}
+                                                    disabled={isLoadingToken || !isSessionJoined || activeTest !== null}
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    {activeTest === test.name ? 'Running...' : 'Run Test'}
+                                                </Button>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -163,42 +296,19 @@ export default function ZoomTestPage() {
                 </Card>
             </div>
 
-            <div className="mb-8">
-                <Card className="p-6">
-                    <h2 className="text-xl font-semibold mb-4">Manual Testing</h2>
-                    <div className="flex gap-4">
-                        {!isConnected ? (
-                            <Button onClick={handleConnect}>
-                                Start Test Session
-                            </Button>
-                        ) : (
-                            <Button onClick={handleDisconnect} variant="destructive">
-                                End Session
-                            </Button>
-                        )}
-                    </div>
-                </Card>
-            </div>
-
-            {isConnected && (
-                <div className="mb-8">
+            {isConnected && token && (
+                <div className="mb-8"> 
                     <Card className="p-6">
-                        <h2 className="text-xl font-semibold mb-4">Active Session</h2>
-                        <div className="aspect-video">
-                            <div ref={containerRef} className="w-full h-full">
+                        <h2 className="text-xl font-semibold mb-4">Active Session Video</h2>
+                        <div className="aspect-video bg-gray-100"> 
+                            <div ref={zoomHostRef} className="w-full h-full"> 
                                 <ZoomVideo
                                     sessionName={sessionName}
                                     userName="Test User"
-                                    sessionPasscode=""
+                                    sessionPasscode="" 
                                     token={token}
-                                    onError={(error) => {
-                                        console.error('Zoom error:', error);
-                                        setTestResults(prev => [...prev, {
-                                            name: 'Error Handling',
-                                            status: 'failed',
-                                            error: error.message
-                                        }]);
-                                    }}
+                                    onError={onZoomError}
+                                    onSessionJoined={onZoomSessionJoined}
                                 />
                             </div>
                         </div>
@@ -206,24 +316,24 @@ export default function ZoomTestPage() {
                 </div>
             )}
 
-            <div>
+            <div> 
                 <Card className="p-6">
                     <h2 className="text-xl font-semibold mb-4">Test Results</h2>
+                    {testResults.length === 0 && <p>No tests run yet.</p>}
                     <div className="space-y-2">
                         {testResults.map((result, index) => (
                             <div
                                 key={index}
                                 className={`p-3 rounded ${
-                                    result.status === 'passed'
-                                        ? 'bg-green-100 text-green-800'
-                                        : result.status === 'failed'
-                                        ? 'bg-red-100 text-red-800'
-                                        : 'bg-yellow-100 text-yellow-800'
+                                    result.status === 'passed' ? 'bg-green-100 text-green-800'
+                                    : result.status === 'failed' ? 'bg-red-100 text-red-800'
+                                    : result.status === 'pending' ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-gray-100 text-gray-800' 
                                 }`}
                             >
-                                <div className="font-medium">{result.name}</div>
+                                <div className="font-medium">{result.name} ({result.status})</div>
                                 {result.error && (
-                                    <div className="text-sm mt-1">{result.error}</div>
+                                    <div className="text-sm mt-1">Error: {result.error}</div>
                                 )}
                             </div>
                         ))}
