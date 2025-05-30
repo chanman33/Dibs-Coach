@@ -21,50 +21,55 @@ export default function ZoomVideo({
   onSessionJoined
 }: ZoomVideoProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const controlsRef = useRef<HTMLDivElement>(null);
   const [isSessionInternallyActive, setIsSessionInternallyActive] = useState(false);
   const initializationInProgress = useRef(false);
   const currentTokenRef = useRef<string | null>(null);
   const currentSessionNameRef = useRef<string | null>(null);
+  const effectInstanceId = useRef(Math.random());
 
   useEffect(() => {
+    const instanceId = effectInstanceId.current;
+    console.log(`ZoomVideo Effect [${instanceId}]: Start. Token: ${token ? 'OK' : 'Missing'}, SessionName: ${sessionName || 'Missing'}, Initializing: ${initializationInProgress.current}, Active: ${isSessionInternallyActive}`);
+
     if (!containerRef.current) {
-      console.warn('ZoomVideo: containerRef is not yet available during effect setup.');
+      console.warn(`ZoomVideo Effect [${instanceId}]: containerRef not available.`);
       return;
     }
     if (!token || !sessionName) {
-      console.warn('ZoomVideo: Token or sessionName is missing.');
+      console.warn(`ZoomVideo Effect [${instanceId}]: Token or sessionName missing.`);
       if (isSessionInternallyActive) {
-        console.log('ZoomVideo: Token/sessionName removed, closing active session.');
+        console.log(`ZoomVideo Effect [${instanceId}]: Token/sessionName removed, closing active session.`);
         uitoolkit.closeSession(containerRef.current!);
         setIsSessionInternallyActive(false);
         currentTokenRef.current = null;
         currentSessionNameRef.current = null;
-        initializationInProgress.current = false;
       }
+      initializationInProgress.current = false;
       onError?.(new Error('Zoom token or sessionName is missing.'));
       return;
     }
 
-    if (initializationInProgress.current) {
-      console.log('ZoomVideo: Initialization already in progress, skipping.');
+    if (initializationInProgress.current && currentTokenRef.current === token && currentSessionNameRef.current === sessionName) {
+      console.log(`ZoomVideo Effect [${instanceId}]: Initialization already in progress for same session, skipping.`);
       return;
     }
 
     if (isSessionInternallyActive && currentTokenRef.current === token && currentSessionNameRef.current === sessionName) {
-      console.log('ZoomVideo: Session already active with current token and sessionName, ensuring onSessionJoined is called.');
-      onSessionJoined?.();
+      console.log(`ZoomVideo Effect [${instanceId}]: Session already active with current token/sessionName.`);
       return;
     }
     
     if (isSessionInternallyActive && (currentTokenRef.current !== token || currentSessionNameRef.current !== sessionName)) {
-        console.log('ZoomVideo: Token or sessionName changed for an active session. Closing old session before re-initializing.');
+        console.log(`ZoomVideo Effect [${instanceId}]: Props changed for active session. Closing old: ${currentSessionNameRef.current}.`);
         uitoolkit.closeSession(containerRef.current!);
         setIsSessionInternallyActive(false);
+        currentTokenRef.current = null;
+        currentSessionNameRef.current = null;
     }
 
-    console.log(`ZoomVideo: Starting initialization. Current internal active: ${isSessionInternallyActive}, Token: ${token ? 'present' : 'absent'}, SessionName: ${sessionName}`);
+    console.log(`ZoomVideo Effect [${instanceId}]: Proceeding with initialization for session: ${sessionName}`);
     initializationInProgress.current = true;
+    effectInstanceId.current = Math.random();
 
     const config = {
       videoSDKJWT: token,
@@ -80,33 +85,7 @@ export default function ZoomVideo({
         'settings'
       ],
       options: {
-        audio: {
-          autoAdjustVolume: true,
-          echoCancellation: true,
-          noiseReduction: true,
-          autoStartAudio: false,
-        },
-        video: {
-          defaultQuality: 360,
-          virtualBackground: {
-            allowVirtualBackground: false,
-          },
-          autoStartVideo: false,
-          videoQuality: {
-            width: 640,
-            height: 360,
-            frameRate: 30,
-          },
-          layout: {
-            mode: 'speaker',
-            showActiveVideo: true,
-            showNonActiveVideo: true,
-          },
-        },
-        share: {
-          quality: 720,
-          optimizeForSharedVideo: true,
-        },
+        video: { layout: { mode: 'speaker' }, virtualBackground: { allowVirtualBackground: false } },
       },
     };
 
@@ -114,47 +93,41 @@ export default function ZoomVideo({
 
     const initializeSession = async () => {
       if (!containerRef.current) {
-        if (isMounted) onError?.(new Error('ZoomVideo container is not available for session initialization.'));
-        initializationInProgress.current = false;
+        if (isMounted) onError?.(new Error('ZoomVideo container not available during async init.'));
+        if (isMounted) initializationInProgress.current = false;
         return;
       }
       try {
-        console.log('ZoomVideo: Attempting to join session with config:', config);
+        console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - Attempting to join:`, config.sessionName);
         await uitoolkit.joinSession(containerRef.current!, config);
-        console.log('ZoomVideo: Session joined successfully.');
+        console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - Session joined:`, config.sessionName);
         
         await uitoolkit.showUitoolkitComponents(containerRef.current!, config);
-        console.log('ZoomVideo: UI Toolkit components shown.');
-        
-        // if (controlsRef.current) { // Temporarily comment out to see if it resolves double audio prompt
-        //   await uitoolkit.showControlsComponent(controlsRef.current);
-        //   console.log('ZoomVideo: Controls component shown.');
-        // }
+        console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - UI Toolkit shown for:`, config.sessionName);
         
         if (isMounted) {
           setIsSessionInternallyActive(true);
           currentTokenRef.current = token;
           currentSessionNameRef.current = sessionName;
+          initializationInProgress.current = false;
           onSessionJoined?.();
+          console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - Successfully joined and called onSessionJoined for:`, config.sessionName);
+        } else {
+          console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - Component unmounted before onSessionJoined could be called for:`, config.sessionName);
+          initializationInProgress.current = false;
         }
       } catch (error: any) {
-        console.error('ZoomVideo: Failed to initialize Zoom session:', error);
-        if (error.type === 'ALREADY_JOINED') {
-            console.warn('ZoomVideo: Caught ALREADY_JOINED error. Assuming session is active from another instance.');
-            if (isMounted) {
-                setIsSessionInternallyActive(true);
-                currentTokenRef.current = token;
-                currentSessionNameRef.current = sessionName;
-                onSessionJoined?.();
-            }
-        } else if (isMounted) {
+        console.error(`ZoomVideo Effect [${instanceId}]: initializeSession() - Failed for: ${config.sessionName}`, error);
+        if (isMounted) {
           setIsSessionInternallyActive(false);
           currentTokenRef.current = null;
           currentSessionNameRef.current = null;
+          initializationInProgress.current = false;
           onError?.(error instanceof Error ? error : new Error('Failed to initialize Zoom session'));
+        } else {
+          console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - Component unmounted during error handling for:`, config.sessionName);
+          initializationInProgress.current = false;
         }
-      } finally {
-        initializationInProgress.current = false;
       }
     };
 
@@ -162,7 +135,13 @@ export default function ZoomVideo({
 
     return () => {
       isMounted = false;
-      console.log(`ZoomVideo: Cleanup function called. isSessionInternallyActive: ${isSessionInternallyActive}, currentToken: ${currentTokenRef.current}, currentSessionName: ${currentSessionNameRef.current}`);
+      console.log(`ZoomVideo Effect [${instanceId}]: Cleanup. Initializing: ${initializationInProgress.current}, Active: ${isSessionInternallyActive}, Token: ${currentTokenRef.current}, Session: ${currentSessionNameRef.current}`);
+      if (initializationInProgress.current && effectInstanceId.current !== instanceId) {
+        console.log(`ZoomVideo Effect [${instanceId}]: Cleanup - Newer effect instance running, this cleanup is for an older attempt.`);
+      } else if (initializationInProgress.current) {
+        console.log(`ZoomVideo Effect [${instanceId}]: Cleanup - Initialization was in progress, resetting flag.`);
+        initializationInProgress.current = false;
+      }
     };
   }, [sessionName, token, userName, sessionPasscode, onError, onSessionJoined]);
 
@@ -172,10 +151,6 @@ export default function ZoomVideo({
         ref={containerRef} 
         id="zoom-sdk-container"
         className="w-full h-[calc(100%-64px)]"
-      />
-      <div
-        ref={controlsRef}
-        className="absolute bottom-0 left-0 right-0 h-16 bg-black/50"
       />
     </div>
   );
