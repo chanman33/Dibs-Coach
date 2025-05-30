@@ -50,12 +50,15 @@ export default function ZoomTestPage() {
     const [sessionName, setSessionName] = useState<string>('');
     const [token, setToken] = useState<string>('');
     const [isLoadingToken, setIsLoadingToken] = useState(false);
-    const [isConnected, setIsConnected] = useState(false); // Indicates token is fetched and ready to attempt connection
-    const [isSessionJoined, setIsSessionJoined] = useState(false); // Indicates ZoomVideo successfully joined
+    const [isConnected, setIsConnected] = useState(false);
+    const [isSessionJoined, setIsSessionJoined] = useState(false);
     const [activeTest, setActiveTest] = useState<string | null>(null);
     const [testUtils, setTestUtils] = useState<TestUtilsModules | null>(null);
+    const [sessionState, setSessionState] = useState<'waiting' | 'active' | 'ended'>('waiting');
+    const [participants, setParticipants] = useState<any[]>([]);
+    const [userRole, setUserRole] = useState<'host' | 'participant'>('participant');
     
-    const zoomHostRef = useRef<HTMLDivElement>(null); 
+    const zoomHostRef = useRef<HTMLDivElement>(null);
 
     // Load test utilities on client side
     useEffect(() => {
@@ -181,20 +184,31 @@ export default function ZoomTestPage() {
     const onZoomError = useCallback((error: Error) => {
         console.error('Zoom Component Error:', error);
         updateTestResult(BASIC_CONNECTION_TEST_NAMES.INIT, 'failed', `ZoomVideo Error: ${error.message}`);
-        // If Video Init fails, Creation might also be considered failed if it was still pending
         const creationResult = testResults.find(r => r.name === BASIC_CONNECTION_TEST_NAMES.CREATION);
         if (creationResult && creationResult.status === 'pending') {
             updateTestResult(BASIC_CONNECTION_TEST_NAMES.CREATION, 'failed', `Session creation likely failed: ${error.message}`);
         }
-        setIsSessionJoined(false); 
-    }, [testResults]); // Added testResults to dependencies because it's used to check current status
+        setIsSessionJoined(false);
+        setSessionState('ended');
+    }, [testResults]);
 
     const onZoomSessionJoined = useCallback(() => {
         console.log("ZoomTestPage: Received onZoomSessionJoined callback!");
         updateTestResult(BASIC_CONNECTION_TEST_NAMES.CREATION, 'passed');
         updateTestResult(BASIC_CONNECTION_TEST_NAMES.INIT, 'passed');
         setIsSessionJoined(true);
-    }, []); 
+        setSessionState('active');
+    }, []);
+
+    const onWaitingRoom = useCallback(() => {
+        console.log("ZoomTestPage: Entered waiting room");
+        setSessionState('waiting');
+    }, []);
+
+    const onParticipantJoined = useCallback((participant: any) => {
+        console.log("ZoomTestPage: Participant joined:", participant);
+        setParticipants(prev => [...prev, participant]);
+    }, []);
 
     const TEST_SUITE: TestSuiteDefinition[] = [
         {
@@ -230,7 +244,19 @@ export default function ZoomTestPage() {
             <div className="mb-8"> 
                 <Card className="p-6">
                     <h2 className="text-xl font-semibold mb-4">Manual Testing Control</h2>
-                    <div className="flex gap-4">
+                    <div className="flex gap-4 items-center">
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-medium">Role:</label>
+                            <select 
+                                value={userRole}
+                                onChange={(e) => setUserRole(e.target.value as 'host' | 'participant')}
+                                className="border rounded px-2 py-1"
+                                disabled={isConnected}
+                            >
+                                <option value="host">Host</option>
+                                <option value="participant">Participant</option>
+                            </select>
+                        </div>
                         {!isConnected ? (
                             <Button onClick={handleConnect} disabled={isLoadingToken}>
                                 {isLoadingToken ? 'Connecting...' : 'Start Test Session'}
@@ -241,14 +267,14 @@ export default function ZoomTestPage() {
                             </Button>
                         )}
                     </div>
-                    {isConnected && !isSessionJoined && !testResults.find(r => r.name === BASIC_CONNECTION_TEST_NAMES.INIT && r.status === 'failed') && (
-                        <p className="text-yellow-600 mt-2">Attempting to join Zoom session...</p>
+                    {sessionState === 'waiting' && (
+                        <p className="text-yellow-600 mt-2">Waiting for host to join...</p>
                     )}
-                     {isSessionJoined && (
-                        <p className="text-green-600 mt-2">Zoom session active.</p>
+                    {sessionState === 'active' && (
+                        <p className="text-green-600 mt-2">Session active with {participants.length} participants</p>
                     )}
-                     {testResults.find(r => r.name === BASIC_CONNECTION_TEST_NAMES.CONNECTION && r.status === 'failed') && (
-                        <p className="text-red-600 mt-2">Connection Setup Failed: {testResults.find(r => r.name === BASIC_CONNECTION_TEST_NAMES.CONNECTION)?.error}</p>
+                    {sessionState === 'ended' && (
+                        <p className="text-red-600 mt-2">Session ended</p>
                     )}
                 </Card>
             </div>
@@ -309,6 +335,9 @@ export default function ZoomTestPage() {
                                     token={token}
                                     onError={onZoomError}
                                     onSessionJoined={onZoomSessionJoined}
+                                    onWaitingRoom={onWaitingRoom}
+                                    onParticipantJoined={onParticipantJoined}
+                                    role={userRole}
                                 />
                             </div>
                         </div>

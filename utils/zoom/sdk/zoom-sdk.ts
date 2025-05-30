@@ -10,7 +10,10 @@ const forceCleanup = async () => {
   try {
     // Create a temporary client to force cleanup
     const tempClient = ZoomVideo.createClient();
-    tempClient.init('en-US', 'CDN');
+    tempClient.init('en-US', 'CDN', {
+      patchJsMedia: true,
+      webEndpoint: 'https://zoom.us'
+    });
     
     // Try to leave any existing sessions
     try {
@@ -24,7 +27,7 @@ const forceCleanup = async () => {
     activeStream = null;
     
     // Add a delay to ensure cleanup
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
     return true;
   } catch (error) {
@@ -43,7 +46,11 @@ const createZoomClient = () => {
   const client = ZoomVideo.createClient();
   
   // Initialize with English language and CDN
-  client.init('en-US', 'CDN');
+  client.init('en-US', 'CDN', {
+    patchJsMedia: true,
+    webEndpoint: 'https://zoom.us',
+    enforceMultipleVideos: true
+  });
   
   return client;
 };
@@ -100,9 +107,29 @@ const isAudioAvailable = async (stream: any) => {
 // Initialize audio for a stream
 const initializeAudio = async (stream: any) => {
   try {
-    await stream.startAudio();
+    // Check if audio is already initialized
+    const isAudioMuted = await stream.isAudioMuted();
+    if (!isAudioMuted) {
+      console.log('Audio already initialized');
+      return true;
+    }
+
+    // Request audio permissions first
+    await stream.startAudio({
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    });
+
     // Wait for audio to initialize
     await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Verify audio is working
+    const isMuted = await stream.isAudioMuted();
+    if (isMuted) {
+      throw new Error('Audio initialization failed - still muted after start');
+    }
+
     return true;
   } catch (error) {
     console.error('Failed to initialize audio:', error);
@@ -139,14 +166,29 @@ const joinZoomSession = async ({
     }
 
     const client = createZoomClient();
+    
+    // Join with basic options
     await client.join(sessionName, token, userName, sessionPasscode);
+    
     const stream = client.getMediaStream();
     
     activeClient = client;
     activeStream = stream;
     
-    // Initialize audio by default
-    await initializeAudio(stream);
+    // Initialize audio by default with retry
+    let audioInitialized = false;
+    let retryCount = 0;
+    while (!audioInitialized && retryCount < 3) {
+      audioInitialized = await initializeAudio(stream);
+      if (!audioInitialized) {
+        retryCount++;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    if (!audioInitialized) {
+      console.warn('Audio initialization failed after retries');
+    }
     
     return { client, stream };
   } catch (error) {
