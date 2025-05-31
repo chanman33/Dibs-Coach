@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
+import Script from 'next/script';
 import { getZoomToken } from '@/utils/zoom/auth/zoom-token';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -302,6 +303,8 @@ export default function ZoomTestPage() {
     return (
         <div className="container mx-auto p-8">
             <h1 className="text-2xl font-bold mb-8">Zoom SDK Test Page</h1>
+
+            <Script src="/coi-serviceworker.js" strategy="beforeInteractive" />
 
             <div className="mb-8"> 
                 <Card className="p-6">
