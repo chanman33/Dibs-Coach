@@ -80,40 +80,66 @@ const leaveSession = async (client: any) => {
   if (!client) return;
   
   try {
-    // Only try to leave if this is the active client
-    if (client === activeClient) {
-      const stream = client.getMediaStream();
-      if (stream) {
-        try {
-          if (await stream.isCapturingVideo()) {
-            await stream.stopVideo();
-          }
-        } catch (e) {
-          console.warn('Failed to stop video:', e);
+    // Only try to leave if this is the active client or if we are certain this client instance needs cleanup
+    // The logic in ZoomVideo.tsx for stale effects will pass the specific client to clean up.
+    console.log(`leaveSession called for client: ${client.userId || 'client (no userId yet)'}`);
+
+    const stream = client.getMediaStream();
+    if (stream) {
+      console.log('leaveSession: Stream exists, attempting to stop video and mute audio.');
+      try {
+        if (await stream.isCapturingVideo()) {
+          console.log('leaveSession: Stopping video...');
+          await stream.stopVideo();
+          console.log('leaveSession: Video stopped.');
         }
-        
-        try {
-          // Always try to mute audio before leaving
-          await stream.muteAudio();
-        } catch (e) {
-          console.warn('Failed to mute audio:', e);
-        }
+      } catch (e) {
+        console.warn('leaveSession: Failed to stop video:', e);
       }
       
-      // Remove all event listeners before leaving
-      client.removeAllListeners();
-      
-      // Add a small delay before leaving to allow cleanup
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Leave the session
-      await client.leave(true); // Force leave
-      activeClient = null;
-      activeStream = null;
+      try {
+        // Check if audio is active before trying to mute
+        const audioState = await stream.getAudioState?.(); // getAudioState is more reliable
+        if (audioState?.isStarted && !audioState?.isMuted) { // Check if audio started and not muted
+          console.log('leaveSession: Muting audio...');
+          await stream.muteAudio();
+          console.log('leaveSession: Audio muted.');
+        } else if (audioState?.isStarted && audioState?.isMuted) {
+          console.log('leaveSession: Audio already muted.');
+        } else {
+          console.log('leaveSession: Audio not started or unavailable, skipping mute.');
+        }
+      } catch (e) {
+        // Log the error but don't let it stop the leave process
+        console.warn('leaveSession: Failed to mute audio (continuing leave process):', e);
+      }
+    } else {
+      console.log('leaveSession: No media stream found for this client.');
     }
+    
+    // The SDK's client.leave() should handle its own internal listener cleanup.
+    // Explicitly removing listeners we added would be done with client.off().
+    // console.log('leaveSession: Removing all listeners (client.off() for specific events would be used here if needed)');
+    // client.removeAllListeners(); // THIS IS THE INCORRECT LINE TO BE REMOVED
+    
+    console.log('leaveSession: Adding small delay before client.leave().');
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    console.log('leaveSession: Calling client.leave(true).');
+    await client.leave(true); // Force leave
+    console.log('leaveSession: client.leave(true) completed.');
+
+    // Only nullify global activeClient if the client being left IS the global activeClient
+    if (client === activeClient) {
+        activeClient = null;
+        activeStream = null;
+        console.log('leaveSession: Global activeClient and activeStream nullified.');
+    }
+    
   } catch (error) {
-    console.error('Failed to leave session:', error);
-    throw error;
+    console.error('leaveSession: Failed to leave session comprehensively:', error);
+    // Do not re-throw the error to allow subsequent cleanup or operations to proceed if possible,
+    // as the primary goal is to ensure the session is left.
   }
 };
 
@@ -203,7 +229,7 @@ const initializeVideo = async (stream: any) => {
         }
       } catch (error: any) {
         lastError = error;
-        console.warn(`Video initialization attempt ${retryCount + 1} failed:`, error);
+        console.warn(`Video initialization attempt ${retryCount + 1} of ${maxRetries} failed:`, error);
         
         // If error indicates video is already started, consider it a success
         if (error.reason?.includes('Video is started')) {
@@ -211,12 +237,15 @@ const initializeVideo = async (stream: any) => {
           return true;
         }
         
-        // If error is about camera starting, wait longer
+        let specificDelay = 1000; // Default delay for unknown errors in retry loop
         if (error.reason?.includes('Camera is starting')) {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          specificDelay = 3000; // Increased delay for camera readiness
+          console.log(`Camera is starting, waiting ${specificDelay}ms before next attempt.`);
+        } else if (error.type === 'IMPROPER_MEETING_STATE' && error.reason === 'closed') {
+          specificDelay = 1500; // Delay hoping the closed state is transient after a quick leave/rejoin scenario
+          console.log(`Meeting state reported as closed, waiting ${specificDelay}ms before next attempt.`);
         }
+        await new Promise(resolve => setTimeout(resolve, specificDelay));
       }
       retryCount++;
     }
@@ -256,15 +285,14 @@ const joinZoomSession = async ({
   }
 
   try {
-    // Clean up any existing session first
-    if (activeClient) {
-      await leaveSession(activeClient);
-      // Add a longer delay before creating new session
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
+    // REMOVED: Initial cleanup block for activeClient.
+    // The calling component (ZoomVideo.tsx) is now responsible for managing stale session cleanup.
+    // This prevents a new joinZoomSession call from prematurely closing a client 
+    // that a previous, slower joinZoomSession call might still be initializing (e.g., waiting for camera).
 
     // 1. Create and initialize client first
     const client = createZoomClient();
+    console.log(`joinZoomSession: New client created.`);
     
     // Add connection quality monitoring
     client.on('connection-quality-change', (payload: any) => {

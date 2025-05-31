@@ -123,16 +123,13 @@ export default function ZoomVideo({
       return;
     }
 
-    if (initializationInProgress.current && currentTokenRef.current === token && currentSessionNameRef.current === sessionName) {
-      console.log(`ZoomVideo Effect [${instanceId}]: Initialization already in progress for same session, skipping.`);
-      return;
-    }
-
+    // Only skip if we're already active with the same token/session
     if (isSessionInternallyActive && currentTokenRef.current === token && currentSessionNameRef.current === sessionName) {
       console.log(`ZoomVideo Effect [${instanceId}]: Session already active with current token/sessionName.`);
       return;
     }
     
+    // Only cleanup if we're active with different token/session
     if (isSessionInternallyActive && (currentTokenRef.current !== token || currentSessionNameRef.current !== sessionName)) {
       console.log(`ZoomVideo Effect [${instanceId}]: Props changed for active session. Closing old: ${currentSessionNameRef.current}.`);
       uitoolkit.closeSession(containerRef.current!);
@@ -171,7 +168,7 @@ export default function ZoomVideo({
           }
         },
         audio: {
-          autoStartAudio: false,
+          autoStartAudio: true,
           echoCancellation: true,
           noiseReduction: true,
           autoAdjustVolume: true
@@ -190,43 +187,70 @@ export default function ZoomVideo({
 
       try {
         // Join session using our SDK
-        await zoomSdk.joinZoomSession({
+        const { client, stream } = await zoomSdk.joinZoomSession({
           sessionName,
           userName,
           sessionPasscode,
           token
         });
 
-        console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - Session joined:`, config.sessionName);
+        console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - zoomSdk.joinZoomSession completed for this instance.`);
+
+        // CRITICAL CHECK: Is this effect instance (identified by instanceId from useEffect closure) still the latest one?
+        if (!isMounted) {
+            console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - Component unmounted after join. Leaving session.`);
+            if (client) await zoomSdk.leaveSession(client); // Clean up session started by this unmounted effect.
+            // Ensure initializationInProgress is reset if this instance was responsible for it.
+            // This depends on whether a newer instance might have already started.
+            // For now, let the cleanup logic of the component handle this if it unmounts fully.
+            return; // Do not proceed further.
+        }
+
+        if (effectInstanceId.current !== instanceId) {
+            console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - Stale effect detected AFTER zoomSdk.joinZoomSession. Current latest is ${effectInstanceId.current}. Leaving session started by this stale call.`);
+            if (client) {
+                await zoomSdk.leaveSession(client); // Pass the specific client instance to leave
+            }
+            // Do not proceed to set state or show UI for this stale instance.
+            // The newer instance will handle setting initializationInProgress correctly.
+            return;
+        }
         
+        console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - Session joined by current instance:`, config.sessionName);
+        
+        // At this point, this is the current, mounted effect.
+        // The UI toolkit might log "Cannot show wrapper since it is already shown" if a previous (stale) call managed to show it,
+        // but the critical part is that the SDK client and session state are now managed by the correct instance.
         await uitoolkit.showUitoolkitComponents(containerRef.current!, config);
         console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - UI Toolkit shown for:`, config.sessionName);
         
-        if (isMounted) {
-          setIsSessionInternallyActive(true);
-          currentTokenRef.current = token;
-          currentSessionNameRef.current = sessionName;
-          initializationInProgress.current = false;
+        setIsSessionInternallyActive(true);
+        currentTokenRef.current = token;
+        currentSessionNameRef.current = sessionName;
+        initializationInProgress.current = false; // This instance successfully initialized
           
-          // Set initial session state based on role
-          if (role === 'host') {
-            setSessionState('active');
-            onSessionJoined?.();
-          } else {
-            setSessionState('waiting');
-            onWaitingRoom?.();
-          }
+        if (role === 'host') {
+          setSessionState('active');
+          onSessionJoined?.();
+        } else {
+          setSessionState('waiting');
+          onWaitingRoom?.();
         }
       } catch (error: any) {
         console.error(`ZoomVideo Effect [${instanceId}]: initializeSession() - Failed for: ${config.sessionName}`, error);
         if (isMounted) {
-          setIsSessionInternallyActive(false);
-          currentTokenRef.current = null;
-          currentSessionNameRef.current = null;
-          initializationInProgress.current = false;
-          setSessionState('ended');
-          setInitializationError(error.message || 'Failed to initialize Zoom session');
-          onError?.(error instanceof Error ? error : new Error('Failed to initialize Zoom session'));
+          // Only update state if this error is from the currently active effect instance
+          if (effectInstanceId.current === instanceId) {
+            setIsSessionInternallyActive(false);
+            currentTokenRef.current = null;
+            currentSessionNameRef.current = null;
+            initializationInProgress.current = false; // This instance failed
+            setSessionState('ended');
+            setInitializationError(error.message || 'Failed to initialize Zoom session');
+            onError?.(error instanceof Error ? error : new Error('Failed to initialize Zoom session'));
+          } else {
+            console.log(`ZoomVideo Effect [${instanceId}]: initializeSession() - Error from stale effect. Current latest: ${effectInstanceId.current}. Ignoring error for state update.`);
+          }
         }
       }
     };
@@ -237,15 +261,15 @@ export default function ZoomVideo({
       isMounted = false;
       console.log(`ZoomVideo Effect [${instanceId}]: Cleanup. Initializing: ${initializationInProgress.current}, Active: ${isSessionInternallyActive}, Token: ${currentTokenRef.current}, Session: ${currentSessionNameRef.current}`);
       
-      if (initializationInProgress.current && effectInstanceId.current !== instanceId) {
-        console.log(`ZoomVideo Effect [${instanceId}]: Cleanup - Newer effect instance running, this cleanup is for an older attempt.`);
-      } else if (initializationInProgress.current) {
-        console.log(`ZoomVideo Effect [${instanceId}]: Cleanup - Initialization was in progress, resetting flag.`);
-        initializationInProgress.current = false;
+      // Only cleanup if this is the most recent effect instance
+      if (effectInstanceId.current !== instanceId) {
+        console.log(`ZoomVideo Effect [${instanceId}]: Cleanup - Newer effect instance running, skipping cleanup.`);
+        return;
       }
 
-      // Clean up session only if it's active
-      if (containerRef.current && isSessionInternallyActive) {
+      // Only cleanup if we're actually active
+      if (isSessionInternallyActive && containerRef.current) {
+        console.log(`ZoomVideo Effect [${instanceId}]: Cleanup - Closing active session.`);
         try {
           uitoolkit.closeSession(containerRef.current);
           setIsSessionInternallyActive(false);
@@ -254,6 +278,8 @@ export default function ZoomVideo({
         } catch (error) {
           console.warn('Error during session cleanup:', error);
         }
+      } else {
+        console.log(`ZoomVideo Effect [${instanceId}]: Cleanup - No active session to clean up.`);
       }
     };
   }, [sessionName, token, userName, sessionPasscode, onError, onSessionJoined, onWaitingRoom, role]);
