@@ -1,3 +1,6 @@
+# Dibs Coach
+ARCHIVED: Real Estate Coaching Marketplace — Full codebase for a beta platform connecting real estate agents with professional coaches. Middleware and database connections are disabled; static marketing pages remain functional. Preserved here for reference.
+
 # Getting Started
 
 ## Project Description: Real Estate Agent Coaching Marketplace
